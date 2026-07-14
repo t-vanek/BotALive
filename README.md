@@ -35,6 +35,13 @@ inventář a historii; po restartu serveru pokračuje tam, kde skončil.
 - **Boj s obtížnostmi** – strafing, sprint reset, útoky s jitterem, ústup podle
   odvahy; profily easy/normal/hard/nightmare. Na dálku luk i kuše (predikce
   pohybu cíle, balistická kompenzace), v melee blokování štítem.
+- **PvP a aliance** – boti bojují mezi sebou i s hráči (volitelné, výchozí
+  vypnuto): napadený se brání nebo utíká podle odvahy, svolá spojence
+  („pomoc!“ v chatu) a přátelé z paměti mu přijdou na pomoc – společný boj
+  přátelství dál prohlubuje. Agresivní rváči si potyčky vyvolávají sami,
+  pomsty žijí přes persistentní ENEMY paměť. Férovostní strop omezuje počet
+  botů útočících na jeden cíl; útok na skutečné hráče má samostatnou pojistku
+  (`pvp.attack-players`), obrana po napadení funguje vždy.
 - **Survival progrese** – boti těží dřevo a rudy, craftí (prkna → tyčky → ponk
   → dřevěné → kamenné nástroje), farmaří (sklizeň + přesazení), v noci spí
   v posteli nebo si staví úkryt a přebytky si ukládají do truhel, které si

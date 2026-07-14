@@ -34,14 +34,18 @@ public final class ServerEventListener implements Listener {
 
     private final WorldViewRegistry worldViews;
     private final BotManagerImpl botManager;
+    private final dev.botalive.core.pvp.PvpCoordinator pvp;
 
     /**
      * @param worldViews registr pohledů na světy
      * @param botManager manager botů
+     * @param pvp        PvP koordinátor (hrozby, volání o pomoc)
      */
-    public ServerEventListener(WorldViewRegistry worldViews, BotManagerImpl botManager) {
+    public ServerEventListener(WorldViewRegistry worldViews, BotManagerImpl botManager,
+                               dev.botalive.core.pvp.PvpCoordinator pvp) {
         this.worldViews = worldViews;
         this.botManager = botManager;
+        this.pvp = pvp;
     }
 
     // ------------------------------------------------------ invalidace bloků
@@ -102,6 +106,11 @@ public final class ServerEventListener implements Listener {
                     where.getBlockX(), where.getBlockY(), where.getBlockZ(),
                     damager.getUniqueId(),
                     Map.of("type", damager.getType().name()), severity);
+
+            // PvP: útoky hráčů/botů evidovat jako hrozbu + svolat spojence.
+            if (damager instanceof Player) {
+                pvp.onBotAttacked(bot, damager.getUniqueId(), damager.getEntityId());
+            }
         });
     }
 }

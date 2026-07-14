@@ -93,11 +93,15 @@ public final class CompositionRoot {
                 new FurnaceService(bridge));
         EnchantService enchanting = container.register(EnchantService.class,
                 new EnchantService(bridge));
+        dev.botalive.core.pvp.PvpCoordinator pvp = container.register(
+                dev.botalive.core.pvp.PvpCoordinator.class,
+                new dev.botalive.core.pvp.PvpCoordinator(config.pvp()));
 
         // AI cíle.
         GoalRegistryImpl goalRegistry = container.register(GoalRegistryImpl.class,
                 new GoalRegistryImpl());
-        registerBuiltInGoals(goalRegistry, crafting, containers, trades, furnaces, enchanting);
+        registerBuiltInGoals(goalRegistry, crafting, containers, trades, furnaces,
+                enchanting, pvp);
 
         // Block-state mapper pro klientský world model (jen režim packet):
         // přesná tabulka z registrů hostitelského serveru, jinak degradovaný fallback.
@@ -112,6 +116,7 @@ public final class CompositionRoot {
                 config, worldViews, bridge, tickEngine, navigation, repository, stateMapper);
         BotManagerImpl botManager = container.register(BotManagerImpl.class,
                 new BotManagerImpl(config, repository, goalRegistry, services));
+        pvp.attach(botManager);
 
         // Veřejné API.
         BotAliveApi api = container.register(BotAliveApi.class, new BotAliveApiImpl(
@@ -120,7 +125,7 @@ public final class CompositionRoot {
 
         // Bukkit integrace.
         container.register(ServerEventListener.class,
-                new ServerEventListener(worldViews, botManager));
+                new ServerEventListener(worldViews, botManager, pvp));
         container.register(BotAliveCommand.class,
                 new BotAliveCommand(botManager, goalRegistry, repository, config));
     }
@@ -131,7 +136,8 @@ public final class CompositionRoot {
                                              ContainerService containers,
                                              TradeService trades,
                                              FurnaceService furnaces,
-                                             EnchantService enchanting) {
+                                             EnchantService enchanting,
+                                             dev.botalive.core.pvp.PvpCoordinator pvp) {
         registry.register("idle", bot -> new IdleGoal());
         registry.register("wander", bot -> new WanderGoal());
         registry.register("explore", bot -> new ExploreGoal());
@@ -155,6 +161,7 @@ public final class CompositionRoot {
         registry.register("fish", bot -> new FishGoal());
         registry.register("smelt", bot -> new SmeltGoal(furnaces));
         registry.register("enchant", bot -> new EnchantGoal(enchanting));
+        registry.register("pvp", bot -> new dev.botalive.core.ai.goals.PvpGoal(pvp));
     }
 
     /**

@@ -67,6 +67,24 @@ public final class PhraseBank {
             "{name} ahoj, kde je nejbližší vesnice?", "čus {name}, jdeš těžit?"
     );
 
+    /** Volání o pomoc při napadení. */
+    public static final List<String> PVP_HELP_CALLS = List.of(
+            "pomoc!", "jdou po mně!", "pomozte mi někdo", "au au au",
+            "bijou mě!", "sem, rychle!"
+    );
+
+    /** Reakce spojence, který jde na pomoc. */
+    public static final List<String> PVP_ASSIST = List.of(
+            "držím tě", "jdu tam", "nech ho být!", "vydrž, jdu",
+            "toho si podám", "za mnou!"
+    );
+
+    /** Hlášky po vyhraném souboji. */
+    public static final List<String> PVP_TAUNTS = List.of(
+            "máš dost?", "ez", "to bylo za minule", "kdo dál?",
+            "a zůstaň ležet", "příště si rozmysli"
+    );
+
     /** Smajlíky. */
     public static final List<String> EMOJIS = List.of(
             ":D", ":)", "xd", ":P", "😀", "😂", ":O", "o.O"
