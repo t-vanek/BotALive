@@ -20,6 +20,7 @@ import java.util.UUID;
  * @param health       zdraví (0–20)
  * @param food         najedenost (0–20)
  * @param currentGoal  id právě vykonávaného AI cíle, nebo {@code null}
+ * @param role         profese bota
  * @param online       zda je bot právě připojen k serveru
  */
 public record BotSnapshot(
@@ -35,6 +36,7 @@ public record BotSnapshot(
         double health,
         int food,
         String currentGoal,
+        dev.botalive.api.role.BotRole role,
         boolean online
 ) {
 }

@@ -212,6 +212,14 @@ Hotovo ve fázi 6: klientský world model (`PacketWorldView`) pro boty na
 cizích serverech – parsování chunk paketů, registry dimenzí, block-state
 mapper z registrů hostitelského serveru s fallbackem.
 
+Hotovo ve fázi 7: profese botů (`BotRole` + `RoleProfiles`) – role násobí
+utility souvisejících cílů v mozku (zaměření, ne klec), vybírá se podle
+osobnosti (`RolePicker`) a persistuje (migrace v2). Nové vanilla řemeslné
+cíle: lov zvěře (`hunt`), rybaření se skutečnou detekcí záběru ze škubnutí
+splávku (`fish`), tavení v peci s návratem pro hotovou vsázku (`smelt`)
+a enchantování za XP a lapis (`enchant`); kovárna a enchant běží server-side
+podle precedentu §9, otevření bloku vždy reálným interact paketem.
+
 Architektonicky připravené, zatím neimplementované:
 
 1. **Konfigurovatelné fráze** – `PhraseBank` z YAML per jazyk.

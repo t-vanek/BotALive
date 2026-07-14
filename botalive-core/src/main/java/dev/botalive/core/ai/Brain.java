@@ -150,6 +150,8 @@ public final class Brain {
             if (utility <= 0) {
                 continue;
             }
+            // Profese vychyluje priority (kovář taví ochotněji, lovec loví...).
+            utility *= dev.botalive.core.role.RoleProfiles.weight(bot.role(), goal.id());
             // Hystereze aktivního cíle + drobný rozhodovací šum.
             if (goal == current) {
                 utility *= hysteresis;

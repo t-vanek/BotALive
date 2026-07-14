@@ -114,6 +114,9 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents {
     private volatile BotPhysics physics;
     private volatile CompletableFuture<Bot> spawnFuture;
 
+    /** Profese bota – násobí utility souvisejících cílů (viz RoleProfiles). */
+    private volatile dev.botalive.api.role.BotRole role = dev.botalive.api.role.BotRole.NONE;
+
     /** Pohyb vyžádaný cílem pro aktuální tick (přebíjí navigátor). */
     private MoveInput requestedMove;
 
@@ -625,12 +628,23 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents {
                 worldView != null ? worldView.worldName() : null,
                 pos.x(), pos.y(), pos.z(), humanizer.yaw(), humanizer.pitch(),
                 clientState.health(), clientState.food(),
-                brain.currentGoalId(), connection.connected());
+                brain.currentGoalId(), role, connection.connected());
     }
 
     @Override
     public Personality personality() {
         return personality;
+    }
+
+    @Override
+    public dev.botalive.api.role.BotRole role() {
+        return role;
+    }
+
+    @Override
+    public void role(dev.botalive.api.role.BotRole newRole) {
+        this.role = newRole == null ? dev.botalive.api.role.BotRole.NONE : newRole;
+        repository.saveRole(id, this.role.name());
     }
 
     @Override

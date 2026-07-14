@@ -128,6 +128,10 @@ public final class SchemaMigrator {
                             playtime_seconds BIGINT NOT NULL DEFAULT 0
                         )
                         """
+                ),
+                // v2 – profese botů
+                List.of(
+                        "ALTER TABLE ba_bots ADD COLUMN role TEXT"
                 )
         );
     }

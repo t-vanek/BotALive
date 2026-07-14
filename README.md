@@ -18,6 +18,11 @@ inventář a historii; po restartu serveru pokračuje tam, kde skončil.
   společenskost, lenost, inteligence, ochota pomoci, chamtivost, trpělivost)
   generovaných gaussovsky ze seedu. Rysy ovlivňují váhy cílů, boj, chat i
   drobné návyky. Žádní dva boti nejsou stejní.
+- **Profese** – stavitel, kopáč, dřevorubec, lovec, kovář, enchanter,
+  obchodník, rybář, farmář (vše na vanilla mechanikách: pec, enchantovací
+  stůl, prut a splávek, lov zvěře…). Role je zaměření, ne klec: násobí
+  priority souvisejících činností, přiděluje se nové podle osobnosti
+  (agresivní odvážlivec ~ lovec, trpělivý lenoch ~ rybář) a persistuje se.
 - **Persistentní paměť** – navštívená místa, nepřátelé, přátelé, truhly, doly,
   nebezpečí, smrti, domov… v SQLite (výchozí) nebo PostgreSQL, s write-behind
   ukládáním a slučováním blízkých vzpomínek.
@@ -96,6 +101,7 @@ PostgreSQL driver – vše relokované do `dev.botalive.libs`).
 | `memory <jméno> [kategorie]` | obsah dlouhodobé paměti |
 | `goal <jméno> [set <cíl>\|clear]` | utility přehled / vynucení cíle |
 | `stats <jméno>` | vytěženo, postaveno, smrti, zabití, nachozeno, peníze… |
+| `role <jméno> [role\|random]` | zobrazí/nastaví profesi bota |
 
 Oprávnění:
 

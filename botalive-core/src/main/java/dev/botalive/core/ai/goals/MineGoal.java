@@ -90,7 +90,8 @@ public final class MineGoal extends AbstractGoal {
 
         // Fáze 1: najít cíl.
         if (targetBlock == null) {
-            targetBlock = scanForTarget(ctx);
+            targetBlock = scanForTarget(ctx,
+                    dev.botalive.core.role.RoleProfiles.prefersLogs(bot.role()));
             if (targetBlock == null) {
                 noTargetTicks += 1;
                 if (noTargetTicks > 3) {
@@ -149,8 +150,8 @@ public final class MineGoal extends AbstractGoal {
         }
     }
 
-    /** Sken okolí: nejbližší odkrytá ruda, jinak strom. */
-    private BlockPos scanForTarget(BotContext ctx) {
+    /** Sken okolí: nejbližší odkrytá ruda, jinak strom (dřevorubec obráceně). */
+    private BlockPos scanForTarget(BotContext ctx, boolean preferLogs) {
         WorldView world = ctx.worldView();
         if (world == null) {
             return null;
@@ -188,6 +189,9 @@ public final class MineGoal extends AbstractGoal {
                     }
                 }
             }
+        }
+        if (preferLogs) {
+            return bestLog != null ? bestLog : bestOre;
         }
         return bestOre != null ? bestOre : bestLog;
     }

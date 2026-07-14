@@ -41,5 +41,11 @@ public enum MemoryKind {
     LOST_ITEMS,
 
     /** Domov – místo, kam se bot vrací (úkryt, postel). */
-    HOME
+    HOME,
+
+    /** Pec / tavicí pec – kovář sem nosí rudy a jídlo. */
+    FURNACE,
+
+    /** Enchantovací stůl. */
+    ENCHANTING_TABLE
 }
