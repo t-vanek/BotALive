@@ -152,19 +152,30 @@ Velocity proxy s offline backendem).
 | Write-behind DB + delta statistiky | disk nikdy neblokuje hru |
 | Line-of-sight jen nad snapshoty | žádné dotazy do živého světa z AI |
 
+### 9. Server-side simulace tam, kde je protokol křehký
+
+Crafting a přesuny v truhlách jdou v protokolu 26.1 přes „hashed item stacky"
+– paketová implementace by byla extrémně křehká vůči změnám protokolu.
+`CraftingService` proto používá `Server#craftItemResult` (respektuje skutečné
+receptury serveru včetně custom receptů a craft eventů) a `ContainerService`
+přesouvá itemy autoritativně na vlákně regionu truhly. Pozorovatelné chování
+zůstává lidské: bot dojde k truhle, klikne (animace víka), „probírá se
+obsahem" a zase ji zavře (`ContainerClose` paket). Naopak vše, co protokol
+umí robustně – kopání, pokládání, jídlo, luk, kuše, štít, postel – jde vždy
+pakety.
+
 ## Roadmapa rozšíření
+
+Hotovo ve fázi 2: crafting progrese, střelba lukem/kuší s predikcí a
+balistikou, štít, farmaření (Ageable přes chunk snapshoty), spánek v posteli,
+ukládání přebytků do truhel, unit testy (A*, fyzika, překlepy, osobnosti) a CI.
 
 Architektonicky připravené, zatím neimplementované:
 
-1. **Crafting** – server-side simulace (`Server#craftItem`) za `BotTask`
-   fasádou; paketová varianta (container klik s hashed stacky) je záměrně
-   odložená pro křehkost.
-2. **Střelba (luk/kuše)** – `UseItem` + `ReleaseUseItem` s timingem natažení;
-   balistika už je spočitatelná nad `EntityTracker`.
-3. **Lodě/minecarty** – `ServerboundPaddleBoatPacket`/`MoveVehiclePacket`;
+1. **Lodě/minecarty** – `ServerboundPaddleBoatPacket`/`MoveVehiclePacket`;
    `Navigator` dostane vodní režim.
-4. **Obchodování** – villager UI přes `ServerboundSelectTradePacket`;
+2. **Obchodování** – villager UI přes `ServerboundSelectTradePacket`;
    ekonomika (peněženky, transakce) je hotová.
-5. **Klientský world model** – druhá implementace `WorldView` pro boty na
+3. **Klientský world model** – druhá implementace `WorldView` pro boty na
    cizích serverech.
-6. **Konfigurovatelné fráze** – `PhraseBank` z YAML per jazyk.
+4. **Konfigurovatelné fráze** – `PhraseBank` z YAML per jazyk.

@@ -35,6 +35,9 @@ public final class BotClientState {
     /** Aktuálně vybraný hotbar slot (0–8). */
     private volatile int heldSlot;
 
+    /** Id právě otevřeného kontejneru (0 = žádný/vlastní inventář). */
+    private volatile int openContainerId;
+
     /** Čítač sequence pro akce s bloky (kopání, pokládání, použití itemu). */
     private final AtomicInteger actionSequence = new AtomicInteger(1);
 
@@ -119,6 +122,16 @@ public final class BotClientState {
     /** @return další sequence číslo pro blokové akce */
     public int nextSequence() {
         return actionSequence.getAndIncrement();
+    }
+
+    /** @return id otevřeného kontejneru (0 = žádný) */
+    public int openContainerId() {
+        return openContainerId;
+    }
+
+    /** Nastaví id otevřeného kontejneru (OpenScreen paket / zavření). */
+    public void openContainerId(int containerId) {
+        this.openContainerId = containerId;
     }
 
     /** Zařadí teleport k aplikaci v ticku. */

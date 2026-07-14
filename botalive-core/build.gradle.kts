@@ -44,6 +44,12 @@ dependencies {
     }
     implementation(libs.sqlite.jdbc)
     implementation(libs.postgresql)
+
+    testImplementation(platform(libs.junit.bom))
+    testImplementation(libs.junit.jupiter)
+    testRuntimeOnly(libs.junit.platform.launcher)
+    // Testy potřebují Paper typy (Material, BlockData) na classpath.
+    testImplementation(libs.paper.api)
 }
 
 tasks.named<ShadowJar>("shadowJar") {

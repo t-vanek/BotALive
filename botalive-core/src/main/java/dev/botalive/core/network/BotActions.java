@@ -114,13 +114,35 @@ public final class BotActions {
     }
 
     /**
-     * Použije držený item „do vzduchu" (jídlo, štít, luk...).
+     * Použije držený item „do vzduchu" (jídlo, natažení luku...).
      *
      * @param yaw   aktuální yaw bota
      * @param pitch aktuální pitch bota
      */
     public void useItem(float yaw, float pitch) {
         connection.send(new ServerboundUseItemPacket(Hand.MAIN_HAND, state.nextSequence(), yaw, pitch));
+    }
+
+    /**
+     * Použije item v druhé ruce (zvednutí štítu).
+     *
+     * @param yaw   aktuální yaw bota
+     * @param pitch aktuální pitch bota
+     */
+    public void useOffhand(float yaw, float pitch) {
+        connection.send(new ServerboundUseItemPacket(Hand.OFF_HAND, state.nextSequence(), yaw, pitch));
+    }
+
+    /**
+     * Zavře právě otevřený kontejner (truhla, ponk...).
+     */
+    public void closeContainer() {
+        int containerId = state.openContainerId();
+        if (containerId != 0) {
+            connection.send(new org.geysermc.mcprotocollib.protocol.packet.ingame.serverbound
+                    .inventory.ServerboundContainerClosePacket(containerId));
+            state.openContainerId(0);
+        }
     }
 
     /**

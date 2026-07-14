@@ -9,6 +9,7 @@ caffeine = "3.2.4"                    # In-memory cache
 sqlite = "3.53.2.0"                   # Výchozí embedded databáze
 postgresql = "42.7.13"                # Volitelná produkční databáze
 slf4j = "2.0.17"                      # Logovací fasáda (implementaci dodává server)
+junit = "6.1.2"                       # Testovací framework
 
 [libraries]
 paper-api = { module = "io.papermc.paper:paper-api", version.ref = "paper" }
@@ -18,6 +19,9 @@ caffeine = { module = "com.github.ben-manes.caffeine:caffeine", version.ref = "c
 sqlite-jdbc = { module = "org.xerial:sqlite-jdbc", version.ref = "sqlite" }
 postgresql = { module = "org.postgresql:postgresql", version.ref = "postgresql" }
 slf4j-api = { module = "org.slf4j:slf4j-api", version.ref = "slf4j" }
+junit-bom = { module = "org.junit:junit-bom", version.ref = "junit" }
+junit-jupiter = { module = "org.junit.jupiter:junit-jupiter" }
+junit-platform-launcher = { module = "org.junit.platform:junit-platform-launcher" }
 
 [plugins]
 shadow = { id = "com.gradleup.shadow", version = "9.2.2" }

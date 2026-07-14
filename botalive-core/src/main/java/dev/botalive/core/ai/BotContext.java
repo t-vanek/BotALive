@@ -68,6 +68,9 @@ public interface BotContext {
     /** @return konfigurace pluginu */
     BotAliveConfig config();
 
+    /** @return most na herní vlákna (Folia-safe scheduler) */
+    dev.botalive.core.scheduler.MainThreadBridge bridge();
+
     /** @return aktuální pozice bota (nohy) */
     Vec3 position();
 

@@ -66,6 +66,19 @@ public final class SnapshotWorldView implements WorldView {
     }
 
     @Override
+    public org.bukkit.block.data.BlockData blockDataAt(BlockPos pos) {
+        if (pos.y() < world.getMinHeight() || pos.y() >= world.getMaxHeight()) {
+            return null;
+        }
+        ChunkSnapshot snapshot = snapshots.getIfPresent(chunkKey(pos.chunkX(), pos.chunkZ()));
+        if (snapshot == null) {
+            requestChunk(pos.chunkX(), pos.chunkZ());
+            return null;
+        }
+        return snapshot.getBlockData(pos.x() & 15, pos.y(), pos.z() & 15);
+    }
+
+    @Override
     public BlockTraits traitsAt(BlockPos pos) {
         if (pos.y() < world.getMinHeight()) {
             return BlockTraits.UNKNOWN; // pod světem – propast

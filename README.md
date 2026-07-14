@@ -28,7 +28,12 @@ inventář a historii; po restartu serveru pokračuje tam, kde skončil.
   rozfázované ticky. Chat s přemýšlením, rychlostí psaní, překlepy (QWERTZ
   sousedé, prohození, výpadky) i follow-up opravami „*slovo“.
 - **Boj s obtížnostmi** – strafing, sprint reset, útoky s jitterem, ústup podle
-  odvahy; profily easy/normal/hard/nightmare.
+  odvahy; profily easy/normal/hard/nightmare. Na dálku luk i kuše (predikce
+  pohybu cíle, balistická kompenzace), v melee blokování štítem.
+- **Survival progrese** – boti těží dřevo a rudy, craftí (prkna → tyčky → ponk
+  → dřevěné → kamenné nástroje), farmaří (sklizeň + přesazení), v noci spí
+  v posteli nebo si staví úkryt a přebytky si ukládají do truhel, které si
+  pamatují.
 - **Výkon** – vlastní vícevláknový tick engine (20 Hz, rozfázovaně), sdílená
   Caffeine cache chunk snapshotů, asynchronní pathfinding pool, jednovláknové
   virtuální executory pro pakety, žádné blokování herních vláken. Funguje na
@@ -102,9 +107,9 @@ Detailní popis rozhodnutí a trade-offů: [docs/ARCHITECTURE.md](docs/ARCHITECT
 
 ## Známá omezení a roadmapa
 
-- Crafting, obchodování s villagery, luky/kuše a jízda v lodích/minecartech
-  zatím nejsou implementované – architektura s nimi počítá (nové `Goal` +
-  `BotTask` primitivy), viz roadmapa v ARCHITECTURE.md.
+- Obchodování s villagery a jízda v lodích/minecartech zatím nejsou
+  implementované – architektura s nimi počítá (nové `Goal` + `BotTask`
+  primitivy), viz roadmapa v ARCHITECTURE.md.
 - Boti vyžadují offline-mode (jsou to nepodepsaní klienti); na online-mode
   serveru se plugin korektně odmítne připojit a vysvětlí proč.
 - Chat boti píší česky (vestavěná banka frází); vlastní fráze lze doplnit

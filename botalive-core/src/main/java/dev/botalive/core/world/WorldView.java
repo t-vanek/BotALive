@@ -27,6 +27,16 @@ public interface WorldView {
     Material materialAt(BlockPos pos);
 
     /**
+     * Plná block data (stav bloku – např. zralost plodiny přes
+     * {@link org.bukkit.block.data.Ageable}). Dražší než {@link #materialAt},
+     * používat cíleně.
+     *
+     * @param pos pozice bloku
+     * @return block data; {@code null} pokud chunk není k dispozici
+     */
+    org.bukkit.block.data.BlockData blockDataAt(BlockPos pos);
+
+    /**
      * @param pos pozice bloku
      * @return vlastnosti bloku; {@link BlockTraits#UNKNOWN} pokud chunk není k dispozici
      */

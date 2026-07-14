@@ -2,13 +2,16 @@ package dev.botalive.core.combat;
 
 import dev.botalive.api.personality.Personality;
 import dev.botalive.api.personality.Trait;
+import dev.botalive.core.bot.ServerSideView;
 import dev.botalive.core.config.BotAliveConfig;
 import dev.botalive.core.entity.TrackedEntity;
 import dev.botalive.core.human.Humanizer;
+import dev.botalive.core.inventory.InventoryHelper;
 import dev.botalive.core.network.BotActions;
 import dev.botalive.core.physics.MoveInput;
 import dev.botalive.core.util.BotRandom;
 import dev.botalive.core.util.Vec3;
+import org.bukkit.Material;
 
 /**
  * Bojový kontrolér bota – melee souboj s lidskými manýry.
@@ -33,12 +36,20 @@ public final class CombatController {
     /** Základní cooldown zbraně (ticky) – meč ~0.6 s. */
     private static final int BASE_ATTACK_COOLDOWN_TICKS = 12;
 
+    /** Vzdálenost, od které bot preferuje střelbu (má-li luk/kuši). */
+    private static final double RANGED_MIN_DISTANCE = 7.0;
+
+    /** Maximální efektivní dostřel. */
+    private static final double RANGED_MAX_DISTANCE = 32.0;
+
     private final BotActions actions;
     private final Humanizer humanizer;
     private final BotRandom rng;
     private final Personality personality;
     private final BotAliveConfig.Combat config;
     private final CombatDifficulty difficulty;
+    private final InventoryHelper inventory;
+    private final RangedAttack ranged;
 
     private TrackedEntity target;
     private int attackCooldown;
@@ -46,6 +57,7 @@ public final class CombatController {
     private int strafeDirection = 1;
     private int strafeTicks;
     private int sprintResetTicks;
+    private int shieldBlockTicks;
 
     /**
      * @param actions     akční primitivy
@@ -54,16 +66,19 @@ public final class CombatController {
      * @param personality osobnost
      * @param config      konfigurace boje
      * @param difficulty  bojová obtížnost (z konfigurace AI)
+     * @param inventory   výběr zbraní v hotbaru
      */
     public CombatController(BotActions actions, Humanizer humanizer, BotRandom rng,
                             Personality personality, BotAliveConfig.Combat config,
-                            CombatDifficulty difficulty) {
+                            CombatDifficulty difficulty, InventoryHelper inventory) {
         this.actions = actions;
         this.humanizer = humanizer;
         this.rng = rng;
         this.personality = personality;
         this.config = config;
         this.difficulty = difficulty;
+        this.inventory = inventory;
+        this.ranged = new RangedAttack(actions, humanizer, rng, inventory);
     }
 
     /**
@@ -85,6 +100,8 @@ public final class CombatController {
     /** Ukončí boj. */
     public void disengage() {
         target = null;
+        ranged.reset();
+        shieldBlockTicks = 0;
     }
 
     /** @return aktuální cíl, nebo {@code null} */
@@ -103,9 +120,11 @@ public final class CombatController {
      * @param position   pozice bota (nohy)
      * @param health     zdraví bota
      * @param onGround   bot na zemi
+     * @param snapshot   server-side snapshot (výběr zbraně, štít); může být null
      * @return pohybový vstup pro fyziku
      */
-    public MoveInput tick(Vec3 position, float health, boolean onGround) {
+    public MoveInput tick(Vec3 position, float health, boolean onGround,
+                          ServerSideView.Snapshot snapshot) {
         if (target == null || !config.enabled()) {
             return MoveInput.IDLE;
         }
@@ -120,14 +139,43 @@ public final class CombatController {
         // Ústup při nízkém zdraví – práh závisí na odvaze.
         double retreatThreshold = 6 + (1.0 - personality.trait(Trait.COURAGE)) * 8;
         if (health <= retreatThreshold) {
+            ranged.reset();
             return MoveInput.of(toTarget.mul(-1), true, onGround && rng.chance(0.15));
         }
+
+        // Střelba na dálku, pokud je čím střílet.
+        if (distance >= RANGED_MIN_DISTANCE && distance <= RANGED_MAX_DISTANCE
+                && ranged.canUse(snapshot)) {
+            return ranged.tick(position, target, snapshot);
+        }
+        if (ranged.busy()) {
+            ranged.reset(); // cíl se přiblížil → melee
+        }
+
+        // Melee: meč/sekera do ruky.
+        inventory.equipWeapon(snapshot);
 
         if (attackCooldown > 0) {
             attackCooldown--;
         }
         if (reactionTicks > 0) {
             reactionTicks--;
+        }
+
+        // Blokování štítem: krátké zvednutí mezi vlastními útoky.
+        if (shieldBlockTicks > 0) {
+            shieldBlockTicks--;
+            if (shieldBlockTicks == 0) {
+                actions.releaseUseItem();
+            }
+            return MoveInput.of(toTarget.mul(-0.4), false, false); // pomalé couvání s krytem
+        }
+        if (config.shieldUse() && snapshot != null && snapshot.offhand() == Material.SHIELD
+                && distance < 4.0 && attackCooldown > 4
+                && rng.chance(0.04 + personality.trait(Trait.CAUTION) * 0.06)) {
+            actions.useOffhand(humanizer.yaw(), humanizer.pitch());
+            shieldBlockTicks = rng.rangeInt(8, 22);
+            return MoveInput.IDLE;
         }
 
         // Útok, pokud je cíl v dosahu, zbraň nabitá a reakce doběhla.

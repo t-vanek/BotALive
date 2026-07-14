@@ -50,6 +50,32 @@ public final class CombatGoal extends AbstractGoal {
     @Override
     public void start(Bot bot) {
         lostTargetTicks = 0;
+        equipShieldToOffhand(ctx(bot), bot);
+    }
+
+    /**
+     * Přesune štít z inventáře do druhé ruky (server-side, na vlákně entity).
+     * Hráči nosí štít v offhandu trvale – bot dělá totéž při vstupu do boje.
+     */
+    private void equipShieldToOffhand(BotContext ctx, Bot bot) {
+        if (!ctx.config().combat().shieldUse()) {
+            return;
+        }
+        org.bukkit.entity.Player player = org.bukkit.Bukkit.getPlayer(bot.id());
+        if (player == null) {
+            return;
+        }
+        ctx.bridge().runForEntity(player, () -> {
+            var inv = player.getInventory();
+            if (!inv.getItemInOffHand().getType().isAir()) {
+                return;
+            }
+            int slot = inv.first(org.bukkit.Material.SHIELD);
+            if (slot >= 0) {
+                inv.setItemInOffHand(inv.getItem(slot));
+                inv.setItem(slot, null);
+            }
+        }, null);
     }
 
     @Override
@@ -82,9 +108,9 @@ public final class CombatGoal extends AbstractGoal {
             }
         }
 
-        // Zbraň do ruky a bojový pohyb.
-        ctx.inventory().equipWeapon(ctx.serverView().latest());
-        ctx.requestMove(ctx.combat().tick(ctx.position(), ctx.clientState().health(), ctx.onGround()));
+        // Bojový pohyb (výběr zbraně – melee/luk/štít – řídí controller).
+        ctx.requestMove(ctx.combat().tick(ctx.position(), ctx.clientState().health(),
+                ctx.onGround(), ctx.serverView().latest()));
     }
 
     @Override

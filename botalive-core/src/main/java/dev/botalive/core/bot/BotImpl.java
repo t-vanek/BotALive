@@ -161,9 +161,9 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents {
         this.movementSender = new MovementSender(connection, clientState);
         this.humanizer = new Humanizer(rng, personality);
         this.navigator = new Navigator(services.navigation(), actions, rng, personality);
-        this.combat = new CombatController(actions, humanizer, rng, personality, config.combat(),
-                CombatDifficulty.fromConfig(config.ai().difficulty()));
         this.inventoryHelper = new InventoryHelper(actions);
+        this.combat = new CombatController(actions, humanizer, rng, personality, config.combat(),
+                CombatDifficulty.fromConfig(config.ai().difficulty()), inventoryHelper);
         this.serverView = new ServerSideView(id, bridge);
         this.chat = new ChatEngine(name, personality, rng, config.chat(), this::deliverChat);
         this.brain = new Brain(this, goalFactory.apply(this),
@@ -700,6 +700,11 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents {
     @Override
     public BotAliveConfig config() {
         return config;
+    }
+
+    @Override
+    public MainThreadBridge bridge() {
+        return bridge;
     }
 
     @Override

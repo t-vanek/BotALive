@@ -104,6 +104,8 @@ public final class BotSessionListener extends SessionAdapter {
                     }
                 }
                 case ClientboundSetHeldSlotPacket p -> state.heldSlot(p.getSlot());
+                case org.geysermc.mcprotocollib.protocol.packet.ingame.clientbound.inventory
+                        .ClientboundOpenScreenPacket p -> state.openContainerId(p.getContainerId());
                 case ClientboundPlayerChatPacket p -> handleChat(p);
                 default -> {
                     // Ostatní pakety (chunky, světlo, čas, ...) bot nepotřebuje
