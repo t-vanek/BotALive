@@ -42,6 +42,10 @@ inventář a historii; po restartu serveru pokračuje tam, kde skončil.
   pomsty žijí přes persistentní ENEMY paměť. Férovostní strop omezuje počet
   botů útočících na jeden cíl; útok na skutečné hráče má samostatnou pojistku
   (`pvp.attack-players`), obrana po napadení funguje vždy.
+- **Mazlíčci** – boti si ochočují zvířata vanilla mechanikami: vlka kostí,
+  kočku rybou, papouška semínky, koně/osla/mulu/lamu opakovaným nasedáním
+  (server je shazuje, dokud nepovolí). Mazlíčky si pamatují (`PET`),
+  ochočení vlci pak botovi vanilla mechanikou pomáhají v boji.
 - **Survival progrese** – boti těží dřevo a rudy, craftí (prkna → tyčky → ponk
   → dřevěné → kamenné nástroje), farmaří (sklizeň + přesazení), v noci spí
   v posteli nebo si staví úkryt a přebytky si ukládají do truhel, které si

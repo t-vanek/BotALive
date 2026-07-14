@@ -125,11 +125,29 @@ public final class CombatGoal extends AbstractGoal {
     }
 
     /**
-     * Najde vhodný cíl – hostilní mob. Souboje s hráči a jinými boty
-     * (obrana, pomsta, aliance) řeší {@code PvpGoal} s vlastními pojistkami.
+     * Najde vhodný cíl – hostilní mob, nebo neutrální zvíře, které bota
+     * nedávno napadlo (rozzuřený vlk, včely...). Souboje s hráči a jinými
+     * boty (obrana, pomsta, aliance) řeší {@code PvpGoal} s vlastními
+     * pojistkami.
      */
     private Optional<TrackedEntity> findTarget(BotContext ctx, Bot bot) {
         double viewDistance = ctx.config().ai().viewDistanceBlocks();
-        return ctx.entities().nearest(ctx.position(), viewDistance, TrackedEntity::isHostile);
+        Optional<TrackedEntity> hostile = ctx.entities()
+                .nearest(ctx.position(), viewDistance, TrackedEntity::isHostile);
+        if (hostile.isPresent()) {
+            return hostile;
+        }
+        // Neutrální útočník z čerstvé paměti (ne hráč – to je věc PvpGoal,
+        // a nikdy ne vlastní mazlíček).
+        long now = System.currentTimeMillis();
+        return ctx.entities().nearby(ctx.position(), viewDistance,
+                        e -> !e.isPlayer() && e.uuid() != null)
+                .stream()
+                .filter(e -> bot.memory().recallAbout(e.uuid()).stream()
+                        .anyMatch(r -> r.kind() == MemoryKind.ENEMY
+                                && now - r.updatedAt() < 60_000))
+                .filter(e -> bot.memory().recallAbout(e.uuid()).stream()
+                        .noneMatch(r -> r.kind() == MemoryKind.PET))
+                .findFirst();
     }
 }

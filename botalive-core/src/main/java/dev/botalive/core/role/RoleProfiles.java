@@ -23,7 +23,7 @@ public final class RoleProfiles {
             BotRole.LUMBERJACK, Map.of(
                     "mine", 2.2, "craft", 1.4, "shelter", 1.2),
             BotRole.HUNTER, Map.of(
-                    "hunt", 2.5, "combat", 1.4, "collect", 1.2),
+                    "hunt", 2.5, "combat", 1.4, "collect", 1.2, "tame", 1.5),
             BotRole.BLACKSMITH, Map.of(
                     "smelt", 2.5, "craft", 1.6, "mine", 1.4),
             BotRole.ENCHANTER, Map.of(
