@@ -47,5 +47,8 @@ public enum MemoryKind {
     FURNACE,
 
     /** Enchantovací stůl. */
-    ENCHANTING_TABLE
+    ENCHANTING_TABLE,
+
+    /** Ochočené zvíře bota (subjekt = UUID zvířete). */
+    PET
 }

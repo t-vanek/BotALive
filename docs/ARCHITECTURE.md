@@ -230,6 +230,14 @@ identicky). Pojistky: hlavní vypínač, zvlášť útoky na hráče (obrana pov
 vždy), zvlášť na boty, férovostní strop současných útočníků na jeden cíl.
 `CombatGoal` je nově čistě PvE.
 
+Hotovo ve fázi 9: ochočování zvířat (cíl `tame` + `TameService`). Item-based
+taming (vlk/kočka/papoušek – opakované interakce se správným itemem, šanci
+hází vanilla server) i mount-based (koně, osli, muly, lamy – opakované
+nasedání, server shazuje přes SetPassengers). Stav `Tameable` entit se
+autoritativně ověřuje server-side, mazlíčci se ukládají jako PET vzpomínky
+a `CombatGoal` nikdy neútočí na vlastního mazlíčka (a nově oplácí
+neutrálním zvířatům, která bota napadla – rozzuření vlci).
+
 Architektonicky připravené, zatím neimplementované:
 
 1. **Konfigurovatelné fráze** – `PhraseBank` z YAML per jazyk.

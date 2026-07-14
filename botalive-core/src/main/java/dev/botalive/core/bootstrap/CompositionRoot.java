@@ -96,12 +96,15 @@ public final class CompositionRoot {
         dev.botalive.core.pvp.PvpCoordinator pvp = container.register(
                 dev.botalive.core.pvp.PvpCoordinator.class,
                 new dev.botalive.core.pvp.PvpCoordinator(config.pvp()));
+        dev.botalive.core.tame.TameService taming = container.register(
+                dev.botalive.core.tame.TameService.class,
+                new dev.botalive.core.tame.TameService(bridge));
 
         // AI cíle.
         GoalRegistryImpl goalRegistry = container.register(GoalRegistryImpl.class,
                 new GoalRegistryImpl());
         registerBuiltInGoals(goalRegistry, crafting, containers, trades, furnaces,
-                enchanting, pvp);
+                enchanting, pvp, taming);
 
         // Block-state mapper pro klientský world model (jen režim packet):
         // přesná tabulka z registrů hostitelského serveru, jinak degradovaný fallback.
@@ -137,7 +140,8 @@ public final class CompositionRoot {
                                              TradeService trades,
                                              FurnaceService furnaces,
                                              EnchantService enchanting,
-                                             dev.botalive.core.pvp.PvpCoordinator pvp) {
+                                             dev.botalive.core.pvp.PvpCoordinator pvp,
+                                             dev.botalive.core.tame.TameService taming) {
         registry.register("idle", bot -> new IdleGoal());
         registry.register("wander", bot -> new WanderGoal());
         registry.register("explore", bot -> new ExploreGoal());
@@ -162,6 +166,7 @@ public final class CompositionRoot {
         registry.register("smelt", bot -> new SmeltGoal(furnaces));
         registry.register("enchant", bot -> new EnchantGoal(enchanting));
         registry.register("pvp", bot -> new dev.botalive.core.ai.goals.PvpGoal(pvp));
+        registry.register("tame", bot -> new dev.botalive.core.ai.goals.TameGoal(taming));
     }
 
     /**

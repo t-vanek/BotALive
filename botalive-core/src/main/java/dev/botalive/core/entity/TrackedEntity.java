@@ -137,4 +137,12 @@ public final class TrackedEntity {
             default -> false;
         };
     }
+
+    /** @return {@code true} pokud jde o ochočitelný druh (vanilla taming) */
+    public boolean isTameableType() {
+        return switch (type) {
+            case WOLF, CAT, PARROT, HORSE, DONKEY, MULE, LLAMA -> true;
+            default -> false;
+        };
+    }
 }
