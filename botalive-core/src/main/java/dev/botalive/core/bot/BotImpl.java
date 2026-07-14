@@ -689,6 +689,47 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents {
                 });
     }
 
+    @Override
+    public CompletableFuture<Boolean> teleportToPlayer(UUID playerId) {
+        org.bukkit.entity.Player target = Bukkit.getPlayer(playerId);
+        if (target == null) {
+            return CompletableFuture.completedFuture(false);
+        }
+        // Pozice hráče se čte na jeho vlákně; pak standardní bot-teleport.
+        return bridge.callForEntity(target, target::getLocation)
+                .thenCompose(location -> location == null
+                        ? CompletableFuture.completedFuture(false)
+                        : teleport(location))
+                .exceptionally(t -> {
+                    LOG.warn("[{}] Teleport k hráči selhal: {}", name, t.toString());
+                    return false;
+                });
+    }
+
+    @Override
+    public CompletableFuture<Boolean> teleportPlayerToBot(UUID playerId) {
+        org.bukkit.entity.Player traveler = Bukkit.getPlayer(playerId);
+        org.bukkit.entity.Player botPlayer = Bukkit.getPlayer(id);
+        if (traveler == null || botPlayer == null) {
+            return CompletableFuture.completedFuture(false);
+        }
+        // Pozice bota na vlákně jeho entity → teleport hráče na jeho vlákně.
+        return bridge.callForEntity(botPlayer, botPlayer::getLocation)
+                .thenCompose(location -> {
+                    if (location == null) {
+                        return CompletableFuture.completedFuture(false);
+                    }
+                    return bridge.callForEntity(traveler, () -> traveler.teleportAsync(location))
+                            .thenCompose(future -> future == null
+                                    ? CompletableFuture.completedFuture(false)
+                                    : future);
+                })
+                .exceptionally(t -> {
+                    LOG.warn("[{}] Teleport hráče k botovi selhal: {}", name, t.toString());
+                    return false;
+                });
+    }
+
     // ======================================================================
     // BotContext (interní přístup pro cíle)
     // ======================================================================

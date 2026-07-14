@@ -9,12 +9,25 @@ website: https://github.com/t-vanek/BotALive
 
 commands:
   botalive:
-    description: Správa AI botů
+    description: Správa AI botů a teleportace k nim
     usage: /botalive <create|remove|tp|list|pause|resume|personality|memory|goal|stats>
-    permission: botalive.admin
+    permission: botalive.use
     aliases: [ba, bots]
 
 permissions:
-  botalive.admin:
-    description: Přístup ke správě botů
+  botalive.use:
+    description: Základní přístup k příkazu /botalive (podpříkazy mají vlastní práva)
+    default: true
+  botalive.teleport:
+    description: Teleport hráče k botovi (/botalive tp <bot>) a zkrácený /botalive list
     default: op
+  botalive.teleport.summon:
+    description: Přivolání bota k hráči (/botalive tp <bot> here)
+    default: op
+  botalive.admin:
+    description: Plná správa botů (bez teleport cooldownu)
+    default: op
+    children:
+      botalive.use: true
+      botalive.teleport: true
+      botalive.teleport.summon: true

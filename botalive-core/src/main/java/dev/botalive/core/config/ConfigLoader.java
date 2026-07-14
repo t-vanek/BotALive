@@ -88,6 +88,11 @@ public final class ConfigLoader {
                 c.getInt("spawn.radius", 64)
         );
 
+        var teleport = new BotAliveConfig.Teleport(
+                c.getBoolean("teleport.enabled", true),
+                c.getInt("teleport.player-cooldown-seconds", 30)
+        );
+
         var performance = new BotAliveConfig.Performance(
                 c.getInt("performance.tick-threads", 0),
                 c.getInt("performance.pathfinding-threads", 0),
@@ -109,6 +114,6 @@ public final class ConfigLoader {
         );
 
         return new BotAliveConfig(network, bots, ai, chat, combat, economy,
-                worlds, spawn, performance, persistence);
+                worlds, spawn, teleport, performance, persistence);
     }
 }

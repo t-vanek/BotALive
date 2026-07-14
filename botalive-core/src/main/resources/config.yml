@@ -70,6 +70,13 @@ spawn:
   z: 0
   radius: 64
 
+teleport:
+  # Teleportace hráčů k botům (/botalive tp <bot>) a přivolávání botů
+  # (/botalive tp <bot> here). Práva: botalive.teleport (k botovi),
+  # botalive.teleport.summon (bot ke mně); botalive.admin vždy a bez cooldownu.
+  enabled: true
+  player-cooldown-seconds: 30
+
 performance:
   # 0 = automaticky podle počtu jader.
   tick-threads: 0

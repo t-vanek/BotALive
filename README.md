@@ -38,8 +38,10 @@ inventář a historii; po restartu serveru pokračuje tam, kde skončil.
   a jede s klientskou simulací vanilla kinematiky (MoveVehicle/PaddleBoat
   pakety): loď pluje nejdelším vodním koridorem a u břehu vysedne, vozík
   sleduje koleje včetně zatáček, svahů a napájecích kolejí až na konec trati.
-- **Teleportace** – API `Bot.teleport(Location)` i `/botalive tp <bot> x y z
-  [svět]` s plným resyncem klienta (přerušení navigace, přepnutí světa);
+- **Teleportace** – plné API (`Bot.teleport(Location)`,
+  `Bot.teleportToPlayer(uuid)`, `Bot.teleportPlayerToBot(uuid)`) i příkazy
+  pro adminy a hráče: hráč se přenese k botovi, nebo si bota přivolá k sobě
+  (oddělená práva + konfigurovatelný cooldown). Vždy s plným resyncem klienta;
   průchody portálem si bot ukládá do paměti (`PORTAL`).
 - **Obchod s vesničany** – prodej plodin a surovin za smaragdy, nákup jídla
   při hladu; skutečné receptury vesničana včetně limitů zásob. Objevené
@@ -80,7 +82,9 @@ PostgreSQL driver – vše relokované do `dev.botalive.libs`).
 |---|---|
 | `create [jméno] [počet]` | vytvoří bota (bez jména vybere lidsky vypadající jméno z poolu) |
 | `remove <jméno\|all> [purge]` | odpojí a odstraní bota; `purge` smaže i data v DB |
-| `tp <jméno> [here \| x y z [svět]]` | teleport k botovi / bota k sobě / bota na souřadnice |
+| `tp <jméno>` | teleport hráče k botovi (právo `botalive.teleport`) |
+| `tp <jméno> here` | přivolání bota k hráči (právo `botalive.teleport.summon`) |
+| `tp <jméno> <x> <y> <z> [svět]` | teleport bota na souřadnice (jen admin, i z konzole) |
 | `list` | přehled botů, stavů, zdraví a aktivních cílů |
 | `pause / resume <jméno\|all>` | pozastaví/obnoví AI (bot zůstává připojen) |
 | `personality <jméno>` | archetyp, seed a graf rysů osobnosti |
@@ -88,7 +92,18 @@ PostgreSQL driver – vše relokované do `dev.botalive.libs`).
 | `goal <jméno> [set <cíl>\|clear]` | utility přehled / vynucení cíle |
 | `stats <jméno>` | vytěženo, postaveno, smrti, zabití, nachozeno, peníze… |
 
-Oprávnění: `botalive.admin` (default op).
+Oprávnění:
+
+| Právo | Význam | Default |
+|---|---|---|
+| `botalive.admin` | plná správa botů, teleporty bez cooldownu | op |
+| `botalive.teleport` | `/botalive tp <bot>` + zkrácený `list` (jen jména) | op |
+| `botalive.teleport.summon` | `/botalive tp <bot> here` (přivolání bota) | op |
+| `botalive.use` | základní přístup k příkazu | všichni |
+
+Hráčské teleporty mají konfigurovatelný cooldown
+(`teleport.player-cooldown-seconds`, výchozí 30 s) a lze je vypnout
+(`teleport.enabled: false`); admin má vždy volnou cestu.
 
 ## API pro vývojáře
 
@@ -102,6 +117,11 @@ api.goalRegistry().register("greet-admins", bot -> new MyGreetAdminsGoal());
 api.botManager()
    .create(new BotSpawnSpec("Pepa", null, 42L))
    .thenAccept(bot -> bot.say("ahoj svete"));
+
+// teleportace (vše thread-safe, s plným resyncem klienta bota)
+bot.teleport(location);                        // bot na lokaci
+bot.teleportToPlayer(player.getUniqueId());    // bot k hráči
+bot.teleportPlayerToBot(player.getUniqueId()); // hráč k botovi
 ```
 
 Bukkit eventy: `BotSpawnedEvent`, `BotRemovedEvent`, `BotChatEvent`

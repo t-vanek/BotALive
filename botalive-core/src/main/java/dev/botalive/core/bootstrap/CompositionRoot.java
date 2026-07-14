@@ -104,7 +104,7 @@ public final class CompositionRoot {
         container.register(ServerEventListener.class,
                 new ServerEventListener(worldViews, botManager));
         container.register(BotAliveCommand.class,
-                new BotAliveCommand(botManager, goalRegistry, repository));
+                new BotAliveCommand(botManager, goalRegistry, repository, config));
     }
 
     /** Vestavěná sada cílů – každý bot dostává vlastní instance. */
