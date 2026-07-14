@@ -5,6 +5,7 @@ import dev.botalive.api.memory.MemoryKind;
 import dev.botalive.api.personality.Trait;
 import dev.botalive.core.ai.BotContext;
 import dev.botalive.core.inventory.ContainerService;
+import dev.botalive.core.station.ChestStation;
 import dev.botalive.core.util.BlockPos;
 import dev.botalive.core.world.WorldView;
 import org.bukkit.Material;
@@ -19,13 +20,14 @@ import java.util.concurrent.CompletableFuture;
  * <p>Když se botovi plní inventář, vyhledá truhlu (nejdřív v paměti
  * {@link MemoryKind#CHEST}, pak skenem okolí), dojde k ní, otevře ji
  * (klik – ostatní hráči vidí animaci víka) a přebytky přesune
- * ({@link ContainerService}). Truhlu si zapamatuje pro příště.</p>
+ * ({@link ChestStation} – server-side, nebo paketová na cizím serveru).
+ * Truhlu si zapamatuje pro příště.</p>
  */
 public final class StashGoal extends AbstractGoal {
 
     private enum Phase { FIND, GO, OPEN, DEPOSIT, CLOSE, DONE }
 
-    private final ContainerService containers;
+    private final ChestStation containers;
 
     private Phase phase = Phase.FIND;
     private BlockPos chest;
@@ -36,7 +38,7 @@ public final class StashGoal extends AbstractGoal {
     /**
      * @param containers sdílená služba kontejnerů
      */
-    public StashGoal(ContainerService containers) {
+    public StashGoal(ChestStation containers) {
         super("stash");
         this.containers = containers;
     }
@@ -116,7 +118,7 @@ public final class StashGoal extends AbstractGoal {
                     return;
                 }
                 if (deposit == null) {
-                    deposit = containers.depositJunk(bot.id(),
+                    deposit = containers.depositJunk(ctx,
                             ctx.worldView().worldName(), chest);
                     return;
                 }

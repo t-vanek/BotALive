@@ -83,6 +83,10 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents {
     private final BotClientState clientState = new BotClientState();
     private final EntityTracker entities = new EntityTracker();
     private final ClientInventory clientInventory = new ClientInventory();
+    private final dev.botalive.core.container.ContainerTracker containerTracker =
+            new dev.botalive.core.container.ContainerTracker();
+    private final dev.botalive.core.container.ContainerClicker containerClicker;
+    private final dev.botalive.core.world.state.ItemMapper itemMapper;
     private final BotConnection connection;
     private final BotActions actions;
     private final MovementSender movementSender;
@@ -163,12 +167,15 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents {
         this.repository = services.repository();
 
         this.rng = new BotRandom(id.getLeastSignificantBits() ^ System.nanoTime());
+        this.itemMapper = services.itemMapper();
         this.packetWorlds = config.network().packetWorldModel()
                 ? new dev.botalive.core.world.PacketWorldManager(services.stateMapper())
                 : null;
         this.connection = new BotConnection(name, id, config.network(),
-                new BotSessionListener(name, clientState, entities, clientInventory, this,
-                        packetWorlds));
+                new BotSessionListener(name, clientState, entities, clientInventory,
+                        containerTracker, this, packetWorlds));
+        this.containerClicker = new dev.botalive.core.container.ContainerClicker(
+                connection, containerTracker);
         this.actions = new BotActions(connection, clientState);
         this.movementSender = new MovementSender(connection, clientState);
         this.humanizer = new Humanizer(rng, personality);
@@ -195,6 +202,7 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents {
      * @param repository  repozitář
      * @param phrases     banka frází zvoleného jazyka
      * @param stateMapper překlad block states (jen režim packet, jinak {@code null})
+     * @param itemMapper  překlad item ID (jen režim packet, jinak {@code null})
      */
     public record SharedServices(
             BotAliveConfig config,
@@ -204,7 +212,8 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents {
             NavigationService navigation,
             BotRepository repository,
             dev.botalive.core.chat.PhraseBank phrases,
-            dev.botalive.core.world.state.BlockStateMapper stateMapper
+            dev.botalive.core.world.state.BlockStateMapper stateMapper,
+            dev.botalive.core.world.state.ItemMapper itemMapper
     ) {
     }
 
@@ -414,10 +423,15 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents {
             deathHandled = false; // po respawnu
         }
 
-        // Periodický server-side snapshot a flush statistik.
+        // Periodický snapshot (server-side, v paketovém režimu klientský) a flush statistik.
         if (++ticksSinceSnapshot >= config.performance().serverSnapshotTicks()) {
             ticksSinceSnapshot = 0;
-            serverView.refresh();
+            if (packetWorlds != null) {
+                serverView.offer(PacketPlayerView.capture(clientInventory, itemMapper,
+                        clientState, position(), worldView));
+            } else {
+                serverView.refresh();
+            }
         }
         if (++ticksSinceFlush >= 1200) { // ~60 s
             ticksSinceFlush = 0;
@@ -811,6 +825,26 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents {
     }
 
     @Override
+    public ClientInventory clientInventory() {
+        return clientInventory;
+    }
+
+    @Override
+    public dev.botalive.core.container.ContainerTracker containers() {
+        return containerTracker;
+    }
+
+    @Override
+    public dev.botalive.core.container.ContainerClicker clicker() {
+        return containerClicker;
+    }
+
+    @Override
+    public dev.botalive.core.world.state.ItemMapper itemMapper() {
+        return itemMapper;
+    }
+
+    @Override
     public WorldView worldView() {
         return worldView;
     }
@@ -880,6 +914,9 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents {
 
     @Override
     public CompletableFuture<Integer> estimateBreakTicks(BlockPos pos) {
+        if (packetWorlds != null) {
+            return CompletableFuture.completedFuture(estimateBreakTicksClientSide(pos));
+        }
         org.bukkit.entity.Player player = Bukkit.getPlayer(id);
         WorldView view = worldView;
         if (player == null || view == null) {
@@ -901,5 +938,34 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents {
                     return (int) Math.ceil(1.0f / speed);
                 })
                 .exceptionally(t -> 40);
+    }
+
+    /**
+     * Klientský odhad doby kopání (paketový režim – server-side data nejsou).
+     * Tvrdost dává {@code Material} (statická vanilla data hostitele), třídu
+     * nástroje {@code InventoryHelper}; enchanty a efekty odhad ignoruje –
+     * {@code MineBlockTask} beztak ověřuje skutečné zmizení bloku.
+     */
+    private int estimateBreakTicksClientSide(BlockPos pos) {
+        WorldView view = worldView;
+        org.bukkit.Material block = view == null ? null : view.materialAt(pos);
+        if (block == null || block.isAir()) {
+            return 40;
+        }
+        org.bukkit.Material held = null;
+        if (itemMapper != null) {
+            var stack = clientInventory.hotbar(clientState.heldSlot());
+            held = stack == null ? null : itemMapper.materialOf(stack.getId());
+        }
+        InventoryHelper.ToolType required = InventoryHelper.toolFor(block);
+        boolean correctTool = held != null && required != InventoryHelper.ToolType.NONE
+                && InventoryHelper.isTool(held, required);
+        int tier = held == null ? 0 : InventoryHelper.toolTier(held);
+        // „Sklizeň rukou": jen krumpáčové bloky (a pavučina) vyžadují nástroj.
+        boolean harvestable = correctTool
+                || (required != InventoryHelper.ToolType.PICKAXE
+                        && required != InventoryHelper.ToolType.SWORD);
+        return dev.botalive.core.world.BreakTimeEstimator.estimateTicks(
+                block.getHardness(), correctTool, tier, harvestable);
     }
 }

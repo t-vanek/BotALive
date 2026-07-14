@@ -92,17 +92,30 @@ public final class CompositionRoot {
                 dev.botalive.core.chat.PhraseBankLoader.load(
                         plugin.getDataFolder(), config.chat().language()));
 
-        // Sdílené herní služby.
-        CraftingService crafting = container.register(CraftingService.class,
-                new CraftingService(bridge));
-        ContainerService containers = container.register(ContainerService.class,
-                new ContainerService(bridge));
-        TradeService trades = container.register(TradeService.class,
-                new TradeService(bridge));
-        FurnaceService furnaces = container.register(FurnaceService.class,
-                new FurnaceService(bridge));
-        EnchantService enchanting = container.register(EnchantService.class,
-                new EnchantService(bridge));
+        // Stanice (crafting, truhly, pec, obchod, enchant): na lokálním serveru
+        // server-side simulace (§9), v režimu packet paketové container kliky
+        // (§13) – jediné, co funguje na cizím serveru; lokálně slouží i k testu.
+        boolean packetStations = config.network().packetWorldModel();
+        dev.botalive.core.station.CraftingStation crafting = container.register(
+                dev.botalive.core.station.CraftingStation.class,
+                packetStations ? new dev.botalive.core.station.PacketCraftingStation()
+                        : new CraftingService(bridge));
+        dev.botalive.core.station.ChestStation containers = container.register(
+                dev.botalive.core.station.ChestStation.class,
+                packetStations ? new dev.botalive.core.station.PacketChestStation()
+                        : new ContainerService(bridge));
+        dev.botalive.core.station.TradeStation trades = container.register(
+                dev.botalive.core.station.TradeStation.class,
+                packetStations ? new dev.botalive.core.station.PacketTradeStation()
+                        : new TradeService(bridge));
+        dev.botalive.core.station.FurnaceStation furnaces = container.register(
+                dev.botalive.core.station.FurnaceStation.class,
+                packetStations ? new dev.botalive.core.station.PacketFurnaceStation()
+                        : new FurnaceService(bridge));
+        dev.botalive.core.station.EnchantStation enchanting = container.register(
+                dev.botalive.core.station.EnchantStation.class,
+                packetStations ? new dev.botalive.core.station.PacketEnchantStation()
+                        : new EnchantService(bridge));
         dev.botalive.core.pvp.PvpCoordinator pvp = container.register(
                 dev.botalive.core.pvp.PvpCoordinator.class,
                 new dev.botalive.core.pvp.PvpCoordinator(config.pvp()));
@@ -116,20 +129,22 @@ public final class CompositionRoot {
         registerBuiltInGoals(goalRegistry, crafting, containers, trades, furnaces,
                 enchanting, pvp, taming);
 
-        // Block-state mapper pro klientský world model (jen režim packet):
-        // přesná tabulka z registrů hostitelského serveru je správná jen při
-        // shodě protokolu hostitele s protokolem botů – překládá-li Via,
-        // dostává bot pakety ve svém vlastním formátu a registry jiné verze
-        // by daly špatná ID. Jinak degradovaný fallback.
+        // Block-state a item mappery pro klientský world model (jen režim
+        // packet): přesné tabulky z registrů hostitelského serveru jsou správné
+        // jen při shodě protokolu hostitele s protokolem botů – překládá-li
+        // Via, dostává bot pakety ve svém vlastním formátu a registry jiné
+        // verze by daly špatná ID. Jinak degradovaný fallback.
         dev.botalive.core.world.state.BlockStateMapper stateMapper = null;
+        dev.botalive.core.world.state.ItemMapper itemMapper = null;
         if (config.network().packetWorldModel()) {
             if (dev.botalive.core.via.ViaCompat.hostMatchesBotProtocol()) {
                 stateMapper = dev.botalive.core.world.state.ReflectionBlockStateMapper.tryCreate()
                         .orElseGet(dev.botalive.core.world.state.FallbackBlockStateMapper::new);
+                itemMapper = dev.botalive.core.world.state.ReflectionItemMapper.tryCreate()
+                        .orElse(null);
             } else {
                 LOG.warn("Registry hostitelského serveru ({}) neodpovídají protokolu botů ({}) – "
-                                + "block-state mapování poběží v degradovaném fallbacku "
-                                + "(vzduch/pevný blok podle heuristiky).",
+                                + "block-state i item mapování poběží v degradovaném fallbacku.",
                         org.bukkit.Bukkit.getMinecraftVersion(),
                         dev.botalive.core.via.ViaCompat.botVersion());
                 stateMapper = new dev.botalive.core.world.state.FallbackBlockStateMapper();
@@ -139,7 +154,7 @@ public final class CompositionRoot {
         // Boti.
         BotImpl.SharedServices services = new BotImpl.SharedServices(
                 config, worldViews, bridge, tickEngine, navigation, repository,
-                phrases, stateMapper);
+                phrases, stateMapper, itemMapper);
         BotManagerImpl botManager = container.register(BotManagerImpl.class,
                 new BotManagerImpl(config, repository, goalRegistry, services));
         pvp.attach(botManager);
@@ -158,11 +173,11 @@ public final class CompositionRoot {
 
     /** Vestavěná sada cílů – každý bot dostává vlastní instance. */
     private static void registerBuiltInGoals(GoalRegistryImpl registry,
-                                             CraftingService crafting,
-                                             ContainerService containers,
-                                             TradeService trades,
-                                             FurnaceService furnaces,
-                                             EnchantService enchanting,
+                                             dev.botalive.core.station.CraftingStation crafting,
+                                             dev.botalive.core.station.ChestStation containers,
+                                             dev.botalive.core.station.TradeStation trades,
+                                             dev.botalive.core.station.FurnaceStation furnaces,
+                                             dev.botalive.core.station.EnchantStation enchanting,
                                              dev.botalive.core.pvp.PvpCoordinator pvp,
                                              dev.botalive.core.tame.TameService taming) {
         registry.register("idle", bot -> new IdleGoal());

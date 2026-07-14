@@ -61,6 +61,30 @@ public final class ClientInventory {
         return slot(HOTBAR_START + hotbarIndex);
     }
 
+    /**
+     * Slot v číslování <i>inventáře hráče</i> (ClientboundSetPlayerInventoryPacket):
+     * 0–8 hotbar, 9–35 hlavní, 36–39 zbroj (boty→helma), 40 druhá ruka.
+     * Převádí na window sloty tohoto modelu.
+     *
+     * @param inventorySlot index v číslování inventáře hráče
+     * @param item          nový obsah (null = prázdný)
+     */
+    public void setPlayerSlot(int inventorySlot, ItemStack item) {
+        int window;
+        if (inventorySlot >= 0 && inventorySlot <= 8) {
+            window = HOTBAR_START + inventorySlot;   // hotbar
+        } else if (inventorySlot <= 35) {
+            window = inventorySlot;                  // hlavní inventář (shodné)
+        } else if (inventorySlot <= 39) {
+            window = 44 - inventorySlot;             // zbroj: 36 boty→8 … 39 helma→5
+        } else if (inventorySlot == 40) {
+            window = 45;                             // druhá ruka
+        } else {
+            return;
+        }
+        setSlot(window, item);
+    }
+
     /** Vyprázdní model (odpojení). */
     public void clear() {
         for (int i = 0; i < SIZE; i++) {

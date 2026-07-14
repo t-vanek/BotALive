@@ -24,7 +24,7 @@ import java.util.concurrent.CompletableFuture;
  * probíhá skutečnou vanilla mechanikou – pec hoří, okolí to vidí, výsledky
  * jsou po ~10 s/kus připravené k vyzvednutí.</p>
  */
-public final class FurnaceService {
+public final class FurnaceService implements dev.botalive.core.station.FurnaceStation {
 
     /** Suroviny, které má smysl tavit/péct (rudy + syrové jídlo). */
     private static final Set<Material> SMELTABLE = Set.of(
@@ -42,18 +42,6 @@ public final class FurnaceService {
             Material.JUNGLE_PLANKS, Material.ACACIA_PLANKS, Material.DARK_OAK_PLANKS,
             Material.STICK
     );
-
-    /**
-     * Výsledek vložení do pece.
-     *
-     * @param inserted vložené kusy surovin
-     * @param fueled   vložené kusy paliva
-     */
-    public record InsertReport(int inserted, int fueled) {
-
-        /** Prázdný výsledek. */
-        public static final InsertReport EMPTY = new InsertReport(0, 0);
-    }
 
     private final MainThreadBridge bridge;
 
@@ -78,6 +66,18 @@ public final class FurnaceService {
      */
     public static boolean isFuel(Material material) {
         return FUEL.contains(material);
+    }
+
+    @Override
+    public CompletableFuture<InsertReport> insert(dev.botalive.core.ai.BotContext ctx,
+                                                  String worldName, BlockPos pos) {
+        return insert(ctx.bot().id(), worldName, pos);
+    }
+
+    @Override
+    public CompletableFuture<Integer> collect(dev.botalive.core.ai.BotContext ctx,
+                                              String worldName, BlockPos pos) {
+        return collect(ctx.bot().id(), worldName, pos);
     }
 
     /**

@@ -67,11 +67,16 @@ inventář a historii; po restartu serveru pokračuje tam, kde skončil.
 - **Obchod s vesničany** – prodej plodin a surovin za smaragdy, nákup jídla
   při hladu; skutečné receptury vesničana včetně limitů zásob. Objevené
   vesnice si bot pamatuje a výdělek se propisuje do ekonomiky.
-- **Cizí servery** – volitelný klientský world model (`network.world-model:
-  packet`): geometrie světa se parsuje přímo z chunk paketů (block states,
-  registry dimenzí, blokové změny), takže boti mohou hrát na libovolném
-  offline-mode serveru se stejnou verzí protokolu. Mapování block states se
-  sestavuje z registrů hostitelského serveru s degradovaným fallbackem.
+- **Cizí servery s plným survivalem** – volitelný klientský world model
+  (`network.world-model: packet`): geometrie světa se parsuje přímo z chunk
+  paketů (block states, registry dimenzí, blokové změny) a **crafting,
+  truhly, pec, obchod s vesničany i enchantování běží paketovými container
+  kliky** – boti hrají plný survival na libovolném offline-mode serveru.
+  Kliky posílají záměrně prázdnou „hashed stack" predikci: server klik
+  provede a sám pošle korekce, takže klientský model zůstává autoritativně
+  synchronizovaný bez počítání hashů. Doby kopání se odhadují klientsky
+  (vanilla vzorec). Mapování block states a itemů se sestavuje z registrů
+  hostitelského serveru s degradovaným fallbackem.
 - **ViaVersion** – boti mluví pevnou verzí protokolu; běží-li server na jiné
   verzi, plugin to při startu detekuje (porovnává čísla protokolu, takže
   patch vydání se stejným protokolem fungují nativně) a zkontroluje

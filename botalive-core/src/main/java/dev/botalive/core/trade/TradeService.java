@@ -26,20 +26,7 @@ import java.util.concurrent.CompletableFuture;
  * <p>Strategie: bot přednostně <i>prodává</i> (recepty s výsledkem smaragd –
  * plodiny, uhlí...), a pokud má hlad a smaragdy, <i>nakupuje</i> jídlo.</p>
  */
-public final class TradeService {
-
-    /**
-     * Výsledek obchodování.
-     *
-     * @param trades         počet provedených obchodů
-     * @param emeraldsGained získané smaragdy (prodej)
-     * @param foodBought     nakoupené jídlo (kusy)
-     */
-    public record TradeReport(int trades, int emeraldsGained, int foodBought) {
-
-        /** Prázdný výsledek. */
-        public static final TradeReport EMPTY = new TradeReport(0, 0, 0);
-    }
+public final class TradeService implements dev.botalive.core.station.TradeStation {
 
     private final MainThreadBridge bridge;
 
@@ -48,6 +35,12 @@ public final class TradeService {
      */
     public TradeService(MainThreadBridge bridge) {
         this.bridge = bridge;
+    }
+
+    @Override
+    public CompletableFuture<TradeReport> trade(dev.botalive.core.ai.BotContext ctx,
+                                                UUID villagerId, int maxTrades) {
+        return trade(ctx.bot().id(), villagerId, maxTrades);
     }
 
     /**

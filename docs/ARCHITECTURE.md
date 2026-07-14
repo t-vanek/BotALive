@@ -73,16 +73,15 @@ z BlockUpdate/SectionBlocksUpdate/ForgetLevelChunk paketů. Číselné block
 states překládá `BlockStateMapper`: přesná tabulka se sestavuje reflexí
 z registrů hostitelského serveru (stejná verze protokolu ⇒ identická globální
 paleta; Bukkit API státní ID nevystavuje) s degradovaným fallbackem
-„vzduch/pevné bloky", kdyby se interní API serveru změnilo. Server-side
-služby (crafting, truhly, obchod, teleport API, přesné doby těžby) jsou
-v packet režimu přirozeně neaktivní – pohyb, průzkum, boj, chat a paměť
-fungují plně.
+„vzduch/pevné bloky", kdyby se interní API serveru změnilo. Crafting, truhly,
+pec, obchod i enchant běží v packet režimu paketovými container kliky (§13);
+neaktivní zůstává jen teleport API a ochočování (server-side ověření).
 
 Stejný princip platí pro inventář: **akce** (kopání, jídlo, útok) jdou vždy
 přes pakety a server je validuje jako u člověka; **čtení** (jaký materiál
-držím, mám jídlo?) jde přes `ServerSideView` snapshot serverového hráče,
-protože mapování síťových item ID na materiály by bylo jen křehkou rekonstrukcí
-téže informace.
+držím, mám jídlo?) jde na lokálním serveru přes `ServerSideView` snapshot
+serverového hráče (autoritativní a zadarmo), v packet režimu přes tentýž
+snapshot sestavený klientsky (`PacketPlayerView` + `ItemMapper`, §13).
 
 ### 3. Threading model
 
@@ -226,6 +225,62 @@ mluví vždy verzí zabudované MCProtocolLib a `ViaCompat` řeší zbytek:
 Čisté jádro (`ViaCompat.assess`) je bez závislosti na Bukkitu a testuje se
 jednotkově včetně směrů překladu a chybějících pluginů.
 
+### 13. Paketový survival: prázdná hashed predikce + server jako autorita
+
+**Volby:** (a) plná implementace „hashed item stacků" (CRC32C hashe data
+komponent v container klicích), (b) prázdná predikce a spolehnutí na
+korekce serveru, (c) žádná manipulace s kontejnery na cizích serverech
+(stav před fází 12).
+
+**Zvoleno (b).** Klíčové pozorování protokolu 26.1: server container klik
+**vždy provede** – hashovaná predikce klienta slouží jen k rozhodnutí,
+které sloty musí klientovi doposlat. Pošleme-li záměrně prázdnou predikci
+(`changedSlots` prázdné, `carriedItem` null), server po každém
+kliku pošle SetSlot/SetContent korekce všeho, co se změnilo, a klientský
+model oken (`ContainerView`) i inventáře (`ClientInventory`)
+zůstává autoritativně synchronizovaný. Žádné počítání hashů = žádná
+křehkost vůči změnám hash algoritmu (přesně ta, kvůli které §9 volí
+server-side simulaci na lokálním serveru). Cena: pár korekčních paketů
+navíc po kliku.
+
+Stavební bloky:
+
+- **Stanice jako rozhraní** (`core/station`): `CraftingStation`,
+  `ChestStation`, `FurnaceStation`, `TradeStation`, `EnchantStation`.
+  Server-side služby (§9) je implementují na lokálním serveru; v režimu
+  `world-model: packet` kompoziční kořen zapojí paketové implementace.
+  Cíle znají jen rozhraní – nezměnily se.
+- **Toky na virtuálních vláknech** (`StationFlow`): každá operace je čitelný
+  imperativní kód s lidskými pauzami mezi kliky (120–320 ms) a čekáním na
+  odpovědi serveru (polling nad `ContainerView`); virtuální vlákno smí
+  blokovat zadarmo. Chyba/timeout vrací prázdný výsledek – bot pokrčí
+  rameny a jde dál.
+- **Sdílené plánování**: progresi survival craftingu plánuje čistý
+  `CraftPlanner` (jediný zdroj pravdy pro obě implementace), rozmístění
+  kliků do mřížky čistý `GridPlacer` (levý klik zvedne stack, pravé kliky
+  po kusu, levý vrátí zbytek) – obojí jednotkově testované. Recepty 2×2
+  jdou v mřížce vlastního inventáře; 3×3 vyžadují položený ponk – když
+  chybí a bot ho má v inventáři, stanice vrátí sentinel `NEED_TABLE`
+  a `CraftGoal` ho položí (`PlaceBlockTask`), jako hráč.
+- **Klientský snapshot** (`PacketPlayerView`): na cizím serveru není Bukkit
+  `Player`, ale skoro všechna data snapshotu máme z paketů – inventář
+  (`ClientInventory` + `ItemMapper` z registrů hostitele, stejný vzor
+  a stejná verzní podmínka jako block-state mapper §11), vitály, XP levely
+  (SetExperience) a čas světa (SetTime). Sestavením
+  `ServerSideView.Snapshot` ze stejných polí funguje celá rozhodovací
+  vrstva (utility cílů, výběr nástrojů, jídlo) beze změny.
+- **Obchod bez skládání kliků**: `ServerboundSelectTradePacket` na vanilla
+  serveru sám přesune suroviny do obchodních slotů – stačí shift-klik na
+  výsledek. Enchant čte ceny nabídek z vlastností okna (SetData) a volí
+  button klikem; potvrzení je pokles levelů.
+- **Doby kopání klientsky**: `BreakTimeEstimator` (vanilla vzorec
+  rychlost/tvrdost/dělitel 30|100) nahrazuje server-side
+  `Block.getBreakSpeed`; enchanty a efekty ignoruje – je to tempo,
+  `MineBlockTask` beztak ověřuje skutečné zmizení bloku.
+
+Na cizím serveru zůstává neaktivní jen to, co ze své podstaty vyžaduje
+server-side ověření: teleport API a ochočování (čtení `Tameable` stavu).
+
 ### 12. Lokalizace frází: vrstvené jazykové soubory
 
 **Volby:** (a) jeden editovatelný `phrases.yml`, (b) jazykové soubory
@@ -308,8 +363,8 @@ Hotovo ve fázi 11: vícejazyčné fráze (`lang/<kód>.yml`, `PhraseBankLoader`
 viz §12) – vestavěná čeština a angličtina, vlastní jazyky souborem,
 lokalizované rozpoznávací vzory, fallback po kategoriích.
 
-Architektonicky připravené, zatím neimplementované:
-
-1. **Plný foreign-server survival** – paketový inventář (hashed container
-   kliky) a odhad dob těžby bez server-side dat, aby crafting/truhly
-   fungovaly i na cizích serverech.
+Hotovo ve fázi 12: plný survival na cizích serverech (viz §13) – paketové
+container kliky s prázdnou hashed predikcí (crafting, truhly, pec, obchod,
+enchant přes rozhraní stanic), item mapper z registrů hostitele, klientský
+snapshot hráče a klientský odhad dob těžby. Roadmapa je tím vyčerpaná;
+dalším krokem je živé testovací prostředí (docker compose s Paper serverem).
