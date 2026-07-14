@@ -5,6 +5,7 @@ import dev.botalive.api.memory.MemoryKind;
 import dev.botalive.api.personality.Trait;
 import dev.botalive.core.ai.BotContext;
 import dev.botalive.core.inventory.EnchantService;
+import dev.botalive.core.station.EnchantStation;
 import dev.botalive.core.util.BlockPos;
 import dev.botalive.core.world.WorldView;
 import org.bukkit.Material;
@@ -25,18 +26,18 @@ public final class EnchantGoal extends AbstractGoal {
 
     private enum Phase { FIND, GO, OPEN, ENCHANT, CLOSE, DONE }
 
-    private final EnchantService enchanting;
+    private final EnchantStation enchanting;
 
     private Phase phase = Phase.FIND;
     private BlockPos table;
     private int waitTicks;
-    private CompletableFuture<EnchantService.EnchantReport> pending;
+    private CompletableFuture<EnchantStation.EnchantReport> pending;
     private int cooldownTicks;
 
     /**
      * @param enchanting sdílená enchant služba
      */
-    public EnchantGoal(EnchantService enchanting) {
+    public EnchantGoal(EnchantStation enchanting) {
         super("enchant");
         this.enchanting = enchanting;
     }
@@ -103,14 +104,14 @@ public final class EnchantGoal extends AbstractGoal {
                     return;
                 }
                 if (pending == null) {
-                    pending = enchanting.enchantBest(bot.id());
+                    pending = enchanting.enchantBest(ctx);
                     return;
                 }
                 if (!pending.isDone()) {
                     return;
                 }
-                EnchantService.EnchantReport report =
-                        pending.getNow(EnchantService.EnchantReport.EMPTY);
+                EnchantStation.EnchantReport report =
+                        pending.getNow(EnchantStation.EnchantReport.EMPTY);
                 pending = null;
                 if (report.enchanted() != null) {
                     rememberTable(ctx, bot);

@@ -50,6 +50,18 @@ public interface BotContext {
     /** @return pomocník výběru nástrojů */
     InventoryHelper inventory();
 
+    /** @return klientský model inventáře (okno 0, synchronizovaný z paketů) */
+    dev.botalive.core.inventory.ClientInventory clientInventory();
+
+    /** @return sledování otevřených oken kontejnerů */
+    dev.botalive.core.container.ContainerTracker containers();
+
+    /** @return container kliky (paketové stanice) */
+    dev.botalive.core.container.ContainerClicker clicker();
+
+    /** @return překlad item ID → materiál, nebo {@code null} bez tabulky */
+    dev.botalive.core.world.state.ItemMapper itemMapper();
+
     /** @return pohled na svět, ve kterém bot je (může být {@code null} před spawnem) */
     WorldView worldView();
 

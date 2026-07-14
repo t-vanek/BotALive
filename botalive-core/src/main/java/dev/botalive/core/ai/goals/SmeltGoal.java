@@ -5,6 +5,7 @@ import dev.botalive.api.memory.MemoryKind;
 import dev.botalive.api.personality.Trait;
 import dev.botalive.core.ai.BotContext;
 import dev.botalive.core.inventory.FurnaceService;
+import dev.botalive.core.station.FurnaceStation;
 import dev.botalive.core.util.BlockPos;
 import dev.botalive.core.world.WorldView;
 import org.bukkit.Material;
@@ -29,7 +30,7 @@ public final class SmeltGoal extends AbstractGoal {
 
     private enum Phase { FIND, GO, OPEN, WORK, CLOSE, DONE }
 
-    private final FurnaceService furnaces;
+    private final FurnaceStation furnaces;
 
     private Phase phase = Phase.FIND;
     private BlockPos furnace;
@@ -45,7 +46,7 @@ public final class SmeltGoal extends AbstractGoal {
     /**
      * @param furnaces sdílená služba pecí
      */
-    public SmeltGoal(FurnaceService furnaces) {
+    public SmeltGoal(FurnaceStation furnaces) {
         super("smelt");
         this.furnaces = furnaces;
     }
@@ -121,8 +122,8 @@ public final class SmeltGoal extends AbstractGoal {
                 }
                 if (pending == null) {
                     pending = collecting
-                            ? furnaces.collect(bot.id(), ctx.worldView().worldName(), furnace)
-                            : furnaces.insert(bot.id(), ctx.worldView().worldName(), furnace);
+                            ? furnaces.collect(ctx, ctx.worldView().worldName(), furnace)
+                            : furnaces.insert(ctx, ctx.worldView().worldName(), furnace);
                     return;
                 }
                 if (!pending.isDone()) {
@@ -155,7 +156,7 @@ public final class SmeltGoal extends AbstractGoal {
             }
         } else {
             Object result = pending.getNow(null);
-            if (result instanceof FurnaceService.InsertReport report && report.inserted() > 0) {
+            if (result instanceof FurnaceStation.InsertReport report && report.inserted() > 0) {
                 pendingFurnace = furnace;
                 collectReadyAtMs = System.currentTimeMillis()
                         + report.inserted() * SMELT_TIME_PER_ITEM_MS + 5_000;

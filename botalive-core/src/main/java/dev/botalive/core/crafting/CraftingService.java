@@ -9,7 +9,6 @@ import org.bukkit.inventory.ItemCraftResult;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.PlayerInventory;
 
-import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -30,22 +29,7 @@ import java.util.concurrent.CompletableFuture;
  * v inventáři ponk ({@code CRAFTING_TABLE}) – stejné omezení jako u hráče,
  * jen bez nutnosti ho pokládat.</p>
  */
-public final class CraftingService {
-
-    /** Jeden plán receptu: co vyrobit a z čeho (3×3 matice, row-major). */
-    public record Plan(String id, Material[] matrix, boolean needsTable) {
-
-        /** @return spotřeba materiálů (materiál → počet kusů) */
-        public Map<Material, Integer> ingredients() {
-            Map<Material, Integer> counts = new HashMap<>();
-            for (Material material : matrix) {
-                if (material != null) {
-                    counts.merge(material, 1, Integer::sum);
-                }
-            }
-            return counts;
-        }
-    }
+public final class CraftingService implements dev.botalive.core.station.CraftingStation {
 
     private final MainThreadBridge bridge;
 
@@ -54,6 +38,11 @@ public final class CraftingService {
      */
     public CraftingService(MainThreadBridge bridge) {
         this.bridge = bridge;
+    }
+
+    @Override
+    public CompletableFuture<String> craftNext(dev.botalive.core.ai.BotContext ctx) {
+        return craftNextInProgression(ctx.bot().id());
     }
 
     /**
@@ -69,7 +58,7 @@ public final class CraftingService {
             return CompletableFuture.completedFuture(null);
         }
         return bridge.callForEntity(player, () -> {
-            Plan plan = nextPlan(player.getInventory());
+            CraftPlanner.Plan plan = nextPlan(player.getInventory());
             if (plan == null) {
                 return null;
             }
@@ -78,71 +67,33 @@ public final class CraftingService {
     }
 
     /**
-     * Rozhodne, co by měl bot vyrobit jako další krok survival progrese.
-     * Běží na vlákně entity (čte živý inventář).
+     * Rozhodne, co by měl bot vyrobit jako další krok survival progrese –
+     * sestaví souhrn z živého inventáře a deleguje na sdílený
+     * {@link CraftPlanner}. Běží na vlákně entity.
      *
      * @param inventory inventář bota
      * @return plán, nebo {@code null} když nic nedává smysl
      */
-    public static Plan nextPlan(PlayerInventory inventory) {
-        int logs = countMatching(inventory, m -> Tag.LOGS.isTagged(m));
-        int planks = countMatching(inventory, m -> Tag.PLANKS.isTagged(m));
-        int sticks = count(inventory, Material.STICK);
-        int cobble = count(inventory, Material.COBBLESTONE)
-                + count(inventory, Material.COBBLED_DEEPSLATE);
-        boolean hasTable = inventory.contains(Material.CRAFTING_TABLE);
-
-        boolean hasWoodPick = containsTool(inventory, "_PICKAXE");
-        boolean hasSword = containsTool(inventory, "_SWORD");
-        boolean hasAxe = containsAxe(inventory);
-        boolean hasStonePick = inventory.contains(Material.STONE_PICKAXE)
-                || betterPickaxe(inventory);
-
-        Material logType = firstMatching(inventory, m -> Tag.LOGS.isTagged(m));
-        Material plankType = firstMatching(inventory, m -> Tag.PLANKS.isTagged(m));
-
-        // Progrese od nejnaléhavějšího: suroviny → ponk → nástroje → lepší nástroje.
-        if (planks < 4 && logs >= 1 && logType != null) {
-            return new Plan("prkna", matrix(logType, 0), false);
-        }
-        if (sticks < 4 && planks >= 2 && plankType != null) {
-            return new Plan("tyčky", matrix(plankType, 0, plankType, 3), false);
-        }
-        if (!hasTable && planks >= 4 && plankType != null) {
-            return new Plan("ponk", matrix(plankType, 0, plankType, 1, plankType, 3, plankType, 4), false);
-        }
-        if (hasTable && plankType != null && sticks >= 2 && planks >= 3 && !hasWoodPick) {
-            return new Plan("dřevěný krumpáč", matrix(
-                    plankType, 0, plankType, 1, plankType, 2,
-                    Material.STICK, 4, Material.STICK, 7), true);
-        }
-        if (hasTable && plankType != null && sticks >= 1 && planks >= 2 && !hasSword) {
-            return new Plan("dřevěný meč", matrix(
-                    plankType, 1, plankType, 4, Material.STICK, 7), true);
-        }
-        if (hasTable && plankType != null && sticks >= 2 && planks >= 3 && !hasAxe) {
-            return new Plan("dřevěná sekera", matrix(
-                    plankType, 0, plankType, 1, plankType, 3,
-                    Material.STICK, 4, Material.STICK, 7), true);
-        }
-        Material stone = count(inventory, Material.COBBLESTONE) >= 3
-                ? Material.COBBLESTONE : Material.COBBLED_DEEPSLATE;
-        if (hasTable && cobble >= 3 && sticks >= 2 && !hasStonePick) {
-            return new Plan("kamenný krumpáč", matrix(
-                    stone, 0, stone, 1, stone, 2,
-                    Material.STICK, 4, Material.STICK, 7), true);
-        }
-        if (hasTable && cobble >= 2 && sticks >= 1
-                && !inventory.contains(Material.STONE_SWORD) && hasSword) {
-            // upgrade meče na kamenný (dřevěný už má)
-            return new Plan("kamenný meč", matrix(
-                    stone, 1, stone, 4, Material.STICK, 7), true);
-        }
-        return null;
+    public static CraftPlanner.Plan nextPlan(PlayerInventory inventory) {
+        int cobbleStd = count(inventory, Material.COBBLESTONE);
+        return CraftPlanner.next(new CraftPlanner.State(
+                countMatching(inventory, m -> Tag.LOGS.isTagged(m)),
+                countMatching(inventory, m -> Tag.PLANKS.isTagged(m)),
+                count(inventory, Material.STICK),
+                cobbleStd + count(inventory, Material.COBBLED_DEEPSLATE),
+                inventory.contains(Material.CRAFTING_TABLE),
+                containsTool(inventory, "_PICKAXE"),
+                inventory.contains(Material.STONE_PICKAXE) || betterPickaxe(inventory),
+                containsTool(inventory, "_SWORD"),
+                inventory.contains(Material.STONE_SWORD),
+                containsAxe(inventory),
+                firstMatching(inventory, m -> Tag.LOGS.isTagged(m)),
+                firstMatching(inventory, m -> Tag.PLANKS.isTagged(m)),
+                cobbleStd >= 3 ? Material.COBBLESTONE : Material.COBBLED_DEEPSLATE));
     }
 
     /** Provede plán: ověří suroviny (+ ponk), spotřebuje a vloží výsledek. */
-    private static boolean executePlan(Player player, Plan plan) {
+    private static boolean executePlan(Player player, CraftPlanner.Plan plan) {
         PlayerInventory inventory = player.getInventory();
         if (plan.needsTable() && !inventory.contains(Material.CRAFTING_TABLE)) {
             return false;
@@ -179,15 +130,6 @@ public final class CraftingService {
     }
 
     // ------------------------------------------------------------- pomocníci
-
-    /** Sestaví 3×3 matici z dvojic (materiál, index). */
-    private static Material[] matrix(Object... pairs) {
-        Material[] matrix = new Material[9];
-        for (int i = 0; i < pairs.length; i += 2) {
-            matrix[(Integer) pairs[i + 1]] = (Material) pairs[i];
-        }
-        return matrix;
-    }
 
     private static int count(PlayerInventory inventory, Material material) {
         int total = 0;

@@ -22,19 +22,7 @@ import java.util.concurrent.ThreadLocalRandom;
  * cesta (enchant UI s náhodnými nabídkami) je záměrně vynechaná – viz
  * ARCHITECTURE.md §9.</p>
  */
-public final class EnchantService {
-
-    /**
-     * Výsledek enchantování.
-     *
-     * @param enchanted   název očarovaného předmětu, nebo {@code null}
-     * @param levelsSpent utracené XP levely
-     */
-    public record EnchantReport(String enchanted, int levelsSpent) {
-
-        /** Nic se nepovedlo. */
-        public static final EnchantReport EMPTY = new EnchantReport(null, 0);
-    }
+public final class EnchantService implements dev.botalive.core.station.EnchantStation {
 
     private final MainThreadBridge bridge;
 
@@ -56,6 +44,11 @@ public final class EnchantService {
                 || material == Material.BOW || material == Material.CROSSBOW
                 || name.endsWith("_HELMET") || name.endsWith("_CHESTPLATE")
                 || name.endsWith("_LEGGINGS") || name.endsWith("_BOOTS");
+    }
+
+    @Override
+    public CompletableFuture<EnchantReport> enchantBest(dev.botalive.core.ai.BotContext ctx) {
+        return enchantBest(ctx.bot().id());
     }
 
     /**

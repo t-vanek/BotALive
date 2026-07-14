@@ -5,6 +5,7 @@ import dev.botalive.api.memory.MemoryKind;
 import dev.botalive.api.personality.Trait;
 import dev.botalive.core.ai.BotContext;
 import dev.botalive.core.entity.TrackedEntity;
+import dev.botalive.core.station.TradeStation;
 import dev.botalive.core.trade.TradeService;
 import dev.botalive.core.util.Vec3;
 import org.bukkit.Material;
@@ -31,19 +32,19 @@ public final class TradeGoal extends AbstractGoal {
 
     private enum Phase { FIND, GO, INTERACT, BROWSE, TRADE, CLOSE, DONE }
 
-    private final TradeService trades;
+    private final TradeStation trades;
 
     private Phase phase = Phase.FIND;
     private UUID villagerUuid;
     private int villagerEntityId;
     private int waitTicks;
-    private CompletableFuture<TradeService.TradeReport> pending;
+    private CompletableFuture<TradeStation.TradeReport> pending;
     private int cooldownTicks;
 
     /**
      * @param trades sdílená obchodní služba
      */
-    public TradeGoal(TradeService trades) {
+    public TradeGoal(TradeStation trades) {
         super("trade");
         this.trades = trades;
     }
@@ -127,7 +128,7 @@ public final class TradeGoal extends AbstractGoal {
             }
             case BROWSE -> {
                 if (--waitTicks <= 0) {
-                    pending = trades.trade(bot.id(), villagerUuid, ctx.rng().rangeInt(1, 4));
+                    pending = trades.trade(ctx, villagerUuid, ctx.rng().rangeInt(1, 4));
                     phase = Phase.TRADE;
                 }
             }
@@ -135,7 +136,7 @@ public final class TradeGoal extends AbstractGoal {
                 if (pending == null || !pending.isDone()) {
                     return;
                 }
-                TradeService.TradeReport report = pending.getNow(TradeService.TradeReport.EMPTY);
+                TradeStation.TradeReport report = pending.getNow(TradeStation.TradeReport.EMPTY);
                 pending = null;
                 if (report.emeraldsGained() > 0) {
                     bot.wallet().deposit(report.emeraldsGained() * EMERALD_VALUE,

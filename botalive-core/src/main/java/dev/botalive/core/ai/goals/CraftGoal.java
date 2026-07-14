@@ -3,8 +3,11 @@ package dev.botalive.core.ai.goals;
 import dev.botalive.api.bot.Bot;
 import dev.botalive.api.personality.Trait;
 import dev.botalive.core.ai.BotContext;
-import dev.botalive.core.crafting.CraftingService;
 import dev.botalive.core.inventory.InventoryHelper;
+import dev.botalive.core.station.CraftingStation;
+import dev.botalive.core.tasks.PlaceBlockTask;
+import dev.botalive.core.util.BlockPos;
+import org.bukkit.Material;
 
 import java.util.concurrent.CompletableFuture;
 
@@ -19,18 +22,19 @@ import java.util.concurrent.CompletableFuture;
  */
 public final class CraftGoal extends AbstractGoal {
 
-    private final CraftingService crafting;
+    private final CraftingStation crafting;
 
     private CompletableFuture<String> pending;
+    private PlaceBlockTask placingTable;
     private int thinkTicks;
     private int craftedCount;
     private int idleRounds;
     private int cooldownTicks;
 
     /**
-     * @param crafting sdílená crafting služba
+     * @param crafting sdílená crafting stanice
      */
-    public CraftGoal(CraftingService crafting) {
+    public CraftGoal(CraftingStation crafting) {
         super("craft");
         this.crafting = crafting;
     }
@@ -65,6 +69,7 @@ public final class CraftGoal extends AbstractGoal {
         BotContext ctx = ctx(bot);
         ctx.navigator().stop();
         pending = null;
+        placingTable = null;
         craftedCount = 0;
         idleRounds = 0;
         // Přemýšlení před výrobou – chytří boti méně.
@@ -78,9 +83,17 @@ public final class CraftGoal extends AbstractGoal {
             thinkTicks--;
             return;
         }
+        // Pokládání ponku (paketový režim vrátil NEED_TABLE).
+        if (placingTable != null) {
+            if (placingTable.tick(ctx)) {
+                placingTable = null;
+                thinkTicks = ctx.rng().rangeInt(5, 15);
+            }
+            return;
+        }
         if (pending == null) {
             ctx.actions().swing(); // "sahá do inventáře"
-            pending = crafting.craftNextInProgression(bot.id());
+            pending = crafting.craftNext(ctx);
             return;
         }
         if (!pending.isDone()) {
@@ -88,6 +101,10 @@ public final class CraftGoal extends AbstractGoal {
         }
         String craftedId = pending.getNow(null);
         pending = null;
+        if (CraftingStation.NEED_TABLE.equals(craftedId)) {
+            startPlacingTable(ctx);
+            return;
+        }
         if (craftedId == null) {
             idleRounds++;
             return;
@@ -99,6 +116,58 @@ public final class CraftGoal extends AbstractGoal {
         if (ctx.rng().chance(0.15)) {
             ctx.chat().say("mám " + craftedId);
         }
+    }
+
+    /** Vezme ponk do ruky a začne ho pokládat vedle sebe. */
+    private void startPlacingTable(BotContext ctx) {
+        var snapshot = ctx.serverView().latest();
+        int hotbarSlot = snapshot == null ? -1
+                : snapshot.findHotbarSlot(m -> m == Material.CRAFTING_TABLE);
+        if (hotbarSlot < 0) {
+            hotbarSlot = moveTableToHotbar(ctx);
+        }
+        BlockPos target = findPlacementSpot(ctx);
+        if (hotbarSlot < 0 || target == null) {
+            idleRounds++;
+            return;
+        }
+        ctx.actions().selectHotbar(hotbarSlot);
+        placingTable = new PlaceBlockTask(target);
+        thinkTicks = ctx.rng().rangeInt(3, 8);
+    }
+
+    /** Přesune ponk z hlavního inventáře na hotbar (container klik, okno 0). */
+    private static int moveTableToHotbar(BotContext ctx) {
+        var mapper = ctx.itemMapper();
+        if (mapper == null) {
+            return -1;
+        }
+        for (int slot = 9; slot <= 35; slot++) {
+            var stack = ctx.clientInventory().slot(slot);
+            if (stack != null && mapper.materialOf(stack.getId()) == Material.CRAFTING_TABLE) {
+                ctx.clicker().moveToHotbar(0, slot, 8);
+                return 8;
+            }
+        }
+        return -1;
+    }
+
+    /** Najde volné místo vedle bota (průchozí blok s pevnou podlahou). */
+    private static BlockPos findPlacementSpot(BotContext ctx) {
+        if (ctx.worldView() == null) {
+            return null;
+        }
+        BlockPos feet = ctx.position().toBlockPos();
+        int[][] offsets = {{2, 0}, {-2, 0}, {0, 2}, {0, -2}, {1, 1}, {-1, -1}};
+        for (int[] offset : offsets) {
+            BlockPos target = feet.offset(offset[0], 0, offset[1]);
+            var at = ctx.worldView().traitsAt(target);
+            var below = ctx.worldView().traitsAt(target.offset(0, -1, 0));
+            if (at.passable() && below.solid()) {
+                return target;
+            }
+        }
+        return null;
     }
 
     @Override

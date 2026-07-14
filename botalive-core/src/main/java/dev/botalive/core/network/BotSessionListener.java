@@ -52,6 +52,9 @@ public final class BotSessionListener extends SessionAdapter {
     private final NetworkEvents events;
     private final String botName;
 
+    /** Sledování otevřených oken kontejnerů (paketové stanice). */
+    private final dev.botalive.core.container.ContainerTracker containers;
+
     /** Klientský world model (jen v režimu {@code packet}, jinak {@code null}). */
     private final dev.botalive.core.world.PacketWorldManager packetWorlds;
 
@@ -60,16 +63,20 @@ public final class BotSessionListener extends SessionAdapter {
      * @param state        protokolový stav bota
      * @param entities     tracker viditelných entit
      * @param inventory    klientský model inventáře
+     * @param containers   sledování otevřených oken kontejnerů
      * @param events       callback do jádra bota
      * @param packetWorlds klientský world model ({@code null} v režimu server)
      */
     public BotSessionListener(String botName, BotClientState state, EntityTracker entities,
-                              ClientInventory inventory, NetworkEvents events,
+                              ClientInventory inventory,
+                              dev.botalive.core.container.ContainerTracker containers,
+                              NetworkEvents events,
                               dev.botalive.core.world.PacketWorldManager packetWorlds) {
         this.botName = botName;
         this.state = state;
         this.entities = entities;
         this.inventory = inventory;
+        this.containers = containers;
         this.events = events;
         this.packetWorlds = packetWorlds;
     }
@@ -112,15 +119,39 @@ public final class BotSessionListener extends SessionAdapter {
                     if (p.getContainerId() == 0) {
                         inventory.setContents(p.getItems());
                     }
+                    containers.onSetContent(p.getContainerId(), p.getStateId(), p.getItems());
                 }
                 case ClientboundContainerSetSlotPacket p -> {
                     if (p.getContainerId() == 0) {
                         inventory.setSlot(p.getSlot(), p.getItem());
                     }
+                    containers.onSetSlot(p.getContainerId(), p.getStateId(), p.getSlot(),
+                            p.getItem());
+                }
+                case org.geysermc.mcprotocollib.protocol.packet.ingame.clientbound.inventory
+                        .ClientboundSetPlayerInventoryPacket p ->
+                        inventory.setPlayerSlot(p.getSlot(), p.getContents());
+                case org.geysermc.mcprotocollib.protocol.packet.ingame.clientbound.inventory
+                        .ClientboundContainerSetDataPacket p ->
+                        containers.onSetData(p.getContainerId(), p.getRawProperty(), p.getValue());
+                case org.geysermc.mcprotocollib.protocol.packet.ingame.clientbound.inventory
+                        .ClientboundMerchantOffersPacket p ->
+                        containers.onTrades(p.getContainerId(), p.getOffers());
+                case org.geysermc.mcprotocollib.protocol.packet.ingame.clientbound.inventory
+                        .ClientboundContainerClosePacket p -> {
+                    containers.onClosed();
+                    state.openContainerId(0);
                 }
                 case ClientboundSetHeldSlotPacket p -> state.heldSlot(p.getSlot());
                 case org.geysermc.mcprotocollib.protocol.packet.ingame.clientbound.inventory
-                        .ClientboundOpenScreenPacket p -> state.openContainerId(p.getContainerId());
+                        .ClientboundOpenScreenPacket p -> {
+                    state.openContainerId(p.getContainerId());
+                    containers.onOpenScreen(p.getContainerId(), p.getType());
+                }
+                case org.geysermc.mcprotocollib.protocol.packet.ingame.clientbound.entity.player
+                        .ClientboundSetExperiencePacket p -> state.expLevel(p.getLevel());
+                case org.geysermc.mcprotocollib.protocol.packet.ingame.clientbound.level
+                        .ClientboundSetTimePacket p -> handleTime(p);
                 case ClientboundPlayerChatPacket p -> handleChat(p);
                 // Klientský world model (jen v režimu packet).
                 case org.geysermc.mcprotocollib.protocol.packet.configuration.clientbound
@@ -163,6 +194,18 @@ public final class BotSessionListener extends SessionAdapter {
         }
     }
 
+    /** Denní čas světa – z hodin dimenze (SetTime). */
+    private void handleTime(org.geysermc.mcprotocollib.protocol.packet.ingame.clientbound
+                                    .level.ClientboundSetTimePacket packet) {
+        var clocks = packet.getClockUpdates();
+        if (clocks != null && !clocks.isEmpty()) {
+            long ticks = clocks.values().iterator().next().totalTicks();
+            state.worldTime(Math.floorMod(ticks, 24_000L));
+        } else {
+            state.worldTime(Math.floorMod(packet.getGameTime(), 24_000L));
+        }
+    }
+
     @Override
     public void disconnected(DisconnectedEvent event) {
         String reason = PLAIN.serializeOr(event.getReason(), "neznámý důvod");
@@ -174,6 +217,7 @@ public final class BotSessionListener extends SessionAdapter {
         state.reset();
         entities.clear();
         inventory.clear();
+        containers.onClosed();
         events.onDisconnected(reason);
     }
 

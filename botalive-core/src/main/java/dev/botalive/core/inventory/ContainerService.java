@@ -25,7 +25,7 @@ import java.util.concurrent.CompletableFuture;
  * regionu truhly; bot u ní musí stát (&lt; 4 bloky), takže hráč i truhla
  * sdílejí region i na Folii.</p>
  */
-public final class ContainerService {
+public final class ContainerService implements dev.botalive.core.station.ChestStation {
 
     /** Materiály považované za „přebytek" k uložení do truhly. */
     private static final Set<Material> JUNK = Set.of(
@@ -53,6 +53,12 @@ public final class ContainerService {
      */
     public static boolean isJunk(Material material) {
         return JUNK.contains(material);
+    }
+
+    @Override
+    public CompletableFuture<Integer> depositJunk(dev.botalive.core.ai.BotContext ctx,
+                                                  String worldName, BlockPos chestPos) {
+        return depositJunk(ctx.bot().id(), worldName, chestPos);
     }
 
     /**

@@ -112,6 +112,19 @@ public final class ServerSideView {
     }
 
     /**
+     * Vloží snapshot sestavený jinde – paketový režim (cizí server) sem
+     * odevzdává klientský snapshot ({@code PacketPlayerView}), takže
+     * konzumenti čtou vždy stejným rozhraním.
+     *
+     * @param snapshot snapshot z klientských dat
+     */
+    public void offer(Snapshot snapshot) {
+        if (snapshot != null) {
+            latest.set(snapshot);
+        }
+    }
+
+    /**
      * Asynchronně obnoví snapshot (max jedna obnova současně).
      */
     public void refresh() {

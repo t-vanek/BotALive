@@ -41,6 +41,12 @@ public final class BotClientState {
     /** Entity id vozidla, ve kterém bot sedí (-1 = žádné). */
     private volatile int vehicleId = -1;
 
+    /** Denní čas světa 0–23999 (SetTime paket; -1 = ještě nedorazil). */
+    private volatile long worldTime = -1;
+
+    /** XP level bota (SetExperience paket). */
+    private volatile int expLevel;
+
     /** Čítač sequence pro akce s bloky (kopání, pokládání, použití itemu). */
     private final AtomicInteger actionSequence = new AtomicInteger(1);
 
@@ -145,6 +151,26 @@ public final class BotClientState {
     /** Nastaví vozidlo (SetPassengers paket). */
     public void vehicleId(int entityId) {
         this.vehicleId = entityId;
+    }
+
+    /** @return denní čas světa 0–23999, nebo -1 pokud ještě neznámý */
+    public long worldTime() {
+        return worldTime;
+    }
+
+    /** Nastaví denní čas světa (SetTime paket). */
+    public void worldTime(long time) {
+        this.worldTime = time;
+    }
+
+    /** @return XP level bota */
+    public int expLevel() {
+        return expLevel;
+    }
+
+    /** Nastaví XP level (SetExperience paket). */
+    public void expLevel(int level) {
+        this.expLevel = level;
     }
 
     /** Zařadí teleport k aplikaci v ticku. */
