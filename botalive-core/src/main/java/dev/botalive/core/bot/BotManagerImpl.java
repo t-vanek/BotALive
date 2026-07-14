@@ -10,6 +10,7 @@ import dev.botalive.core.config.BotAliveConfig;
 import dev.botalive.core.economy.BotWalletImpl;
 import dev.botalive.core.memory.BotMemoryImpl;
 import dev.botalive.core.persistence.BotRepository;
+import dev.botalive.core.via.ViaCompat;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.World;
@@ -93,6 +94,15 @@ public final class BotManagerImpl implements BotManager {
             return CompletableFuture.failedFuture(new IllegalStateException(
                     "Server běží v online-mode – boti se připojují jako offline klienti. "
                             + "Použijte offline-mode server nebo proxy (Velocity) s offline backendem."));
+        }
+        // Kompatibilita verzí: běží-li server na jiném protokolu než klient botů,
+        // musí překládat ViaVersion/ViaBackwards – bez nich by login stejně selhal,
+        // takže selžeme hned a s návodem. Vypnutelné přes network.version-check.
+        if (isLocalTarget() && config.network().versionCheck()) {
+            ViaCompat.Assessment via = ViaCompat.assessLocalServer();
+            if (!via.connectable()) {
+                return CompletableFuture.failedFuture(new IllegalStateException(via.message()));
+            }
         }
 
         UUID botId = offlineUuid(spec.name());
@@ -272,11 +282,7 @@ public final class BotManagerImpl implements BotManager {
 
     /** Míří boti na tento server (loopback + stejný port)? */
     private boolean isLocalTarget() {
-        String host = config.network().host();
-        boolean loopback = host.equals("127.0.0.1") || host.equalsIgnoreCase("localhost")
-                || host.equals("::1");
-        int port = config.network().port();
-        return loopback && (port == 0 || port == Bukkit.getPort());
+        return config.network().targetsLocalServer(Bukkit.getPort());
     }
 
     /** Offline-mode UUID – stejný algoritmus jako server v offline režimu. */

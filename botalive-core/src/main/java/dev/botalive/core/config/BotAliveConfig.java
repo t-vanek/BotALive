@@ -47,14 +47,30 @@ public record BotAliveConfig(
      *                         snapshoty hostitelského serveru – výchozí) nebo
      *                         {@code packet} (parsování chunk paketů – nutné,
      *                         hrají-li boti na cizím serveru)
+     * @param versionCheck     před připojením ověřit shodu verzí protokolu
+     *                         (příp. přítomnost ViaVersion/ViaBackwards) a při
+     *                         neshodě vytvoření bota odmítnout s vysvětlením;
+     *                         {@code false} = jen varovat a nechat login selhat
      * @param reconnect        automatické znovupřipojení po výpadku
      */
     public record Network(String host, int port, int connectTimeoutMs,
-                          String worldModel, Reconnect reconnect) {
+                          String worldModel, boolean versionCheck, Reconnect reconnect) {
 
         /** @return {@code true} pokud se má použít klientský (paketový) world model */
         public boolean packetWorldModel() {
             return "packet".equalsIgnoreCase(worldModel);
+        }
+
+        /**
+         * Míří boti na tento (hostitelský) server?
+         *
+         * @param serverPort port běžícího serveru
+         * @return {@code true} pro loopback adresu a shodný (či zděděný) port
+         */
+        public boolean targetsLocalServer(int serverPort) {
+            boolean loopback = host.equals("127.0.0.1") || host.equalsIgnoreCase("localhost")
+                    || host.equals("::1");
+            return loopback && (port == 0 || port == serverPort);
         }
     }
 
