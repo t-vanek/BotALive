@@ -41,9 +41,19 @@ public record BotAliveConfig(
      * @param host             adresa serveru (typicky 127.0.0.1)
      * @param port             port serveru; 0 = převzít z běžícího serveru
      * @param connectTimeoutMs timeout TCP připojení
+     * @param worldModel       zdroj geometrie světa: {@code server} (chunk
+     *                         snapshoty hostitelského serveru – výchozí) nebo
+     *                         {@code packet} (parsování chunk paketů – nutné,
+     *                         hrají-li boti na cizím serveru)
      * @param reconnect        automatické znovupřipojení po výpadku
      */
-    public record Network(String host, int port, int connectTimeoutMs, Reconnect reconnect) {
+    public record Network(String host, int port, int connectTimeoutMs,
+                          String worldModel, Reconnect reconnect) {
+
+        /** @return {@code true} pokud se má použít klientský (paketový) world model */
+        public boolean packetWorldModel() {
+            return "packet".equalsIgnoreCase(worldModel);
+        }
     }
 
     /**

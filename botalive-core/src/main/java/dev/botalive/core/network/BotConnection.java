@@ -80,6 +80,11 @@ public final class BotConnection {
         newSession.setFlag(MinecraftConstants.AUTOMATIC_KEEP_ALIVE_MANAGEMENT, true);
         // Follow transfers – kdyby server bota přesměroval (velocity apod.).
         newSession.setFlag(MinecraftConstants.FOLLOW_TRANSFERS, true);
+        // Klientský world model potřebuje plná registry data (min_y/height
+        // dimenzí) – prázdná known-packs odpověď donutí server je poslat celá.
+        if (config.packetWorldModel()) {
+            newSession.setFlag(MinecraftConstants.SEND_BLANK_KNOWN_PACKS_RESPONSE, true);
+        }
 
         newSession.addListener(listener);
         this.session = newSession;

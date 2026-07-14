@@ -87,7 +87,9 @@ public final class BotManagerImpl implements BotManager {
             return CompletableFuture.failedFuture(new IllegalStateException(
                     "Bot se jménem '" + spec.name() + "' už existuje"));
         }
-        if (Bukkit.getOnlineMode()) {
+        // Online-mode kontrola dává smysl jen při připojování na tento server;
+        // u cizího serveru o jeho režimu nic nevíme (rozhodne login).
+        if (isLocalTarget() && Bukkit.getOnlineMode()) {
             return CompletableFuture.failedFuture(new IllegalStateException(
                     "Server běží v online-mode – boti se připojují jako offline klienti. "
                             + "Použijte offline-mode server nebo proxy (Velocity) s offline backendem."));
@@ -248,6 +250,15 @@ public final class BotManagerImpl implements BotManager {
         }
         byId.clear();
         byName.clear();
+    }
+
+    /** Míří boti na tento server (loopback + stejný port)? */
+    private boolean isLocalTarget() {
+        String host = config.network().host();
+        boolean loopback = host.equals("127.0.0.1") || host.equalsIgnoreCase("localhost")
+                || host.equals("::1");
+        int port = config.network().port();
+        return loopback && (port == 0 || port == Bukkit.getPort());
     }
 
     /** Offline-mode UUID – stejný algoritmus jako server v offline režimu. */

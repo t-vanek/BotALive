@@ -46,6 +46,11 @@ inventář a historii; po restartu serveru pokračuje tam, kde skončil.
 - **Obchod s vesničany** – prodej plodin a surovin za smaragdy, nákup jídla
   při hladu; skutečné receptury vesničana včetně limitů zásob. Objevené
   vesnice si bot pamatuje a výdělek se propisuje do ekonomiky.
+- **Cizí servery** – volitelný klientský world model (`network.world-model:
+  packet`): geometrie světa se parsuje přímo z chunk paketů (block states,
+  registry dimenzí, blokové změny), takže boti mohou hrát na libovolném
+  offline-mode serveru se stejnou verzí protokolu. Mapování block states se
+  sestavuje z registrů hostitelského serveru s degradovaným fallbackem.
 - **Výkon** – vlastní vícevláknový tick engine (20 Hz, rozfázovaně), sdílená
   Caffeine cache chunk snapshotů, asynchronní pathfinding pool, jednovláknové
   virtuální executory pro pakety, žádné blokování herních vláken. Funguje na

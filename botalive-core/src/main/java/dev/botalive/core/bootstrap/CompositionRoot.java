@@ -89,9 +89,17 @@ public final class CompositionRoot {
                 new GoalRegistryImpl());
         registerBuiltInGoals(goalRegistry, crafting, containers, trades);
 
+        // Block-state mapper pro klientský world model (jen režim packet):
+        // přesná tabulka z registrů hostitelského serveru, jinak degradovaný fallback.
+        dev.botalive.core.world.state.BlockStateMapper stateMapper = null;
+        if (config.network().packetWorldModel()) {
+            stateMapper = dev.botalive.core.world.state.ReflectionBlockStateMapper.tryCreate()
+                    .orElseGet(dev.botalive.core.world.state.FallbackBlockStateMapper::new);
+        }
+
         // Boti.
         BotImpl.SharedServices services = new BotImpl.SharedServices(
-                config, worldViews, bridge, tickEngine, navigation, repository);
+                config, worldViews, bridge, tickEngine, navigation, repository, stateMapper);
         BotManagerImpl botManager = container.register(BotManagerImpl.class,
                 new BotManagerImpl(config, repository, goalRegistry, services));
 

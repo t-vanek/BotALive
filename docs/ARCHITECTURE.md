@@ -59,15 +59,24 @@ interních tříd jiného; komunikace přes rozhraní jako `WorldView`,
 **Volby:** (a) klientský model světa parsováním `ClientboundLevelChunkWithLightPacket`,
 (b) `ChunkSnapshot` Bukkit světa, kde plugin běží.
 
-**Zvoleno (b), abstrakce (a) zachována.** Boti hrají na témže serveru, kde
-plugin běží – server je autoritativní zdroj geometrie. Parsování chunk paketů
-by vyžadovalo vlastní registry block-state ID (křehké napříč verzemi), druhou
-kopii světa v paměti (stovky MB při stovkách botů) a přineslo by jen iluzi
-„čistého klienta". Snapshoty jsou nemutabilní (bezpečné pro AI vlákna),
-pořizují se na region vlákně (Folia-safe), sdílejí se mezi boty přes Caffeine
-cache s TTL a bodovou invalidací z Bukkit eventů. Rozhraní `WorldView` je
-jediné místo závislosti – čistě klientská implementace je do budoucna
-zaměnitelná (např. pro boty na cizím serveru).
+**Zvoleny obě, výchozí (b).** Boti typicky hrají na témže serveru, kde plugin
+běží – server je autoritativní zdroj geometrie. Snapshoty jsou nemutabilní
+(bezpečné pro AI vlákna), pořizují se na region vlákně (Folia-safe), sdílejí
+se mezi boty přes Caffeine cache s TTL a bodovou invalidací z Bukkit eventů.
+
+Pro boty na <b>cizím serveru</b> existuje druhá implementace –
+`PacketWorldView` (`network.world-model: packet`): chunky se parsují přímo
+z paketů (`MinecraftTypes.readChunkSection`), počty sekcí a `min_y` se berou
+z registru dimenzí poslaného v konfigurační fázi (spojení si vynutí plná
+registry data prázdnou known-packs odpovědí) a blokové změny se aplikují
+z BlockUpdate/SectionBlocksUpdate/ForgetLevelChunk paketů. Číselné block
+states překládá `BlockStateMapper`: přesná tabulka se sestavuje reflexí
+z registrů hostitelského serveru (stejná verze protokolu ⇒ identická globální
+paleta; Bukkit API státní ID nevystavuje) s degradovaným fallbackem
+„vzduch/pevné bloky", kdyby se interní API serveru změnilo. Server-side
+služby (crafting, truhly, obchod, teleport API, přesné doby těžby) jsou
+v packet režimu přirozeně neaktivní – pohyb, průzkum, boj, chat a paměť
+fungují plně.
 
 Stejný princip platí pro inventář: **akce** (kopání, jídlo, útok) jdou vždy
 přes pakety a server je validuje jako u člověka; **čtení** (jaký materiál
@@ -199,8 +208,13 @@ kolejemi, pokládání vozíku na kolej) a podpora teleportace
 klienta při velkém skoku – přerušení navigace/boje/plavby, přepnutí světa –
 a PORTAL vzpomínky při průchodu portálem zaživa).
 
+Hotovo ve fázi 6: klientský world model (`PacketWorldView`) pro boty na
+cizích serverech – parsování chunk paketů, registry dimenzí, block-state
+mapper z registrů hostitelského serveru s fallbackem.
+
 Architektonicky připravené, zatím neimplementované:
 
-1. **Klientský world model** – druhá implementace `WorldView` pro boty na
-   cizích serverech.
-2. **Konfigurovatelné fráze** – `PhraseBank` z YAML per jazyk.
+1. **Konfigurovatelné fráze** – `PhraseBank` z YAML per jazyk.
+2. **Plný foreign-server survival** – paketový inventář (hashed container
+   kliky) a odhad dob těžby bez server-side dat, aby crafting/truhly
+   fungovaly i na cizích serverech.

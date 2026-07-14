@@ -100,6 +100,9 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents {
     private final BotRepository repository;
     private final Brain brain;
 
+    /** Klientský world model (jen v režimu {@code packet}, jinak {@code null}). */
+    private final dev.botalive.core.world.PacketWorldManager packetWorlds;
+
     // --- Mutable stav (tick vlákno / volatile) ---------------------------------
     private final AtomicReference<BotLifecycleState> state =
             new AtomicReference<>(BotLifecycleState.CREATED);
@@ -157,8 +160,12 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents {
         this.repository = services.repository();
 
         this.rng = new BotRandom(id.getLeastSignificantBits() ^ System.nanoTime());
+        this.packetWorlds = config.network().packetWorldModel()
+                ? new dev.botalive.core.world.PacketWorldManager(services.stateMapper())
+                : null;
         this.connection = new BotConnection(name, id, config.network(),
-                new BotSessionListener(name, clientState, entities, clientInventory, this));
+                new BotSessionListener(name, clientState, entities, clientInventory, this,
+                        packetWorlds));
         this.actions = new BotActions(connection, clientState);
         this.movementSender = new MovementSender(connection, clientState);
         this.humanizer = new Humanizer(rng, personality);
@@ -176,12 +183,13 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents {
     /**
      * Sdílené služby předávané botům (jeden parametr místo dlouhého seznamu).
      *
-     * @param config     konfigurace
-     * @param worldViews registr pohledů na světy
-     * @param bridge     most na herní vlákna
-     * @param tickEngine tick engine
-     * @param navigation pathfinding
-     * @param repository repozitář
+     * @param config      konfigurace
+     * @param worldViews  registr pohledů na světy (režim server)
+     * @param bridge      most na herní vlákna
+     * @param tickEngine  tick engine
+     * @param navigation  pathfinding
+     * @param repository  repozitář
+     * @param stateMapper překlad block states (jen režim packet, jinak {@code null})
      */
     public record SharedServices(
             BotAliveConfig config,
@@ -189,7 +197,8 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents {
             MainThreadBridge bridge,
             BotTickEngine tickEngine,
             NavigationService navigation,
-            BotRepository repository
+            BotRepository repository,
+            dev.botalive.core.world.state.BlockStateMapper stateMapper
     ) {
     }
 
@@ -295,7 +304,7 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents {
         WorldView oldWorld = worldView;
         BotPhysics oldPhysics = physics;
         if (!afterDeath && oldWorld != null && oldPhysics != null
-                && !oldWorld.worldName().equals(resolveWorldName(worldKey))) {
+                && !oldWorld.worldName().equals(expectedWorldName(worldKey))) {
             Vec3 pos = oldPhysics.position();
             memory.remember(MemoryKind.PORTAL, oldWorld.worldName(),
                     (int) pos.x(), (int) pos.y(), (int) pos.z(), null,
@@ -467,7 +476,7 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents {
             Vec3 target = new Vec3(x, y, z);
 
             boolean worldChanged = physics == null || worldView == null
-                    || !worldView.worldName().equals(resolveWorldName(clientState.worldKey()));
+                    || !worldView.worldName().equals(expectedWorldName(clientState.worldKey()));
             if (worldChanged) {
                 switchWorld(clientState.worldKey(), target);
             } else {
@@ -527,17 +536,27 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents {
 
     /** Přepnutí světa (login, respawn, portál). */
     private void switchWorld(String worldKey, Vec3 position) {
-        String worldName = resolveWorldName(worldKey);
-        try {
-            this.worldView = worldViews.view(worldName);
-        } catch (IllegalArgumentException e) {
-            LOG.error("[{}] Neznámý svět '{}' (klíč {})", name, worldName, worldKey);
-            return;
+        if (packetWorlds != null) {
+            // Klientský world model – geometrie z chunk paketů, žádný Bukkit svět.
+            this.worldView = packetWorlds.switchTo(worldKey);
+        } else {
+            String worldName = resolveWorldName(worldKey);
+            try {
+                this.worldView = worldViews.view(worldName);
+            } catch (IllegalArgumentException e) {
+                LOG.error("[{}] Neznámý svět '{}' (klíč {})", name, worldName, worldKey);
+                return;
+            }
         }
         this.physics = new BotPhysics(worldView, position);
         navigator.world(worldView);
         entities.clear();
         worldView.prefetch(position.toBlockPos(), 2);
+    }
+
+    /** Očekávaný název světa pro daný protokolový klíč (dle režimu world modelu). */
+    private String expectedWorldName(String worldKey) {
+        return packetWorlds != null ? worldKey : resolveWorldName(worldKey);
     }
 
     /** Mapování protokolového klíče světa na Bukkit název světa. */
