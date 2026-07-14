@@ -82,6 +82,20 @@ public interface Bot {
     void say(String message);
 
     /**
+     * Teleportuje bota na zadanou lokaci (i mezi světy).
+     *
+     * <p>Teleport se provede server-side (bot je skutečný hráč) a klient bota
+     * se plně resynchronizuje: přeruší se navigace, fyzika převezme novou
+     * pozici z position paketu serveru a při změně světa se přepne pohled na
+     * svět. Bezpečné z libovolného vlákna.</p>
+     *
+     * @param location cílová lokace
+     * @return future s {@code true} při úspěchu ({@code false} pokud bot
+     *         není online nebo teleport selhal)
+     */
+    java.util.concurrent.CompletableFuture<Boolean> teleport(org.bukkit.Location location);
+
+    /**
      * Odpojí bota od serveru. Bot lze později znovu připojit správcem botů.
      *
      * @param reason lidsky čitelný důvod (do logu)

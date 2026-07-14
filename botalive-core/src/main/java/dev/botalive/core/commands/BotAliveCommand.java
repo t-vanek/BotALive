@@ -130,19 +130,28 @@ public final class BotAliveCommand implements TabExecutor {
                 success(sender, "Bot '" + args[1] + "' odstraněn" + (purge ? " včetně dat" : "")));
     }
 
-    /** {@code /botalive tp <jméno> [here]} – k botovi, nebo bota k sobě. */
+    /**
+     * {@code /botalive tp <jméno>} – hráč k botovi,
+     * {@code /botalive tp <jméno> here} – bot k hráči,
+     * {@code /botalive tp <jméno> <x> <y> <z> [svět]} – bot na souřadnice.
+     */
     private void teleport(CommandSender sender, String[] args) {
-        if (!(sender instanceof Player player)) {
-            error(sender, "Jen pro hráče");
-            return;
-        }
         if (args.length < 2) {
-            error(sender, "Použití: /botalive tp <jméno> [here]");
+            error(sender, "Použití: /botalive tp <jméno> [here | x y z [svět]]");
             return;
         }
         Optional<Bot> bot = botManager.byName(args[1]);
         if (bot.isEmpty()) {
             error(sender, "Bot '" + args[1] + "' neexistuje");
+            return;
+        }
+        // Teleport na souřadnice (funguje i z konzole).
+        if (args.length >= 5) {
+            teleportToCoordinates(sender, bot.get(), args);
+            return;
+        }
+        if (!(sender instanceof Player player)) {
+            error(sender, "Z konzole použij: /botalive tp <jméno> <x> <y> <z> [svět]");
             return;
         }
         Player botPlayer = Bukkit.getPlayer(bot.get().id());
@@ -152,12 +161,52 @@ public final class BotAliveCommand implements TabExecutor {
         }
         boolean here = args.length >= 3 && args[2].equalsIgnoreCase("here");
         if (here) {
-            botPlayer.teleportAsync(player.getLocation())
-                    .thenRun(() -> success(sender, "Bot přenesen k tobě"));
+            bot.get().teleport(player.getLocation()).thenAccept(ok -> {
+                if (ok) {
+                    success(sender, "Bot přenesen k tobě");
+                } else {
+                    error(sender, "Teleport se nezdařil");
+                }
+            });
         } else {
             player.teleportAsync(botPlayer.getLocation())
                     .thenRun(() -> success(sender, "Přenesen k botovi '" + args[1] + "'"));
         }
+    }
+
+    /** Teleport bota na souřadnice přes API {@code Bot.teleport} (plný resync klienta). */
+    private void teleportToCoordinates(CommandSender sender, Bot bot, String[] args) {
+        double x;
+        double y;
+        double z;
+        try {
+            x = Double.parseDouble(args[2]);
+            y = Double.parseDouble(args[3]);
+            z = Double.parseDouble(args[4]);
+        } catch (NumberFormatException e) {
+            error(sender, "Neplatné souřadnice");
+            return;
+        }
+        org.bukkit.World world;
+        if (args.length >= 6) {
+            world = Bukkit.getWorld(args[5]);
+            if (world == null) {
+                error(sender, "Svět '" + args[5] + "' neexistuje");
+                return;
+            }
+        } else {
+            String currentWorld = bot.snapshot().worldName();
+            world = currentWorld != null ? Bukkit.getWorld(currentWorld)
+                    : Bukkit.getWorlds().getFirst();
+        }
+        bot.teleport(new org.bukkit.Location(world, x, y, z)).thenAccept(ok -> {
+            if (ok) {
+                success(sender, "Bot '%s' teleportován na %.0f %.0f %.0f (%s)"
+                        .formatted(bot.name(), x, y, z, world.getName()));
+            } else {
+                error(sender, "Teleport se nezdařil (bot offline, nebo svět není povolen)");
+            }
+        });
     }
 
     /** {@code /botalive list} */

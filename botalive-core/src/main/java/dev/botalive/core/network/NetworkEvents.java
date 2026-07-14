@@ -37,11 +37,13 @@ public interface NetworkEvents {
     void onDeath(String deathMessage);
 
     /**
-     * Server provedl respawn bota (po PERFORM_RESPAWN).
+     * Server přepnul dimenzi bota – po smrti (PERFORM_RESPAWN), nebo zaživa
+     * (nether/end portál, teleport mezi světy).
      *
-     * @param worldKey protokolový klíč světa po respawnu
+     * @param worldKey   protokolový klíč světa po respawnu
+     * @param afterDeath {@code true} pokud jde o respawn po smrti
      */
-    void onRespawn(String worldKey);
+    void onRespawn(String worldKey, boolean afterDeath);
 
     /**
      * Server udělil botovi rychlost (typicky knockback).

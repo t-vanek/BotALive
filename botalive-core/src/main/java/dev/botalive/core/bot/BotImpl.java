@@ -289,9 +289,19 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents {
     }
 
     @Override
-    public void onRespawn(String worldKey) {
+    public void onRespawn(String worldKey, boolean afterDeath) {
+        // Respawn paket zaživa = změna dimenze (nether/end portál, plugin
+        // teleport mezi světy). Bot si portálový přechod zapamatuje.
+        WorldView oldWorld = worldView;
+        BotPhysics oldPhysics = physics;
+        if (!afterDeath && oldWorld != null && oldPhysics != null
+                && !oldWorld.worldName().equals(resolveWorldName(worldKey))) {
+            Vec3 pos = oldPhysics.position();
+            memory.remember(MemoryKind.PORTAL, oldWorld.worldName(),
+                    (int) pos.x(), (int) pos.y(), (int) pos.z(), null,
+                    Map.of("to", worldKey), 0.7);
+        }
         awaitingFirstTeleport = true;
-        navigator.stop();
     }
 
     @Override
@@ -456,8 +466,9 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents {
                     ? current.z() + teleport.position().z() : teleport.position().z();
             Vec3 target = new Vec3(x, y, z);
 
-            if (physics == null || worldView == null
-                    || !worldView.worldName().equals(resolveWorldName(clientState.worldKey()))) {
+            boolean worldChanged = physics == null || worldView == null
+                    || !worldView.worldName().equals(resolveWorldName(clientState.worldKey()));
+            if (worldChanged) {
                 switchWorld(clientState.worldKey(), target);
             } else {
                 physics.teleport(target);
@@ -465,6 +476,17 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents {
             humanizer.snapTo(teleport.yaw(), teleport.pitch());
             movementSender.resetTo(target, teleport.yaw(), teleport.pitch());
             lastDistancePos = target;
+
+            // Velký skok (admin /tp, plugin, portál): rozpracovaná cesta a boj
+            // už neplatí – cíle si naplánují nové podle nové pozice.
+            if (worldChanged || target.distanceSquared(current) > 8 * 8) {
+                navigator.stop();
+                combat.disengage();
+                vehicle.stopCruise();
+                if (worldChanged) {
+                    worldView.prefetch(target.toBlockPos(), 2);
+                }
+            }
 
             if (awaitingFirstTeleport) {
                 awaitingFirstTeleport = false;
@@ -646,6 +668,27 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents {
         chat.say(message);
     }
 
+    @Override
+    public CompletableFuture<Boolean> teleport(Location location) {
+        org.bukkit.entity.Player player = Bukkit.getPlayer(id);
+        if (player == null || location.getWorld() == null) {
+            return CompletableFuture.completedFuture(false);
+        }
+        if (!config.worlds().allowed(location.getWorld().getName())) {
+            return CompletableFuture.completedFuture(false);
+        }
+        // Teleport přes vlákno entity (Folia-safe); klient se resynchronizuje
+        // position/respawn paketem od serveru (viz drainTeleports).
+        return bridge.callForEntity(player, () -> player.teleportAsync(location))
+                .thenCompose(future -> future == null
+                        ? CompletableFuture.completedFuture(false)
+                        : future)
+                .exceptionally(t -> {
+                    LOG.warn("[{}] Teleport selhal: {}", name, t.toString());
+                    return false;
+                });
+    }
+
     // ======================================================================
     // BotContext (interní přístup pro cíle)
     // ======================================================================
@@ -732,10 +775,10 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents {
 
     @Override
     public Vec3 position() {
-        // Při plavbě je pozice bota odvozená z vozidla.
-        Vec3 boatPos = vehicle.boatPosition();
-        if (boatPos != null && vehicle.mounted()) {
-            return boatPos;
+        // Při plavbě/jízdě je pozice bota odvozená z vozidla.
+        Vec3 vehiclePos = vehicle.vehiclePosition();
+        if (vehiclePos != null && vehicle.mounted()) {
+            return vehiclePos;
         }
         BotPhysics currentPhysics = physics;
         return currentPhysics != null ? currentPhysics.position() : Vec3.ZERO;

@@ -34,9 +34,13 @@ inventář a historii; po restartu serveru pokračuje tam, kde skončil.
   → dřevěné → kamenné nástroje), farmaří (sklizeň + přesazení), v noci spí
   v posteli nebo si staví úkryt a přebytky si ukládají do truhel, které si
   pamatují.
-- **Lodě** – bot loď najde (nebo položí z inventáře na hladinu), nasedne,
-  vybere si nejdelší vodní koridor a pluje s klientskou simulací vanilla
-  kinematiky (MoveVehicle/PaddleBoat pakety); u břehu vysedne.
+- **Lodě a minecarty** – bot vozidlo najde (nebo položí z inventáře), nasedne
+  a jede s klientskou simulací vanilla kinematiky (MoveVehicle/PaddleBoat
+  pakety): loď pluje nejdelším vodním koridorem a u břehu vysedne, vozík
+  sleduje koleje včetně zatáček, svahů a napájecích kolejí až na konec trati.
+- **Teleportace** – API `Bot.teleport(Location)` i `/botalive tp <bot> x y z
+  [svět]` s plným resyncem klienta (přerušení navigace, přepnutí světa);
+  průchody portálem si bot ukládá do paměti (`PORTAL`).
 - **Obchod s vesničany** – prodej plodin a surovin za smaragdy, nákup jídla
   při hladu; skutečné receptury vesničana včetně limitů zásob. Objevené
   vesnice si bot pamatuje a výdělek se propisuje do ekonomiky.
@@ -76,7 +80,7 @@ PostgreSQL driver – vše relokované do `dev.botalive.libs`).
 |---|---|
 | `create [jméno] [počet]` | vytvoří bota (bez jména vybere lidsky vypadající jméno z poolu) |
 | `remove <jméno\|all> [purge]` | odpojí a odstraní bota; `purge` smaže i data v DB |
-| `tp <jméno> [here]` | teleport k botovi / bota k sobě |
+| `tp <jméno> [here \| x y z [svět]]` | teleport k botovi / bota k sobě / bota na souřadnice |
 | `list` | přehled botů, stavů, zdraví a aktivních cílů |
 | `pause / resume <jméno\|all>` | pozastaví/obnoví AI (bot zůstává připojen) |
 | `personality <jméno>` | archetyp, seed a graf rysů osobnosti |
@@ -112,9 +116,6 @@ persistence, economy, tasks, commands, config, scheduler, world, human).
 Detailní popis rozhodnutí a trade-offů: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ## Známá omezení a roadmapa
-
-- Minecarty: mount/dismount primitivy existují (`VehicleController`),
-  autonomní jízda po kolejích (simulace rail fyziky) je na roadmapě.
 - Boti vyžadují offline-mode (jsou to nepodepsaní klienti); na online-mode
   serveru se plugin korektně odmítne připojit a vysvětlí proč.
 - Chat boti píší česky (vestavěná banka frází); vlastní fráze lze doplnit

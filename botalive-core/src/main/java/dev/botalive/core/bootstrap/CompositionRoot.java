@@ -20,6 +20,7 @@ import dev.botalive.core.ai.goals.StashGoal;
 import dev.botalive.core.ai.goals.SurviveGoal;
 import dev.botalive.core.ai.goals.WanderGoal;
 import dev.botalive.core.ai.goals.BoatRideGoal;
+import dev.botalive.core.ai.goals.MinecartRideGoal;
 import dev.botalive.core.ai.goals.TradeGoal;
 import dev.botalive.core.crafting.CraftingService;
 import dev.botalive.core.inventory.ContainerService;
@@ -128,6 +129,7 @@ public final class CompositionRoot {
         registry.register("sleep", bot -> new SleepGoal());
         registry.register("stash", bot -> new StashGoal(containers));
         registry.register("boat", bot -> new BoatRideGoal());
+        registry.register("minecart", bot -> new MinecartRideGoal());
         registry.register("trade", bot -> new TradeGoal(trades));
     }
 

@@ -184,10 +184,12 @@ public final class BotSessionListener extends SessionAdapter {
 
     private void handleRespawn(ClientboundRespawnPacket packet) {
         String worldKey = packet.getCommonPlayerSpawnInfo().getWorldName().asString();
+        boolean afterDeath = state.dead(); // před resetem – odlišuje smrt od portálu
         state.worldKey(worldKey);
         state.dead(false);
+        state.vehicleId(-1);
         entities.clear();
-        events.onRespawn(worldKey);
+        events.onRespawn(worldKey, afterDeath);
     }
 
     private void handleAddEntity(ClientboundAddEntityPacket packet) {

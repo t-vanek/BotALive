@@ -174,8 +174,14 @@ vanilla kinematiku lodi (zrychlení 0.04/tick, útlum 0.9 → terminální rychl
 PaddleBoat = animace pádel, MoveVehicle = pozice) a stav nasednutí drží
 `BotClientState` z clientbound SetPassengers – server je autoritou nad tím,
 kdo v čem sedí. Korekce (clientbound MoveVehicle) tečou ze síťového vlákna
-přes atomickou schránku. Nasednutí/vysednutí (interact/sneak pakety) funguje
-i pro minecarty; autonomní jízda po kolejích zatím implementovaná není.
+přes atomickou schránku.
+
+Minecarty používají stejný vzor s vlastní kolejovou fyzikou
+(`MinecartPhysics` nad abstrakcí `RailReader`): pohyb vázaný na osu koleje,
+zatáčky přesměrováním v bloku, stoupání s gravitačním zrychlením ±0.0078,
+napájecí koleje (boost +0.06 / brzda ×0.5), tření 0.997 a strop 0.4 bloku/tick.
+Kolejová data čte `WorldRailReader` z chunk snapshotů (Bukkit `Rail` block
+data), testy si trať definují přímo – fyzika je čistá a plně testovaná.
 
 ## Roadmapa rozšíření
 
@@ -187,9 +193,14 @@ Hotovo ve fázi 3: lodě (klientská simulace + plavba po vodních plochách,
 pokládání lodi z inventáře) a obchodování s vesničany (prodej komodit za
 smaragdy, nákup jídla, VILLAGE paměť, napojení na ekonomiku).
 
+Hotovo ve fázi 4: minecarty (kolejová fyzika se zatáčkami, svahy a napájecími
+kolejemi, pokládání vozíku na kolej) a podpora teleportace
+(`Bot.teleport(Location)` API, `/botalive tp` na souřadnice, plný resync
+klienta při velkém skoku – přerušení navigace/boje/plavby, přepnutí světa –
+a PORTAL vzpomínky při průchodu portálem zaživa).
+
 Architektonicky připravené, zatím neimplementované:
 
-1. **Minecarty** – simulace jízdy po kolejích (mount/dismount už funguje).
-2. **Klientský world model** – druhá implementace `WorldView` pro boty na
+1. **Klientský world model** – druhá implementace `WorldView` pro boty na
    cizích serverech.
-3. **Konfigurovatelné fráze** – `PhraseBank` z YAML per jazyk.
+2. **Konfigurovatelné fráze** – `PhraseBank` z YAML per jazyk.
