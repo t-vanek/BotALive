@@ -1,0 +1,96 @@
+# ============================================================================
+#  BotAlive – konfigurace
+#  Plně autonomní AI hráči připojující se jako skuteční Minecraft klienti.
+# ============================================================================
+
+network:
+  # Kam se boti připojují. Výchozí: tento server (loopback).
+  host: "127.0.0.1"
+  # 0 = převzít port běžícího serveru.
+  port: 0
+  connect-timeout-ms: 10000
+  reconnect:
+    enabled: true
+    delay-min-ms: 3000
+    delay-max-ms: 15000
+    max-attempts: 10
+
+bots:
+  # Tvrdý strop počtu botů.
+  max-count: 50
+  # Vlastní pool jmen (prázdné = vestavěný seznam).
+  name-pool: []
+  auto-spawn:
+    enabled: false
+    count: 3
+    delay-seconds: 10
+
+ai:
+  # Jak často mozek přehodnocuje cíle (v ticích, 5 = 4× za sekundu).
+  decision-interval-ticks: 5
+  # Bonus aktivního cíle proti kmitání rozhodování (1.15 = +15 %).
+  goal-hysteresis: 1.15
+  # Dohled botů na entity (bloky).
+  view-distance-blocks: 32
+  # easy | normal | hard | nightmare – přesnost a reakce v boji.
+  difficulty: normal
+
+chat:
+  enabled: true
+  # Základní šance odpovědět na zmínku jména (násobí se povahou bota).
+  reply-chance: 0.75
+  # Průměrná rychlost psaní (slova/min); každý bot má vlastní odchylku.
+  words-per-minute: 160
+  # Strop rozepsaných odpovědí (ochrana proti spamu).
+  max-queued-replies: 2
+
+combat:
+  enabled: true
+  # Rozsah lidské reakce na nový cíl (ms).
+  reaction-min-ms: 150
+  reaction-max-ms: 450
+  strafing: true
+  shield-use: true
+
+economy:
+  enabled: true
+  starting-balance: 100.0
+
+worlds:
+  # Povolené světy pro boty (prázdné = všechny kromě blacklistu).
+  whitelist: []
+  blacklist: []
+
+spawn:
+  # world-spawn = nechá spawn na serveru | fixed = pevná pozice | random-around = náhodně kolem bodu
+  mode: world-spawn
+  world: ""
+  x: 0
+  y: 64
+  z: 0
+  radius: 64
+
+performance:
+  # 0 = automaticky podle počtu jader.
+  tick-threads: 0
+  pathfinding-threads: 0
+  chunk-cache:
+    size: 4096
+    ttl-ms: 3000
+  # Perioda server-side snapshotu bota (ticky).
+  server-snapshot-ticks: 10
+
+persistence:
+  # sqlite (výchozí, bez konfigurace) | postgresql
+  type: sqlite
+  sqlite:
+    file: botalive.db
+  postgresql:
+    host: localhost
+    port: 5432
+    database: botalive
+    user: botalive
+    password: ""
+    pool-size: 8
+  # Perioda write-behind flushe (sekundy).
+  flush-seconds: 15
