@@ -39,6 +39,7 @@ import dev.botalive.core.scheduler.MainThreadBridge;
 import dev.botalive.core.util.BlockPos;
 import dev.botalive.core.util.BotRandom;
 import dev.botalive.core.util.Vec3;
+import dev.botalive.core.vehicle.VehicleController;
 import dev.botalive.core.world.WorldView;
 import dev.botalive.core.world.WorldViewRegistry;
 import org.bukkit.Bukkit;
@@ -91,6 +92,7 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents {
     private final ChatEngine chat;
     private final InventoryHelper inventoryHelper;
     private final ServerSideView serverView;
+    private final VehicleController vehicle;
 
     private final WorldViewRegistry worldViews;
     private final MainThreadBridge bridge;
@@ -164,6 +166,7 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents {
         this.inventoryHelper = new InventoryHelper(actions);
         this.combat = new CombatController(actions, humanizer, rng, personality, config.combat(),
                 CombatDifficulty.fromConfig(config.ai().difficulty()), inventoryHelper);
+        this.vehicle = new VehicleController(connection, clientState);
         this.serverView = new ServerSideView(id, bridge);
         this.chat = new ChatEngine(name, personality, rng, config.chat(), this::deliverChat);
         this.brain = new Brain(this, goalFactory.apply(this),
@@ -297,6 +300,11 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents {
     }
 
     @Override
+    public void onVehicleMove(Vec3 position, float yaw) {
+        vehicle.applyServerVehicleMove(position, yaw);
+    }
+
+    @Override
     public void onPlayerChat(UUID sender, String senderName, String content) {
         chat.onMessage(sender, senderName, content);
     }
@@ -398,6 +406,16 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents {
 
         if (alive && !paused.get() && state.get() == BotLifecycleState.SPAWNED) {
             brain.tick();
+        }
+
+        // Ve vozidle: klientská simulace vozidla nahrazuje pohyb hráče
+        // (pozici hráče odvozuje server z vozidla).
+        if (vehicle.mounted()) {
+            boolean idleInVehicle = !combat.engaged();
+            humanizer.tick(position().add(0, 1.62, 0), idleInVehicle && alive);
+            vehicle.tick();
+            chat.tick();
+            return;
         }
 
         // Pohyb: explicitní požadavek cíle > navigace > stání.
@@ -708,7 +726,17 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents {
     }
 
     @Override
+    public VehicleController vehicle() {
+        return vehicle;
+    }
+
+    @Override
     public Vec3 position() {
+        // Při plavbě je pozice bota odvozená z vozidla.
+        Vec3 boatPos = vehicle.boatPosition();
+        if (boatPos != null && vehicle.mounted()) {
+            return boatPos;
+        }
         BotPhysics currentPhysics = physics;
         return currentPhysics != null ? currentPhysics.position() : Vec3.ZERO;
     }

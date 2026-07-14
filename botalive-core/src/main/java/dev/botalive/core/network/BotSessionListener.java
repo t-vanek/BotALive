@@ -93,6 +93,15 @@ public final class BotSessionListener extends SessionAdapter {
                                 new Vec3(p.getPosition().getX(), p.getPosition().getY(), p.getPosition().getZ()),
                                 p.getYRot(), p.getXRot()));
                 case ClientboundSetEntityMotionPacket p -> handleMotion(p);
+                case org.geysermc.mcprotocollib.protocol.packet.ingame.clientbound.entity
+                        .ClientboundSetPassengersPacket p -> handlePassengers(p);
+                case org.geysermc.mcprotocollib.protocol.packet.ingame.clientbound.entity
+                        .ClientboundMoveVehiclePacket p -> {
+                    if (state.vehicleId() >= 0) {
+                        events.onVehicleMove(new Vec3(p.getPosition().getX(),
+                                p.getPosition().getY(), p.getPosition().getZ()), p.getYRot());
+                    }
+                }
                 case ClientboundContainerSetContentPacket p -> {
                     if (p.getContainerId() == 0) {
                         inventory.setContents(p.getItems());
@@ -186,6 +195,24 @@ public final class BotSessionListener extends SessionAdapter {
                 new Vec3(packet.getX(), packet.getY(), packet.getZ()));
         entity.setRotation(packet.getYaw(), packet.getPitch());
         entities.add(entity);
+    }
+
+    /** Sleduje, zda bot sedí ve vozidle (server je autoritou nad pasažéry). */
+    private void handlePassengers(org.geysermc.mcprotocollib.protocol.packet.ingame.clientbound
+                                          .entity.ClientboundSetPassengersPacket packet) {
+        int self = state.entityId();
+        boolean containsSelf = false;
+        for (int passengerId : packet.getPassengerIds()) {
+            if (passengerId == self) {
+                containsSelf = true;
+                break;
+            }
+        }
+        if (containsSelf) {
+            state.vehicleId(packet.getEntityId());
+        } else if (state.vehicleId() == packet.getEntityId()) {
+            state.vehicleId(-1);
+        }
     }
 
     private void handleMotion(ClientboundSetEntityMotionPacket packet) {

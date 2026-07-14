@@ -164,18 +164,32 @@ obsahem" a zase ji zavře (`ContainerClose` paket). Naopak vše, co protokol
 umí robustně – kopání, pokládání, jídlo, luk, kuše, štít, postel – jde vždy
 pakety.
 
+### 10. Vozidla: klientsky autoritativní simulace
+
+Jízda ve vozidle je v Minecraftu klientsky autoritativní – řidič posílá
+`ServerboundMoveVehiclePacket` a server validuje. `BoatPhysics` replikuje
+vanilla kinematiku lodi (zrychlení 0.04/tick, útlum 0.9 → terminální rychlost
+~7.2 bloků/s, zatáčení max 2.5°/tick) jako čistou, testovanou třídu;
+`VehicleController` k ní přidává pakety (PlayerInput = „klávesy",
+PaddleBoat = animace pádel, MoveVehicle = pozice) a stav nasednutí drží
+`BotClientState` z clientbound SetPassengers – server je autoritou nad tím,
+kdo v čem sedí. Korekce (clientbound MoveVehicle) tečou ze síťového vlákna
+přes atomickou schránku. Nasednutí/vysednutí (interact/sneak pakety) funguje
+i pro minecarty; autonomní jízda po kolejích zatím implementovaná není.
+
 ## Roadmapa rozšíření
 
 Hotovo ve fázi 2: crafting progrese, střelba lukem/kuší s predikcí a
 balistikou, štít, farmaření (Ageable přes chunk snapshoty), spánek v posteli,
 ukládání přebytků do truhel, unit testy (A*, fyzika, překlepy, osobnosti) a CI.
 
+Hotovo ve fázi 3: lodě (klientská simulace + plavba po vodních plochách,
+pokládání lodi z inventáře) a obchodování s vesničany (prodej komodit za
+smaragdy, nákup jídla, VILLAGE paměť, napojení na ekonomiku).
+
 Architektonicky připravené, zatím neimplementované:
 
-1. **Lodě/minecarty** – `ServerboundPaddleBoatPacket`/`MoveVehiclePacket`;
-   `Navigator` dostane vodní režim.
-2. **Obchodování** – villager UI přes `ServerboundSelectTradePacket`;
-   ekonomika (peněženky, transakce) je hotová.
-3. **Klientský world model** – druhá implementace `WorldView` pro boty na
+1. **Minecarty** – simulace jízdy po kolejích (mount/dismount už funguje).
+2. **Klientský world model** – druhá implementace `WorldView` pro boty na
    cizích serverech.
-4. **Konfigurovatelné fráze** – `PhraseBank` z YAML per jazyk.
+3. **Konfigurovatelné fráze** – `PhraseBank` z YAML per jazyk.

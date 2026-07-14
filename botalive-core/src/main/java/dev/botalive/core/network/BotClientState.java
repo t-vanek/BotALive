@@ -38,6 +38,9 @@ public final class BotClientState {
     /** Id právě otevřeného kontejneru (0 = žádný/vlastní inventář). */
     private volatile int openContainerId;
 
+    /** Entity id vozidla, ve kterém bot sedí (-1 = žádné). */
+    private volatile int vehicleId = -1;
+
     /** Čítač sequence pro akce s bloky (kopání, pokládání, použití itemu). */
     private final AtomicInteger actionSequence = new AtomicInteger(1);
 
@@ -134,6 +137,16 @@ public final class BotClientState {
         this.openContainerId = containerId;
     }
 
+    /** @return entity id vozidla bota, -1 pokud nesedí v žádném */
+    public int vehicleId() {
+        return vehicleId;
+    }
+
+    /** Nastaví vozidlo (SetPassengers paket). */
+    public void vehicleId(int entityId) {
+        this.vehicleId = entityId;
+    }
+
     /** Zařadí teleport k aplikaci v ticku. */
     public void queueTeleport(TeleportSync teleport) {
         pendingTeleports.add(teleport);
@@ -159,6 +172,8 @@ public final class BotClientState {
         spawned = false;
         dead = false;
         entityId = -1;
+        vehicleId = -1;
+        openContainerId = 0;
         pendingTeleports.clear();
         pendingImpulses.clear();
     }

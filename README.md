@@ -34,6 +34,12 @@ inventář a historii; po restartu serveru pokračuje tam, kde skončil.
   → dřevěné → kamenné nástroje), farmaří (sklizeň + přesazení), v noci spí
   v posteli nebo si staví úkryt a přebytky si ukládají do truhel, které si
   pamatují.
+- **Lodě** – bot loď najde (nebo položí z inventáře na hladinu), nasedne,
+  vybere si nejdelší vodní koridor a pluje s klientskou simulací vanilla
+  kinematiky (MoveVehicle/PaddleBoat pakety); u břehu vysedne.
+- **Obchod s vesničany** – prodej plodin a surovin za smaragdy, nákup jídla
+  při hladu; skutečné receptury vesničana včetně limitů zásob. Objevené
+  vesnice si bot pamatuje a výdělek se propisuje do ekonomiky.
 - **Výkon** – vlastní vícevláknový tick engine (20 Hz, rozfázovaně), sdílená
   Caffeine cache chunk snapshotů, asynchronní pathfinding pool, jednovláknové
   virtuální executory pro pakety, žádné blokování herních vláken. Funguje na
@@ -107,9 +113,8 @@ Detailní popis rozhodnutí a trade-offů: [docs/ARCHITECTURE.md](docs/ARCHITECT
 
 ## Známá omezení a roadmapa
 
-- Obchodování s villagery a jízda v lodích/minecartech zatím nejsou
-  implementované – architektura s nimi počítá (nové `Goal` + `BotTask`
-  primitivy), viz roadmapa v ARCHITECTURE.md.
+- Minecarty: mount/dismount primitivy existují (`VehicleController`),
+  autonomní jízda po kolejích (simulace rail fyziky) je na roadmapě.
 - Boti vyžadují offline-mode (jsou to nepodepsaní klienti); na online-mode
   serveru se plugin korektně odmítne připojit a vysvětlí proč.
 - Chat boti píší česky (vestavěná banka frází); vlastní fráze lze doplnit

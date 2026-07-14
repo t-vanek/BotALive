@@ -54,6 +54,19 @@ public final class BotActions {
     }
 
     /**
+     * Interakce s entitou pravým klikem (nasednutí do lodi, otevření
+     * obchodu s vesničanem, ...).
+     *
+     * @param entityId síťové id entity
+     */
+    public void interactEntity(int entityId) {
+        connection.send(new org.geysermc.mcprotocollib.protocol.packet.ingame.serverbound.player
+                .ServerboundInteractPacket(entityId,
+                org.geysermc.mcprotocollib.protocol.data.game.entity.player.Hand.MAIN_HAND,
+                org.cloudburstmc.math.vector.Vector3d.from(0, 1.0, 0), false));
+    }
+
+    /**
      * Vybere hotbar slot.
      *
      * @param hotbarIndex 0–8

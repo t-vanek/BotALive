@@ -60,6 +60,15 @@ public interface NetworkEvents {
     void onPlayerChat(UUID sender, String senderName, String content);
 
     /**
+     * Server poslal autoritativní pozici vozidla, ve kterém bot sedí
+     * (korekce klientské simulace lodi).
+     *
+     * @param position pozice vozidla
+     * @param yaw      natočení vozidla
+     */
+    void onVehicleMove(Vec3 position, float yaw);
+
+    /**
      * Spojení bylo ukončeno.
      *
      * @param reason lidsky čitelný důvod
