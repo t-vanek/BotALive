@@ -32,11 +32,13 @@ public final class ServerSideView {
      * @param hotbar      materiály v hotbaru (9 slotů; null = prázdný)
      * @param hotbarCounts počty kusů v hotbaru
      * @param mainInventory materiály hlavního inventáře (sloty 9–35)
+     * @param offhand     materiál v druhé ruce (null = prázdná)
      * @param health      zdraví
      * @param foodLevel   najedenost
      * @param expLevel    úroveň zkušeností
      * @param onFire      bot hoří
      * @param inLava      bot je v lávě
+     * @param sleeping    bot spí v posteli
      * @param worldTime   herní čas světa (0–23999)
      * @param takenAtMs   čas pořízení snapshotu
      */
@@ -45,11 +47,13 @@ public final class ServerSideView {
             Material[] hotbar,
             int[] hotbarCounts,
             Material[] mainInventory,
+            Material offhand,
             double health,
             int foodLevel,
             int expLevel,
             boolean onFire,
             boolean inLava,
+            boolean sleeping,
             long worldTime,
             long takenAtMs
     ) {
@@ -148,14 +152,17 @@ public final class ServerSideView {
             }
         }
         Material feet = player.getLocation().getBlock().getType();
+        ItemStack offhandItem = inventory.getItemInOffHand();
+        Material offhand = offhandItem.getType().isAir() ? null : offhandItem.getType();
         return new Snapshot(
                 player.getLocation().clone(),
-                hotbar, hotbarCounts, main,
+                hotbar, hotbarCounts, main, offhand,
                 player.getHealth(),
                 player.getFoodLevel(),
                 player.getLevel(),
                 player.getFireTicks() > 0,
                 feet == Material.LAVA,
+                player.isSleeping(),
                 player.getWorld().getTime(),
                 System.currentTimeMillis());
     }

@@ -17,6 +17,7 @@ import java.util.List;
  * @param economy     vnitřní ekonomika botů
  * @param worlds      whitelist/blacklist světů
  * @param spawn       kde se boti spawnují
+ * @param teleport    teleportace hráčů k botům a botů k hráčům
  * @param performance výkonnostní laditelné parametry
  * @param persistence databáze
  */
@@ -29,6 +30,7 @@ public record BotAliveConfig(
         Economy economy,
         Worlds worlds,
         Spawn spawn,
+        Teleport teleport,
         Performance performance,
         Persistence persistence
 ) {
@@ -39,9 +41,19 @@ public record BotAliveConfig(
      * @param host             adresa serveru (typicky 127.0.0.1)
      * @param port             port serveru; 0 = převzít z běžícího serveru
      * @param connectTimeoutMs timeout TCP připojení
+     * @param worldModel       zdroj geometrie světa: {@code server} (chunk
+     *                         snapshoty hostitelského serveru – výchozí) nebo
+     *                         {@code packet} (parsování chunk paketů – nutné,
+     *                         hrají-li boti na cizím serveru)
      * @param reconnect        automatické znovupřipojení po výpadku
      */
-    public record Network(String host, int port, int connectTimeoutMs, Reconnect reconnect) {
+    public record Network(String host, int port, int connectTimeoutMs,
+                          String worldModel, Reconnect reconnect) {
+
+        /** @return {@code true} pokud se má použít klientský (paketový) world model */
+        public boolean packetWorldModel() {
+            return "packet".equalsIgnoreCase(worldModel);
+        }
     }
 
     /**
@@ -141,6 +153,16 @@ public record BotAliveConfig(
      * @param radius poloměr pro random-around
      */
     public record Spawn(String mode, String world, double x, double y, double z, int radius) {
+    }
+
+    /**
+     * Teleportace hráč ↔ bot.
+     *
+     * @param enabled                zda je teleportace pro běžné hráče zapnutá
+     *                               (admin s {@code botalive.admin} funguje vždy)
+     * @param playerCooldownSeconds  cooldown mezi teleporty jednoho hráče (0 = bez limitu)
+     */
+    public record Teleport(boolean enabled, int playerCooldownSeconds) {
     }
 
     /**

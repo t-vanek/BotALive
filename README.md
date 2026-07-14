@@ -28,7 +28,29 @@ inventář a historii; po restartu serveru pokračuje tam, kde skončil.
   rozfázované ticky. Chat s přemýšlením, rychlostí psaní, překlepy (QWERTZ
   sousedé, prohození, výpadky) i follow-up opravami „*slovo“.
 - **Boj s obtížnostmi** – strafing, sprint reset, útoky s jitterem, ústup podle
-  odvahy; profily easy/normal/hard/nightmare.
+  odvahy; profily easy/normal/hard/nightmare. Na dálku luk i kuše (predikce
+  pohybu cíle, balistická kompenzace), v melee blokování štítem.
+- **Survival progrese** – boti těží dřevo a rudy, craftí (prkna → tyčky → ponk
+  → dřevěné → kamenné nástroje), farmaří (sklizeň + přesazení), v noci spí
+  v posteli nebo si staví úkryt a přebytky si ukládají do truhel, které si
+  pamatují.
+- **Lodě a minecarty** – bot vozidlo najde (nebo položí z inventáře), nasedne
+  a jede s klientskou simulací vanilla kinematiky (MoveVehicle/PaddleBoat
+  pakety): loď pluje nejdelším vodním koridorem a u břehu vysedne, vozík
+  sleduje koleje včetně zatáček, svahů a napájecích kolejí až na konec trati.
+- **Teleportace** – plné API (`Bot.teleport(Location)`,
+  `Bot.teleportToPlayer(uuid)`, `Bot.teleportPlayerToBot(uuid)`) i příkazy
+  pro adminy a hráče: hráč se přenese k botovi, nebo si bota přivolá k sobě
+  (oddělená práva + konfigurovatelný cooldown). Vždy s plným resyncem klienta;
+  průchody portálem si bot ukládá do paměti (`PORTAL`).
+- **Obchod s vesničany** – prodej plodin a surovin za smaragdy, nákup jídla
+  při hladu; skutečné receptury vesničana včetně limitů zásob. Objevené
+  vesnice si bot pamatuje a výdělek se propisuje do ekonomiky.
+- **Cizí servery** – volitelný klientský world model (`network.world-model:
+  packet`): geometrie světa se parsuje přímo z chunk paketů (block states,
+  registry dimenzí, blokové změny), takže boti mohou hrát na libovolném
+  offline-mode serveru se stejnou verzí protokolu. Mapování block states se
+  sestavuje z registrů hostitelského serveru s degradovaným fallbackem.
 - **Výkon** – vlastní vícevláknový tick engine (20 Hz, rozfázovaně), sdílená
   Caffeine cache chunk snapshotů, asynchronní pathfinding pool, jednovláknové
   virtuální executory pro pakety, žádné blokování herních vláken. Funguje na
@@ -65,7 +87,9 @@ PostgreSQL driver – vše relokované do `dev.botalive.libs`).
 |---|---|
 | `create [jméno] [počet]` | vytvoří bota (bez jména vybere lidsky vypadající jméno z poolu) |
 | `remove <jméno\|all> [purge]` | odpojí a odstraní bota; `purge` smaže i data v DB |
-| `tp <jméno> [here]` | teleport k botovi / bota k sobě |
+| `tp <jméno>` | teleport hráče k botovi (právo `botalive.teleport`) |
+| `tp <jméno> here` | přivolání bota k hráči (právo `botalive.teleport.summon`) |
+| `tp <jméno> <x> <y> <z> [svět]` | teleport bota na souřadnice (jen admin, i z konzole) |
 | `list` | přehled botů, stavů, zdraví a aktivních cílů |
 | `pause / resume <jméno\|all>` | pozastaví/obnoví AI (bot zůstává připojen) |
 | `personality <jméno>` | archetyp, seed a graf rysů osobnosti |
@@ -73,7 +97,18 @@ PostgreSQL driver – vše relokované do `dev.botalive.libs`).
 | `goal <jméno> [set <cíl>\|clear]` | utility přehled / vynucení cíle |
 | `stats <jméno>` | vytěženo, postaveno, smrti, zabití, nachozeno, peníze… |
 
-Oprávnění: `botalive.admin` (default op).
+Oprávnění:
+
+| Právo | Význam | Default |
+|---|---|---|
+| `botalive.admin` | plná správa botů, teleporty bez cooldownu | op |
+| `botalive.teleport` | `/botalive tp <bot>` + zkrácený `list` (jen jména) | op |
+| `botalive.teleport.summon` | `/botalive tp <bot> here` (přivolání bota) | op |
+| `botalive.use` | základní přístup k příkazu | všichni |
+
+Hráčské teleporty mají konfigurovatelný cooldown
+(`teleport.player-cooldown-seconds`, výchozí 30 s) a lze je vypnout
+(`teleport.enabled: false`); admin má vždy volnou cestu.
 
 ## API pro vývojáře
 
@@ -87,6 +122,11 @@ api.goalRegistry().register("greet-admins", bot -> new MyGreetAdminsGoal());
 api.botManager()
    .create(new BotSpawnSpec("Pepa", null, 42L))
    .thenAccept(bot -> bot.say("ahoj svete"));
+
+// teleportace (vše thread-safe, s plným resyncem klienta bota)
+bot.teleport(location);                        // bot na lokaci
+bot.teleportToPlayer(player.getUniqueId());    // bot k hráči
+bot.teleportPlayerToBot(player.getUniqueId()); // hráč k botovi
 ```
 
 Bukkit eventy: `BotSpawnedEvent`, `BotRemovedEvent`, `BotChatEvent`
@@ -101,10 +141,6 @@ persistence, economy, tasks, commands, config, scheduler, world, human).
 Detailní popis rozhodnutí a trade-offů: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ## Známá omezení a roadmapa
-
-- Crafting, obchodování s villagery, luky/kuše a jízda v lodích/minecartech
-  zatím nejsou implementované – architektura s nimi počítá (nové `Goal` +
-  `BotTask` primitivy), viz roadmapa v ARCHITECTURE.md.
 - Boti vyžadují offline-mode (jsou to nepodepsaní klienti); na online-mode
   serveru se plugin korektně odmítne připojit a vysvětlí proč.
 - Chat boti píší česky (vestavěná banka frází); vlastní fráze lze doplnit

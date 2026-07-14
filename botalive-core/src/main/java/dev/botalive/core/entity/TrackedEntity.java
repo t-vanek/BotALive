@@ -18,6 +18,9 @@ public final class TrackedEntity {
     private final UUID uuid;
     private final EntityType type;
     private final AtomicReference<Vec3> position = new AtomicReference<>();
+
+    /** EWMA odhad rychlosti (bloky/tick) – pro predikci při střelbě. */
+    private final AtomicReference<Vec3> velocity = new AtomicReference<>(Vec3.ZERO);
     private volatile float yaw;
     private volatile float pitch;
     private volatile long lastUpdateMs;
@@ -86,7 +89,14 @@ public final class TrackedEntity {
      */
     public void moveBy(double dx, double dy, double dz) {
         position.updateAndGet(p -> p.add(dx, dy, dz));
+        // EWMA: 40 % nového vzorku – vyhladí nepravidelnou kadenci move paketů.
+        velocity.updateAndGet(v -> v.mul(0.6).add(dx * 0.4, dy * 0.4, dz * 0.4));
         this.lastUpdateMs = System.currentTimeMillis();
+    }
+
+    /** @return vyhlazený odhad rychlosti (bloky/tick) */
+    public Vec3 velocityEstimate() {
+        return velocity.get();
     }
 
     /**

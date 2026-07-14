@@ -54,6 +54,19 @@ public final class BotActions {
     }
 
     /**
+     * Interakce s entitou pravým klikem (nasednutí do lodi, otevření
+     * obchodu s vesničanem, ...).
+     *
+     * @param entityId síťové id entity
+     */
+    public void interactEntity(int entityId) {
+        connection.send(new org.geysermc.mcprotocollib.protocol.packet.ingame.serverbound.player
+                .ServerboundInteractPacket(entityId,
+                org.geysermc.mcprotocollib.protocol.data.game.entity.player.Hand.MAIN_HAND,
+                org.cloudburstmc.math.vector.Vector3d.from(0, 1.0, 0), false));
+    }
+
+    /**
      * Vybere hotbar slot.
      *
      * @param hotbarIndex 0–8
@@ -114,13 +127,35 @@ public final class BotActions {
     }
 
     /**
-     * Použije držený item „do vzduchu" (jídlo, štít, luk...).
+     * Použije držený item „do vzduchu" (jídlo, natažení luku...).
      *
      * @param yaw   aktuální yaw bota
      * @param pitch aktuální pitch bota
      */
     public void useItem(float yaw, float pitch) {
         connection.send(new ServerboundUseItemPacket(Hand.MAIN_HAND, state.nextSequence(), yaw, pitch));
+    }
+
+    /**
+     * Použije item v druhé ruce (zvednutí štítu).
+     *
+     * @param yaw   aktuální yaw bota
+     * @param pitch aktuální pitch bota
+     */
+    public void useOffhand(float yaw, float pitch) {
+        connection.send(new ServerboundUseItemPacket(Hand.OFF_HAND, state.nextSequence(), yaw, pitch));
+    }
+
+    /**
+     * Zavře právě otevřený kontejner (truhla, ponk...).
+     */
+    public void closeContainer() {
+        int containerId = state.openContainerId();
+        if (containerId != 0) {
+            connection.send(new org.geysermc.mcprotocollib.protocol.packet.ingame.serverbound
+                    .inventory.ServerboundContainerClosePacket(containerId));
+            state.openContainerId(0);
+        }
     }
 
     /**

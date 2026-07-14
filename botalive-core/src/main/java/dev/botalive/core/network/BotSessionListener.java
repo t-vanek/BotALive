@@ -52,20 +52,26 @@ public final class BotSessionListener extends SessionAdapter {
     private final NetworkEvents events;
     private final String botName;
 
+    /** Klientský world model (jen v režimu {@code packet}, jinak {@code null}). */
+    private final dev.botalive.core.world.PacketWorldManager packetWorlds;
+
     /**
-     * @param botName   jméno bota (pro logy)
-     * @param state     protokolový stav bota
-     * @param entities  tracker viditelných entit
-     * @param inventory klientský model inventáře
-     * @param events    callback do jádra bota
+     * @param botName      jméno bota (pro logy)
+     * @param state        protokolový stav bota
+     * @param entities     tracker viditelných entit
+     * @param inventory    klientský model inventáře
+     * @param events       callback do jádra bota
+     * @param packetWorlds klientský world model ({@code null} v režimu server)
      */
     public BotSessionListener(String botName, BotClientState state, EntityTracker entities,
-                              ClientInventory inventory, NetworkEvents events) {
+                              ClientInventory inventory, NetworkEvents events,
+                              dev.botalive.core.world.PacketWorldManager packetWorlds) {
         this.botName = botName;
         this.state = state;
         this.entities = entities;
         this.inventory = inventory;
         this.events = events;
+        this.packetWorlds = packetWorlds;
     }
 
     @Override
@@ -93,6 +99,15 @@ public final class BotSessionListener extends SessionAdapter {
                                 new Vec3(p.getPosition().getX(), p.getPosition().getY(), p.getPosition().getZ()),
                                 p.getYRot(), p.getXRot()));
                 case ClientboundSetEntityMotionPacket p -> handleMotion(p);
+                case org.geysermc.mcprotocollib.protocol.packet.ingame.clientbound.entity
+                        .ClientboundSetPassengersPacket p -> handlePassengers(p);
+                case org.geysermc.mcprotocollib.protocol.packet.ingame.clientbound.entity
+                        .ClientboundMoveVehiclePacket p -> {
+                    if (state.vehicleId() >= 0) {
+                        events.onVehicleMove(new Vec3(p.getPosition().getX(),
+                                p.getPosition().getY(), p.getPosition().getZ()), p.getYRot());
+                    }
+                }
                 case ClientboundContainerSetContentPacket p -> {
                     if (p.getContainerId() == 0) {
                         inventory.setContents(p.getItems());
@@ -104,10 +119,42 @@ public final class BotSessionListener extends SessionAdapter {
                     }
                 }
                 case ClientboundSetHeldSlotPacket p -> state.heldSlot(p.getSlot());
+                case org.geysermc.mcprotocollib.protocol.packet.ingame.clientbound.inventory
+                        .ClientboundOpenScreenPacket p -> state.openContainerId(p.getContainerId());
                 case ClientboundPlayerChatPacket p -> handleChat(p);
+                // Klientský world model (jen v režimu packet).
+                case org.geysermc.mcprotocollib.protocol.packet.configuration.clientbound
+                        .ClientboundRegistryDataPacket p -> {
+                    if (packetWorlds != null) {
+                        packetWorlds.onRegistryData(p.getRegistry(), p.getEntries());
+                    }
+                }
+                case org.geysermc.mcprotocollib.protocol.packet.ingame.clientbound.level
+                        .ClientboundLevelChunkWithLightPacket p -> {
+                    if (packetWorlds != null) {
+                        packetWorlds.onChunk(p);
+                    }
+                }
+                case org.geysermc.mcprotocollib.protocol.packet.ingame.clientbound.level
+                        .ClientboundBlockUpdatePacket p -> {
+                    if (packetWorlds != null) {
+                        packetWorlds.onBlockUpdate(p);
+                    }
+                }
+                case org.geysermc.mcprotocollib.protocol.packet.ingame.clientbound.level
+                        .ClientboundSectionBlocksUpdatePacket p -> {
+                    if (packetWorlds != null) {
+                        packetWorlds.onSectionUpdate(p);
+                    }
+                }
+                case org.geysermc.mcprotocollib.protocol.packet.ingame.clientbound.level
+                        .ClientboundForgetLevelChunkPacket p -> {
+                    if (packetWorlds != null) {
+                        packetWorlds.onForgetChunk(p);
+                    }
+                }
                 default -> {
-                    // Ostatní pakety (chunky, světlo, čas, ...) bot nepotřebuje
-                    // zpracovávat – geometrii světa čte přes WorldView.
+                    // Ostatní pakety (světlo, čas, zvuky, ...) bot nepotřebuje.
                 }
             }
         } catch (Throwable t) {
@@ -134,6 +181,9 @@ public final class BotSessionListener extends SessionAdapter {
         state.entityId(packet.getEntityId());
         String worldKey = packet.getCommonPlayerSpawnInfo().getWorldName().asString();
         state.worldKey(worldKey);
+        if (packetWorlds != null) {
+            packetWorlds.dimension(packet.getCommonPlayerSpawnInfo().getDimension());
+        }
         LOG.debug("[{}] Login dokončen, entityId={}, world={}", botName, packet.getEntityId(), worldKey);
         events.onLogin(packet.getEntityId(), worldKey);
     }
@@ -173,10 +223,15 @@ public final class BotSessionListener extends SessionAdapter {
 
     private void handleRespawn(ClientboundRespawnPacket packet) {
         String worldKey = packet.getCommonPlayerSpawnInfo().getWorldName().asString();
+        boolean afterDeath = state.dead(); // před resetem – odlišuje smrt od portálu
         state.worldKey(worldKey);
         state.dead(false);
+        state.vehicleId(-1);
         entities.clear();
-        events.onRespawn(worldKey);
+        if (packetWorlds != null) {
+            packetWorlds.dimension(packet.getCommonPlayerSpawnInfo().getDimension());
+        }
+        events.onRespawn(worldKey, afterDeath);
     }
 
     private void handleAddEntity(ClientboundAddEntityPacket packet) {
@@ -184,6 +239,24 @@ public final class BotSessionListener extends SessionAdapter {
                 new Vec3(packet.getX(), packet.getY(), packet.getZ()));
         entity.setRotation(packet.getYaw(), packet.getPitch());
         entities.add(entity);
+    }
+
+    /** Sleduje, zda bot sedí ve vozidle (server je autoritou nad pasažéry). */
+    private void handlePassengers(org.geysermc.mcprotocollib.protocol.packet.ingame.clientbound
+                                          .entity.ClientboundSetPassengersPacket packet) {
+        int self = state.entityId();
+        boolean containsSelf = false;
+        for (int passengerId : packet.getPassengerIds()) {
+            if (passengerId == self) {
+                containsSelf = true;
+                break;
+            }
+        }
+        if (containsSelf) {
+            state.vehicleId(packet.getEntityId());
+        } else if (state.vehicleId() == packet.getEntityId()) {
+            state.vehicleId(-1);
+        }
     }
 
     private void handleMotion(ClientboundSetEntityMotionPacket packet) {

@@ -39,6 +39,7 @@ import dev.botalive.core.scheduler.MainThreadBridge;
 import dev.botalive.core.util.BlockPos;
 import dev.botalive.core.util.BotRandom;
 import dev.botalive.core.util.Vec3;
+import dev.botalive.core.vehicle.VehicleController;
 import dev.botalive.core.world.WorldView;
 import dev.botalive.core.world.WorldViewRegistry;
 import org.bukkit.Bukkit;
@@ -91,12 +92,16 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents {
     private final ChatEngine chat;
     private final InventoryHelper inventoryHelper;
     private final ServerSideView serverView;
+    private final VehicleController vehicle;
 
     private final WorldViewRegistry worldViews;
     private final MainThreadBridge bridge;
     private final BotTickEngine tickEngine;
     private final BotRepository repository;
     private final Brain brain;
+
+    /** Klientský world model (jen v režimu {@code packet}, jinak {@code null}). */
+    private final dev.botalive.core.world.PacketWorldManager packetWorlds;
 
     // --- Mutable stav (tick vlákno / volatile) ---------------------------------
     private final AtomicReference<BotLifecycleState> state =
@@ -155,15 +160,20 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents {
         this.repository = services.repository();
 
         this.rng = new BotRandom(id.getLeastSignificantBits() ^ System.nanoTime());
+        this.packetWorlds = config.network().packetWorldModel()
+                ? new dev.botalive.core.world.PacketWorldManager(services.stateMapper())
+                : null;
         this.connection = new BotConnection(name, id, config.network(),
-                new BotSessionListener(name, clientState, entities, clientInventory, this));
+                new BotSessionListener(name, clientState, entities, clientInventory, this,
+                        packetWorlds));
         this.actions = new BotActions(connection, clientState);
         this.movementSender = new MovementSender(connection, clientState);
         this.humanizer = new Humanizer(rng, personality);
         this.navigator = new Navigator(services.navigation(), actions, rng, personality);
-        this.combat = new CombatController(actions, humanizer, rng, personality, config.combat(),
-                CombatDifficulty.fromConfig(config.ai().difficulty()));
         this.inventoryHelper = new InventoryHelper(actions);
+        this.combat = new CombatController(actions, humanizer, rng, personality, config.combat(),
+                CombatDifficulty.fromConfig(config.ai().difficulty()), inventoryHelper);
+        this.vehicle = new VehicleController(connection, clientState);
         this.serverView = new ServerSideView(id, bridge);
         this.chat = new ChatEngine(name, personality, rng, config.chat(), this::deliverChat);
         this.brain = new Brain(this, goalFactory.apply(this),
@@ -173,12 +183,13 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents {
     /**
      * Sdílené služby předávané botům (jeden parametr místo dlouhého seznamu).
      *
-     * @param config     konfigurace
-     * @param worldViews registr pohledů na světy
-     * @param bridge     most na herní vlákna
-     * @param tickEngine tick engine
-     * @param navigation pathfinding
-     * @param repository repozitář
+     * @param config      konfigurace
+     * @param worldViews  registr pohledů na světy (režim server)
+     * @param bridge      most na herní vlákna
+     * @param tickEngine  tick engine
+     * @param navigation  pathfinding
+     * @param repository  repozitář
+     * @param stateMapper překlad block states (jen režim packet, jinak {@code null})
      */
     public record SharedServices(
             BotAliveConfig config,
@@ -186,7 +197,8 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents {
             MainThreadBridge bridge,
             BotTickEngine tickEngine,
             NavigationService navigation,
-            BotRepository repository
+            BotRepository repository,
+            dev.botalive.core.world.state.BlockStateMapper stateMapper
     ) {
     }
 
@@ -286,14 +298,29 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents {
     }
 
     @Override
-    public void onRespawn(String worldKey) {
+    public void onRespawn(String worldKey, boolean afterDeath) {
+        // Respawn paket zaživa = změna dimenze (nether/end portál, plugin
+        // teleport mezi světy). Bot si portálový přechod zapamatuje.
+        WorldView oldWorld = worldView;
+        BotPhysics oldPhysics = physics;
+        if (!afterDeath && oldWorld != null && oldPhysics != null
+                && !oldWorld.worldName().equals(expectedWorldName(worldKey))) {
+            Vec3 pos = oldPhysics.position();
+            memory.remember(MemoryKind.PORTAL, oldWorld.worldName(),
+                    (int) pos.x(), (int) pos.y(), (int) pos.z(), null,
+                    Map.of("to", worldKey), 0.7);
+        }
         awaitingFirstTeleport = true;
-        navigator.stop();
     }
 
     @Override
     public void onKnockback(Vec3 impulse) {
         clientState.queueImpulse(impulse);
+    }
+
+    @Override
+    public void onVehicleMove(Vec3 position, float yaw) {
+        vehicle.applyServerVehicleMove(position, yaw);
     }
 
     @Override
@@ -400,6 +427,16 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents {
             brain.tick();
         }
 
+        // Ve vozidle: klientská simulace vozidla nahrazuje pohyb hráče
+        // (pozici hráče odvozuje server z vozidla).
+        if (vehicle.mounted()) {
+            boolean idleInVehicle = !combat.engaged();
+            humanizer.tick(position().add(0, 1.62, 0), idleInVehicle && alive);
+            vehicle.tick();
+            chat.tick();
+            return;
+        }
+
         // Pohyb: explicitní požadavek cíle > navigace > stání.
         MoveInput input = requestedMove != null
                 ? requestedMove
@@ -438,8 +475,9 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents {
                     ? current.z() + teleport.position().z() : teleport.position().z();
             Vec3 target = new Vec3(x, y, z);
 
-            if (physics == null || worldView == null
-                    || !worldView.worldName().equals(resolveWorldName(clientState.worldKey()))) {
+            boolean worldChanged = physics == null || worldView == null
+                    || !worldView.worldName().equals(expectedWorldName(clientState.worldKey()));
+            if (worldChanged) {
                 switchWorld(clientState.worldKey(), target);
             } else {
                 physics.teleport(target);
@@ -447,6 +485,17 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents {
             humanizer.snapTo(teleport.yaw(), teleport.pitch());
             movementSender.resetTo(target, teleport.yaw(), teleport.pitch());
             lastDistancePos = target;
+
+            // Velký skok (admin /tp, plugin, portál): rozpracovaná cesta a boj
+            // už neplatí – cíle si naplánují nové podle nové pozice.
+            if (worldChanged || target.distanceSquared(current) > 8 * 8) {
+                navigator.stop();
+                combat.disengage();
+                vehicle.stopCruise();
+                if (worldChanged) {
+                    worldView.prefetch(target.toBlockPos(), 2);
+                }
+            }
 
             if (awaitingFirstTeleport) {
                 awaitingFirstTeleport = false;
@@ -487,17 +536,27 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents {
 
     /** Přepnutí světa (login, respawn, portál). */
     private void switchWorld(String worldKey, Vec3 position) {
-        String worldName = resolveWorldName(worldKey);
-        try {
-            this.worldView = worldViews.view(worldName);
-        } catch (IllegalArgumentException e) {
-            LOG.error("[{}] Neznámý svět '{}' (klíč {})", name, worldName, worldKey);
-            return;
+        if (packetWorlds != null) {
+            // Klientský world model – geometrie z chunk paketů, žádný Bukkit svět.
+            this.worldView = packetWorlds.switchTo(worldKey);
+        } else {
+            String worldName = resolveWorldName(worldKey);
+            try {
+                this.worldView = worldViews.view(worldName);
+            } catch (IllegalArgumentException e) {
+                LOG.error("[{}] Neznámý svět '{}' (klíč {})", name, worldName, worldKey);
+                return;
+            }
         }
         this.physics = new BotPhysics(worldView, position);
         navigator.world(worldView);
         entities.clear();
         worldView.prefetch(position.toBlockPos(), 2);
+    }
+
+    /** Očekávaný název světa pro daný protokolový klíč (dle režimu world modelu). */
+    private String expectedWorldName(String worldKey) {
+        return packetWorlds != null ? worldKey : resolveWorldName(worldKey);
     }
 
     /** Mapování protokolového klíče světa na Bukkit název světa. */
@@ -628,6 +687,68 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents {
         chat.say(message);
     }
 
+    @Override
+    public CompletableFuture<Boolean> teleport(Location location) {
+        org.bukkit.entity.Player player = Bukkit.getPlayer(id);
+        if (player == null || location.getWorld() == null) {
+            return CompletableFuture.completedFuture(false);
+        }
+        if (!config.worlds().allowed(location.getWorld().getName())) {
+            return CompletableFuture.completedFuture(false);
+        }
+        // Teleport přes vlákno entity (Folia-safe); klient se resynchronizuje
+        // position/respawn paketem od serveru (viz drainTeleports).
+        return bridge.callForEntity(player, () -> player.teleportAsync(location))
+                .thenCompose(future -> future == null
+                        ? CompletableFuture.completedFuture(false)
+                        : future)
+                .exceptionally(t -> {
+                    LOG.warn("[{}] Teleport selhal: {}", name, t.toString());
+                    return false;
+                });
+    }
+
+    @Override
+    public CompletableFuture<Boolean> teleportToPlayer(UUID playerId) {
+        org.bukkit.entity.Player target = Bukkit.getPlayer(playerId);
+        if (target == null) {
+            return CompletableFuture.completedFuture(false);
+        }
+        // Pozice hráče se čte na jeho vlákně; pak standardní bot-teleport.
+        return bridge.callForEntity(target, target::getLocation)
+                .thenCompose(location -> location == null
+                        ? CompletableFuture.completedFuture(false)
+                        : teleport(location))
+                .exceptionally(t -> {
+                    LOG.warn("[{}] Teleport k hráči selhal: {}", name, t.toString());
+                    return false;
+                });
+    }
+
+    @Override
+    public CompletableFuture<Boolean> teleportPlayerToBot(UUID playerId) {
+        org.bukkit.entity.Player traveler = Bukkit.getPlayer(playerId);
+        org.bukkit.entity.Player botPlayer = Bukkit.getPlayer(id);
+        if (traveler == null || botPlayer == null) {
+            return CompletableFuture.completedFuture(false);
+        }
+        // Pozice bota na vlákně jeho entity → teleport hráče na jeho vlákně.
+        return bridge.callForEntity(botPlayer, botPlayer::getLocation)
+                .thenCompose(location -> {
+                    if (location == null) {
+                        return CompletableFuture.completedFuture(false);
+                    }
+                    return bridge.callForEntity(traveler, () -> traveler.teleportAsync(location))
+                            .thenCompose(future -> future == null
+                                    ? CompletableFuture.completedFuture(false)
+                                    : future);
+                })
+                .exceptionally(t -> {
+                    LOG.warn("[{}] Teleport hráče k botovi selhal: {}", name, t.toString());
+                    return false;
+                });
+    }
+
     // ======================================================================
     // BotContext (interní přístup pro cíle)
     // ======================================================================
@@ -703,7 +824,22 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents {
     }
 
     @Override
+    public MainThreadBridge bridge() {
+        return bridge;
+    }
+
+    @Override
+    public VehicleController vehicle() {
+        return vehicle;
+    }
+
+    @Override
     public Vec3 position() {
+        // Při plavbě/jízdě je pozice bota odvozená z vozidla.
+        Vec3 vehiclePos = vehicle.vehiclePosition();
+        if (vehiclePos != null && vehicle.mounted()) {
+            return vehiclePos;
+        }
         BotPhysics currentPhysics = physics;
         return currentPhysics != null ? currentPhysics.position() : Vec3.ZERO;
     }

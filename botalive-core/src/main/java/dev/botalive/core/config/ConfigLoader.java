@@ -31,6 +31,7 @@ public final class ConfigLoader {
                 c.getString("network.host", "127.0.0.1"),
                 c.getInt("network.port", 0),
                 c.getInt("network.connect-timeout-ms", 10_000),
+                c.getString("network.world-model", "server").toLowerCase(),
                 new BotAliveConfig.Reconnect(
                         c.getBoolean("network.reconnect.enabled", true),
                         c.getLong("network.reconnect.delay-min-ms", 3_000L),
@@ -88,6 +89,11 @@ public final class ConfigLoader {
                 c.getInt("spawn.radius", 64)
         );
 
+        var teleport = new BotAliveConfig.Teleport(
+                c.getBoolean("teleport.enabled", true),
+                c.getInt("teleport.player-cooldown-seconds", 30)
+        );
+
         var performance = new BotAliveConfig.Performance(
                 c.getInt("performance.tick-threads", 0),
                 c.getInt("performance.pathfinding-threads", 0),
@@ -109,6 +115,6 @@ public final class ConfigLoader {
         );
 
         return new BotAliveConfig(network, bots, ai, chat, combat, economy,
-                worlds, spawn, performance, persistence);
+                worlds, spawn, teleport, performance, persistence);
     }
 }

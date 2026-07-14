@@ -6,15 +6,25 @@ import dev.botalive.core.ai.GoalRegistryImpl;
 import dev.botalive.core.ai.goals.BuildShelterGoal;
 import dev.botalive.core.ai.goals.CollectItemsGoal;
 import dev.botalive.core.ai.goals.CombatGoal;
+import dev.botalive.core.ai.goals.CraftGoal;
 import dev.botalive.core.ai.goals.EatGoal;
 import dev.botalive.core.ai.goals.ExploreGoal;
+import dev.botalive.core.ai.goals.FarmGoal;
 import dev.botalive.core.ai.goals.FollowPlayerGoal;
 import dev.botalive.core.ai.goals.IdleGoal;
 import dev.botalive.core.ai.goals.MineGoal;
 import dev.botalive.core.ai.goals.ReturnHomeGoal;
+import dev.botalive.core.ai.goals.SleepGoal;
 import dev.botalive.core.ai.goals.SocializeGoal;
+import dev.botalive.core.ai.goals.StashGoal;
 import dev.botalive.core.ai.goals.SurviveGoal;
 import dev.botalive.core.ai.goals.WanderGoal;
+import dev.botalive.core.ai.goals.BoatRideGoal;
+import dev.botalive.core.ai.goals.MinecartRideGoal;
+import dev.botalive.core.ai.goals.TradeGoal;
+import dev.botalive.core.crafting.CraftingService;
+import dev.botalive.core.inventory.ContainerService;
+import dev.botalive.core.trade.TradeService;
 import dev.botalive.core.bot.BotImpl;
 import dev.botalive.core.bot.BotManagerImpl;
 import dev.botalive.core.commands.BotAliveCommand;
@@ -66,14 +76,30 @@ public final class CompositionRoot {
         BotRepository repository = container.register(BotRepository.class,
                 new BotRepository(database));
 
+        // Sdílené herní služby.
+        CraftingService crafting = container.register(CraftingService.class,
+                new CraftingService(bridge));
+        ContainerService containers = container.register(ContainerService.class,
+                new ContainerService(bridge));
+        TradeService trades = container.register(TradeService.class,
+                new TradeService(bridge));
+
         // AI cíle.
         GoalRegistryImpl goalRegistry = container.register(GoalRegistryImpl.class,
                 new GoalRegistryImpl());
-        registerBuiltInGoals(goalRegistry);
+        registerBuiltInGoals(goalRegistry, crafting, containers, trades);
+
+        // Block-state mapper pro klientský world model (jen režim packet):
+        // přesná tabulka z registrů hostitelského serveru, jinak degradovaný fallback.
+        dev.botalive.core.world.state.BlockStateMapper stateMapper = null;
+        if (config.network().packetWorldModel()) {
+            stateMapper = dev.botalive.core.world.state.ReflectionBlockStateMapper.tryCreate()
+                    .orElseGet(dev.botalive.core.world.state.FallbackBlockStateMapper::new);
+        }
 
         // Boti.
         BotImpl.SharedServices services = new BotImpl.SharedServices(
-                config, worldViews, bridge, tickEngine, navigation, repository);
+                config, worldViews, bridge, tickEngine, navigation, repository, stateMapper);
         BotManagerImpl botManager = container.register(BotManagerImpl.class,
                 new BotManagerImpl(config, repository, goalRegistry, services));
 
@@ -86,11 +112,14 @@ public final class CompositionRoot {
         container.register(ServerEventListener.class,
                 new ServerEventListener(worldViews, botManager));
         container.register(BotAliveCommand.class,
-                new BotAliveCommand(botManager, goalRegistry, repository));
+                new BotAliveCommand(botManager, goalRegistry, repository, config));
     }
 
     /** Vestavěná sada cílů – každý bot dostává vlastní instance. */
-    private static void registerBuiltInGoals(GoalRegistryImpl registry) {
+    private static void registerBuiltInGoals(GoalRegistryImpl registry,
+                                             CraftingService crafting,
+                                             ContainerService containers,
+                                             TradeService trades) {
         registry.register("idle", bot -> new IdleGoal());
         registry.register("wander", bot -> new WanderGoal());
         registry.register("explore", bot -> new ExploreGoal());
@@ -103,6 +132,13 @@ public final class CompositionRoot {
         registry.register("home", bot -> new ReturnHomeGoal());
         registry.register("shelter", bot -> new BuildShelterGoal());
         registry.register("follow", bot -> new FollowPlayerGoal());
+        registry.register("craft", bot -> new CraftGoal(crafting));
+        registry.register("farm", bot -> new FarmGoal());
+        registry.register("sleep", bot -> new SleepGoal());
+        registry.register("stash", bot -> new StashGoal(containers));
+        registry.register("boat", bot -> new BoatRideGoal());
+        registry.register("minecart", bot -> new MinecartRideGoal());
+        registry.register("trade", bot -> new TradeGoal(trades));
     }
 
     /**

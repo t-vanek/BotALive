@@ -82,6 +82,46 @@ public interface Bot {
     void say(String message);
 
     /**
+     * Teleportuje bota na zadanou lokaci (i mezi světy).
+     *
+     * <p>Teleport se provede server-side (bot je skutečný hráč) a klient bota
+     * se plně resynchronizuje: přeruší se navigace, fyzika převezme novou
+     * pozici z position paketu serveru a při změně světa se přepne pohled na
+     * svět. Bezpečné z libovolného vlákna.</p>
+     *
+     * @param location cílová lokace
+     * @return future s {@code true} při úspěchu ({@code false} pokud bot
+     *         není online nebo teleport selhal)
+     */
+    java.util.concurrent.CompletableFuture<Boolean> teleport(org.bukkit.Location location);
+
+    /**
+     * Teleportuje bota k online hráči („přivolání bota").
+     *
+     * <p>Pozice hráče se čte na jeho vlákně (Folia-safe) a teleport proběhne
+     * přes {@link #teleport(org.bukkit.Location)} včetně plného resyncu
+     * klienta bota. Bezpečné z libovolného vlákna.</p>
+     *
+     * @param playerId UUID cílového hráče
+     * @return future s {@code true} při úspěchu ({@code false} pokud hráč
+     *         nebo bot nejsou online, nebo teleport selhal)
+     */
+    java.util.concurrent.CompletableFuture<Boolean> teleportToPlayer(UUID playerId);
+
+    /**
+     * Teleportuje online hráče k botovi.
+     *
+     * <p>Pozice bota se čte na vlákně jeho serverové entity a hráč se
+     * teleportuje přes {@code teleportAsync} na svém vlákně (Folia-safe).
+     * Bezpečné z libovolného vlákna.</p>
+     *
+     * @param playerId UUID hráče, který se má přenést
+     * @return future s {@code true} při úspěchu ({@code false} pokud hráč
+     *         nebo bot nejsou online, nebo teleport selhal)
+     */
+    java.util.concurrent.CompletableFuture<Boolean> teleportPlayerToBot(UUID playerId);
+
+    /**
      * Odpojí bota od serveru. Bot lze později znovu připojit správcem botů.
      *
      * @param reason lidsky čitelný důvod (do logu)

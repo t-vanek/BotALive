@@ -9,6 +9,13 @@ network:
   # 0 = převzít port běžícího serveru.
   port: 0
   connect-timeout-ms: 10000
+  # Zdroj geometrie světa pro AI:
+  #   server = chunk snapshoty hostitelského serveru (výchozí, nejlevnější)
+  #   packet = klientský world model parsovaný z chunk paketů – NUTNÉ, pokud
+  #            boti hrají na cizím serveru (host mimo tento server). Server-side
+  #            vymoženosti (crafting, truhly, obchod, teleport API) jsou v tom
+  #            režimu neaktivní; pohyb, průzkum, boj a chat fungují plně.
+  world-model: server
   reconnect:
     enabled: true
     delay-min-ms: 3000
@@ -69,6 +76,13 @@ spawn:
   y: 64
   z: 0
   radius: 64
+
+teleport:
+  # Teleportace hráčů k botům (/botalive tp <bot>) a přivolávání botů
+  # (/botalive tp <bot> here). Práva: botalive.teleport (k botovi),
+  # botalive.teleport.summon (bot ke mně); botalive.admin vždy a bez cooldownu.
+  enabled: true
+  player-cooldown-seconds: 30
 
 performance:
   # 0 = automaticky podle počtu jader.

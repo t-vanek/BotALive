@@ -37,11 +37,13 @@ public interface NetworkEvents {
     void onDeath(String deathMessage);
 
     /**
-     * Server provedl respawn bota (po PERFORM_RESPAWN).
+     * Server přepnul dimenzi bota – po smrti (PERFORM_RESPAWN), nebo zaživa
+     * (nether/end portál, teleport mezi světy).
      *
-     * @param worldKey protokolový klíč světa po respawnu
+     * @param worldKey   protokolový klíč světa po respawnu
+     * @param afterDeath {@code true} pokud jde o respawn po smrti
      */
-    void onRespawn(String worldKey);
+    void onRespawn(String worldKey, boolean afterDeath);
 
     /**
      * Server udělil botovi rychlost (typicky knockback).
@@ -58,6 +60,15 @@ public interface NetworkEvents {
      * @param content    obsah zprávy (plain text)
      */
     void onPlayerChat(UUID sender, String senderName, String content);
+
+    /**
+     * Server poslal autoritativní pozici vozidla, ve kterém bot sedí
+     * (korekce klientské simulace lodi).
+     *
+     * @param position pozice vozidla
+     * @param yaw      natočení vozidla
+     */
+    void onVehicleMove(Vec3 position, float yaw);
 
     /**
      * Spojení bylo ukončeno.

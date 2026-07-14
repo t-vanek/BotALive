@@ -28,11 +28,25 @@ import java.util.stream.Stream;
 /**
  * Kořenový příkaz {@code /botalive} s podpříkazy a tab-complete.
  *
- * <p>Podpříkazy: create, remove, tp, list, pause, resume, personality,
- * memory, goal, stats. Všechny odpovědi jdou přes Adventure API.</p>
+ * <p>Práva: administrace (create, remove, pause, ...) vyžaduje
+ * {@code botalive.admin}. Teleportace je přístupná i hráčům –
+ * {@code botalive.teleport} (k botovi) a {@code botalive.teleport.summon}
+ * (přivolání bota) – s konfigurovatelným cooldownem; admin cooldown obchází.
+ * Všechny odpovědi jdou přes Adventure API.</p>
  */
 public final class BotAliveCommand implements TabExecutor {
 
+    /** Oprávnění pro administraci botů. */
+    public static final String PERM_ADMIN = "botalive.admin";
+
+    /** Oprávnění: teleport hráče k botovi. */
+    public static final String PERM_TELEPORT = "botalive.teleport";
+
+    /** Oprávnění: přivolání bota k hráči. */
+    public static final String PERM_SUMMON = "botalive.teleport.summon";
+
+    private static final List<String> ADMIN_SUBCOMMANDS = List.of(
+            "create", "remove", "pause", "resume", "personality", "memory", "goal", "stats");
     private static final List<String> SUBCOMMANDS = List.of(
             "create", "remove", "tp", "list", "pause", "resume",
             "personality", "memory", "goal", "stats");
@@ -40,17 +54,24 @@ public final class BotAliveCommand implements TabExecutor {
     private final BotManagerImpl botManager;
     private final GoalRegistryImpl goalRegistry;
     private final BotRepository repository;
+    private final dev.botalive.core.config.BotAliveConfig config;
+    private final dev.botalive.core.teleport.TeleportCooldowns cooldowns;
 
     /**
      * @param botManager   manager botů
      * @param goalRegistry registr cílů (pro /botalive goal)
      * @param repository   repozitář (pro /botalive stats)
+     * @param config       konfigurace (teleport sekce)
      */
     public BotAliveCommand(BotManagerImpl botManager, GoalRegistryImpl goalRegistry,
-                           BotRepository repository) {
+                           BotRepository repository,
+                           dev.botalive.core.config.BotAliveConfig config) {
         this.botManager = botManager;
         this.goalRegistry = goalRegistry;
         this.repository = repository;
+        this.config = config;
+        this.cooldowns = new dev.botalive.core.teleport.TeleportCooldowns(
+                config.teleport().playerCooldownSeconds());
     }
 
     @Override
@@ -60,7 +81,13 @@ public final class BotAliveCommand implements TabExecutor {
             help(sender);
             return true;
         }
-        switch (args[0].toLowerCase(Locale.ROOT)) {
+        String sub = args[0].toLowerCase(Locale.ROOT);
+        // Administrace jen pro botalive.admin; tp a list mají vlastní práva.
+        if (ADMIN_SUBCOMMANDS.contains(sub) && !sender.hasPermission(PERM_ADMIN)) {
+            error(sender, "K tomu nemáš oprávnění");
+            return true;
+        }
+        switch (sub) {
             case "create" -> create(sender, args);
             case "remove" -> remove(sender, args);
             case "tp" -> teleport(sender, args);
@@ -130,14 +157,14 @@ public final class BotAliveCommand implements TabExecutor {
                 success(sender, "Bot '" + args[1] + "' odstraněn" + (purge ? " včetně dat" : "")));
     }
 
-    /** {@code /botalive tp <jméno> [here]} – k botovi, nebo bota k sobě. */
+    /**
+     * {@code /botalive tp <jméno>} – hráč k botovi ({@code botalive.teleport}),
+     * {@code /botalive tp <jméno> here} – bot k hráči ({@code botalive.teleport.summon}),
+     * {@code /botalive tp <jméno> <x> <y> <z> [svět]} – bot na souřadnice (admin).
+     */
     private void teleport(CommandSender sender, String[] args) {
-        if (!(sender instanceof Player player)) {
-            error(sender, "Jen pro hráče");
-            return;
-        }
         if (args.length < 2) {
-            error(sender, "Použití: /botalive tp <jméno> [here]");
+            error(sender, "Použití: /botalive tp <jméno> [here | x y z [svět]]");
             return;
         }
         Optional<Bot> bot = botManager.byName(args[1]);
@@ -145,27 +172,121 @@ public final class BotAliveCommand implements TabExecutor {
             error(sender, "Bot '" + args[1] + "' neexistuje");
             return;
         }
-        Player botPlayer = Bukkit.getPlayer(bot.get().id());
-        if (botPlayer == null) {
-            error(sender, "Bot není online");
+        boolean admin = sender.hasPermission(PERM_ADMIN);
+
+        // Teleport na souřadnice (jen admin; funguje i z konzole).
+        if (args.length >= 5) {
+            if (!admin) {
+                error(sender, "Teleport na souřadnice může jen administrátor");
+                return;
+            }
+            teleportToCoordinates(sender, bot.get(), args);
+            return;
+        }
+        if (!(sender instanceof Player player)) {
+            error(sender, "Z konzole použij: /botalive tp <jméno> <x> <y> <z> [svět]");
             return;
         }
         boolean here = args.length >= 3 && args[2].equalsIgnoreCase("here");
+
+        // Práva a limity pro běžné hráče (admin obchází vše).
+        if (!admin) {
+            String required = here ? PERM_SUMMON : PERM_TELEPORT;
+            if (!player.hasPermission(required)) {
+                error(sender, "K tomu nemáš oprávnění (" + required + ")");
+                return;
+            }
+            if (!config.teleport().enabled()) {
+                error(sender, "Teleportace k botům je vypnutá");
+                return;
+            }
+            long remainingMs = cooldowns.remainingMs(player.getUniqueId());
+            if (remainingMs > 0) {
+                error(sender, "Počkej ještě " + (remainingMs / 1000 + 1) + " s");
+                return;
+            }
+        }
+
         if (here) {
-            botPlayer.teleportAsync(player.getLocation())
-                    .thenRun(() -> success(sender, "Bot přenesen k tobě"));
+            bot.get().teleportToPlayer(player.getUniqueId()).thenAccept(ok ->
+                    afterPlayerTeleport(sender, player, admin, ok,
+                            "Bot '" + bot.get().name() + "' přenesen k tobě"));
         } else {
-            player.teleportAsync(botPlayer.getLocation())
-                    .thenRun(() -> success(sender, "Přenesen k botovi '" + args[1] + "'"));
+            bot.get().teleportPlayerToBot(player.getUniqueId()).thenAccept(ok ->
+                    afterPlayerTeleport(sender, player, admin, ok,
+                            "Přenesen k botovi '" + bot.get().name() + "'"));
         }
     }
 
-    /** {@code /botalive list} */
+    /** Společné vyhodnocení hráčského teleportu (cooldown + hláška). */
+    private void afterPlayerTeleport(CommandSender sender, Player player, boolean admin,
+                                     boolean ok, String successMessage) {
+        if (ok) {
+            if (!admin) {
+                cooldowns.markUsed(player.getUniqueId());
+            }
+            success(sender, successMessage);
+        } else {
+            error(sender, "Teleport se nezdařil (bot není online)");
+        }
+    }
+
+    /** Teleport bota na souřadnice přes API {@code Bot.teleport} (plný resync klienta). */
+    private void teleportToCoordinates(CommandSender sender, Bot bot, String[] args) {
+        double x;
+        double y;
+        double z;
+        try {
+            x = Double.parseDouble(args[2]);
+            y = Double.parseDouble(args[3]);
+            z = Double.parseDouble(args[4]);
+        } catch (NumberFormatException e) {
+            error(sender, "Neplatné souřadnice");
+            return;
+        }
+        org.bukkit.World world;
+        if (args.length >= 6) {
+            world = Bukkit.getWorld(args[5]);
+            if (world == null) {
+                error(sender, "Svět '" + args[5] + "' neexistuje");
+                return;
+            }
+        } else {
+            String currentWorld = bot.snapshot().worldName();
+            world = currentWorld != null ? Bukkit.getWorld(currentWorld)
+                    : Bukkit.getWorlds().getFirst();
+        }
+        bot.teleport(new org.bukkit.Location(world, x, y, z)).thenAccept(ok -> {
+            if (ok) {
+                success(sender, "Bot '%s' teleportován na %.0f %.0f %.0f (%s)"
+                        .formatted(bot.name(), x, y, z, world.getName()));
+            } else {
+                error(sender, "Teleport se nezdařil (bot offline, nebo svět není povolen)");
+            }
+        });
+    }
+
+    /**
+     * {@code /botalive list} – plný výpis pro adminy; hráči s teleport právem
+     * vidí jen jména a online stav (bez souřadnic).
+     */
     private void list(CommandSender sender) {
+        boolean admin = sender.hasPermission(PERM_ADMIN);
+        if (!admin && !sender.hasPermission(PERM_TELEPORT) && !sender.hasPermission(PERM_SUMMON)) {
+            error(sender, "K tomu nemáš oprávnění");
+            return;
+        }
         var bots = botManager.all();
         info(sender, "Boti (" + bots.size() + "):");
         for (Bot bot : bots) {
             var snapshot = bot.snapshot();
+            if (!admin) {
+                sender.sendMessage(Component.text(" • ", NamedTextColor.DARK_GRAY)
+                        .append(Component.text(bot.name(), NamedTextColor.AQUA))
+                        .append(Component.text(snapshot.online() ? " (online)" : " (offline)",
+                                snapshot.online() ? NamedTextColor.GREEN : NamedTextColor.RED)));
+                continue;
+            }
             String where = snapshot.worldName() == null ? "?"
                     : "%s %.0f/%.0f/%.0f".formatted(snapshot.worldName(),
                     snapshot.x(), snapshot.y(), snapshot.z());
@@ -335,8 +456,21 @@ public final class BotAliveCommand implements TabExecutor {
 
     private void help(CommandSender sender) {
         info(sender, "BotAlive – autonomní AI hráči");
+        boolean admin = sender.hasPermission(PERM_ADMIN);
+        boolean canTeleport = admin || sender.hasPermission(PERM_TELEPORT)
+                || sender.hasPermission(PERM_SUMMON);
         for (String sub : SUBCOMMANDS) {
-            sender.sendMessage(Component.text(" /botalive " + sub, NamedTextColor.GRAY));
+            boolean visible = switch (sub) {
+                case "tp", "list" -> canTeleport;
+                default -> admin;
+            };
+            if (visible) {
+                sender.sendMessage(Component.text(" /botalive " + sub, NamedTextColor.GRAY));
+            }
+        }
+        if (!canTeleport) {
+            sender.sendMessage(Component.text(" (žádná dostupná akce – chybí oprávnění)",
+                    NamedTextColor.DARK_GRAY));
         }
     }
 
@@ -368,8 +502,20 @@ public final class BotAliveCommand implements TabExecutor {
     @Override
     public List<String> onTabComplete(@NotNull CommandSender sender, @NotNull Command command,
                                       @NotNull String alias, String[] args) {
+        boolean admin = sender.hasPermission(PERM_ADMIN);
+        boolean canTeleport = admin || sender.hasPermission(PERM_TELEPORT)
+                || sender.hasPermission(PERM_SUMMON);
         if (args.length == 1) {
-            return filter(SUBCOMMANDS, args[0]);
+            List<String> visible = SUBCOMMANDS.stream()
+                    .filter(sub -> switch (sub) {
+                        case "tp", "list" -> canTeleport;
+                        default -> admin;
+                    })
+                    .toList();
+            return filter(visible, args[0]);
+        }
+        if (!admin && !canTeleport) {
+            return List.of();
         }
         if (args.length == 2) {
             List<String> names = new ArrayList<>(botManager.all().stream().map(Bot::name).toList());

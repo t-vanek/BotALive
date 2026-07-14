@@ -59,15 +59,24 @@ interních tříd jiného; komunikace přes rozhraní jako `WorldView`,
 **Volby:** (a) klientský model světa parsováním `ClientboundLevelChunkWithLightPacket`,
 (b) `ChunkSnapshot` Bukkit světa, kde plugin běží.
 
-**Zvoleno (b), abstrakce (a) zachována.** Boti hrají na témže serveru, kde
-plugin běží – server je autoritativní zdroj geometrie. Parsování chunk paketů
-by vyžadovalo vlastní registry block-state ID (křehké napříč verzemi), druhou
-kopii světa v paměti (stovky MB při stovkách botů) a přineslo by jen iluzi
-„čistého klienta". Snapshoty jsou nemutabilní (bezpečné pro AI vlákna),
-pořizují se na region vlákně (Folia-safe), sdílejí se mezi boty přes Caffeine
-cache s TTL a bodovou invalidací z Bukkit eventů. Rozhraní `WorldView` je
-jediné místo závislosti – čistě klientská implementace je do budoucna
-zaměnitelná (např. pro boty na cizím serveru).
+**Zvoleny obě, výchozí (b).** Boti typicky hrají na témže serveru, kde plugin
+běží – server je autoritativní zdroj geometrie. Snapshoty jsou nemutabilní
+(bezpečné pro AI vlákna), pořizují se na region vlákně (Folia-safe), sdílejí
+se mezi boty přes Caffeine cache s TTL a bodovou invalidací z Bukkit eventů.
+
+Pro boty na <b>cizím serveru</b> existuje druhá implementace –
+`PacketWorldView` (`network.world-model: packet`): chunky se parsují přímo
+z paketů (`MinecraftTypes.readChunkSection`), počty sekcí a `min_y` se berou
+z registru dimenzí poslaného v konfigurační fázi (spojení si vynutí plná
+registry data prázdnou known-packs odpovědí) a blokové změny se aplikují
+z BlockUpdate/SectionBlocksUpdate/ForgetLevelChunk paketů. Číselné block
+states překládá `BlockStateMapper`: přesná tabulka se sestavuje reflexí
+z registrů hostitelského serveru (stejná verze protokolu ⇒ identická globální
+paleta; Bukkit API státní ID nevystavuje) s degradovaným fallbackem
+„vzduch/pevné bloky", kdyby se interní API serveru změnilo. Server-side
+služby (crafting, truhly, obchod, teleport API, přesné doby těžby) jsou
+v packet režimu přirozeně neaktivní – pohyb, průzkum, boj, chat a paměť
+fungují plně.
 
 Stejný princip platí pro inventář: **akce** (kopání, jídlo, útok) jdou vždy
 přes pakety a server je validuje jako u člověka; **čtení** (jaký materiál
@@ -152,19 +161,60 @@ Velocity proxy s offline backendem).
 | Write-behind DB + delta statistiky | disk nikdy neblokuje hru |
 | Line-of-sight jen nad snapshoty | žádné dotazy do živého světa z AI |
 
+### 9. Server-side simulace tam, kde je protokol křehký
+
+Crafting a přesuny v truhlách jdou v protokolu 26.1 přes „hashed item stacky"
+– paketová implementace by byla extrémně křehká vůči změnám protokolu.
+`CraftingService` proto používá `Server#craftItemResult` (respektuje skutečné
+receptury serveru včetně custom receptů a craft eventů) a `ContainerService`
+přesouvá itemy autoritativně na vlákně regionu truhly. Pozorovatelné chování
+zůstává lidské: bot dojde k truhle, klikne (animace víka), „probírá se
+obsahem" a zase ji zavře (`ContainerClose` paket). Naopak vše, co protokol
+umí robustně – kopání, pokládání, jídlo, luk, kuše, štít, postel – jde vždy
+pakety.
+
+### 10. Vozidla: klientsky autoritativní simulace
+
+Jízda ve vozidle je v Minecraftu klientsky autoritativní – řidič posílá
+`ServerboundMoveVehiclePacket` a server validuje. `BoatPhysics` replikuje
+vanilla kinematiku lodi (zrychlení 0.04/tick, útlum 0.9 → terminální rychlost
+~7.2 bloků/s, zatáčení max 2.5°/tick) jako čistou, testovanou třídu;
+`VehicleController` k ní přidává pakety (PlayerInput = „klávesy",
+PaddleBoat = animace pádel, MoveVehicle = pozice) a stav nasednutí drží
+`BotClientState` z clientbound SetPassengers – server je autoritou nad tím,
+kdo v čem sedí. Korekce (clientbound MoveVehicle) tečou ze síťového vlákna
+přes atomickou schránku.
+
+Minecarty používají stejný vzor s vlastní kolejovou fyzikou
+(`MinecartPhysics` nad abstrakcí `RailReader`): pohyb vázaný na osu koleje,
+zatáčky přesměrováním v bloku, stoupání s gravitačním zrychlením ±0.0078,
+napájecí koleje (boost +0.06 / brzda ×0.5), tření 0.997 a strop 0.4 bloku/tick.
+Kolejová data čte `WorldRailReader` z chunk snapshotů (Bukkit `Rail` block
+data), testy si trať definují přímo – fyzika je čistá a plně testovaná.
+
 ## Roadmapa rozšíření
+
+Hotovo ve fázi 2: crafting progrese, střelba lukem/kuší s predikcí a
+balistikou, štít, farmaření (Ageable přes chunk snapshoty), spánek v posteli,
+ukládání přebytků do truhel, unit testy (A*, fyzika, překlepy, osobnosti) a CI.
+
+Hotovo ve fázi 3: lodě (klientská simulace + plavba po vodních plochách,
+pokládání lodi z inventáře) a obchodování s vesničany (prodej komodit za
+smaragdy, nákup jídla, VILLAGE paměť, napojení na ekonomiku).
+
+Hotovo ve fázi 4: minecarty (kolejová fyzika se zatáčkami, svahy a napájecími
+kolejemi, pokládání vozíku na kolej) a podpora teleportace
+(`Bot.teleport(Location)` API, `/botalive tp` na souřadnice, plný resync
+klienta při velkém skoku – přerušení navigace/boje/plavby, přepnutí světa –
+a PORTAL vzpomínky při průchodu portálem zaživa).
+
+Hotovo ve fázi 6: klientský world model (`PacketWorldView`) pro boty na
+cizích serverech – parsování chunk paketů, registry dimenzí, block-state
+mapper z registrů hostitelského serveru s fallbackem.
 
 Architektonicky připravené, zatím neimplementované:
 
-1. **Crafting** – server-side simulace (`Server#craftItem`) za `BotTask`
-   fasádou; paketová varianta (container klik s hashed stacky) je záměrně
-   odložená pro křehkost.
-2. **Střelba (luk/kuše)** – `UseItem` + `ReleaseUseItem` s timingem natažení;
-   balistika už je spočitatelná nad `EntityTracker`.
-3. **Lodě/minecarty** – `ServerboundPaddleBoatPacket`/`MoveVehiclePacket`;
-   `Navigator` dostane vodní režim.
-4. **Obchodování** – villager UI přes `ServerboundSelectTradePacket`;
-   ekonomika (peněženky, transakce) je hotová.
-5. **Klientský world model** – druhá implementace `WorldView` pro boty na
-   cizích serverech.
-6. **Konfigurovatelné fráze** – `PhraseBank` z YAML per jazyk.
+1. **Konfigurovatelné fráze** – `PhraseBank` z YAML per jazyk.
+2. **Plný foreign-server survival** – paketový inventář (hashed container
+   kliky) a odhad dob těžby bez server-side dat, aby crafting/truhly
+   fungovaly i na cizích serverech.
