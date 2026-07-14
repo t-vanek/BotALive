@@ -59,6 +59,7 @@ public final class ConfigLoader {
 
         var chat = new BotAliveConfig.Chat(
                 c.getBoolean("chat.enabled", true),
+                c.getString("chat.language", "cs"),
                 c.getDouble("chat.reply-chance", 0.75),
                 c.getInt("chat.words-per-minute", 160),
                 c.getInt("chat.max-queued-replies", 2)

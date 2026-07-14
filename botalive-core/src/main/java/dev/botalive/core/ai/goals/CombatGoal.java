@@ -4,7 +4,7 @@ import dev.botalive.api.bot.Bot;
 import dev.botalive.api.memory.MemoryKind;
 import dev.botalive.api.personality.Trait;
 import dev.botalive.core.ai.BotContext;
-import dev.botalive.core.chat.PhraseBank;
+import dev.botalive.core.chat.PhraseCategory;
 import dev.botalive.core.entity.TrackedEntity;
 
 import java.util.Optional;
@@ -93,7 +93,7 @@ public final class CombatGoal extends AbstractGoal {
                 if (ctx.entities().byId(current.entityId()).isEmpty()) {
                     ctx.stats().addKill();
                     if (ctx.rng().chance(0.3)) {
-                        ctx.chat().sayFrom(PhraseBank.COMBAT_TAUNTS, null);
+                        ctx.chat().sayFrom(PhraseCategory.COMBAT_TAUNTS, null);
                     }
                 }
                 ctx.combat().disengage();

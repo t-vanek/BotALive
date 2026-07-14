@@ -4,7 +4,7 @@ import dev.botalive.api.bot.Bot;
 import dev.botalive.api.memory.MemoryKind;
 import dev.botalive.api.personality.Trait;
 import dev.botalive.core.ai.BotContext;
-import dev.botalive.core.chat.PhraseBank;
+import dev.botalive.core.chat.PhraseCategory;
 import dev.botalive.core.entity.TrackedEntity;
 
 import java.util.Map;
@@ -79,7 +79,7 @@ public final class SocializeGoal extends AbstractGoal {
 
         if (!greeted) {
             greeted = true;
-            ctx.chat().sayFrom(PhraseBank.MEET_PLAYER, resolveName(ctx, player));
+            ctx.chat().sayFrom(PhraseCategory.MEET_PLAYER, resolveName(ctx, player));
             // Kontakt posiluje přátelství.
             if (player.uuid() != null && ctx.worldView() != null) {
                 bot.memory().remember(MemoryKind.FRIEND, ctx.worldView().worldName(),

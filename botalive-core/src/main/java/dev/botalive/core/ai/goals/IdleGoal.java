@@ -3,7 +3,7 @@ package dev.botalive.core.ai.goals;
 import dev.botalive.api.bot.Bot;
 import dev.botalive.api.personality.Trait;
 import dev.botalive.core.ai.BotContext;
-import dev.botalive.core.chat.PhraseBank;
+import dev.botalive.core.chat.PhraseCategory;
 
 /**
  * Zahálení – výchozí cíl, když nic jiného nedává smysl.
@@ -33,7 +33,7 @@ public final class IdleGoal extends AbstractGoal {
             chatterCooldown = ctx.rng().rangeInt(1200, 4800);
             double sociability = bot.personality().trait(Trait.SOCIABILITY);
             if (ctx.rng().chance(sociability * 0.35)) {
-                ctx.chat().sayFrom(PhraseBank.IDLE_CHATTER, null);
+                ctx.chat().sayFrom(PhraseCategory.IDLE_CHATTER, null);
             }
         }
     }

@@ -2,103 +2,97 @@ package dev.botalive.core.chat;
 
 import dev.botalive.core.util.BotRandom;
 
+import java.util.EnumMap;
 import java.util.List;
+import java.util.Map;
+import java.util.regex.Pattern;
 
 /**
- * Banka frází pro přirozenou konverzaci botů.
+ * Banka frází pro přirozenou konverzaci botů – jedna instance na jazyk.
  *
  * <p>Fráze jsou záměrně krátké a hovorové; každý bot si z kategorie vybírá
- * náhodně (per-bot RNG), takže se odpovědi neopakují synchronně. Obsahuje
- * placeholder {@code {name}} pro jméno protistrany.</p>
+ * náhodně (per-bot RNG), takže se odpovědi neopakují synchronně. Obsah se
+ * načítá z jazykových souborů {@code lang/<kód>.yml}
+ * (viz {@link PhraseBankLoader}) – kromě frází i <b>rozpoznávací vzory</b>
+ * (pozdrav, poděkování), protože klasifikace příchozích zpráv je stejně
+ * jazyková jako odpovědi.</p>
+ *
+ * <p>Instance je nemutabilní a sdílená všemi boty (čtou ji souběžně
+ * z tick vláken). Fráze podporují placeholder {@code {name}} pro jméno
+ * protistrany.</p>
  */
 public final class PhraseBank {
 
-    private PhraseBank() {
+    /** Flagy vzorů: case-insensitive a plný Unicode, aby {@code \b} fungovalo i na diakritiku. */
+    static final int PATTERN_FLAGS = Pattern.CASE_INSENSITIVE
+            | Pattern.UNICODE_CASE | Pattern.UNICODE_CHARACTER_CLASS;
+
+    private final Map<PhraseCategory, List<String>> phrases;
+    private final Pattern greeting;
+    private final Pattern thanks;
+
+    /**
+     * @param phrases  fráze podle kategorií (všechny kategorie, neprázdné seznamy)
+     * @param greeting vzor rozpoznání pozdravu v příchozí zprávě
+     * @param thanks   vzor rozpoznání poděkování v příchozí zprávě
+     */
+    PhraseBank(Map<PhraseCategory, List<String>> phrases, Pattern greeting, Pattern thanks) {
+        EnumMap<PhraseCategory, List<String>> copy = new EnumMap<>(PhraseCategory.class);
+        for (PhraseCategory category : PhraseCategory.values()) {
+            List<String> list = phrases.get(category);
+            if (list == null || list.isEmpty()) {
+                throw new IllegalStateException("Chybí fráze kategorie " + category.key());
+            }
+            copy.put(category, List.copyOf(list));
+        }
+        this.phrases = copy;
+        this.greeting = greeting;
+        this.thanks = thanks;
     }
 
-    /** Pozdravy. */
-    public static final List<String> GREETINGS = List.of(
-            "ahoj {name}", "čau", "nazdar {name}", "zdravím", "čauky", "ahojky",
-            "hej {name}", "zdar", "dobrej", "čus {name}"
-    );
-
-    /** Odpovědi na otázku, kterou bot nechápe. */
-    public static final List<String> CONFUSED = List.of(
-            "co?", "jak to myslíš?", "nevím no", "hmm", "těžko říct", "možná",
-            "to nevím", "asi jo?", "netuším {name}", "dobrá otázka"
-    );
-
-    /** Souhlas. */
-    public static final List<String> AGREEMENT = List.of(
-            "jo", "jasně", "souhlas", "přesně tak", "jj", "no jasný", "to jo", "určitě"
-    );
-
-    /** Nesouhlas. */
-    public static final List<String> DISAGREEMENT = List.of(
-            "ne", "to ne", "nemyslím si", "hmm to asi ne", "nn", "spíš ne"
-    );
-
-    /** Reakce na poděkování. */
-    public static final List<String> YOURE_WELCOME = List.of(
-            "nz", "není zač", "v pohodě", "za málo", "np", "kdykoli"
-    );
-
-    /** Spontánní hlášky při nudě. */
-    public static final List<String> IDLE_CHATTER = List.of(
-            "nuda", "jdu se projít", "někdo nechce jít těžit?", "hezkej den dneska",
-            "kde je nějaká vesnice?", "potřebuju dřevo", "má někdo jídlo navíc?",
-            "jdu kopat", "zase prší no"
-    );
-
-    /** Reakce na vlastní smrt (po respawnu). */
-    public static final List<String> DEATH_REACTIONS = List.of(
-            "no super", "zase jsem umřel", "kdo mě zabil?!", "ff", "moje věci!",
-            "to snad ne", "au", "tak znova", "rip moje diamanty"
-    );
-
-    /** Reakce na boj / vítězství. */
-    public static final List<String> COMBAT_TAUNTS = List.of(
-            "a je po něm", "to bylo o fous", "hotovo", "ez", "další!", "uff to bolelo"
-    );
-
-    /** Pozdrav při potkání hráče. */
-    public static final List<String> MEET_PLAYER = List.of(
-            "čau {name}, co děláš?", "ahoj {name}", "hej {name}, nemáš jídlo?",
-            "{name} ahoj, kde je nejbližší vesnice?", "čus {name}, jdeš těžit?"
-    );
-
-    /** Volání o pomoc při napadení. */
-    public static final List<String> PVP_HELP_CALLS = List.of(
-            "pomoc!", "jdou po mně!", "pomozte mi někdo", "au au au",
-            "bijou mě!", "sem, rychle!"
-    );
-
-    /** Reakce spojence, který jde na pomoc. */
-    public static final List<String> PVP_ASSIST = List.of(
-            "držím tě", "jdu tam", "nech ho být!", "vydrž, jdu",
-            "toho si podám", "za mnou!"
-    );
-
-    /** Hlášky po vyhraném souboji. */
-    public static final List<String> PVP_TAUNTS = List.of(
-            "máš dost?", "ez", "to bylo za minule", "kdo dál?",
-            "a zůstaň ležet", "příště si rozmysli"
-    );
-
-    /** Smajlíky. */
-    public static final List<String> EMOJIS = List.of(
-            ":D", ":)", "xd", ":P", "😀", "😂", ":O", "o.O"
-    );
+    /**
+     * @param category kategorie
+     * @return fráze kategorie (nemutabilní, nikdy prázdné)
+     */
+    public List<String> list(PhraseCategory category) {
+        return phrases.get(category);
+    }
 
     /**
      * Vybere frázi a doplní jméno.
      *
-     * @param bank kategorie frází
-     * @param rng  per-bot náhoda
-     * @param name jméno protistrany (může být prázdné)
+     * @param category kategorie frází
+     * @param rng      per-bot náhoda
+     * @param name     jméno protistrany (může být {@code null})
      * @return fráze
      */
-    public static String pick(List<String> bank, BotRandom rng, String name) {
-        return rng.pick(bank).replace("{name}", name == null ? "" : name).trim();
+    public String pick(PhraseCategory category, BotRandom rng, String name) {
+        return rng.pick(list(category)).replace("{name}", name == null ? "" : name).trim();
+    }
+
+    /**
+     * @param message příchozí zpráva (v původní velikosti písmen)
+     * @return {@code true} pokud zpráva vypadá jako pozdrav
+     */
+    public boolean isGreeting(String message) {
+        return greeting.matcher(message).find();
+    }
+
+    /**
+     * @param message příchozí zpráva
+     * @return {@code true} pokud zpráva vypadá jako poděkování
+     */
+    public boolean isThanks(String message) {
+        return thanks.matcher(message).find();
+    }
+
+    /** @return vzor pozdravu (pro overlay při načítání) */
+    Pattern greeting() {
+        return greeting;
+    }
+
+    /** @return vzor poděkování (pro overlay při načítání) */
+    Pattern thanks() {
+        return thanks;
     }
 }

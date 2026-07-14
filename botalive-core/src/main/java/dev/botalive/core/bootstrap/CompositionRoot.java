@@ -85,6 +85,13 @@ public final class CompositionRoot {
         BotRepository repository = container.register(BotRepository.class,
                 new BotRepository(database));
 
+        // Fráze botů – jazyk dle konfigurace, šablony se exportují k úpravám.
+        dev.botalive.core.chat.PhraseBankLoader.exportDefaults(plugin.getDataFolder());
+        dev.botalive.core.chat.PhraseBank phrases = container.register(
+                dev.botalive.core.chat.PhraseBank.class,
+                dev.botalive.core.chat.PhraseBankLoader.load(
+                        plugin.getDataFolder(), config.chat().language()));
+
         // Sdílené herní služby.
         CraftingService crafting = container.register(CraftingService.class,
                 new CraftingService(bridge));
@@ -131,7 +138,8 @@ public final class CompositionRoot {
 
         // Boti.
         BotImpl.SharedServices services = new BotImpl.SharedServices(
-                config, worldViews, bridge, tickEngine, navigation, repository, stateMapper);
+                config, worldViews, bridge, tickEngine, navigation, repository,
+                phrases, stateMapper);
         BotManagerImpl botManager = container.register(BotManagerImpl.class,
                 new BotManagerImpl(config, repository, goalRegistry, services));
         pvp.attach(botManager);

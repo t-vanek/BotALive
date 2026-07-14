@@ -32,6 +32,11 @@ inventář a historii; po restartu serveru pokračuje tam, kde skončil.
   chyba míření, log-normální reakční latence, mikro-rozhlížení, pauzy,
   rozfázované ticky. Chat s přemýšlením, rychlostí psaní, překlepy (QWERTZ
   sousedé, prohození, výpadky) i follow-up opravami „*slovo“.
+- **Vícejazyčný chat** – fráze botů žijí v `lang/<kód>.yml` (vestavěná čeština
+  a angličtina, `chat.language`). Nový jazyk = nový soubor v
+  `plugins/BotAlive/lang/`; lokalizují se i rozpoznávací vzory (pozdrav,
+  poděkování), takže boti správně reagují i na cizojazyčné zprávy. Neúplný
+  překlad spadá po kategoriích na vestavěnou vrstvu – botům nikdy nedojde řeč.
 - **Boj s obtížnostmi** – strafing, sprint reset, útoky s jitterem, ústup podle
   odvahy; profily easy/normal/hard/nightmare. Na dálku luk i kuše (predikce
   pohybu cíle, balistická kompenzace), v melee blokování štítem.
@@ -163,8 +168,24 @@ balíčcích: network, ai, pathfinding, physics, combat, chat, memory,
 persistence, economy, tasks, commands, config, scheduler, world, human).
 Detailní popis rozhodnutí a trade-offů: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
+## Jazyky frází
+
+Boti mluví jazykem podle `chat.language` (výchozí `cs`). Plugin při startu
+vyexportuje šablony `plugins/BotAlive/lang/cs.yml` a `en.yml`:
+
+1. Nový jazyk: zkopírujte šablonu na `lang/<kód>.yml` (např. `de.yml`),
+   přeložte fráze i `patterns` (regulární výrazy rozpoznávající pozdrav
+   a poděkování) a nastavte `chat.language: <kód>`.
+2. Úprava stávajícího jazyka: editujte přímo `lang/cs.yml` – soubor se při
+   upgradu pluginu nepřepisuje.
+3. Kategorie, kterou soubor nedefinuje, automaticky spadne na vestavěnou
+   vrstvu; rozbitý regex se zahlásí a použije se předchozí vzor.
+
+Placeholder `{name}` se nahrazuje jménem protistrany. Kategorie: `greetings`,
+`confused`, `agreement`, `disagreement`, `youre-welcome`, `idle-chatter`,
+`death-reactions`, `combat-taunts`, `meet-player`, `pvp-help-calls`,
+`pvp-assist`, `pvp-taunts`, `emojis`.
+
 ## Známá omezení a roadmapa
 - Boti vyžadují offline-mode (jsou to nepodepsaní klienti); na online-mode
   serveru se plugin korektně odmítne připojit a vysvětlí proč.
-- Chat boti píší česky (vestavěná banka frází); vlastní fráze lze doplnit
-  rozšířením `PhraseBank` (plánovaná konfigurace přes YAML).
