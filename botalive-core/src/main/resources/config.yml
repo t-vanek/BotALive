@@ -16,6 +16,12 @@ network:
   #            vymoženosti (crafting, truhly, obchod, teleport API) jsou v tom
   #            režimu neaktivní; pohyb, průzkum, boj a chat fungují plně.
   world-model: server
+  # Před připojením ověřit kompatibilitu verzí: boti mluví pevnou verzí
+  # protokolu; běží-li server na jiné verzi, musí překládat ViaVersion
+  # (server starší než boti), příp. ViaVersion + ViaBackwards (server novější).
+  # Při chybějícím překladu se vytvoření bota odmítne s vysvětlením.
+  # false = jen varovat v logu a nechat login selhat (exotická setups).
+  version-check: true
   reconnect:
     enabled: true
     delay-min-ms: 3000

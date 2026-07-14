@@ -192,6 +192,40 @@ napájecí koleje (boost +0.06 / brzda ×0.5), tření 0.997 a strop 0.4 bloku/t
 Kolejová data čte `WorldRailReader` z chunk snapshotů (Bukkit `Rail` block
 data), testy si trať definují přímo – fyzika je čistá a plně testovaná.
 
+### 11. ViaVersion: detekce místo emulace více protokolů
+
+**Volby:** (a) multi-verzní klient (více MCProtocolLib kodeků a přepínání
+podle serveru), (b) jedna pevná verze klienta + překlad na serveru
+(ViaVersion/ViaBackwards) s detekcí a naváděním.
+
+**Zvoleno (b).** Multi-verzní klient znamená udržovat paketovou vrstvu,
+fyziku a world model pro každou verzi protokolu zvlášť – přesně ta práce,
+kterou ViaVersion už dělá na straně serveru a s komunitní údržbou. Bot proto
+mluví vždy verzí zabudované MCProtocolLib a `ViaCompat` řeší zbytek:
+
+- **Porovnává čísla protokolu, ne řetězce verzí** (Paper
+  `UnsafeValues#getProtocolVersion()` vs. MCProtocolLib
+  `PacketCodec#getProtocolVersion()`): patch vydání sdílející protokol
+  (26.1 vs. 26.1.2) fungují nativně a porovnání řetězců by je chybně
+  označilo za nekompatibilní.
+- **Fail-fast s návodem:** bot novější než server → nutný ViaVersion; bot
+  starší → ViaVersion + ViaBackwards. Chybí-li překlad, odmítne se už
+  vytvoření bota s českou zprávou co nainstalovat (stejný vzor jako
+  online-mode kontrola) místo tichého timeoutu loginu. Kill-switch
+  `network.version-check: false` pro exotické překladové stacky, které
+  se nejmenují ViaVersion.
+- **Korektnost block-state mapperu:** Via překládá pakety do formátu
+  klienta, takže bot dostává chunk data ve *své* verzi protokolu.
+  `ReflectionBlockStateMapper` (tabulka z NMS registrů hostitele) je proto
+  správný jen při shodě protokolu hostitele s botem – při překladu se
+  automaticky degraduje na `FallbackBlockStateMapper` s varováním.
+- **Cizí servery:** verzi vzdáleného serveru odtud zjistit nejde
+  (`UNKNOWN_TARGET`) – při startu se jen zaloguje, jaká verze se očekává,
+  a rozhodne login.
+
+Čisté jádro (`ViaCompat.assess`) je bez závislosti na Bukkitu a testuje se
+jednotkově včetně směrů překladu a chybějících pluginů.
+
 ## Roadmapa rozšíření
 
 Hotovo ve fázi 2: crafting progrese, střelba lukem/kuší s predikcí a
@@ -237,6 +271,8 @@ nasedání, server shazuje přes SetPassengers). Stav `Tameable` entit se
 autoritativně ověřuje server-side, mazlíčci se ukládají jako PET vzpomínky
 a `CombatGoal` nikdy neútočí na vlastního mazlíčka (a nově oplácí
 neutrálním zvířatům, která bota napadla – rozzuření vlci).
+
+Hotovo ve fázi 10: podpora ViaVersion (`ViaCompat`, viz §11).
 
 Architektonicky připravené, zatím neimplementované:
 

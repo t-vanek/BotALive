@@ -7,6 +7,7 @@ import dev.botalive.core.bot.BotManagerImpl;
 import dev.botalive.core.commands.BotAliveCommand;
 import dev.botalive.core.config.BotAliveConfig;
 import dev.botalive.core.config.ConfigLoader;
+import dev.botalive.core.via.ViaCompat;
 import org.bukkit.Bukkit;
 import org.bukkit.command.PluginCommand;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -32,6 +33,7 @@ public final class BotAlivePlugin extends JavaPlugin {
             getLogger().warning("Server běží v online-mode! Boti jsou offline klienti a nepůjdou "
                     + "připojit. Použijte offline-mode server, nebo proxy (Velocity) s offline backendem.");
         }
+        logVersionCompatibility(config);
 
         this.root = new CompositionRoot(this, config);
 
@@ -51,6 +53,27 @@ public final class BotAlivePlugin extends JavaPlugin {
 
         getLogger().info("BotAlive " + getPluginMeta().getVersion() + " zapnut. Limit botů: "
                 + config.bots().maxCount() + ", databáze: " + config.persistence().type());
+    }
+
+    /**
+     * Diagnostika kompatibility verzí při startu (podpora ViaVersion).
+     *
+     * <p>Boti mluví pevnou verzí protokolu; při neshodě se serverem musí
+     * překládat ViaVersion/ViaBackwards. Chybí-li, upozorníme adminy hned
+     * při startu – vytvoření bota pak selže se stejnou zprávou.</p>
+     */
+    private void logVersionCompatibility(BotAliveConfig config) {
+        if (!config.network().targetsLocalServer(Bukkit.getPort())) {
+            getLogger().info(ViaCompat.remoteTarget(config.network().host()).message());
+            return;
+        }
+        ViaCompat.Assessment via = ViaCompat.assessLocalServer();
+        if (!via.connectable()) {
+            getLogger().warning(via.message() + (config.network().versionCheck()
+                    ? "" : " (version-check: false – boti se přesto pokusí připojit)"));
+        } else if (via.translated()) {
+            getLogger().info(via.message());
+        }
     }
 
     /** Rozfázovaný auto-spawn – boti nenaskakují v jedné vlně. */

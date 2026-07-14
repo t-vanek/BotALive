@@ -54,6 +54,9 @@ import org.bukkit.plugin.java.JavaPlugin;
  */
 public final class CompositionRoot {
 
+    private static final org.slf4j.Logger LOG =
+            org.slf4j.LoggerFactory.getLogger(CompositionRoot.class);
+
     private final ServiceContainer container = new ServiceContainer();
 
     /**
@@ -107,11 +110,23 @@ public final class CompositionRoot {
                 enchanting, pvp, taming);
 
         // Block-state mapper pro klientský world model (jen režim packet):
-        // přesná tabulka z registrů hostitelského serveru, jinak degradovaný fallback.
+        // přesná tabulka z registrů hostitelského serveru je správná jen při
+        // shodě protokolu hostitele s protokolem botů – překládá-li Via,
+        // dostává bot pakety ve svém vlastním formátu a registry jiné verze
+        // by daly špatná ID. Jinak degradovaný fallback.
         dev.botalive.core.world.state.BlockStateMapper stateMapper = null;
         if (config.network().packetWorldModel()) {
-            stateMapper = dev.botalive.core.world.state.ReflectionBlockStateMapper.tryCreate()
-                    .orElseGet(dev.botalive.core.world.state.FallbackBlockStateMapper::new);
+            if (dev.botalive.core.via.ViaCompat.hostMatchesBotProtocol()) {
+                stateMapper = dev.botalive.core.world.state.ReflectionBlockStateMapper.tryCreate()
+                        .orElseGet(dev.botalive.core.world.state.FallbackBlockStateMapper::new);
+            } else {
+                LOG.warn("Registry hostitelského serveru ({}) neodpovídají protokolu botů ({}) – "
+                                + "block-state mapování poběží v degradovaném fallbacku "
+                                + "(vzduch/pevný blok podle heuristiky).",
+                        org.bukkit.Bukkit.getMinecraftVersion(),
+                        dev.botalive.core.via.ViaCompat.botVersion());
+                stateMapper = new dev.botalive.core.world.state.FallbackBlockStateMapper();
+            }
         }
 
         // Boti.

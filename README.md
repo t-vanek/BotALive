@@ -67,6 +67,12 @@ inventář a historii; po restartu serveru pokračuje tam, kde skončil.
   registry dimenzí, blokové změny), takže boti mohou hrát na libovolném
   offline-mode serveru se stejnou verzí protokolu. Mapování block states se
   sestavuje z registrů hostitelského serveru s degradovaným fallbackem.
+- **ViaVersion** – boti mluví pevnou verzí protokolu; běží-li server na jiné
+  verzi, plugin to při startu detekuje (porovnává čísla protokolu, takže
+  patch vydání se stejným protokolem fungují nativně) a zkontroluje
+  přítomnost překladu: ViaVersion (server starší než boti), ViaVersion +
+  ViaBackwards (server novější). Chybí-li, vytvoření bota se odmítne
+  s návodem místo tichého selhání loginu (`network.version-check`).
 - **Výkon** – vlastní vícevláknový tick engine (20 Hz, rozfázovaně), sdílená
   Caffeine cache chunk snapshotů, asynchronní pathfinding pool, jednovláknové
   virtuální executory pro pakety, žádné blokování herních vláken. Funguje na
@@ -76,7 +82,7 @@ inventář a historii; po restartu serveru pokračuje tam, kde skončil.
 
 | | |
 |---|---|
-| Server | Paper 26.1.x (nebo Folia) |
+| Server | Paper 26.1.x (nebo Folia); jiné verze s ViaVersion/ViaBackwards |
 | Java | 25+ |
 | Režim | `online-mode=false` (boti jsou offline klienti), příp. Velocity s offline backendem |
 | Databáze | nic (SQLite embedded), volitelně PostgreSQL |
