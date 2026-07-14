@@ -1,0 +1,20 @@
+name: BotAlive
+version: '1.0.0'
+main: dev.botalive.core.BotAlivePlugin
+api-version: '26.1'
+folia-supported: true
+author: BotAlive
+description: Plně autonomní AI hráči připojení jako skuteční klienti (MCProtocolLib).
+website: https://github.com/t-vanek/BotALive
+
+commands:
+  botalive:
+    description: Správa AI botů
+    usage: /botalive <create|remove|tp|list|pause|resume|personality|memory|goal|stats>
+    permission: botalive.admin
+    aliases: [ba, bots]
+
+permissions:
+  botalive.admin:
+    description: Přístup ke správě botů
+    default: op

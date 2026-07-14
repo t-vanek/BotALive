@@ -1,0 +1,122 @@
+package dev.botalive.core.entity;
+
+import dev.botalive.core.util.Vec3;
+import org.geysermc.mcprotocollib.protocol.data.game.entity.type.EntityType;
+
+import java.util.UUID;
+import java.util.concurrent.atomic.AtomicReference;
+
+/**
+ * Entita, kterou bot „vidí" – rekonstruovaná z paketů serveru.
+ *
+ * <p>Pozice se aktualizuje ze síťového vlákna a čte z AI vlákna, proto je
+ * držena v {@link AtomicReference} (nemutabilní {@link Vec3}).</p>
+ */
+public final class TrackedEntity {
+
+    private final int entityId;
+    private final UUID uuid;
+    private final EntityType type;
+    private final AtomicReference<Vec3> position = new AtomicReference<>();
+    private volatile float yaw;
+    private volatile float pitch;
+    private volatile long lastUpdateMs;
+
+    /**
+     * @param entityId síťové id entity
+     * @param uuid     UUID entity
+     * @param type     typ entity
+     * @param initial  počáteční pozice
+     */
+    public TrackedEntity(int entityId, UUID uuid, EntityType type, Vec3 initial) {
+        this.entityId = entityId;
+        this.uuid = uuid;
+        this.type = type;
+        this.position.set(initial);
+        this.lastUpdateMs = System.currentTimeMillis();
+    }
+
+    /** @return síťové id entity */
+    public int entityId() {
+        return entityId;
+    }
+
+    /** @return UUID entity */
+    public UUID uuid() {
+        return uuid;
+    }
+
+    /** @return typ entity */
+    public EntityType type() {
+        return type;
+    }
+
+    /** @return poslední známá pozice */
+    public Vec3 position() {
+        return position.get();
+    }
+
+    /** @return natočení těla (stupně) */
+    public float yaw() {
+        return yaw;
+    }
+
+    /** @return náklon hlavy (stupně) */
+    public float pitch() {
+        return pitch;
+    }
+
+    /** @return epocha ms poslední aktualizace (pro detekci zatuchlých entit) */
+    public long lastUpdateMs() {
+        return lastUpdateMs;
+    }
+
+    /**
+     * Absolutní aktualizace pozice (teleport paket).
+     */
+    public void setPosition(Vec3 pos, float yaw, float pitch) {
+        position.set(pos);
+        this.yaw = yaw;
+        this.pitch = pitch;
+        this.lastUpdateMs = System.currentTimeMillis();
+    }
+
+    /**
+     * Relativní posun (move paket).
+     */
+    public void moveBy(double dx, double dy, double dz) {
+        position.updateAndGet(p -> p.add(dx, dy, dz));
+        this.lastUpdateMs = System.currentTimeMillis();
+    }
+
+    /**
+     * Aktualizace rotace.
+     */
+    public void setRotation(float yaw, float pitch) {
+        this.yaw = yaw;
+        this.pitch = pitch;
+        this.lastUpdateMs = System.currentTimeMillis();
+    }
+
+    /** @return {@code true} pokud jde o hráče (nebo jiného bota) */
+    public boolean isPlayer() {
+        return type == EntityType.PLAYER;
+    }
+
+    /** @return {@code true} pokud jde o nepřátelského moba */
+    public boolean isHostile() {
+        return switch (type) {
+            case ZOMBIE, ZOMBIE_VILLAGER, HUSK, DROWNED, SKELETON, STRAY, BOGGED, WITHER_SKELETON,
+                 CREEPER, SPIDER, CAVE_SPIDER, ENDERMAN, WITCH, PILLAGER, VINDICATOR, EVOKER,
+                 RAVAGER, VEX, PHANTOM, BLAZE, GHAST, MAGMA_CUBE, SLIME, SILVERFISH, ENDERMITE,
+                 GUARDIAN, ELDER_GUARDIAN, SHULKER, HOGLIN, ZOGLIN, PIGLIN_BRUTE, WARDEN, BREEZE,
+                 CREAKING -> true;
+            default -> false;
+        };
+    }
+
+    /** @return {@code true} pokud jde o upuštěný předmět */
+    public boolean isItem() {
+        return type == EntityType.ITEM;
+    }
+}

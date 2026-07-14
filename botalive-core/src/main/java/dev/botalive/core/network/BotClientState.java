@@ -1,0 +1,152 @@
+package dev.botalive.core.network;
+
+import dev.botalive.core.util.Vec3;
+
+import java.util.Queue;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.atomic.AtomicInteger;
+
+/**
+ * Sdílený protokolový stav bota – „poštovní schránka" mezi síťovým vláknem
+ * a tick vláknem bota.
+ *
+ * <p>Síťové vlákno sem zapisuje, tick vlákno čte a odbavuje fronty. Všechna
+ * pole jsou volatile nebo concurrent – žádné zámky, žádné čekání v paketovém
+ * vlákně.</p>
+ */
+public final class BotClientState {
+
+    /** Síťové entity id bota (z login paketu). */
+    private volatile int entityId = -1;
+
+    /** Klíč dimenze/světa z protokolu (např. {@code minecraft:overworld}). */
+    private volatile String worldKey = "";
+
+    /** Bot dostal login a první teleport – je plně ve hře. */
+    private volatile boolean spawned;
+
+    /** Bot je mrtvý a čeká na respawn. */
+    private volatile boolean dead;
+
+    private volatile float health = 20f;
+    private volatile int food = 20;
+    private volatile float saturation = 5f;
+
+    /** Aktuálně vybraný hotbar slot (0–8). */
+    private volatile int heldSlot;
+
+    /** Čítač sequence pro akce s bloky (kopání, pokládání, použití itemu). */
+    private final AtomicInteger actionSequence = new AtomicInteger(1);
+
+    /** Teleporty od serveru čekající na aplikaci v ticku. */
+    private final Queue<TeleportSync> pendingTeleports = new ConcurrentLinkedQueue<>();
+
+    /** Knockback/impulzy od serveru čekající na aplikaci v ticku. */
+    private final Queue<Vec3> pendingImpulses = new ConcurrentLinkedQueue<>();
+
+    /** @return síťové entity id bota, -1 před loginem */
+    public int entityId() {
+        return entityId;
+    }
+
+    /** Nastaví entity id (login paket). */
+    public void entityId(int id) {
+        this.entityId = id;
+    }
+
+    /** @return protokolový klíč světa */
+    public String worldKey() {
+        return worldKey;
+    }
+
+    /** Nastaví klíč světa (login/respawn). */
+    public void worldKey(String key) {
+        this.worldKey = key;
+    }
+
+    /** @return {@code true} pokud bot dokončil spawn sekvenci */
+    public boolean spawned() {
+        return spawned;
+    }
+
+    /** Označí dokončení spawn sekvence. */
+    public void spawned(boolean value) {
+        this.spawned = value;
+    }
+
+    /** @return {@code true} pokud je bot mrtvý */
+    public boolean dead() {
+        return dead;
+    }
+
+    /** Označí smrt/oživení. */
+    public void dead(boolean value) {
+        this.dead = value;
+    }
+
+    /** @return zdraví 0–20 */
+    public float health() {
+        return health;
+    }
+
+    /** @return jídlo 0–20 */
+    public int food() {
+        return food;
+    }
+
+    /** @return sytost */
+    public float saturation() {
+        return saturation;
+    }
+
+    /** Aktualizace vitálních hodnot (SetHealth paket). */
+    public void updateVitals(float health, int food, float saturation) {
+        this.health = health;
+        this.food = food;
+        this.saturation = saturation;
+    }
+
+    /** @return vybraný hotbar slot 0–8 */
+    public int heldSlot() {
+        return heldSlot;
+    }
+
+    /** Nastaví vybraný hotbar slot. */
+    public void heldSlot(int slot) {
+        this.heldSlot = slot;
+    }
+
+    /** @return další sequence číslo pro blokové akce */
+    public int nextSequence() {
+        return actionSequence.getAndIncrement();
+    }
+
+    /** Zařadí teleport k aplikaci v ticku. */
+    public void queueTeleport(TeleportSync teleport) {
+        pendingTeleports.add(teleport);
+    }
+
+    /** @return další čekající teleport, nebo {@code null} */
+    public TeleportSync pollTeleport() {
+        return pendingTeleports.poll();
+    }
+
+    /** Zařadí impulz (knockback) k aplikaci v ticku. */
+    public void queueImpulse(Vec3 impulse) {
+        pendingImpulses.add(impulse);
+    }
+
+    /** @return další čekající impulz, nebo {@code null} */
+    public Vec3 pollImpulse() {
+        return pendingImpulses.poll();
+    }
+
+    /** Reset stavu při odpojení. */
+    public void reset() {
+        spawned = false;
+        dead = false;
+        entityId = -1;
+        pendingTeleports.clear();
+        pendingImpulses.clear();
+    }
+}
