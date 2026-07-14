@@ -220,6 +220,16 @@ splávku (`fish`), tavení v peci s návratem pro hotovou vsázku (`smelt`)
 a enchantování za XP a lapis (`enchant`); kovárna a enchant běží server-side
 podle precedentu §9, otevření bloku vždy reálným interact paketem.
 
+Hotovo ve fázi 8: PvP a aliance (`PvpCoordinator` + cíl `pvp`). Aliance jsou
+emergentní – vznikají z FRIEND paměti (socializace, společný boj) místo
+pevných týmů. Napadení bota (damage event) vytvoří hrozbu a svolá spojence
+v dosahu; PvpGoal pak řeší obranu (odvaha vs. útěk přes SurviveGoal),
+asistenci, pomstu z čerstvé ENEMY paměti a u rváčů i vyvolání potyčky.
+Souboj vede tentýž `CombatController` jako PvE (proti hráčům bojuje bot
+identicky). Pojistky: hlavní vypínač, zvlášť útoky na hráče (obrana povolena
+vždy), zvlášť na boty, férovostní strop současných útočníků na jeden cíl.
+`CombatGoal` je nově čistě PvE.
+
 Architektonicky připravené, zatím neimplementované:
 
 1. **Konfigurovatelné fráze** – `PhraseBank` z YAML per jazyk.

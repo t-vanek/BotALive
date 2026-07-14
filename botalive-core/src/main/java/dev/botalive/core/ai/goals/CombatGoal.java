@@ -124,22 +124,12 @@ public final class CombatGoal extends AbstractGoal {
         return lostTargetTicks > 40;
     }
 
-    /** Najde vhodný cíl: hostilní mob, nebo zapamatovaný nepřítel-hráč. */
+    /**
+     * Najde vhodný cíl – hostilní mob. Souboje s hráči a jinými boty
+     * (obrana, pomsta, aliance) řeší {@code PvpGoal} s vlastními pojistkami.
+     */
     private Optional<TrackedEntity> findTarget(BotContext ctx, Bot bot) {
         double viewDistance = ctx.config().ai().viewDistanceBlocks();
-        Optional<TrackedEntity> hostile = ctx.entities()
-                .nearest(ctx.position(), viewDistance, TrackedEntity::isHostile);
-        if (hostile.isPresent()) {
-            return hostile;
-        }
-        // Pomsta hráčům z paměti – jen agresivní boti.
-        if (bot.personality().trait(Trait.AGGRESSION) < 0.6) {
-            return Optional.empty();
-        }
-        return ctx.entities().nearby(ctx.position(), viewDistance, TrackedEntity::isPlayer).stream()
-                .filter(player -> player.uuid() != null
-                        && bot.memory().recallAbout(player.uuid()).stream()
-                                .anyMatch(r -> r.kind() == MemoryKind.ENEMY))
-                .findFirst();
+        return ctx.entities().nearest(ctx.position(), viewDistance, TrackedEntity::isHostile);
     }
 }

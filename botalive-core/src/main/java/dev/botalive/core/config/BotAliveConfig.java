@@ -18,6 +18,7 @@ import java.util.List;
  * @param worlds      whitelist/blacklist světů
  * @param spawn       kde se boti spawnují
  * @param teleport    teleportace hráčů k botům a botů k hráčům
+ * @param pvp         PvP botů a aliance
  * @param performance výkonnostní laditelné parametry
  * @param persistence databáze
  */
@@ -31,6 +32,7 @@ public record BotAliveConfig(
         Worlds worlds,
         Spawn spawn,
         Teleport teleport,
+        Pvp pvp,
         Performance performance,
         Persistence persistence
 ) {
@@ -154,6 +156,24 @@ public record BotAliveConfig(
      * @param radius poloměr pro random-around
      */
     public record Spawn(String mode, String world, double x, double y, double z, int radius) {
+    }
+
+    /**
+     * PvP botů a aliance.
+     *
+     * @param enabled              hlavní vypínač – vypnuto = boti nikdy nenapadají
+     *                             hráče ani jiné boty (PvE zůstává)
+     * @param attackPlayers        smí boti sami <b>iniciovat</b> útok na skutečné
+     *                             hráče? (obrana po napadení funguje vždy,
+     *                             je-li PvP zapnuté)
+     * @param attackBots           smí boti napadat jiné boty
+     * @param helpAllies           spojenci (přátelství z paměti) si chodí na pomoc
+     * @param helpRadius           dosah volání o pomoc (bloky)
+     * @param maxAttackersPerTarget férovost: kolik botů smí současně útočit
+     *                             na jeden cíl
+     */
+    public record Pvp(boolean enabled, boolean attackPlayers, boolean attackBots,
+                      boolean helpAllies, int helpRadius, int maxAttackersPerTarget) {
     }
 
     /**

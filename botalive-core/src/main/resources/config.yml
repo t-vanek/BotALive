@@ -81,6 +81,19 @@ spawn:
   z: 0
   radius: 64
 
+pvp:
+  # PvP botů. Vypnuto = boti hráče ani jiné boty nikdy nenapadají (PvE zůstává).
+  enabled: false
+  # Smí boti sami INICIOVAT útok na skutečné hráče? Obrana po napadení
+  # funguje vždy, když je pvp zapnuté.
+  attack-players: false
+  attack-bots: true
+  # Spojenci (přátelství z paměti botů) si přijdou na pomoc.
+  help-allies: true
+  help-radius: 24
+  # Férovost: kolik botů smí najednou útočit na jeden cíl.
+  max-attackers-per-target: 2
+
 teleport:
   # Teleportace hráčů k botům (/botalive tp <bot>) a přivolávání botů
   # (/botalive tp <bot> here). Práva: botalive.teleport (k botovi),
