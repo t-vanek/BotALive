@@ -226,6 +226,36 @@ mluví vždy verzí zabudované MCProtocolLib a `ViaCompat` řeší zbytek:
 Čisté jádro (`ViaCompat.assess`) je bez závislosti na Bukkitu a testuje se
 jednotkově včetně směrů překladu a chybějících pluginů.
 
+### 12. Lokalizace frází: vrstvené jazykové soubory
+
+**Volby:** (a) jeden editovatelný `phrases.yml`, (b) jazykové soubory
+`lang/<kód>.yml` s výběrem přes `chat.language`, uživatelskými přepisy
+a fallbackem po kategoriích.
+
+**Zvoleno (b).** Jeden soubor umí jen jeden jazyk najednou a upgrade pluginu
+by přepisoval úpravy. Jazykové soubory se vrství: vestavěná čeština (vždy
+kompletní, úplnost vynucuje konstruktor `PhraseBank` a hlídá unit test) →
+vestavěný soubor zvoleného jazyka (přibalené `cs`, `en`) → uživatelský soubor
+v `plugins/BotAlive/lang/`. Každá vrstva přepisuje jen kategorie, které sama
+definuje – neúplný překlad botům nikdy nevezme řeč, jen se míchá s fallbackem.
+
+Klíčová rozhodnutí:
+
+- **Lokalizují se i rozpoznávací vzory** (`patterns.greeting`,
+  `patterns.thanks`): klasifikace příchozích zpráv je stejně jazyková jako
+  odpovědi – anglicky mluvící bot musí poznat „thanks", ne „díky". Rozbitý
+  regex se zahlásí a spadne na předchozí vrstvu.
+- **Unicode fix:** vzory se kompilují s `UNICODE_CHARACTER_CLASS` +
+  `UNICODE_CASE` + `CASE_INSENSITIVE`. Původní zadrátovaný regex používal
+  `\b` v ASCII režimu, kde česká diakritika není „slovní znak" – „čau" se
+  nikdy nerozpoznalo. Teď fungují hranice slov pro libovolný jazyk.
+- **`PhraseBank` je nemutabilní instance** (jedna na server, sdílená všemi
+  boty napříč tick vlákny) místo statických konstant; kategorie jsou enum
+  `PhraseCategory` – kontrakt mezi kódem a YAML, překlep v klíči chytí test.
+- **Šablony se exportují** do datové složky (jen chybějící soubory), takže
+  admin má co kopírovat a upravovat; per-bot výběr frází zůstává na per-bot
+  RNG, boti se tedy neopakují synchronně ani ve stejném jazyce.
+
 ## Roadmapa rozšíření
 
 Hotovo ve fázi 2: crafting progrese, střelba lukem/kuší s predikcí a
@@ -274,9 +304,12 @@ neutrálním zvířatům, která bota napadla – rozzuření vlci).
 
 Hotovo ve fázi 10: podpora ViaVersion (`ViaCompat`, viz §11).
 
+Hotovo ve fázi 11: vícejazyčné fráze (`lang/<kód>.yml`, `PhraseBankLoader`,
+viz §12) – vestavěná čeština a angličtina, vlastní jazyky souborem,
+lokalizované rozpoznávací vzory, fallback po kategoriích.
+
 Architektonicky připravené, zatím neimplementované:
 
-1. **Konfigurovatelné fráze** – `PhraseBank` z YAML per jazyk.
-2. **Plný foreign-server survival** – paketový inventář (hashed container
+1. **Plný foreign-server survival** – paketový inventář (hashed container
    kliky) a odhad dob těžby bez server-side dat, aby crafting/truhly
    fungovaly i na cizích serverech.

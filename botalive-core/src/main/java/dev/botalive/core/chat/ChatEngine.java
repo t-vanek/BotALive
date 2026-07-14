@@ -41,6 +41,7 @@ public final class ChatEngine {
     private final ChatStyle style;
     private final TypoEngine typos;
     private final BotAliveConfig.Chat config;
+    private final PhraseBank phrases;
     private final Consumer<String> sender;
 
     /** Příchozí zprávy ze síťového vlákna. */
@@ -70,14 +71,17 @@ public final class ChatEngine {
      * @param personality osobnost
      * @param rng         per-bot náhoda
      * @param config      konfigurace chatu
+     * @param phrases     banka frází zvoleného jazyka (sdílená všemi boty)
      * @param sender      callback pro fyzické odeslání zprávy (přes BotChatEvent)
      */
     public ChatEngine(String botName, Personality personality, BotRandom rng,
-                      BotAliveConfig.Chat config, Consumer<String> sender) {
+                      BotAliveConfig.Chat config, PhraseBank phrases,
+                      Consumer<String> sender) {
         this.botName = botName;
         this.personality = personality;
         this.rng = rng;
         this.config = config;
+        this.phrases = phrases;
         this.sender = sender;
         this.style = ChatStyle.derive(personality, rng, config.wordsPerMinute());
         this.typos = new TypoEngine(rng);
@@ -118,11 +122,11 @@ public final class ChatEngine {
     /**
      * Spontánní hláška z banky frází.
      *
-     * @param bank kategorie
-     * @param name jméno protistrany (může být null)
+     * @param category kategorie
+     * @param name     jméno protistrany (může být null)
      */
-    public void sayFrom(java.util.List<String> bank, String name) {
-        say(PhraseBank.pick(bank, rng, name));
+    public void sayFrom(PhraseCategory category, String name) {
+        say(phrases.pick(category, rng, name));
     }
 
     /**
@@ -179,30 +183,30 @@ public final class ChatEngine {
         enqueue(reply, delayTicks);
     }
 
-    /** Sestaví odpověď podle jednoduché klasifikace zprávy. */
+    /** Sestaví odpověď podle jednoduché klasifikace zprávy (vzory z jazyka banky). */
     private String composeReply(Inbound inbound) {
-        String content = inbound.content.toLowerCase(Locale.ROOT);
+        String content = inbound.content;
         String name = inbound.senderName;
 
-        java.util.List<String> bank;
-        if (content.matches(".*\\b(ahoj|čau|cau|nazdar|zdar|hi|hello|hey)\\b.*")) {
-            bank = PhraseBank.GREETINGS;
-        } else if (content.matches(".*\\b(díky|dík|diky|thx|thanks|dekuju|děkuju)\\b.*")) {
-            bank = PhraseBank.YOURE_WELCOME;
-        } else if (content.endsWith("?")) {
+        PhraseCategory category;
+        if (phrases.isGreeting(content)) {
+            category = PhraseCategory.GREETINGS;
+        } else if (phrases.isThanks(content)) {
+            category = PhraseCategory.YOURE_WELCOME;
+        } else if (content.strip().endsWith("?")) {
             // Otázky: souhlas/nesouhlas/nechápání podle povahy.
             double roll = rng.next();
             if (roll < 0.4) {
-                bank = PhraseBank.CONFUSED;
+                category = PhraseCategory.CONFUSED;
             } else if (roll < 0.4 + personality.trait(Trait.HELPFULNESS) * 0.4) {
-                bank = PhraseBank.AGREEMENT;
+                category = PhraseCategory.AGREEMENT;
             } else {
-                bank = PhraseBank.DISAGREEMENT;
+                category = PhraseCategory.DISAGREEMENT;
             }
         } else {
-            bank = rng.chance(0.5) ? PhraseBank.AGREEMENT : PhraseBank.CONFUSED;
+            category = rng.chance(0.5) ? PhraseCategory.AGREEMENT : PhraseCategory.CONFUSED;
         }
-        return PhraseBank.pick(bank, rng, name);
+        return phrases.pick(category, rng, name);
     }
 
     /** Zařadí zprávu do odchozí fronty: aplikuje styl, překlepy a případnou opravu. */
@@ -224,7 +228,7 @@ public final class ChatEngine {
             result = result + "!";
         }
         if (rng.chance(style.emojiRate())) {
-            result = result + " " + rng.pick(PhraseBank.EMOJIS);
+            result = result + " " + rng.pick(phrases.list(PhraseCategory.EMOJIS));
         }
         return result;
     }

@@ -115,11 +115,14 @@ public record BotAliveConfig(
      * Chat botů.
      *
      * @param enabled          zda boti smí mluvit
+     * @param language         jazyk frází – kód souboru {@code lang/<kód>.yml}
+     *                         (vestavěné: cs, en; vlastní překlad = nový soubor)
      * @param replyChance      základní šance odpovědět na zmínku (násobí se povahou)
      * @param wordsPerMinute   průměrná rychlost psaní (slova/min)
      * @param maxQueuedReplies strop rozepsaných odpovědí (ochrana proti spamu)
      */
-    public record Chat(boolean enabled, double replyChance, int wordsPerMinute, int maxQueuedReplies) {
+    public record Chat(boolean enabled, String language, double replyChance,
+                       int wordsPerMinute, int maxQueuedReplies) {
     }
 
     /**

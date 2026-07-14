@@ -1,0 +1,128 @@
+# ============================================================================
+#  BotAlive – bot phrases (English)
+#
+#  To translate into another language:
+#    1. Copy this file to plugins/BotAlive/lang/<code>.yml
+#       (e.g. de.yml) and translate the contents.
+#    2. Set chat.language: <code> in config.yml.
+#  Any category this file does not define (or leaves empty) automatically
+#  falls back to the built-in layer – an incomplete translation never
+#  leaves the bots speechless.
+#
+#  {name} is replaced with the other party's name (may end up empty).
+#  patterns.* are regular expressions (case-insensitive, full Unicode) used
+#  to recognize greetings/thanks in incoming messages.
+# ============================================================================
+
+patterns:
+  greeting: '\b(hi|hello|hey|heya|hiya|yo|sup|howdy)\b'
+  thanks: '\b(thanks|thank you|thx|ty|cheers|thankyou)\b'
+
+phrases:
+  greetings:
+    - "hi {name}"
+    - "hey"
+    - "hello {name}"
+    - "yo"
+    - "heya"
+    - "hi there"
+    - "sup {name}"
+    - "hey {name}"
+    - "howdy"
+  confused:
+    - "what?"
+    - "what do you mean?"
+    - "dunno"
+    - "hmm"
+    - "hard to say"
+    - "maybe"
+    - "no idea"
+    - "good question"
+    - "not sure {name}"
+    - "beats me"
+  agreement:
+    - "yeah"
+    - "sure"
+    - "agreed"
+    - "exactly"
+    - "yep"
+    - "totally"
+    - "for sure"
+    - "definitely"
+  disagreement:
+    - "no"
+    - "nah"
+    - "don't think so"
+    - "hmm probably not"
+    - "nope"
+    - "not really"
+  youre-welcome:
+    - "np"
+    - "no problem"
+    - "you're welcome"
+    - "anytime"
+    - "sure thing"
+    - "no worries"
+  idle-chatter:
+    - "so bored"
+    - "gonna take a walk"
+    - "anyone up for some mining?"
+    - "nice day today"
+    - "where's the nearest village?"
+    - "I need wood"
+    - "anyone got spare food?"
+    - "off to dig"
+    - "raining again huh"
+  death-reactions:
+    - "oh great"
+    - "died again"
+    - "who killed me?!"
+    - "ff"
+    - "my stuff!"
+    - "no way"
+    - "ouch"
+    - "here we go again"
+    - "rip my diamonds"
+  combat-taunts:
+    - "got him"
+    - "that was close"
+    - "done"
+    - "ez"
+    - "next!"
+    - "oof that hurt"
+  meet-player:
+    - "hey {name}, whatcha doing?"
+    - "hi {name}"
+    - "hey {name}, got any food?"
+    - "{name} hi, where's the nearest village?"
+    - "yo {name}, going mining?"
+  pvp-help-calls:
+    - "help!"
+    - "they're after me!"
+    - "somebody help me"
+    - "ow ow ow"
+    - "I'm getting jumped!"
+    - "over here, quick!"
+  pvp-assist:
+    - "I got you"
+    - "on my way"
+    - "leave him alone!"
+    - "hang on, coming"
+    - "he's mine"
+    - "follow me!"
+  pvp-taunts:
+    - "had enough?"
+    - "ez"
+    - "that's for last time"
+    - "who's next?"
+    - "stay down"
+    - "think twice next time"
+  emojis:
+    - ":D"
+    - ":)"
+    - "xd"
+    - ":P"
+    - "😀"
+    - "😂"
+    - ":O"
+    - "o.O"

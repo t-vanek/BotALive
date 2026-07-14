@@ -14,7 +14,7 @@ import dev.botalive.api.personality.Personality;
 import dev.botalive.core.ai.BotContext;
 import dev.botalive.core.ai.Brain;
 import dev.botalive.core.chat.ChatEngine;
-import dev.botalive.core.chat.PhraseBank;
+import dev.botalive.core.chat.PhraseCategory;
 import dev.botalive.core.combat.CombatController;
 import dev.botalive.core.combat.CombatDifficulty;
 import dev.botalive.core.config.BotAliveConfig;
@@ -178,7 +178,8 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents {
                 CombatDifficulty.fromConfig(config.ai().difficulty()), inventoryHelper);
         this.vehicle = new VehicleController(connection, clientState);
         this.serverView = new ServerSideView(id, bridge);
-        this.chat = new ChatEngine(name, personality, rng, config.chat(), this::deliverChat);
+        this.chat = new ChatEngine(name, personality, rng, config.chat(),
+                services.phrases(), this::deliverChat);
         this.brain = new Brain(this, goalFactory.apply(this),
                 config.ai().decisionIntervalTicks(), config.ai().goalHysteresis(), rng);
     }
@@ -192,6 +193,7 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents {
      * @param tickEngine  tick engine
      * @param navigation  pathfinding
      * @param repository  repozitář
+     * @param phrases     banka frází zvoleného jazyka
      * @param stateMapper překlad block states (jen režim packet, jinak {@code null})
      */
     public record SharedServices(
@@ -201,6 +203,7 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents {
             BotTickEngine tickEngine,
             NavigationService navigation,
             BotRepository repository,
+            dev.botalive.core.chat.PhraseBank phrases,
             dev.botalive.core.world.state.BlockStateMapper stateMapper
     ) {
     }
@@ -294,7 +297,7 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents {
             if (connection.connected()) {
                 actions.respawn();
                 if (rng.chance(0.4)) {
-                    chat.sayFrom(PhraseBank.DEATH_REACTIONS, null);
+                    chat.sayFrom(PhraseCategory.DEATH_REACTIONS, null);
                 }
             }
         }, delay);

@@ -1,0 +1,128 @@
+# ============================================================================
+#  BotAlive – fráze botů (čeština)
+#
+#  Jak přeložit do dalšího jazyka:
+#    1. Zkopírujte tento soubor jako plugins/BotAlive/lang/<kód>.yml
+#       (např. de.yml) a přeložte obsah.
+#    2. V config.yml nastavte chat.language: <kód>.
+#  Kategorie, kterou soubor nedefinuje (nebo nechá prázdnou), automaticky
+#  spadne na vestavěnou vrstvu – neúplný překlad botům nevezme řeč.
+#
+#  {name} se nahradí jménem protistrany (může zůstat prázdné).
+#  patterns.* jsou regulární výrazy (case-insensitive, plný Unicode) pro
+#  rozpoznání pozdravu/poděkování v příchozích zprávách.
+# ============================================================================
+
+patterns:
+  greeting: '\b(ahoj|ahojky|čau|cau|čauky|čus|nazdar|zdar|dobrej|hi|hello|hey)\b'
+  thanks: '\b(díky|dík|diky|dikec|thx|thanks|dekuju|děkuju|děkuji)\b'
+
+phrases:
+  greetings:
+    - "ahoj {name}"
+    - "čau"
+    - "nazdar {name}"
+    - "zdravím"
+    - "čauky"
+    - "ahojky"
+    - "hej {name}"
+    - "zdar"
+    - "dobrej"
+    - "čus {name}"
+  confused:
+    - "co?"
+    - "jak to myslíš?"
+    - "nevím no"
+    - "hmm"
+    - "těžko říct"
+    - "možná"
+    - "to nevím"
+    - "asi jo?"
+    - "netuším {name}"
+    - "dobrá otázka"
+  agreement:
+    - "jo"
+    - "jasně"
+    - "souhlas"
+    - "přesně tak"
+    - "jj"
+    - "no jasný"
+    - "to jo"
+    - "určitě"
+  disagreement:
+    - "ne"
+    - "to ne"
+    - "nemyslím si"
+    - "hmm to asi ne"
+    - "nn"
+    - "spíš ne"
+  youre-welcome:
+    - "nz"
+    - "není zač"
+    - "v pohodě"
+    - "za málo"
+    - "np"
+    - "kdykoli"
+  idle-chatter:
+    - "nuda"
+    - "jdu se projít"
+    - "někdo nechce jít těžit?"
+    - "hezkej den dneska"
+    - "kde je nějaká vesnice?"
+    - "potřebuju dřevo"
+    - "má někdo jídlo navíc?"
+    - "jdu kopat"
+    - "zase prší no"
+  death-reactions:
+    - "no super"
+    - "zase jsem umřel"
+    - "kdo mě zabil?!"
+    - "ff"
+    - "moje věci!"
+    - "to snad ne"
+    - "au"
+    - "tak znova"
+    - "rip moje diamanty"
+  combat-taunts:
+    - "a je po něm"
+    - "to bylo o fous"
+    - "hotovo"
+    - "ez"
+    - "další!"
+    - "uff to bolelo"
+  meet-player:
+    - "čau {name}, co děláš?"
+    - "ahoj {name}"
+    - "hej {name}, nemáš jídlo?"
+    - "{name} ahoj, kde je nejbližší vesnice?"
+    - "čus {name}, jdeš těžit?"
+  pvp-help-calls:
+    - "pomoc!"
+    - "jdou po mně!"
+    - "pomozte mi někdo"
+    - "au au au"
+    - "bijou mě!"
+    - "sem, rychle!"
+  pvp-assist:
+    - "držím tě"
+    - "jdu tam"
+    - "nech ho být!"
+    - "vydrž, jdu"
+    - "toho si podám"
+    - "za mnou!"
+  pvp-taunts:
+    - "máš dost?"
+    - "ez"
+    - "to bylo za minule"
+    - "kdo dál?"
+    - "a zůstaň ležet"
+    - "příště si rozmysli"
+  emojis:
+    - ":D"
+    - ":)"
+    - "xd"
+    - ":P"
+    - "😀"
+    - "😂"
+    - ":O"
+    - "o.O"

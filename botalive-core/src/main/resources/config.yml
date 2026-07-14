@@ -54,6 +54,11 @@ ai:
 
 chat:
   enabled: true
+  # Jazyk frází botů: kód souboru plugins/BotAlive/lang/<kód>.yml.
+  # Vestavěné jazyky: cs (čeština), en (angličtina). Vlastní překlad:
+  # zkopírujte cs.yml/en.yml na nový kód (třeba de.yml), přeložte a nastavte
+  # ho sem. Neúplný překlad spadne po kategoriích na vestavěnou češtinu.
+  language: cs
   # Základní šance odpovědět na zmínku jména (násobí se povahou bota).
   reply-chance: 0.75
   # Průměrná rychlost psaní (slova/min); každý bot má vlastní odchylku.

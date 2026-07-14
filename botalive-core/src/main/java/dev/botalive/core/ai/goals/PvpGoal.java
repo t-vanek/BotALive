@@ -4,7 +4,7 @@ import dev.botalive.api.bot.Bot;
 import dev.botalive.api.memory.MemoryKind;
 import dev.botalive.api.personality.Trait;
 import dev.botalive.core.ai.BotContext;
-import dev.botalive.core.chat.PhraseBank;
+import dev.botalive.core.chat.PhraseCategory;
 import dev.botalive.core.entity.TrackedEntity;
 import dev.botalive.core.pvp.PvpCoordinator;
 import dev.botalive.core.util.Vec3;
@@ -112,7 +112,7 @@ public final class PvpGoal extends AbstractGoal {
             // Sebeobrana obchází férovostní strop.
             registered = pvp.registerAttacker(targetUuid, bot.id(), true);
             if (ctx.rng().chance(0.35)) {
-                ctx.chat().sayFrom(PhraseBank.PVP_HELP_CALLS, null);
+                ctx.chat().sayFrom(PhraseCategory.PVP_HELP_CALLS, null);
             }
             return;
         }
@@ -123,7 +123,7 @@ public final class PvpGoal extends AbstractGoal {
             defensive = true;
             registered = pvp.registerAttacker(targetUuid, bot.id(), false);
             if (registered && ctx.rng().chance(0.4)) {
-                ctx.chat().sayFrom(PhraseBank.PVP_ASSIST, null);
+                ctx.chat().sayFrom(PhraseCategory.PVP_ASSIST, null);
             }
             return;
         }
@@ -194,7 +194,7 @@ public final class PvpGoal extends AbstractGoal {
             announced = true;
             ctx.stats().addKill();
             if (ctx.rng().chance(0.4)) {
-                ctx.chat().sayFrom(PhraseBank.PVP_TAUNTS, null);
+                ctx.chat().sayFrom(PhraseCategory.PVP_TAUNTS, null);
             }
         }
         // Společný boj prohlubuje přátelství se zachráněným spojencem.
