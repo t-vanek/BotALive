@@ -27,6 +27,10 @@ bots:
   max-count: 50
   # Vlastní pool jmen (prázdné = vestavěný seznam).
   name-pool: []
+  # Nové boty obsadit profesí podle osobnosti (stavitel, kopáč, dřevorubec,
+  # lovec, kovář, enchanter, obchodník, rybář, farmář). Role násobí priority
+  # souvisejících činností; /botalive role ji umí kdykoli změnit.
+  random-roles: true
   auto-spawn:
     enabled: false
     count: 3

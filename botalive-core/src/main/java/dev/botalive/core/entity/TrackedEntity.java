@@ -129,4 +129,12 @@ public final class TrackedEntity {
     public boolean isItem() {
         return type == EntityType.ITEM;
     }
+
+    /** @return {@code true} pokud jde o lovnou zvěř (jídlo, kůže, peří) */
+    public boolean isHuntableAnimal() {
+        return switch (type) {
+            case COW, PIG, SHEEP, CHICKEN, RABBIT -> true;
+            default -> false;
+        };
+    }
 }

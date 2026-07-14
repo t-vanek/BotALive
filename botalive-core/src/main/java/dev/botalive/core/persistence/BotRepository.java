@@ -95,6 +95,46 @@ public final class BotRepository {
         });
     }
 
+    /**
+     * Načte uloženou profesi bota.
+     *
+     * @param botId UUID bota
+     * @return název role, nebo {@code null} pokud není uložena
+     */
+    public CompletableFuture<String> loadRole(UUID botId) {
+        return db.async(connection -> {
+            try (PreparedStatement ps = connection.prepareStatement(
+                    "SELECT role FROM ba_bots WHERE id = ?")) {
+                ps.setString(1, botId.toString());
+                try (ResultSet rs = ps.executeQuery()) {
+                    return rs.next() ? rs.getString(1) : null;
+                }
+            } catch (SQLException e) {
+                throw new IllegalStateException(e);
+            }
+        });
+    }
+
+    /**
+     * Uloží profesi bota.
+     *
+     * @param botId UUID bota
+     * @param role  název role
+     */
+    public CompletableFuture<Void> saveRole(UUID botId, String role) {
+        return db.async(connection -> {
+            try (PreparedStatement ps = connection.prepareStatement(
+                    "UPDATE ba_bots SET role = ? WHERE id = ?")) {
+                ps.setString(1, role);
+                ps.setString(2, botId.toString());
+                ps.executeUpdate();
+                return null;
+            } catch (SQLException e) {
+                throw new IllegalStateException(e);
+            }
+        });
+    }
+
     // ------------------------------------------------------------- osobnosti
 
     /**

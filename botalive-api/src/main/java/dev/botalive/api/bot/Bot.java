@@ -41,6 +41,19 @@ public interface Bot {
     Personality personality();
 
     /**
+     * @return profese bota (výchozí {@link dev.botalive.api.role.BotRole#NONE})
+     */
+    dev.botalive.api.role.BotRole role();
+
+    /**
+     * Nastaví profesi bota. Změna se persistuje a projeví se v nejbližším
+     * rozhodovacím cyklu AI (role násobí užitečnost souvisejících cílů).
+     *
+     * @param newRole nová role
+     */
+    void role(dev.botalive.api.role.BotRole newRole);
+
+    /**
      * @return dlouhodobá paměť bota
      */
     BotMemory memory();

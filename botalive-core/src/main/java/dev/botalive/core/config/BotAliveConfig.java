@@ -75,9 +75,10 @@ public record BotAliveConfig(
      * @param autoSpawnCount   kolik botů spawnovat
      * @param autoSpawnDelayS  zpoždění po startu serveru (s), než se začne spawnovat
      * @param namePool         jména používaná generátorem identit
+     * @param randomRoles      zda novým botům přidělovat profese podle osobnosti
      */
     public record Bots(int maxCount, boolean autoSpawnEnabled, int autoSpawnCount,
-                       int autoSpawnDelayS, List<String> namePool) {
+                       int autoSpawnDelayS, List<String> namePool, boolean randomRoles) {
     }
 
     /**

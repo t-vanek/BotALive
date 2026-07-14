@@ -45,7 +45,8 @@ public final class ConfigLoader {
                 c.getBoolean("bots.auto-spawn.enabled", false),
                 c.getInt("bots.auto-spawn.count", 3),
                 c.getInt("bots.auto-spawn.delay-seconds", 10),
-                c.getStringList("bots.name-pool")
+                c.getStringList("bots.name-pool"),
+                c.getBoolean("bots.random-roles", true)
         );
 
         var ai = new BotAliveConfig.Ai(

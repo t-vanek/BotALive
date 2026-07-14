@@ -20,10 +20,16 @@ import dev.botalive.core.ai.goals.StashGoal;
 import dev.botalive.core.ai.goals.SurviveGoal;
 import dev.botalive.core.ai.goals.WanderGoal;
 import dev.botalive.core.ai.goals.BoatRideGoal;
+import dev.botalive.core.ai.goals.EnchantGoal;
+import dev.botalive.core.ai.goals.FishGoal;
+import dev.botalive.core.ai.goals.HuntGoal;
 import dev.botalive.core.ai.goals.MinecartRideGoal;
+import dev.botalive.core.ai.goals.SmeltGoal;
 import dev.botalive.core.ai.goals.TradeGoal;
 import dev.botalive.core.crafting.CraftingService;
 import dev.botalive.core.inventory.ContainerService;
+import dev.botalive.core.inventory.EnchantService;
+import dev.botalive.core.inventory.FurnaceService;
 import dev.botalive.core.trade.TradeService;
 import dev.botalive.core.bot.BotImpl;
 import dev.botalive.core.bot.BotManagerImpl;
@@ -83,11 +89,15 @@ public final class CompositionRoot {
                 new ContainerService(bridge));
         TradeService trades = container.register(TradeService.class,
                 new TradeService(bridge));
+        FurnaceService furnaces = container.register(FurnaceService.class,
+                new FurnaceService(bridge));
+        EnchantService enchanting = container.register(EnchantService.class,
+                new EnchantService(bridge));
 
         // AI cíle.
         GoalRegistryImpl goalRegistry = container.register(GoalRegistryImpl.class,
                 new GoalRegistryImpl());
-        registerBuiltInGoals(goalRegistry, crafting, containers, trades);
+        registerBuiltInGoals(goalRegistry, crafting, containers, trades, furnaces, enchanting);
 
         // Block-state mapper pro klientský world model (jen režim packet):
         // přesná tabulka z registrů hostitelského serveru, jinak degradovaný fallback.
@@ -119,7 +129,9 @@ public final class CompositionRoot {
     private static void registerBuiltInGoals(GoalRegistryImpl registry,
                                              CraftingService crafting,
                                              ContainerService containers,
-                                             TradeService trades) {
+                                             TradeService trades,
+                                             FurnaceService furnaces,
+                                             EnchantService enchanting) {
         registry.register("idle", bot -> new IdleGoal());
         registry.register("wander", bot -> new WanderGoal());
         registry.register("explore", bot -> new ExploreGoal());
@@ -139,6 +151,10 @@ public final class CompositionRoot {
         registry.register("boat", bot -> new BoatRideGoal());
         registry.register("minecart", bot -> new MinecartRideGoal());
         registry.register("trade", bot -> new TradeGoal(trades));
+        registry.register("hunt", bot -> new HuntGoal());
+        registry.register("fish", bot -> new FishGoal());
+        registry.register("smelt", bot -> new SmeltGoal(furnaces));
+        registry.register("enchant", bot -> new EnchantGoal(enchanting));
     }
 
     /**

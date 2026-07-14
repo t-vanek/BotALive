@@ -46,10 +46,11 @@ public final class BotAliveCommand implements TabExecutor {
     public static final String PERM_SUMMON = "botalive.teleport.summon";
 
     private static final List<String> ADMIN_SUBCOMMANDS = List.of(
-            "create", "remove", "pause", "resume", "personality", "memory", "goal", "stats");
+            "create", "remove", "pause", "resume", "personality", "memory",
+            "goal", "stats", "role");
     private static final List<String> SUBCOMMANDS = List.of(
             "create", "remove", "tp", "list", "pause", "resume",
-            "personality", "memory", "goal", "stats");
+            "personality", "memory", "goal", "stats", "role");
 
     private final BotManagerImpl botManager;
     private final GoalRegistryImpl goalRegistry;
@@ -98,6 +99,7 @@ public final class BotAliveCommand implements TabExecutor {
             case "memory" -> memory(sender, args);
             case "goal" -> goal(sender, args);
             case "stats" -> stats(sender, args);
+            case "role" -> role(sender, args);
             default -> help(sender);
         }
         return true;
@@ -292,6 +294,8 @@ public final class BotAliveCommand implements TabExecutor {
                     snapshot.x(), snapshot.y(), snapshot.z());
             sender.sendMessage(Component.text(" • ", NamedTextColor.DARK_GRAY)
                     .append(Component.text(bot.name(), NamedTextColor.AQUA))
+                    .append(Component.text(" (" + snapshot.role().displayName() + ")",
+                            NamedTextColor.LIGHT_PURPLE))
                     .append(Component.text(" [" + snapshot.state() + "] ", NamedTextColor.GRAY))
                     .append(Component.text(where, NamedTextColor.WHITE))
                     .append(Component.text("  ❤" + Math.round(snapshot.health())
@@ -412,6 +416,39 @@ public final class BotAliveCommand implements TabExecutor {
                 .forEach(entry -> sender.sendMessage(Component.text(
                         " %s: %.1f".formatted(entry.getKey(), entry.getValue()),
                         NamedTextColor.GRAY)));
+    }
+
+    /** {@code /botalive role <jméno> [role|random]} – zobrazí/nastaví profesi. */
+    private void role(CommandSender sender, String[] args) {
+        Optional<Bot> bot = requireBot(sender, args);
+        if (bot.isEmpty()) {
+            return;
+        }
+        if (args.length < 3) {
+            info(sender, "Bot '" + bot.get().name() + "' má roli: "
+                    + bot.get().role().displayName() + " (" + bot.get().role().name() + ")");
+            sender.sendMessage(Component.text(" Dostupné: " + Stream
+                            .of(dev.botalive.api.role.BotRole.values())
+                            .map(r -> r.name().toLowerCase(Locale.ROOT)).toList(),
+                    NamedTextColor.GRAY));
+            return;
+        }
+        if (args[2].equalsIgnoreCase("random")) {
+            var picked = dev.botalive.core.role.RolePicker.pick(bot.get().personality(),
+                    new dev.botalive.core.util.BotRandom(System.nanoTime()));
+            bot.get().role(picked);
+            success(sender, "Bot '" + bot.get().name() + "' je nyní " + picked.displayName());
+            return;
+        }
+        var parsed = dev.botalive.api.role.BotRole.parse(args[2]);
+        if (parsed.isEmpty()) {
+            error(sender, "Neznámá role. Dostupné: " + Stream
+                    .of(dev.botalive.api.role.BotRole.values())
+                    .map(r -> r.name().toLowerCase(Locale.ROOT)).toList());
+            return;
+        }
+        bot.get().role(parsed.get());
+        success(sender, "Bot '" + bot.get().name() + "' je nyní " + parsed.get().displayName());
     }
 
     /** {@code /botalive stats <jméno>} */
@@ -536,6 +573,13 @@ public final class BotAliveCommand implements TabExecutor {
                         .map(k -> k.name().toLowerCase(Locale.ROOT)).toList(), args[2]);
                 case "tp" -> filter(List.of("here"), args[2]);
                 case "remove" -> filter(List.of("purge"), args[2]);
+                case "role" -> {
+                    List<String> options = new ArrayList<>(Stream
+                            .of(dev.botalive.api.role.BotRole.values())
+                            .map(r -> r.name().toLowerCase(Locale.ROOT)).toList());
+                    options.add("random");
+                    yield filter(options, args[2]);
+                }
                 default -> List.of();
             };
         }

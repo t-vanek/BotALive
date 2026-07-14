@@ -102,11 +102,12 @@ public final class BotManagerImpl implements BotManager {
                 ? spec.personalitySeed()
                 : ThreadLocalRandom.current().nextLong();
 
-        // Identita z databáze (osobnost, paměť, peněženka) → konstrukce → připojení.
+        // Identita z databáze (osobnost, paměť, peněženka, role) → konstrukce → připojení.
         return repository.loadOrCreatePersonality(botId, seed)
                 .thenCombine(repository.loadMemories(botId), IdentityData::new)
                 .thenCombine(repository.loadOrCreateWallet(botId, config.economy().startingBalance()),
                         IdentityData::withBalance)
+                .thenCombine(repository.loadRole(botId), IdentityData::withRole)
                 .thenCompose(identity -> {
                     BotMemoryImpl memory = new BotMemoryImpl(botId, repository, identity.memories());
                     BotWalletImpl wallet = new BotWalletImpl(botId, repository, identity.balance(),
@@ -119,8 +120,20 @@ public final class BotManagerImpl implements BotManager {
                     byId.put(botId, bot);
 
                     repository.upsertBot(botId, spec.name(), null, 0, 0, 0);
-                    LOG.info("Vytvářím bota '{}' ({}, archetyp {})", spec.name(), botId,
-                            identity.personality().archetype());
+
+                    // Role: uložená z DB, jinak výběr podle osobnosti (lze vypnout).
+                    dev.botalive.api.role.BotRole role = dev.botalive.api.role.BotRole
+                            .parse(identity.role()).orElse(null);
+                    if (role == null) {
+                        role = config.bots().randomRoles()
+                                ? dev.botalive.core.role.RolePicker.pick(identity.personality(),
+                                        new dev.botalive.core.util.BotRandom(
+                                                identity.personality().seed()))
+                                : dev.botalive.api.role.BotRole.NONE;
+                    }
+                    bot.role(role);
+                    LOG.info("Vytvářím bota '{}' ({}, archetyp {}, role {})", spec.name(), botId,
+                            identity.personality().archetype(), role.displayName());
 
                     String host = config.network().host();
                     int port = config.network().port() > 0 ? config.network().port() : Bukkit.getPort();
@@ -142,14 +155,19 @@ public final class BotManagerImpl implements BotManager {
     /** Přenos identity mezi fázemi async pipeline. */
     private record IdentityData(dev.botalive.api.personality.Personality personality,
                                 List<dev.botalive.api.memory.MemoryRecord> memories,
-                                double balance) {
+                                double balance,
+                                String role) {
         IdentityData(dev.botalive.api.personality.Personality personality,
                      List<dev.botalive.api.memory.MemoryRecord> memories) {
-            this(personality, memories, 0);
+            this(personality, memories, 0, null);
         }
 
         IdentityData withBalance(double newBalance) {
-            return new IdentityData(personality, memories, newBalance);
+            return new IdentityData(personality, memories, newBalance, role);
+        }
+
+        IdentityData withRole(String newRole) {
+            return new IdentityData(personality, memories, balance, newRole);
         }
     }
 
