@@ -91,12 +91,71 @@ public final class FurnaceService implements dev.botalive.core.station.FurnaceSt
     public CompletableFuture<InsertReport> insert(UUID botId, String worldName, BlockPos pos) {
         return withFurnace(botId, worldName, pos, (player, furnace) -> {
             FurnaceInventory inventory = furnace.getInventory();
+            // Tavicí řetězy nad rámec základu: kámen na blastovou pec a dřevěné
+            // uhlí při nouzi o palivo – jen když je bot skutečně potřebuje,
+            // aby pec nespalovala zásoby bezúčelně.
+            boolean stoneChain = needsSmoothStone(player);
+            boolean charcoalChain = needsCharcoal(player);
             int inserted = moveMatching(player, inventory.getSmelting(),
-                    FurnaceService::isSmeltable, inventory::setSmelting);
-            int fueled = moveMatching(player, inventory.getFuel(),
-                    FurnaceService::isFuel, inventory::setFuel);
+                    m -> isSmeltable(m)
+                            || (stoneChain && (m == Material.COBBLESTONE || m == Material.STONE))
+                            || (charcoalChain && m.name().endsWith("_LOG")),
+                    inventory::setSmelting);
+            // Palivo podle priority: uhlí → prkna/tyčky → klády až jako nouzovka.
+            int fueled = 0;
+            for (java.util.function.Predicate<Material> tier : FUEL_PRIORITY) {
+                fueled = moveMatching(player, inventory.getFuel(), tier, inventory::setFuel);
+                if (fueled > 0) {
+                    break;
+                }
+            }
             return new InsertReport(inserted, fueled);
         }, InsertReport.EMPTY);
+    }
+
+    /** Pořadí obětování paliva – cenné suroviny až jako poslední. */
+    private static final java.util.List<java.util.function.Predicate<Material>> FUEL_PRIORITY =
+            java.util.List.of(
+                    m -> m == Material.COAL || m == Material.CHARCOAL
+                            || m == Material.COAL_BLOCK,
+                    m -> m.name().endsWith("_PLANKS") || m == Material.STICK,
+                    m -> m.name().endsWith("_LOG"));
+
+    /** Chybí smooth stone na blastovou pec (a bot na ni jinak má)? */
+    private static boolean needsSmoothStone(org.bukkit.entity.Player player) {
+        var inv = player.getInventory();
+        return !inv.contains(Material.BLAST_FURNACE)
+                && inv.contains(Material.FURNACE)
+                && count(inv, Material.IRON_INGOT) >= 5
+                && count(inv, Material.SMOOTH_STONE) < 3;
+    }
+
+    /** Došlo uhlí a je z čeho pálit dřevěné uhlí? */
+    private static boolean needsCharcoal(org.bukkit.entity.Player player) {
+        var inv = player.getInventory();
+        return !inv.contains(Material.COAL) && !inv.contains(Material.CHARCOAL)
+                && countMatching(inv, m -> m.name().endsWith("_LOG")) >= 4;
+    }
+
+    private static int count(org.bukkit.inventory.PlayerInventory inv, Material material) {
+        int total = 0;
+        for (ItemStack item : inv.getStorageContents()) {
+            if (item != null && item.getType() == material) {
+                total += item.getAmount();
+            }
+        }
+        return total;
+    }
+
+    private static int countMatching(org.bukkit.inventory.PlayerInventory inv,
+                                     java.util.function.Predicate<Material> predicate) {
+        int total = 0;
+        for (ItemStack item : inv.getStorageContents()) {
+            if (item != null && predicate.test(item.getType())) {
+                total += item.getAmount();
+            }
+        }
+        return total;
     }
 
     /**

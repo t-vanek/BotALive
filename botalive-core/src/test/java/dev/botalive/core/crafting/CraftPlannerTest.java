@@ -166,6 +166,33 @@ class CraftPlannerTest {
     }
 
     @Test
+    void udirnaABlastovaPec() {
+        Object[] geared = {Material.OAK_PLANKS, 8, Material.STICK, 8,
+                Material.COBBLESTONE, 3, Material.CRAFTING_TABLE, 1,
+                Material.TORCH, 8, Material.SHIELD, 1,
+                Material.IRON_PICKAXE, 1, Material.IRON_SWORD, 1, Material.IRON_AXE, 1,
+                Material.STONE_SHOVEL, 1};
+        // Udírna: pec + 4 klády.
+        CraftPlanner.Plan smoker = CraftPlanner.next(state(concat(geared,
+                Material.FURNACE, 1, Material.OAK_LOG, 4, Material.IRON_INGOT, 4)));
+        assertEquals("udírna", smoker.id());
+        assertEquals(4, smoker.ingredients().get(Material.OAK_LOG));
+
+        // Blastová pec: 5 železa + pec + 3 smooth stone (a udírnu už má).
+        CraftPlanner.Plan blast = CraftPlanner.next(state(concat(geared,
+                Material.FURNACE, 1, Material.SMOKER, 1,
+                Material.IRON_INGOT, 6, Material.SMOOTH_STONE, 3)));
+        assertEquals("blastová pec", blast.id());
+        assertEquals(5, blast.ingredients().get(Material.IRON_INGOT));
+        assertEquals(3, blast.ingredients().get(Material.SMOOTH_STONE));
+
+        // Bez smooth stone se blastová pec neplánuje (čeká na tavicí řetěz).
+        CraftPlanner.Plan waiting = CraftPlanner.next(state(concat(geared,
+                Material.FURNACE, 1, Material.SMOKER, 1, Material.IRON_INGOT, 6)));
+        assertTrue(waiting == null || !"blastová pec".equals(waiting.id()));
+    }
+
+    @Test
     void pochodneZUhliATycek() {
         CraftPlanner.State s = state(Material.OAK_PLANKS, 5, Material.STICK, 8,
                 Material.COBBLESTONE, 3, Material.CRAFTING_TABLE, 1,

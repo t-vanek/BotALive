@@ -234,6 +234,23 @@ public final class CraftPlanner {
                     plank, 3, plank, 4, plank, 5, plank, 7), true);
         }
 
+        // ---- lepší pece: udírna (jídlo 2× rychleji) a blastová pec (rudy).
+        // Spotřebují pec – další si bot vyrobí (krok „pec" se vrátí sám).
+        if (s.hasTable() && s.has(Material.FURNACE) && s.logs() >= 4
+                && s.logType() != null && !s.has(Material.SMOKER)) {
+            return new Plan("udírna", matrix(
+                    s.logType(), 1, s.logType(), 3, Material.FURNACE, 4,
+                    s.logType(), 5, s.logType(), 7), true);
+        }
+        if (s.hasTable() && s.has(Material.FURNACE) && iron >= 5
+                && s.count(Material.SMOOTH_STONE) >= 3 && !s.has(Material.BLAST_FURNACE)) {
+            return new Plan("blastová pec", matrix(
+                    Material.IRON_INGOT, 0, Material.IRON_INGOT, 1, Material.IRON_INGOT, 2,
+                    Material.IRON_INGOT, 3, Material.FURNACE, 4, Material.IRON_INGOT, 5,
+                    Material.SMOOTH_STONE, 6, Material.SMOOTH_STONE, 7,
+                    Material.SMOOTH_STONE, 8), true);
+        }
+
         // ---- železné brnění (nejcennější kusy dřív)
         Plan ironArmor = armorPlan(s, Material.IRON_INGOT, iron, "IRON",
                 new String[]{"železný prsní plát", "železné kalhoty",

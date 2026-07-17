@@ -77,7 +77,7 @@ public final class CraftingService implements dev.botalive.core.station.Crafting
     public static CraftPlanner.Plan nextPlan(PlayerInventory inventory) {
         Map<Material, Integer> items = new java.util.HashMap<>();
         for (ItemStack item : inventory.getStorageContents()) {
-            if (item != null && !item.getType().isAir()) {
+            if (item != null && !item.getType().isAir() && !nearlyBroken(item)) {
                 items.merge(item.getType(), item.getAmount(), Integer::sum);
             }
         }
@@ -157,6 +157,21 @@ public final class CraftingService implements dev.botalive.core.station.Crafting
             }
         }
         return total;
+    }
+
+    /**
+     * Nástroj/zbroj těsně před rozbitím (&gt;85 % opotřebení) se pro plánování
+     * nepočítá – bot si tak přirozeně vyrobí náhradu, než mu praskne v ruce.
+     */
+    private static boolean nearlyBroken(ItemStack item) {
+        int max = item.getType().getMaxDurability();
+        if (max <= 0) {
+            return false;
+        }
+        if (!(item.getItemMeta() instanceof org.bukkit.inventory.meta.Damageable damageable)) {
+            return false;
+        }
+        return damageable.getDamage() >= max * 0.85;
     }
 
     private static Material firstMatching(PlayerInventory inventory,
