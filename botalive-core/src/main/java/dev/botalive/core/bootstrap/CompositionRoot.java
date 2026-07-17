@@ -127,8 +127,11 @@ public final class CompositionRoot {
         // AI cíle.
         GoalRegistryImpl goalRegistry = container.register(GoalRegistryImpl.class,
                 new GoalRegistryImpl());
+        dev.botalive.core.inventory.AnvilService anvils = container.register(
+                dev.botalive.core.inventory.AnvilService.class,
+                new dev.botalive.core.inventory.AnvilService(bridge));
         registerBuiltInGoals(goalRegistry, crafting, containers, trades, furnaces,
-                enchanting, pvp, taming);
+                enchanting, pvp, taming, anvils);
 
         // Block-state a item mappery pro klientský world model (jen režim
         // packet): přesné tabulky z registrů hostitelského serveru jsou správné
@@ -182,7 +185,8 @@ public final class CompositionRoot {
                                              dev.botalive.core.station.FurnaceStation furnaces,
                                              dev.botalive.core.station.EnchantStation enchanting,
                                              dev.botalive.core.pvp.PvpCoordinator pvp,
-                                             dev.botalive.core.tame.TameService taming) {
+                                             dev.botalive.core.tame.TameService taming,
+                                             dev.botalive.core.inventory.AnvilService anvils) {
         registry.register("idle", bot -> new IdleGoal());
         registry.register("wander", bot -> new WanderGoal());
         registry.register("explore", bot -> new ExploreGoal());
@@ -204,6 +208,8 @@ public final class CompositionRoot {
         registry.register("stash", bot -> new StashGoal(containers));
         registry.register("steal", bot -> new dev.botalive.core.ai.goals.StealGoal(containers));
         registry.register("rob", bot -> new dev.botalive.core.ai.goals.RobGoal(pvp));
+        registry.register("repair", bot -> new dev.botalive.core.ai.goals.RepairGoal(anvils));
+        registry.register("compost", bot -> new dev.botalive.core.ai.goals.CompostGoal());
         registry.register("boat", bot -> new BoatRideGoal());
         registry.register("minecart", bot -> new MinecartRideGoal());
         registry.register("trade", bot -> new TradeGoal(trades));

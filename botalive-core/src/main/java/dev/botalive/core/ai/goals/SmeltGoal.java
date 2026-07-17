@@ -34,6 +34,7 @@ public final class SmeltGoal extends AbstractGoal {
 
     private Phase phase = Phase.FIND;
     private BlockPos furnace;
+    private StationPlacement placement;
     private boolean collecting;
     private int waitTicks;
     private CompletableFuture<?> pending;
@@ -87,6 +88,7 @@ public final class SmeltGoal extends AbstractGoal {
     public void start(Bot bot) {
         phase = Phase.FIND;
         pending = null;
+        placement = null;
         collecting = collectReady();
     }
 
@@ -96,19 +98,25 @@ public final class SmeltGoal extends AbstractGoal {
         switch (phase) {
             case FIND -> {
                 furnace = collecting ? pendingFurnace : findFurnace(ctx, bot);
-                if (furnace == null && !collecting) {
-                    // Pec nikde – bot si vlastní vyrobenou postaví vedle sebe.
-                    furnace = placeOwnStation(ctx, org.bukkit.Material.FURNACE);
+                if (furnace != null) {
+                    placement = null;
+                    phase = Phase.GO;
+                    return;
                 }
-                if (furnace == null) {
-                    if (collecting) {
-                        pendingFurnace = null; // pec zmizela z evidence
-                        collectReadyAtMs = 0;
-                    }
+                if (collecting) {
+                    pendingFurnace = null; // pec zmizela z evidence
+                    collectReadyAtMs = 0;
                     finish(ctx, 1800);
                     return;
                 }
-                phase = Phase.GO;
+                // Pec nikde – bot si vlastní vyrobenou postaví vedle sebe.
+                if (placement == null) {
+                    placement = new StationPlacement(org.bukkit.Material.FURNACE);
+                }
+                if (!placement.tick(ctx)) {
+                    placement = null;
+                    finish(ctx, 1800);
+                }
             }
             case GO -> {
                 if (furnace.center().distanceSquared(ctx.position()) > 3.0 * 3.0) {

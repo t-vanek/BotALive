@@ -108,6 +108,14 @@ inventář a historii; po restartu serveru pokračuje tam, kde skončil.
   okruh). Palivo se obětuje podle priority (uhlí → prkna → klády) a
   **opotřebené nástroje** (nad 85 %) se pro plánování nepočítají – bot si
   vyrobí náhradu dřív, než mu prasknou v ruce.
+- **Kovadlina** – výrazně opotřebené nástroje a zbroj (nad ~60 %, pečliví
+  boti dřív) si bot nese ke kovadlině – a když žádná není, vyrobí si ji
+  (9 ingotů → 3 bloky železa + 4 ingoty) a postaví vedle sebe. Oprava
+  spotřebuje surovinu dle kusu (železo/diamant/prkna…) a 2 XP úrovně jako
+  vanilla; kovář opravuje nejochotněji.
+- **Composter** – farmářský okruh přebytků: semínka, sazenice, listí,
+  pšenici a další rostlinné zbytky bot hází do composteru (vyrobí si ho
+  z dřevěných půlek a postaví) a sbírá z něj **bone meal** na hnojení.
 - **Domov se vším všudy** – k domu boti craftí a osazují dveře, uvnitř
   pochodeň a postel (vlna z lovu ovcí → spawn point).
 - **Rozumí prosbám** – chat zvládá věcné dotazy a prosby: „kde jsi?",

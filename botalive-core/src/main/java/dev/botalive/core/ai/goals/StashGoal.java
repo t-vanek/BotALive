@@ -31,6 +31,7 @@ public final class StashGoal extends AbstractGoal {
 
     private Phase phase = Phase.FIND;
     private BlockPos chest;
+    private StationPlacement placement;
     private int waitTicks;
     private CompletableFuture<Integer> deposit;
     private int cooldownTicks;
@@ -74,6 +75,7 @@ public final class StashGoal extends AbstractGoal {
     public void start(Bot bot) {
         phase = Phase.FIND;
         chest = null;
+        placement = null;
         deposit = null;
     }
 
@@ -83,16 +85,20 @@ public final class StashGoal extends AbstractGoal {
         switch (phase) {
             case FIND -> {
                 chest = findChest(ctx, bot);
-                if (chest == null) {
-                    // Truhla nikde – vlastní vyrobená se položí hned vedle.
-                    chest = AbstractGoal.placeOwnStation(ctx, Material.CHEST);
-                }
-                if (chest == null) {
-                    cooldownTicks = 1800; // žádná truhla v okolí
-                    phase = Phase.DONE;
+                if (chest != null) {
+                    placement = null;
+                    phase = Phase.GO;
                     return;
                 }
-                phase = Phase.GO;
+                // Truhla nikde – vlastní vyrobená se položí hned vedle.
+                if (placement == null) {
+                    placement = new StationPlacement(Material.CHEST);
+                }
+                if (!placement.tick(ctx)) {
+                    placement = null;
+                    cooldownTicks = 1800; // žádná truhla v okolí
+                    phase = Phase.DONE;
+                }
             }
             case GO -> {
                 double distSq = chest.center().distanceSquared(ctx.position());

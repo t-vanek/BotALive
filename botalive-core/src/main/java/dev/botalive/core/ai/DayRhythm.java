@@ -21,7 +21,8 @@ public final class DayRhythm {
 
     private static final Map<Phase, Map<String, Double>> WEIGHTS = Map.of(
             Phase.MORNING, Map.of(
-                    "farm", 1.6, "craft", 1.3, "eat", 1.3, "fish", 1.3, "hunt", 1.2),
+                    "farm", 1.6, "craft", 1.3, "eat", 1.3, "fish", 1.3, "hunt", 1.2,
+                    "compost", 1.4, "repair", 1.3),
             Phase.DAY, Map.of(
                     "mine", 1.4, "house", 1.5, "explore", 1.3, "trade", 1.3,
                     "hunt", 1.2, "farm", 1.1),

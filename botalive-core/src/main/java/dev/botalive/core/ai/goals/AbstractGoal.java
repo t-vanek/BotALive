@@ -51,42 +51,135 @@ public abstract class AbstractGoal implements Goal {
     }
 
     /**
-     * Položí vlastní vyrobenou stanici (pec, truhlu, ponk) na zem vedle bota.
+     * Blok s vlastním UI/interakcí – klik na něj neumístí drženou stanici,
+     * ale otevře ho. Taková „podlaha“ se při pokládání přeskakuje.
+     *
+     * @param material materiál podlahy (null = neznámý chunk)
+     * @return {@code true} pro interaktivní bloky
+     */
+    private static boolean interactiveBlock(org.bukkit.Material material) {
+        if (material == null) {
+            return false;
+        }
+        String name = material.name();
+        return name.endsWith("ANVIL") || name.endsWith("CHEST") || name.endsWith("FURNACE")
+                || name.endsWith("_TABLE") || name.endsWith("BED") || name.contains("DOOR")
+                || material == org.bukkit.Material.COMPOSTER
+                || material == org.bukkit.Material.BARREL
+                || material == org.bukkit.Material.SMOKER
+                || material == org.bukkit.Material.STONECUTTER
+                || material == org.bukkit.Material.GRINDSTONE
+                || material == org.bukkit.Material.BREWING_STAND;
+    }
+
+    /** Výsledek jednoho pokusu o položení stanice. */
+    protected enum PlaceAttempt {
+        /** Stanice není v inventáři – nemá smysl to zkoušet dál. */
+        NO_ITEM,
+        /** Kolem bota teď není vhodné místo (voda, sráz…) – zkusit později. */
+        NO_SPOT,
+        /** Item se teprve přetahuje do hotbaru – klik přijde v dalším pokusu. */
+        EQUIPPING,
+        /** Klik na podlahu odeslán – blok by se měl objevit. */
+        CLICKED
+    }
+
+    /**
+     * Jeden pokus o položení vlastní stanice (pec, truhla, kovadlina…) vedle bota.
      *
      * <p>Najde volný sousední sloupec s pevnou podlahou, vezme stanici do ruky
-     * a klikne na podlahu – jako hráč. Ověření nechává na world view (GO fáze
-     * cíle k pozici stejně dojde a klikne na ni).</p>
+     * a klikne na podlahu – jako hráč. Míření hlavy ale trvá několik ticků
+     * (humanizer otáčí plynule) a server klik s nesedící rotací zahodí, takže
+     * jeden pokus nestačí – volat opakovaně přes {@link StationPlacement},
+     * dokud sken cíle blok nenajde.</p>
      *
      * @param ctx     kontext bota
      * @param station materiál stanice v inventáři
-     * @return pozice, kde stanice vznikla, nebo {@code null}
+     * @return výsledek pokusu
      */
-    protected static dev.botalive.core.util.BlockPos placeOwnStation(
-            BotContext ctx, org.bukkit.Material station) {
+    protected static PlaceAttempt placeOwnStation(BotContext ctx, org.bukkit.Material station) {
+        var log = org.slf4j.LoggerFactory.getLogger(AbstractGoal.class);
         var snapshot = ctx.serverView().latest();
         if (snapshot == null || ctx.worldView() == null
                 || !snapshot.hasItem(m -> m == station)) {
-            return null;
+            return PlaceAttempt.NO_ITEM;
         }
         dev.botalive.core.util.BlockPos feet = ctx.position().toBlockPos();
         int[][] dirs = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}};
         for (int[] d : dirs) {
             var target = feet.offset(d[0], 0, d[1]);
             var below = target.down();
+            // Sloupec, do kterého zasahuje vlastní bounding box (šířka 0.6),
+            // přeskočit – server placement do entity tiše odmítne.
+            double gapX = Math.abs(ctx.position().x() - (target.x() + 0.5));
+            double gapZ = Math.abs(ctx.position().z() - (target.z() + 0.5));
+            if (Math.max(gapX, gapZ) < 0.82) {
+                continue;
+            }
             if (ctx.worldView().traitsAt(target).passable()
                     && ctx.worldView().traitsAt(target.up()).passable()
-                    && ctx.worldView().traitsAt(below).solid()) {
+                    && ctx.worldView().traitsAt(below).solid()
+                    && !interactiveBlock(ctx.worldView().materialAt(below))) {
                 if (!ctx.inventory().equipItem(snapshot, station)) {
-                    return null;
+                    return PlaceAttempt.EQUIPPING;
                 }
                 ctx.humanizer().lookAt(ctx.position().add(0, 1.62, 0),
                         below.center().add(0, 0.5, 0));
                 ctx.actions().useItemOn(below,
                         org.geysermc.mcprotocollib.protocol.data.game.entity.object.Direction.UP);
-                return target;
+                log.debug("[placeOwnStation] {} klik: below={} feet={}", station, below, feet);
+                return PlaceAttempt.CLICKED;
             }
         }
-        return null;
+        log.debug("[placeOwnStation] {} bez místa u feet={}", station, feet);
+        return PlaceAttempt.NO_SPOT;
+    }
+
+    /**
+     * Opakované pokládání vlastní stanice přes ticky.
+     *
+     * <p>FIND fáze cíle volá {@link #tick(BotContext)} každý tick, dokud její
+     * sken stanici nenajde. Pokusy jdou po čtyřech ticích, aby mělo míření čas
+     * se dotočit (stejný princip jako AIM fáze u
+     * {@link dev.botalive.core.tasks.PlaceBlockTask}); po ~5 s to vzdá.
+     * Okamžitě to vzdá jen bez itemu – „není místo“ se zkouší dál, bot se
+     * mezitím mohl zastavit nebo vylézt z vody.</p>
+     */
+    protected static final class StationPlacement {
+
+        private static final int BUDGET_TICKS = 100;
+
+        private final org.bukkit.Material station;
+        private int ticks;
+
+        /**
+         * @param station materiál stanice, kterou má bot v inventáři
+         */
+        protected StationPlacement(org.bukkit.Material station) {
+            this.station = station;
+        }
+
+        /** Do kdy tolerovat NO_ITEM – server-side snapshot bývá vteřinu pozadu. */
+        private static final int NO_ITEM_GRACE_TICKS = 40;
+
+        /**
+         * Jeden tick pokládání.
+         *
+         * @param ctx kontext bota
+         * @return {@code true} dokud má smysl pokračovat; {@code false} = vzdát
+         *         (chybí item i po grace period, nebo vypršel rozpočet)
+         */
+        protected boolean tick(BotContext ctx) {
+            if (++ticks > BUDGET_TICKS) {
+                return false;
+            }
+            if (ticks % 4 == 1
+                    && placeOwnStation(ctx, station) == PlaceAttempt.NO_ITEM
+                    && ticks > NO_ITEM_GRACE_TICKS) {
+                return false;
+            }
+            return true;
+        }
     }
 
     /**

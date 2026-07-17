@@ -25,7 +25,7 @@ public final class RoleProfiles {
             BotRole.HUNTER, Map.of(
                     "hunt", 2.5, "combat", 1.4, "collect", 1.2, "tame", 1.5),
             BotRole.BLACKSMITH, Map.of(
-                    "smelt", 2.5, "craft", 1.6, "mine", 1.4),
+                    "smelt", 2.5, "craft", 1.6, "mine", 1.4, "repair", 2.2),
             BotRole.ENCHANTER, Map.of(
                     "enchant", 2.5, "mine", 1.2, "smelt", 1.1),
             BotRole.TRADER, Map.of(
@@ -33,7 +33,7 @@ public final class RoleProfiles {
             BotRole.FISHERMAN, Map.of(
                     "fish", 2.6, "boat", 1.4),
             BotRole.FARMER, Map.of(
-                    "farm", 2.5, "trade", 1.3, "craft", 1.1, "share", 1.5)
+                    "farm", 2.5, "trade", 1.3, "craft", 1.1, "share", 1.5, "compost", 2.0)
     );
 
     private RoleProfiles() {
