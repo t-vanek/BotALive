@@ -21,6 +21,8 @@ import java.util.Map;
  * @param hazard      kontakt zraňuje nebo zabíjí (láva, oheň, kaktus, magma)
  * @param openable    lze otevřít interakcí (dveře, vrata, branky)
  * @param softLanding dopad na blok tlumí poškození z pádu (seno, slime, med, postel)
+ * @param powderSnow  prašan – hustý sníh, do kterého se entity boří (mrznutí,
+ *                    pomalé klesání, únik skokem); zároveň {@code hazard}
  */
 public record BlockTraits(
         boolean passable,
@@ -30,16 +32,17 @@ public record BlockTraits(
         boolean door,
         boolean hazard,
         boolean openable,
-        boolean softLanding
+        boolean softLanding,
+        boolean powderSnow
 ) {
 
     private static final Map<Material, BlockTraits> CACHE = new EnumMap<>(Material.class);
 
     /** Vzduch – nejčastější případ, sdílená instance. */
-    public static final BlockTraits AIR = new BlockTraits(true, false, false, false, false, false, false, false);
+    public static final BlockTraits AIR = new BlockTraits(true, false, false, false, false, false, false, false, false);
 
     /** Neznámý/nenačtený blok – konzervativně neprůchozí. */
-    public static final BlockTraits UNKNOWN = new BlockTraits(false, false, false, false, false, false, false, false);
+    public static final BlockTraits UNKNOWN = new BlockTraits(false, false, false, false, false, false, false, false, false);
 
     /**
      * @param material materiál bloku
@@ -73,6 +76,8 @@ public record BlockTraits(
         // Bloky tlumící pád (vanilla: seno/med ×0.2, slime 0, postel ×0.5).
         boolean softLanding = m == Material.HAY_BLOCK || m == Material.SLIME_BLOCK
                 || m == Material.HONEY_BLOCK || Tag.BEDS.isTagged(m);
-        return new BlockTraits(passable, solid, liquid, climbable, door, hazard, openable, softLanding);
+        boolean powderSnow = m == Material.POWDER_SNOW;
+        return new BlockTraits(passable, solid, liquid, climbable, door, hazard, openable,
+                softLanding, powderSnow);
     }
 }

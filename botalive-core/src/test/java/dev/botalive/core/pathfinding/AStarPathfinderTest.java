@@ -365,4 +365,20 @@ class AStarPathfinderTest {
         assertTrue(hasDropJump,
                 "cesta má obsahovat skok s dopadem níž: " + path.waypoints());
     }
+
+    @Test
+    void obchaziPrasan() {
+        FakeWorldView world = new FakeWorldView(FLOOR);
+        // Val prašanu napříč přímou cestou (x=3, z −3..3).
+        for (int z = -3; z <= 3; z++) {
+            world.set(3, FEET, z, FakeWorldView.POWDER);
+        }
+        Path path = new AStarPathfinder(world)
+                .findPath(new BlockPos(0, FEET, 0), new BlockPos(6, FEET, 0), 0);
+
+        assertTrue(path.complete(), "prašan má jít obejít: " + path.waypoints());
+        assertTrue(path.waypoints().stream()
+                        .noneMatch(p -> world.traitsAt(p).powderSnow()),
+                "žádný waypoint nesmí vést prašanem: " + path.waypoints());
+    }
 }

@@ -18,19 +18,22 @@ import java.util.Map;
 public final class FakeWorldView implements WorldView {
 
     /** Pevný blok. */
-    public static final BlockTraits SOLID = new BlockTraits(false, true, false, false, false, false, false, false);
+    public static final BlockTraits SOLID = new BlockTraits(false, true, false, false, false, false, false, false, false);
 
     /** Láva (hazard). */
-    public static final BlockTraits HAZARD = new BlockTraits(false, false, true, false, false, true, false, false);
+    public static final BlockTraits HAZARD = new BlockTraits(false, false, true, false, false, true, false, false, false);
 
     /** Voda. */
-    public static final BlockTraits WATER = new BlockTraits(false, false, true, false, false, false, false, false);
+    public static final BlockTraits WATER = new BlockTraits(false, false, true, false, false, false, false, false, false);
 
     /** Žebřík/liána – průchozí a šplhatelný, bez kolize. */
-    public static final BlockTraits CLIMBABLE = new BlockTraits(true, false, false, true, false, false, false, false);
+    public static final BlockTraits CLIMBABLE = new BlockTraits(true, false, false, true, false, false, false, false, false);
 
     /** Měkký dopad – pevný blok tlumící pád (seno, slime). */
-    public static final BlockTraits SOFT = new BlockTraits(false, true, false, false, false, false, false, true);
+    public static final BlockTraits SOFT = new BlockTraits(false, true, false, false, false, false, false, true, false);
+
+    /** Prašan (powder snow) – hustý sníh, entity se boří; hazard (mrznutí). */
+    public static final BlockTraits POWDER = new BlockTraits(false, false, false, false, false, true, false, false, true);
 
     private final int floorY;
     private final Map<Long, BlockTraits> overrides = new HashMap<>();

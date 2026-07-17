@@ -241,6 +241,74 @@ class BotPhysicsTest {
     }
 
     @Test
+    void padDoPrasanuNezrani() {
+        FakeWorldView world = new FakeWorldView(FLOOR);
+        // Prašan 3 bloky vysoký v místě dopadu.
+        for (int y = FLOOR + 1; y <= FLOOR + 3; y++) {
+            world.set(0, y, 0, FakeWorldView.POWDER);
+        }
+        BotPhysics physics = new BotPhysics(world, new Vec3(0.5, FEET_Y + 10, 0.5));
+
+        boolean landed = false;
+        boolean waded = false;
+        for (int i = 0; i < 400 && !landed; i++) {
+            physics.step(MoveInput.IDLE);
+            waded |= physics.inPowderSnow();
+            landed = physics.landedThisTick();
+        }
+
+        assertTrue(waded, "bot měl propadnout prašanem");
+        assertTrue(landed, "bot má klesnout až na dno");
+        assertEquals(0, physics.lastFallDamage(),
+                "prašan pád utlumí, damage=" + physics.lastFallDamage());
+    }
+
+    @Test
+    void prasanZpomalujeBrozeni() {
+        FakeWorldView world = new FakeWorldView(FLOOR);
+        // Vrstva prašanu na zemi přes x = 0..3.
+        for (int x = 0; x <= 3; x++) {
+            for (int z = -1; z <= 1; z++) {
+                world.set(x, FLOOR + 1, z, FakeWorldView.POWDER);
+            }
+        }
+        BotPhysics physics = new BotPhysics(world, new Vec3(-1.5, FEET_Y, 0.5));
+
+        MoveInput east = MoveInput.walk(new Vec3(1, 0, 0));
+        boolean waded = false;
+        int ticks = 0;
+        while (ticks < 400 && physics.position().x() < 4.5) {
+            physics.step(east);
+            waded |= physics.inPowderSnow();
+            ticks++;
+        }
+
+        assertTrue(waded, "bot se měl brodit prašanem");
+        assertTrue(physics.position().x() >= 4.5, "bot se má prodrat ven, x=" + physics.position().x());
+        assertTrue(ticks > 40, "brodění má být znatelně pomalejší než chůze, ticks=" + ticks);
+    }
+
+    @Test
+    void skokemStoupaPrasanemVzhuru() {
+        FakeWorldView world = new FakeWorldView(FLOOR);
+        // Hluboký prašan – sloupec 3 bloky.
+        for (int y = FLOOR + 1; y <= FLOOR + 3; y++) {
+            world.set(0, y, 0, FakeWorldView.POWDER);
+        }
+        BotPhysics physics = new BotPhysics(world, new Vec3(0.5, FEET_Y, 0.5));
+
+        MoveInput jump = new MoveInput(Vec3.ZERO, false, true, false);
+        double maxY = FEET_Y;
+        for (int i = 0; i < 120; i++) {
+            physics.step(jump);
+            maxY = Math.max(maxY, physics.position().y());
+        }
+
+        assertTrue(maxY >= FEET_Y + 2.5,
+                "držením skoku má bot vystoupat prašanem, maxY=" + maxY);
+    }
+
+    @Test
     void knockbackNastaviRychlost() {
         FakeWorldView world = new FakeWorldView(FLOOR);
         BotPhysics physics = new BotPhysics(world, new Vec3(0.5, FEET_Y, 0.5));

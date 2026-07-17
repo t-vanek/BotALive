@@ -44,11 +44,19 @@ public final class BotPhysics {
 
     private final WorldView world;
 
+    /** Rychlost stoupání prašanem při držení skoku (vanilla únik jump-spamem). */
+    private static final double SNOW_CLIMB_SPEED = 0.08;
+    /** Rychlost klesání v prašanu (bez akumulace – hustý sníh brzdí). */
+    private static final double SNOW_SINK_SPEED = 0.12;
+    /** Vodorovný „stuck" multiplikátor prašanu (vanilla 0.9 na tick bez setrvačnosti). */
+    private static final double SNOW_STUCK_HORIZONTAL = 0.9;
+
     private Vec3 position;
     private Vec3 velocity = Vec3.ZERO;
     private boolean onGround;
     private boolean inWater;
     private boolean onClimbable;
+    private boolean inPowderSnow;
     private boolean horizontalCollision;
 
     /** Kumulovaná výška aktuálního pádu (bloky); nula, když bot nepadá. */
@@ -87,6 +95,11 @@ public final class BotPhysics {
     /** @return {@code true} pokud je bot ve vodě */
     public boolean inWater() {
         return inWater;
+    }
+
+    /** @return {@code true} pokud se bot boří v prašanu (powder snow) */
+    public boolean inPowderSnow() {
+        return inPowderSnow;
     }
 
     /** @return {@code true} pokud tick skončil vodorovnou kolizí (naražení do zdi) */
@@ -166,7 +179,10 @@ public final class BotPhysics {
         // --- Akcelerace ze vstupu -------------------------------------------------
         Vec3 dir = input.direction();
         if (dir.horizontalLength() > EPSILON) {
-            double accel = !onGround ? AIR_ACCEL
+            // V prašanu se bot brodí plnou chodeckou silou (vzdušná akcelerace
+            // by ho v sněhu prakticky zastavila – vanilla „stuck" bere vstup).
+            double accel = inPowderSnow ? WALK_ACCEL
+                    : !onGround ? AIR_ACCEL
                     : input.sneak() ? SNEAK_ACCEL
                     : input.sprint() ? SPRINT_ACCEL
                     : WALK_ACCEL;
@@ -179,6 +195,13 @@ public final class BotPhysics {
             vy = input.jump() ? Math.min(vy + 0.04, 0.12) : (vy - 0.02) * WATER_DRAG;
             vx *= WATER_DRAG;
             vz *= WATER_DRAG;
+        } else if (inPowderSnow) {
+            // Prašan: hustý sníh bez kolize – bot se boří. Držení skoku znamená
+            // pomalé stoupání (vanilla únik jump-spamem), jinak zvolna klesá;
+            // rychlost se mezi ticky neakumuluje („stuck" chování).
+            vy = input.jump() ? SNOW_CLIMB_SPEED : -SNOW_SINK_SPEED;
+            vx *= SNOW_STUCK_HORIZONTAL;
+            vz *= SNOW_STUCK_HORIZONTAL;
         } else if (onClimbable) {
             // Vanilla žebřík: vodorovná rychlost omezená na ±0.15, pád pomalý
             // (max −0.15), šplhání vzhůru rychlostí 0.2/t při držení skoku nebo
@@ -217,10 +240,11 @@ public final class BotPhysics {
         onGround = verticalCollision && attempted.y() < 0;
 
         // --- Pády: kumulace výšky a odhad poškození při dopadu ---------------------
-        // Ve vodě a na žebříku se pád „nuluje" (měkký doskok). Jinak přičítáme
-        // uraženou výšku klesání; v ticku dopadu spočteme poškození a resetujeme.
+        // Ve vodě, na žebříku a v prašanu se pád „nuluje" (měkký doskok).
+        // Jinak přičítáme uraženou výšku klesání; v ticku dopadu spočteme
+        // poškození a resetujeme.
         landedThisTick = false;
-        if (inWater || onClimbable) {
+        if (inWater || onClimbable || inPowderSnow) {
             fallDistance = 0;
         } else if (moved.y() < 0) {
             fallDistance -= moved.y(); // moved.y je záporné → přičti kladnou výšku
@@ -246,6 +270,11 @@ public final class BotPhysics {
         if (inWater && input.jump() && horizontalCollision) {
             velocity = new Vec3(velocity.x(), 0.3, velocity.z());
         }
+
+        // Prašan „drží": žádná setrvačnost mezi ticky (vanilla stuck-in-block).
+        if (inPowderSnow) {
+            velocity = Vec3.ZERO;
+        }
     }
 
     /** Ořízne hodnotu do intervalu [min, max]. */
@@ -268,13 +297,14 @@ public final class BotPhysics {
         return world.traitsAt(new Vec3(position.x(), position.y() - 0.5, position.z()).toBlockPos());
     }
 
-    /** Zjistí, v jakém prostředí se bot nachází (voda, žebřík). */
+    /** Zjistí, v jakém prostředí se bot nachází (voda, žebřík, prašan). */
     private void updateMediums() {
         BlockPos feet = position.toBlockPos();
         BlockTraits feetTraits = world.traitsAt(feet);
         BlockTraits headTraits = world.traitsAt(feet.up());
         inWater = feetTraits.liquid() || headTraits.liquid();
         onClimbable = feetTraits.climbable();
+        inPowderSnow = feetTraits.powderSnow() || headTraits.powderSnow();
     }
 
     /**

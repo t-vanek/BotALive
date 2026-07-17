@@ -70,8 +70,9 @@ public final class LiquidReflex {
     /**
      * Vodorovný jednotkový směr k nejbližší bezpečné pozici v okolí
      * (pochozí, bez hazardu), nebo {@link Vec3#ZERO} když žádná není.
+     * Sdíleno s {@link PowderSnowReflex} (únik z prašanu).
      */
-    private static Vec3 towardNearestSafe(WorldView world, BlockPos feet) {
+    static Vec3 towardNearestSafe(WorldView world, BlockPos feet) {
         BlockPos best = null;
         int bestDistSq = Integer.MAX_VALUE;
         for (int dx = -ESCAPE_RADIUS; dx <= ESCAPE_RADIUS; dx++) {
@@ -99,7 +100,7 @@ public final class LiquidReflex {
     }
 
     /** Bezpečné stání: průchozí tělo bez hazardu, pevná podlaha bez hazardu. */
-    private static boolean isSafeStand(WorldView world, BlockPos feet) {
+    static boolean isSafeStand(WorldView world, BlockPos feet) {
         BlockTraits feetTraits = world.traitsAt(feet);
         BlockTraits headTraits = world.traitsAt(feet.up());
         BlockTraits below = world.traitsAt(feet.down());
