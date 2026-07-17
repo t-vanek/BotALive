@@ -296,4 +296,73 @@ class AStarPathfinderTest {
 
         assertFalse(path.complete(), "mezera 3 bloky je nad síly sprint-skoku");
     }
+
+    /**
+     * Dvě platformy dotýkající se jen rohem: A (x,z ∈ [−3..0]), B (x,z ∈
+     * [1+gap .. 4+gap]) – jediné spojení je diagonální skok přes roh.
+     */
+    private static FakeWorldView cornerPlatforms(int gap) {
+        FakeWorldView world = new FakeWorldView(0);
+        int b = 1 + gap;
+        for (int x = -3; x <= 0; x++) {
+            for (int z = -3; z <= 0; z++) {
+                world.set(x, FLOOR, z, FakeWorldView.SOLID);
+            }
+        }
+        for (int x = b; x <= b + 3; x++) {
+            for (int z = b; z <= b + 3; z++) {
+                world.set(x, FLOOR, z, FakeWorldView.SOLID);
+            }
+        }
+        return world;
+    }
+
+    @Test
+    void preskociRohovouMezeru() {
+        BlockPos start = new BlockPos(-1, FEET, -1);
+        Path path = new AStarPathfinder(cornerPlatforms(1))
+                .findPath(start, new BlockPos(3, FEET, 3), 0);
+
+        assertTrue(path.complete(), "rohová mezera má jít přeskočit: " + path.waypoints());
+        assertTrue(longestStep(path, start) >= 4,
+                "cesta má obsahovat diagonální skok přes roh: " + path.waypoints());
+    }
+
+    @Test
+    void neskaceRohovouDvojmezeru() {
+        Path path = new AStarPathfinder(cornerPlatforms(2))
+                .findPath(new BlockPos(-1, FEET, -1), new BlockPos(4, FEET, 4), 2000);
+
+        assertFalse(path.complete(), "diagonálně se skáče jen přes jeden roh");
+    }
+
+    @Test
+    void preskociMezeruSDopademONizsi() {
+        // Mezera 1 blok (x=3), dopadová platforma o blok níž (y = FLOOR−1).
+        FakeWorldView world = new FakeWorldView(0);
+        for (int z = -1; z <= 1; z++) {
+            for (int x = -1; x <= 2; x++) {
+                world.set(x, FLOOR, z, FakeWorldView.SOLID);
+            }
+            for (int x = 4; x <= 8; x++) {
+                world.set(x, FLOOR - 1, z, FakeWorldView.SOLID);
+            }
+        }
+        BlockPos start = new BlockPos(0, FEET, 0);
+        Path path = new AStarPathfinder(world)
+                .findPath(start, new BlockPos(6, FEET - 1, 0), 0);
+
+        assertTrue(path.complete(), "mezera s nižším dopadem má jít přeskočit: " + path.waypoints());
+        boolean hasDropJump = false;
+        BlockPos prev = start;
+        for (BlockPos p : path.waypoints()) {
+            int step = Math.abs(p.x() - prev.x()) + Math.abs(p.z() - prev.z());
+            if (step >= 2 && p.y() < prev.y()) {
+                hasDropJump = true;
+            }
+            prev = p;
+        }
+        assertTrue(hasDropJump,
+                "cesta má obsahovat skok s dopadem níž: " + path.waypoints());
+    }
 }

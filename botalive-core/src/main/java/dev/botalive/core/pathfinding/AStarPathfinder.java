@@ -16,7 +16,8 @@ import java.util.PriorityQueue;
  * <p>Prohledává „pochozí" pozice (pevný blok pod nohama, průchozí prostor pro
  * tělo). Podporované pohyby: 4 kardinální směry, diagonály (bez řezání rohů),
  * výstup o 1 blok (skok), seskok až o 3 bloky, skok přes mezeru 1–2 bloků
- * (sprint-skok), šplhání po žebřících a plavání.
+ * (sprint-skok, i s dopadem o blok níž; diagonálně přes rohovou mezeru),
+ * šplhání po žebřících a plavání.
  * Cenová funkce penalizuje vodu, seskoky a blízkost hazardů (láva, oheň,
  * kaktus), tvrdě zakazuje vstup do hazardu a do nenačtených chunků.</p>
  *
@@ -159,9 +160,7 @@ public final class AStarPathfinder {
                     continue;
                 }
                 stepTowards(current, pos.offset(dx, 0, dz), diagonal, goal, open, visited);
-                if (!diagonal) {
-                    tryGapJump(current, dx, dz, goal, open, visited);
-                }
+                tryGapJump(current, dx, dz, goal, open, visited);
             }
         }
 
@@ -233,40 +232,68 @@ public final class AStarPathfinder {
     }
 
     /**
-     * Skok přes mezeru: 1–2 sloupce prázdna v kardinálním směru, dopad ve
-     * stejné výšce. Mezisloupce musí být průchozí v úrovni nohou, hlavy i nad
-     * hlavou (letová dráha) a nesmí být pochozí (jinak stačí obyčejný krok).
-     * Nad lávou/ohněm se neskáče – nepovedený skok by byl smrtelný.
+     * Skok přes mezeru. Kardinálně 1–2 sloupce prázdna s dopadem ve stejné
+     * výšce nebo o blok níž; diagonálně jen rohová mezera 1 sloupce (delší let)
+     * se stejnou výškou dopadu. Letová dráha musí být průchozí v úrovni nohou,
+     * hlavy i nad hlavou – u diagonály včetně čtyř sloupců u rohů, přes které
+     * hitbox při letu zavadí. Mezisloupec nesmí být pochozí (jinak stačí
+     * obyčejný krok) a nad lávou/ohněm se neskáče – nepovedený skok by byl
+     * smrtelný.
      */
     private void tryGapJump(Node current, int dx, int dz, BlockPos goal,
                             PriorityQueue<Node> open, Long2ObjectOpenHashMap<Node> visited) {
         BlockPos pos = current.pos;
+        boolean diagonal = dx != 0 && dz != 0;
         // Volný strop nad hlavou pro odraz.
         if (!isPassable(pos.offset(0, 2, 0))) {
             return;
         }
-        for (int span = 2; span <= MAX_GAP + 1; span++) {
+        int maxSpan = diagonal ? 2 : MAX_GAP + 1;
+        for (int span = 2; span <= maxSpan; span++) {
             // Nový mezisloupec (poslední před dopadem pro tento rozpon).
             BlockPos gap = pos.offset(dx * (span - 1), 0, dz * (span - 1));
             if (isStandable(gap)) {
                 return; // není mezera – řeší obyčejný krok
             }
-            if (!isPassable(gap) || !isPassable(gap.up()) || !isPassable(gap.offset(0, 2, 0))) {
+            if (!columnClear(gap)) {
                 return; // zeď/hazard v letové dráze
+            }
+            if (diagonal && !(columnClear(pos.offset(dx, 0, 0))
+                    && columnClear(pos.offset(0, 0, dz))
+                    && columnClear(gap.offset(dx, 0, 0))
+                    && columnClear(gap.offset(0, 0, dz)))) {
+                return; // rohové sloupce blokují letovou dráhu
             }
             if (hazardBelow(gap)) {
                 return; // láva na dně – radši obchůzka
             }
+            int base = span * (diagonal ? COST_DIAGONAL : COST_STRAIGHT) + COST_GAP_JUMP
+                    + (span - 2) * COST_GAP_JUMP / 2   // širší mezera = větší riziko
+                    + (diagonal ? COST_GAP_JUMP / 2 : 0); // rohový let je delší a těsnější
             BlockPos landing = pos.offset(dx * span, 0, dz * span);
             if (isStandable(landing) && isPassable(landing.offset(0, 2, 0))
                     && !world.traitsAt(landing).liquid()) {
-                int cost = span * COST_STRAIGHT + COST_GAP_JUMP
-                        + (span - 2) * COST_GAP_JUMP / 2 // širší mezera = větší riziko
-                        + terrainPenalty(landing);
-                tryAdd(current, landing, cost, goal, open, visited);
+                tryAdd(current, landing, base + terrainPenalty(landing), goal, open, visited);
                 return;
             }
+            // Dopad o blok níž (jen kardinálně): letí se dál a klesá, fyzikálně
+            // snazší než rovný dopad – ale dopadová plocha musí být volná i
+            // v celé letové výšce.
+            if (!diagonal) {
+                BlockPos lower = landing.down();
+                if (isStandable(lower) && isPassable(landing.up()) && isPassable(landing.offset(0, 2, 0))
+                        && !world.traitsAt(lower).liquid()) {
+                    int cost = base + COST_FALL_PER_BLOCK + terrainPenalty(lower);
+                    tryAdd(current, lower, cost, goal, open, visited);
+                    return;
+                }
+            }
         }
+    }
+
+    /** Průchozí sloupec letové dráhy: úroveň nohou, hlavy i nad hlavou. */
+    private boolean columnClear(BlockPos feet) {
+        return isPassable(feet) && isPassable(feet.up()) && isPassable(feet.offset(0, 2, 0));
     }
 
     /** Je na dně sloupce (do {@link #GAP_HAZARD_SCAN} bloků) hazard – láva, oheň? */
