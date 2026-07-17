@@ -62,6 +62,10 @@ ai:
   # kolmo dolů, kontrola lávy/vody) a upravují staveniště domů.
   # false = jen povrchová těžba a žádné stavební úpravy terénu.
   terraforming: true
+  # Smí boti stavět žebříky? Když navigace narazí na svislou stěnu vyšší než
+  # skok (víc než 1 blok) a bot má v inventáři žebříky, přilepí je na stěnu
+  # a přeleze ji – místo hloubení schodiště. Vyžaduje terraforming: true.
+  ladders: true
   # Denní rytmus: ráno pole a výroba, přes den těžba a stavba, večer družení
   # a úklid, v noci domů. Každý bot má osobní posun (skřivan/sova) podle
   # povahy. Jemné násobiče – osobnost a profese zůstávají hlavní.

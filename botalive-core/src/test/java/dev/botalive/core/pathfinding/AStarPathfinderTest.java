@@ -159,6 +159,50 @@ class AStarPathfinderTest {
         }
     }
 
+    /**
+     * Uzavřená „krabice" v lajně z=0 (x 0..6) s příčnou zdí výšky 3 na x=3.
+     * Boční zdi i čelní zátky brání jakékoli obchůzce – ven vede jen nahoru.
+     */
+    private static FakeWorldView corridorWithWall() {
+        FakeWorldView world = new FakeWorldView(FLOOR);
+        for (int x = -1; x <= 7; x++) {
+            world.wall(x, FEET, FEET + 2, -1); // boční zeď
+            world.wall(x, FEET, FEET + 2, 1);  // boční zeď
+        }
+        for (int z = -1; z <= 1; z++) {
+            world.wall(-1, FEET, FEET + 2, z); // čelní zátka za startem
+            world.wall(7, FEET, FEET + 2, z);  // čelní zátka za cílem
+        }
+        world.wall(3, FEET, FEET + 2, 0); // příčná zeď výšky 3
+        return world;
+    }
+
+    @Test
+    void vyslapeZebrikPresVysokouZed() {
+        FakeWorldView world = corridorWithWall();
+        // Jediná cesta vzhůru: sloupec žebříků na přivrácené straně příčné zdi.
+        for (int y = FEET; y <= FEET + 2; y++) {
+            world.set(2, y, 0, FakeWorldView.CLIMBABLE);
+        }
+        Path path = new AStarPathfinder(world)
+                .findPath(new BlockPos(0, FEET, 0), new BlockPos(6, FEET, 0), 0);
+
+        assertTrue(path.complete(), "přes zeď se má dát vyšplhat po žebříku: " + path.waypoints());
+        assertTrue(path.waypoints().stream().anyMatch(p -> world.traitsAt(p).climbable()),
+                "cesta má vést po žebříku");
+        assertTrue(path.waypoints().stream().anyMatch(p -> p.y() > FEET + 1),
+                "cesta má vystoupat nad zeď");
+    }
+
+    @Test
+    void bezZebrikuJeVysokaZedNeprustupna() {
+        // Stejný koridor, ale bez žebříku – cíl je pěšky nedosažitelný.
+        Path path = new AStarPathfinder(corridorWithWall())
+                .findPath(new BlockPos(0, FEET, 0), new BlockPos(6, FEET, 0), 2000);
+
+        assertFalse(path.complete(), "zeď výšky 3 bez žebříku nelze překonat");
+    }
+
     @Test
     void nedosazitelnyCilVratiCastecnouCestu() {
         FakeWorldView world = new FakeWorldView(FLOOR);

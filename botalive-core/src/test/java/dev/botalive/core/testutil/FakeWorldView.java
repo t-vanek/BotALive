@@ -26,6 +26,9 @@ public final class FakeWorldView implements WorldView {
     /** Voda. */
     public static final BlockTraits WATER = new BlockTraits(false, false, true, false, false, false, false);
 
+    /** Žebřík/liána – průchozí a šplhatelný, bez kolize. */
+    public static final BlockTraits CLIMBABLE = new BlockTraits(true, false, false, true, false, false, false);
+
     private final int floorY;
     private final Map<Long, BlockTraits> overrides = new HashMap<>();
 

@@ -57,6 +57,7 @@ public final class ConfigLoader {
                 c.getInt("ai.view-distance-blocks", 32),
                 c.getString("ai.difficulty", "normal"),
                 c.getBoolean("ai.terraforming", true),
+                c.getBoolean("ai.ladders", true),
                 c.getBoolean("ai.daily-rhythm", true),
                 c.getBoolean("ai.desperation", true)
         );

@@ -29,7 +29,12 @@ public final class BotPhysics {
     private static final double JUMP_VELOCITY = 0.42;
     private static final double STEP_HEIGHT = 0.6;
     private static final double WATER_DRAG = 0.8;
-    private static final double CLIMB_SPEED = 0.12;
+    /** Rychlost šplhání vzhůru po žebříku (vanilla 0.2 bloku/tick). */
+    private static final double CLIMB_UP_SPEED = 0.2;
+    /** Nejrychlejší pád po žebříku (vanilla −0.15). */
+    private static final double CLIMB_FALL_SPEED = 0.15;
+    /** Strop vodorovné rychlosti na žebříku (vanilla ±0.15). */
+    private static final double CLIMB_MAX_HORIZONTAL = 0.15;
     private static final double MAX_FALL_SPEED = -3.92;
     private static final double EPSILON = 1.0E-7;
 
@@ -133,9 +138,18 @@ public final class BotPhysics {
             vx *= WATER_DRAG;
             vz *= WATER_DRAG;
         } else if (onClimbable) {
-            vy = input.jump() ? CLIMB_SPEED : (dir.horizontalLength() > EPSILON ? CLIMB_SPEED : -CLIMB_SPEED * 0.5);
-            vx *= 0.7;
-            vz *= 0.7;
+            // Vanilla žebřík: vodorovná rychlost omezená na ±0.15, pád pomalý
+            // (max −0.15), šplhání vzhůru rychlostí 0.2/t při držení skoku nebo
+            // tlaku ke stěně. Přesná replika, aby server pohyb přijal.
+            if (input.jump() || dir.horizontalLength() > EPSILON) {
+                vy = CLIMB_UP_SPEED;
+            } else if (input.sneak()) {
+                vy = 0.0; // přidržení – neklouzat dolů
+            } else {
+                vy = Math.max(vy - GRAVITY, -CLIMB_FALL_SPEED);
+            }
+            vx = clamp(vx, -CLIMB_MAX_HORIZONTAL, CLIMB_MAX_HORIZONTAL);
+            vz = clamp(vz, -CLIMB_MAX_HORIZONTAL, CLIMB_MAX_HORIZONTAL);
         } else {
             if (input.jump() && onGround) {
                 vy = JUMP_VELOCITY;
@@ -172,6 +186,11 @@ public final class BotPhysics {
         if (inWater && input.jump() && horizontalCollision) {
             velocity = new Vec3(velocity.x(), 0.3, velocity.z());
         }
+    }
+
+    /** Ořízne hodnotu do intervalu [min, max]. */
+    private static double clamp(double value, double min, double max) {
+        return Math.max(min, Math.min(max, value));
     }
 
     /** Zjistí, v jakém prostředí se bot nachází (voda, žebřík). */
