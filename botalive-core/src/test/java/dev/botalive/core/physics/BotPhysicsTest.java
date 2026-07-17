@@ -14,6 +14,7 @@ class BotPhysicsTest {
 
     private static final int FLOOR = 63;
     private static final double FEET_Y = FLOOR + 1;
+    private static final double EPSILON = 1.0E-7;
 
     @Test
     void padDopadneNaPodlahu() {
@@ -145,5 +146,122 @@ class BotPhysicsTest {
 
         assertTrue(physics.position().x() > 0.5, "knockback má bota posunout");
         assertTrue(physics.position().y() > FEET_Y, "knockback má bota nadzvednout");
+    }
+
+    /** Platforma bloků na úrovni FLOOR pro x,z v [−2..2]; kolem prázdno až dolů. */
+    private static FakeWorldView platform() {
+        FakeWorldView world = new FakeWorldView(0); // podlaha hluboko dole
+        for (int x = -2; x <= 2; x++) {
+            for (int z = -2; z <= 2; z++) {
+                world.set(x, FLOOR, z, FakeWorldView.SOLID);
+            }
+        }
+        return world;
+    }
+
+    @Test
+    void plizeniNespadneZHrany() {
+        BotPhysics physics = new BotPhysics(platform(), new Vec3(0.5, FEET_Y, 0.5));
+
+        // Plížení k východní hraně platformy (blok x=2 končí na x=3.0).
+        MoveInput sneakEast = new MoveInput(new Vec3(1, 0, 0), false, false, true);
+        for (int i = 0; i < 400; i++) {
+            physics.step(sneakEast);
+        }
+
+        assertTrue(physics.onGround(), "plížící se bot má zůstat na platformě");
+        assertTrue(physics.position().y() >= FEET_Y - 0.05,
+                "plížící se bot nesmí spadnout z hrany, y=" + physics.position().y());
+        assertTrue(physics.position().x() < 3.4,
+                "bot se má zastavit u hrany, x=" + physics.position().x());
+    }
+
+    @Test
+    void chuzeBezPlizeniZHranySpadne() {
+        BotPhysics physics = new BotPhysics(platform(), new Vec3(0.5, FEET_Y, 0.5));
+
+        // Bez plížení bot z hrany sejde a padá do prázdna.
+        MoveInput walkEast = MoveInput.walk(new Vec3(1, 0, 0));
+        for (int i = 0; i < 60; i++) {
+            physics.step(walkEast);
+        }
+
+        assertTrue(physics.position().y() < FLOOR - 1,
+                "bez plížení má bot spadnout z platformy, y=" + physics.position().y());
+    }
+
+    @Test
+    void dopadZVysokaZraniBota() {
+        FakeWorldView world = new FakeWorldView(FLOOR);
+        BotPhysics physics = new BotPhysics(world, new Vec3(0.5, FEET_Y + 10, 0.5));
+
+        boolean landed = false;
+        for (int i = 0; i < 120 && !landed; i++) {
+            physics.step(MoveInput.IDLE);
+            landed = physics.landedThisTick();
+        }
+
+        assertTrue(landed, "bot má dopadnout na zem");
+        assertTrue(physics.lastFallDistance() >= 9.0,
+                "výška pádu ~10 bloků, změřeno=" + physics.lastFallDistance());
+        assertTrue(physics.lastFallDamage() >= 6,
+                "pád z 10 bloků má bolet, damage=" + physics.lastFallDamage());
+        assertEquals(0.0, physics.fallDistance(), EPSILON, "po dopadu se výška pádu nuluje");
+    }
+
+    @Test
+    void nizkyPadNezraniBota() {
+        FakeWorldView world = new FakeWorldView(FLOOR);
+        BotPhysics physics = new BotPhysics(world, new Vec3(0.5, FEET_Y + 2.5, 0.5));
+
+        boolean landed = false;
+        for (int i = 0; i < 60 && !landed; i++) {
+            physics.step(MoveInput.IDLE);
+            landed = physics.landedThisTick();
+        }
+
+        assertTrue(landed, "bot má dopadnout na zem");
+        assertEquals(0, physics.lastFallDamage(),
+                "pád do 3 bloků nezraňuje, damage=" + physics.lastFallDamage());
+    }
+
+    @Test
+    void dopadNaSenoTlumiPoskozeni() {
+        FakeWorldView world = new FakeWorldView(FLOOR);
+        world.set(0, FLOOR, 0, FakeWorldView.SOFT); // seno v místě dopadu
+
+        BotPhysics physics = new BotPhysics(world, new Vec3(0.5, FEET_Y + 10, 0.5));
+
+        boolean landed = false;
+        for (int i = 0; i < 120 && !landed; i++) {
+            physics.step(MoveInput.IDLE);
+            landed = physics.landedThisTick();
+        }
+
+        assertTrue(landed, "bot má dopadnout na seno");
+        assertTrue(physics.lastFallDistance() >= 9.0,
+                "výška pádu ~10 bloků, změřeno=" + physics.lastFallDistance());
+        assertTrue(physics.lastFallDamage() <= 2,
+                "seno má ztlumit poškození na ~20 %, damage=" + physics.lastFallDamage());
+    }
+
+    @Test
+    void dopadDoVodyNezraniBota() {
+        FakeWorldView world = new FakeWorldView(FLOOR);
+        // Hluboká vodní díra pod bodem pádu (voda FEET_Y-1 až FEET_Y-4).
+        for (int y = (int) FEET_Y - 4; y <= (int) FEET_Y - 1; y++) {
+            world.set(0, y, 0, FakeWorldView.WATER);
+        }
+        BotPhysics physics = new BotPhysics(world, new Vec3(0.5, FEET_Y + 10, 0.5));
+
+        boolean submerged = false;
+        for (int i = 0; i < 200; i++) {
+            physics.step(MoveInput.IDLE);
+            submerged |= physics.inWater();
+        }
+
+        assertTrue(submerged, "bot měl doletět do vody");
+        assertEquals(0, physics.lastFallDamage(),
+                "dopad do vody netlumí poškození, damage=" + physics.lastFallDamage());
     }
 }

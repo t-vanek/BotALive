@@ -36,6 +36,10 @@ public final class BotPhysics {
     /** Strop vodorovné rychlosti na žebříku (vanilla ±0.15). */
     private static final double CLIMB_MAX_HORIZONTAL = 0.15;
     private static final double MAX_FALL_SPEED = -3.92;
+    /** Výška pádu (bloky), od které začíná poškození – vanilla „safe fall" = 3. */
+    private static final double FALL_DAMAGE_THRESHOLD = 3.0;
+    /** Krok, po kterém se ořezává pohyb u hrany při plížení (vanilla 0.05). */
+    private static final double EDGE_BACKOFF_STEP = 0.05;
     private static final double EPSILON = 1.0E-7;
 
     private final WorldView world;
@@ -46,6 +50,15 @@ public final class BotPhysics {
     private boolean inWater;
     private boolean onClimbable;
     private boolean horizontalCollision;
+
+    /** Kumulovaná výška aktuálního pádu (bloky); nula, když bot nepadá. */
+    private double fallDistance;
+    /** Výška posledního dokončeného pádu v okamžiku dopadu (bloky). */
+    private double lastFallDistance;
+    /** Odhad poškození z posledního dopadu (body; 2 body = 1 srdce). */
+    private int lastFallDamage;
+    /** {@code true} jen v ticku, kdy bot právě dopadl na zem po pádu. */
+    private boolean landedThisTick;
 
     /**
      * @param world pohled na svět pro kolize
@@ -81,6 +94,33 @@ public final class BotPhysics {
         return horizontalCollision;
     }
 
+    /** @return kumulovaná výška probíhajícího pádu v blocích (0, když bot nepadá) */
+    public double fallDistance() {
+        return fallDistance;
+    }
+
+    /** @return {@code true} jen v ticku, kdy bot právě dopadl na zem po pádu */
+    public boolean landedThisTick() {
+        return landedThisTick;
+    }
+
+    /** @return výška posledního dokončeného pádu v okamžiku dopadu (bloky) */
+    public double lastFallDistance() {
+        return lastFallDistance;
+    }
+
+    /**
+     * Odhad poškození z posledního dopadu. Vanilla vzorec:
+     * {@code ceil(výška − 3)} bodů (2 body = 1 srdce); pád do 3 bloků neubližuje.
+     * Měkký dopad (seno, slime, med, postel) tlumí na ~20 %; pád do vody se
+     * nuluje průběžně. Nezohledňuje efekty (Slow Falling, Jump Boost).
+     *
+     * @return odhadované poškození v bodech (0 = bez zranění)
+     */
+    public int lastFallDamage() {
+        return lastFallDamage;
+    }
+
     /**
      * Tvrdé nastavení pozice (teleport od serveru). Vynuluje rychlost.
      *
@@ -89,6 +129,7 @@ public final class BotPhysics {
     public void teleport(Vec3 pos) {
         this.position = pos;
         this.velocity = Vec3.ZERO;
+        this.fallDistance = 0;
     }
 
     /**
@@ -116,6 +157,7 @@ public final class BotPhysics {
      */
     public void step(MoveInput input) {
         updateMediums();
+        boolean wasOnGround = onGround;
 
         double vx = velocity.x();
         double vy = velocity.y();
@@ -174,6 +216,24 @@ public final class BotPhysics {
         boolean verticalCollision = Math.abs(moved.y() - attempted.y()) > EPSILON;
         onGround = verticalCollision && attempted.y() < 0;
 
+        // --- Pády: kumulace výšky a odhad poškození při dopadu ---------------------
+        // Ve vodě a na žebříku se pád „nuluje" (měkký doskok). Jinak přičítáme
+        // uraženou výšku klesání; v ticku dopadu spočteme poškození a resetujeme.
+        landedThisTick = false;
+        if (inWater || onClimbable) {
+            fallDistance = 0;
+        } else if (moved.y() < 0) {
+            fallDistance -= moved.y(); // moved.y je záporné → přičti kladnou výšku
+        }
+        if (onGround) {
+            if (!wasOnGround) {
+                landedThisTick = true;
+                lastFallDistance = fallDistance;
+                lastFallDamage = fallDamageFor(fallDistance, supportTraits());
+            }
+            fallDistance = 0;
+        }
+
         // --- Tření ----------------------------------------------------------------
         double friction = onGround ? GROUND_FRICTION : AIR_FRICTION;
         velocity = new Vec3(moved.x() * friction, moved.y(), moved.z() * friction);
@@ -193,6 +253,21 @@ public final class BotPhysics {
         return Math.max(min, Math.min(max, value));
     }
 
+    /**
+     * Vanilla odhad poškození z pádu: {@code ceil(výška − 3)}, nezáporné.
+     * Měkký dopad (seno, slime, med, postel) tlumí na ~20 % – aproximace
+     * vanilla hodnot (seno/med ×0.2, slime 0, postel ×0.5) jednou konstantou.
+     */
+    private static int fallDamageFor(double distance, BlockTraits landing) {
+        int raw = (int) Math.max(0, Math.ceil(distance - FALL_DAMAGE_THRESHOLD));
+        return landing.softLanding() ? (int) Math.floor(raw * 0.2) : raw;
+    }
+
+    /** Vlastnosti bloku přímo pod nohama (opora, na které bot stojí). */
+    private BlockTraits supportTraits() {
+        return world.traitsAt(new Vec3(position.x(), position.y() - 0.5, position.z()).toBlockPos());
+    }
+
     /** Zjistí, v jakém prostředí se bot nachází (voda, žebřík). */
     private void updateMediums() {
         BlockPos feet = position.toBlockPos();
@@ -210,6 +285,13 @@ public final class BotPhysics {
      * @return skutečný možný posun
      */
     private Vec3 collide(Vec3 motion, boolean sneak) {
+        // Plížení u hrany: než vůbec začneme řešit kolize, ořízni vodorovný
+        // pohyb tak, aby bot nesešel z pevné hrany do prázdna (vanilla
+        // „back off from edge"). Platí jen na zemi a při klesání/rovině.
+        if (sneak && onGround && motion.y() <= 0.0) {
+            motion = backOffFromEdge(motion);
+        }
+
         AABB box = AABB.playerAt(position);
 
         double dy = clipAxis(box, motion.y(), Axis.Y);
@@ -238,6 +320,74 @@ public final class BotPhysics {
             }
         }
         return new Vec3(dx, dy, dz);
+    }
+
+    /**
+     * Ořízne vodorovný pohyb tak, aby plížící se bot zůstal nad pevnou hranou
+     * (vanilla {@code maybeBackOffFromEdge}). Postupně zkracuje složky pohybu po
+     * {@link #EDGE_BACKOFF_STEP}, dokud by hráč po posunu neztratil oporu pod
+     * nohama (kontrola boxu sníženého o {@link #STEP_HEIGHT}).
+     *
+     * @param motion zamýšlený posun
+     * @return posun oříznutý u hrany (svislá složka beze změny)
+     */
+    private Vec3 backOffFromEdge(Vec3 motion) {
+        AABB stand = AABB.playerAt(position);
+        double dx = motion.x();
+        double dz = motion.z();
+
+        while (dx != 0.0 && !supported(stand, dx, 0.0)) {
+            dx = shrinkToward0(dx);
+        }
+        while (dz != 0.0 && !supported(stand, 0.0, dz)) {
+            dz = shrinkToward0(dz);
+        }
+        while (dx != 0.0 && dz != 0.0 && !supported(stand, dx, dz)) {
+            dx = shrinkToward0(dx);
+            dz = shrinkToward0(dz);
+        }
+        return new Vec3(dx, motion.y(), dz);
+    }
+
+    /** Má bot po posunu o (dx, dz) pevnou oporu do {@link #STEP_HEIGHT} pod nohama? */
+    private boolean supported(AABB stand, double dx, double dz) {
+        return intersectsSolid(stand.move(dx, -STEP_HEIGHT, dz));
+    }
+
+    /** Zkrátí hodnotu o {@link #EDGE_BACKOFF_STEP} směrem k nule (nepřestřelí). */
+    private static double shrinkToward0(double value) {
+        if (value < EDGE_BACKOFF_STEP && value >= -EDGE_BACKOFF_STEP) {
+            return 0.0;
+        }
+        return value > 0 ? value - EDGE_BACKOFF_STEP : value + EDGE_BACKOFF_STEP;
+    }
+
+    /**
+     * Protíná daný box aspoň jeden pevný blok? Neznámé chunky bereme jako pevné
+     * (shodně s {@link #clipAxis}) – bot se nespoléhá na nenačtený terén.
+     */
+    private boolean intersectsSolid(AABB box) {
+        int minX = (int) Math.floor(box.minX());
+        int maxX = (int) Math.floor(box.maxX());
+        int minY = (int) Math.floor(box.minY());
+        int maxY = (int) Math.floor(box.maxY());
+        int minZ = (int) Math.floor(box.minZ());
+        int maxZ = (int) Math.floor(box.maxZ());
+
+        for (int x = minX; x <= maxX; x++) {
+            for (int y = minY; y <= maxY; y++) {
+                for (int z = minZ; z <= maxZ; z++) {
+                    BlockTraits traits = world.traitsAt(new BlockPos(x, y, z));
+                    if (!traits.solid() && traits != BlockTraits.UNKNOWN) {
+                        continue;
+                    }
+                    if (box.intersects(new AABB(x, y, z, x + 1, y + 1, z + 1))) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
     }
 
     private enum Axis { X, Y, Z }
