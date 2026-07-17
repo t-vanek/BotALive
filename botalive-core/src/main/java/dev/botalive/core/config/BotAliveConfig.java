@@ -93,10 +93,13 @@ public record BotAliveConfig(
      * @param autoSpawnCount   kolik botů spawnovat
      * @param autoSpawnDelayS  zpoždění po startu serveru (s), než se začne spawnovat
      * @param namePool         jména používaná generátorem identit
+     * @param nameStyle        styl generovaných jmen: mixed | real | gamer
+     *                         (uplatní se jen bez vlastního {@code namePool})
      * @param randomRoles      zda novým botům přidělovat profese podle osobnosti
      */
     public record Bots(int maxCount, boolean autoSpawnEnabled, int autoSpawnCount,
-                       int autoSpawnDelayS, List<String> namePool, boolean randomRoles) {
+                       int autoSpawnDelayS, List<String> namePool, String nameStyle,
+                       boolean randomRoles) {
     }
 
     /**
