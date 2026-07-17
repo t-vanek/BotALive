@@ -29,8 +29,10 @@ dependencies {
 
     implementation(libs.mcprotocollib) {
         // Server poskytuje vlastní (novější) Adventure a Gson – nebundlovat.
+        // Výjimka: adventure-text-serializer-json-legacy-impl (NBTLegacyHoverEventSerializer)
+        // Paper 26.1 už nedodává (má jen interní io.papermc.paper.adventure.providers verzi),
+        // ale MCProtocolLib DefaultComponentSerializer ho staticky vyžaduje → musí se bundlovat.
         exclude(group = "net.kyori", module = "adventure-text-serializer-gson")
-        exclude(group = "net.kyori", module = "adventure-text-serializer-json-legacy-impl")
         exclude(group = "com.google.code.gson", module = "gson")
         exclude(group = "org.slf4j", module = "slf4j-api")
         exclude(group = "org.checkerframework", module = "checker-qual")
@@ -42,6 +44,10 @@ dependencies {
         exclude(group = "org.checkerframework", module = "checker-qual")
         exclude(group = "com.google.errorprone", module = "error_prone_annotations")
     }
+    // Plný fastutil: pathfinder (AStarPathfinder) používá Long2ObjectOpenHashMap,
+    // který rozsekaný com.nukkitx.fastutil od MCProtocolLib neobsahuje. Bez tohoto
+    // se relokovaná třída v jaru nevyskytuje → NoClassDefFoundError za běhu.
+    implementation(libs.fastutil)
     implementation(libs.sqlite.jdbc)
     implementation(libs.postgresql)
 
@@ -76,14 +82,14 @@ tasks.named<ShadowJar>("shadowJar") {
     exclude("META-INF/native/**")
     exclude("META-INF/native-image/**")
 
-    minimize {
-        // JDBC ovladače se načítají reflexí – minimalizace by je odstranila.
-        exclude(dependency("org.xerial:sqlite-jdbc:.*"))
-        exclude(dependency("org.postgresql:postgresql:.*"))
-        // MCProtocolLib registruje pakety reflexí/lambda metafactory, ponechat celý.
-        exclude(dependency("org.geysermc.mcprotocollib:protocol:.*"))
-        exclude(dependency("io.netty:.*:.*"))
-    }
+    // Minimalizace je záměrně VYPNUTÁ. Bundlované knihovny (MCProtocolLib, Netty,
+    // Caffeine, fastutil, cloudburstmc, MinecraftAuth, HikariCP…) načítají značnou
+    // část tříd reflexí, přes lambda metafactory nebo Class.forName() podle jména,
+    // případně přes hustě provázané specializované kolekce. Statická analýza shadow
+    // minimize tyto vazby nevidí a třídy odstraní → NoClassDefFoundError/
+    // ClassNotFoundException až za běhu (Adventure NBTLegacyHoverEventSerializer,
+    // Caffeine cache varianty typu SSMSW, fastutil Long2ObjectOpenHashMap…).
+    // Ušetřené místo (~20 MB) nestojí za tuto křehkost; korektnost má přednost.
 }
 
 tasks.named("build") {
