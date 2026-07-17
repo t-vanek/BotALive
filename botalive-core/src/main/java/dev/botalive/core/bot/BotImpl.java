@@ -756,15 +756,18 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
             }
         }
 
-        // Pádový reflex: záchranná síť pro neřízený pohyb. Když bota u nebezpečné
-        // hrany postrčí dav (nebo se jen tak přišourá), přikrčí se a ochrana hrany
-        // ho zadrží. Řízený pohyb – navigace s cestou, zdolávání překážky
-        // (most/žebřík/loď) i cíl s vlastním requestedMove – ví, co dělá; do toho
-        // reflex nesahá, jinak by se bot u každého schodu zbytečně zaseknul.
+        // Pádový reflex: záchranná síť kolem pádů. Na zemi – když bota u
+        // nebezpečné hrany postrčí dav (nebo se jen tak přišourá), přikrčí se
+        // a ochrana hrany ho zadrží; řízený pohyb (navigace s cestou,
+        // most/žebřík/loď, cíl s requestedMove) ví, co dělá, do toho nesahat.
+        // Ve vzduchu – bot padající do nebezpečné hloubky kormidluje k vodě
+        // nebo měkkému bloku v dosahu (clutch; zasahuje i do řízeného pohybu,
+        // hluboký pád mimo vodu není nikdy v plánu).
         boolean movementManaged = navDriven || obstacleTask != null || requestedMove != null;
         if (alive && !paused.get() && worldView != null) {
             input = dev.botalive.core.physics.FallReflex.apply(
-                    input, movementManaged, physics.onGround(), physics.position(), worldView);
+                    input, movementManaged, physics.onGround(), physics.fallDistance(),
+                    physics.position(), worldView);
         }
 
         // Přirozený pohled ve směru chůze (pokud cíl neřídí pohled sám).

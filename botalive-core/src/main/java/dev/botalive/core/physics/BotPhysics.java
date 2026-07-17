@@ -112,7 +112,8 @@ public final class BotPhysics {
     /**
      * Odhad poškození z posledního dopadu. Vanilla vzorec:
      * {@code ceil(výška − 3)} bodů (2 body = 1 srdce); pád do 3 bloků neubližuje.
-     * Nezohledňuje efekty (Slow Falling, Jump Boost) ani měkký dopad (seno, voda).
+     * Měkký dopad (seno, slime, med, postel) tlumí na ~20 %; pád do vody se
+     * nuluje průběžně. Nezohledňuje efekty (Slow Falling, Jump Boost).
      *
      * @return odhadované poškození v bodech (0 = bez zranění)
      */
@@ -228,7 +229,7 @@ public final class BotPhysics {
             if (!wasOnGround) {
                 landedThisTick = true;
                 lastFallDistance = fallDistance;
-                lastFallDamage = fallDamageFor(fallDistance);
+                lastFallDamage = fallDamageFor(fallDistance, supportTraits());
             }
             fallDistance = 0;
         }
@@ -252,9 +253,19 @@ public final class BotPhysics {
         return Math.max(min, Math.min(max, value));
     }
 
-    /** Vanilla odhad poškození z pádu: {@code ceil(výška − 3)}, nezáporné. */
-    private static int fallDamageFor(double distance) {
-        return (int) Math.max(0, Math.ceil(distance - FALL_DAMAGE_THRESHOLD));
+    /**
+     * Vanilla odhad poškození z pádu: {@code ceil(výška − 3)}, nezáporné.
+     * Měkký dopad (seno, slime, med, postel) tlumí na ~20 % – aproximace
+     * vanilla hodnot (seno/med ×0.2, slime 0, postel ×0.5) jednou konstantou.
+     */
+    private static int fallDamageFor(double distance, BlockTraits landing) {
+        int raw = (int) Math.max(0, Math.ceil(distance - FALL_DAMAGE_THRESHOLD));
+        return landing.softLanding() ? (int) Math.floor(raw * 0.2) : raw;
+    }
+
+    /** Vlastnosti bloku přímo pod nohama (opora, na které bot stojí). */
+    private BlockTraits supportTraits() {
+        return world.traitsAt(new Vec3(position.x(), position.y() - 0.5, position.z()).toBlockPos());
     }
 
     /** Zjistí, v jakém prostředí se bot nachází (voda, žebřík). */

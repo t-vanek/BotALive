@@ -226,6 +226,26 @@ class BotPhysicsTest {
     }
 
     @Test
+    void dopadNaSenoTlumiPoskozeni() {
+        FakeWorldView world = new FakeWorldView(FLOOR);
+        world.set(0, FLOOR, 0, FakeWorldView.SOFT); // seno v místě dopadu
+
+        BotPhysics physics = new BotPhysics(world, new Vec3(0.5, FEET_Y + 10, 0.5));
+
+        boolean landed = false;
+        for (int i = 0; i < 120 && !landed; i++) {
+            physics.step(MoveInput.IDLE);
+            landed = physics.landedThisTick();
+        }
+
+        assertTrue(landed, "bot má dopadnout na seno");
+        assertTrue(physics.lastFallDistance() >= 9.0,
+                "výška pádu ~10 bloků, změřeno=" + physics.lastFallDistance());
+        assertTrue(physics.lastFallDamage() <= 2,
+                "seno má ztlumit poškození na ~20 %, damage=" + physics.lastFallDamage());
+    }
+
+    @Test
     void dopadDoVodyNezraniBota() {
         FakeWorldView world = new FakeWorldView(FLOOR);
         // Hluboká vodní díra pod bodem pádu (voda FEET_Y-1 až FEET_Y-4).
