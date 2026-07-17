@@ -195,6 +195,7 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
         this.navigator = new Navigator(services.navigation(), actions, rng, personality);
         this.navigator.dangerSupplier(this::dangerMemories);
         this.inventoryHelper = new InventoryHelper(actions);
+        this.inventoryHelper.puller(this::pullToHotbar);
         this.combat = new CombatController(actions, humanizer, rng, personality, config.combat(),
                 CombatDifficulty.fromConfig(config.ai().difficulty()), inventoryHelper);
         this.vehicle = new VehicleController(connection, clientState);
@@ -222,6 +223,29 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
     @Override
     public dev.botalive.core.social.CrimeLog crimeLog() {
         return services.crimeLog();
+    }
+
+    /**
+     * Přitáhne item z hlavního inventáře do hotbaru (SWAP klik ve vlastním
+     * okně inventáře – funguje v server i packet režimu, je to čistý protokol).
+     *
+     * @param predicate co přitáhnout
+     * @return hotbar index, kam item dorazil, nebo -1
+     */
+    private int pullToHotbar(java.util.function.Predicate<org.bukkit.Material> predicate) {
+        var snapshot = serverView.latest();
+        if (snapshot == null) {
+            return -1;
+        }
+        int source = InventoryHelper.findBestInMain(snapshot, predicate);
+        if (source < 0) {
+            return -1;
+        }
+        int target = InventoryHelper.chooseHotbarDumpSlot(snapshot);
+        // Sloty okna inventáře: 9–35 hlavní inventář (shodné číslování s Bukkitem).
+        containerClicker.moveToHotbar(0, 9 + source, target);
+        serverView.refresh(); // snapshot co nejdřív dohnat realitu
+        return target;
     }
 
     /** Přepočte ambici a postup (cache pro mozek a příkazy). */
