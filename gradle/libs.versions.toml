@@ -6,6 +6,8 @@ paper = "26.1.2.build.74-stable"      # Paper API pro Minecraft 26.1 (vyžaduje 
 mcprotocollib = "26.1-1"              # MCProtocolLib – klientský Minecraft protokol 26.1
 hikaricp = "7.1.0"                    # JDBC connection pool
 caffeine = "3.2.4"                    # In-memory cache
+fastutil = "8.5.3"                    # Plné primitivní kolekce (pathfinding). MCProtocolLib
+                                      # táhne jen rozsekaný com.nukkitx.fastutil bez Long2Object map.
 sqlite = "3.53.2.0"                   # Výchozí embedded databáze
 postgresql = "42.7.13"                # Volitelná produkční databáze
 slf4j = "2.0.17"                      # Logovací fasáda (implementaci dodává server)
@@ -16,6 +18,7 @@ paper-api = { module = "io.papermc.paper:paper-api", version.ref = "paper" }
 mcprotocollib = { module = "org.geysermc.mcprotocollib:protocol", version.ref = "mcprotocollib" }
 hikaricp = { module = "com.zaxxer:HikariCP", version.ref = "hikaricp" }
 caffeine = { module = "com.github.ben-manes.caffeine:caffeine", version.ref = "caffeine" }
+fastutil = { module = "it.unimi.dsi:fastutil", version.ref = "fastutil" }
 sqlite-jdbc = { module = "org.xerial:sqlite-jdbc", version.ref = "sqlite" }
 postgresql = { module = "org.postgresql:postgresql", version.ref = "postgresql" }
 slf4j-api = { module = "org.slf4j:slf4j-api", version.ref = "slf4j" }

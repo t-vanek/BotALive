@@ -47,6 +47,7 @@ public final class ConfigLoader {
                 c.getInt("bots.auto-spawn.count", 3),
                 c.getInt("bots.auto-spawn.delay-seconds", 10),
                 c.getStringList("bots.name-pool"),
+                c.getString("bots.name-style", "mixed"),
                 c.getBoolean("bots.random-roles", true)
         );
 

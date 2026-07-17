@@ -105,6 +105,15 @@ public final class BotSessionListener extends SessionAdapter {
                         entities.byId(p.getId()).ifPresent(e -> e.setPosition(
                                 new Vec3(p.getPosition().getX(), p.getPosition().getY(), p.getPosition().getZ()),
                                 p.getYRot(), p.getXRot()));
+                // Od 1.21.2 posílá server velké přesuny tracked entit tímto paketem
+                // (delta v MoveEntityPos se vejde jen do ±8 bloků). Bez něj by po
+                // teleportu jiné entity zůstaly v trackeru na zastaralé pozici –
+                // bot by okolní hráče/boty „neviděl", i kdyby stáli vedle něj.
+                case org.geysermc.mcprotocollib.protocol.packet.ingame.clientbound.entity
+                        .ClientboundEntityPositionSyncPacket p ->
+                        entities.byId(p.getId()).ifPresent(e -> e.setPosition(
+                                new Vec3(p.getPosition().getX(), p.getPosition().getY(), p.getPosition().getZ()),
+                                p.getYRot(), p.getXRot()));
                 case ClientboundSetEntityMotionPacket p -> handleMotion(p);
                 case org.geysermc.mcprotocollib.protocol.packet.ingame.clientbound.entity
                         .ClientboundSetPassengersPacket p -> handlePassengers(p);

@@ -63,7 +63,7 @@ public final class BotManagerImpl implements BotManager {
         this.repository = repository;
         this.goalRegistry = goalRegistry;
         this.services = services;
-        this.nameGenerator = new BotNameGenerator(config.bots().namePool());
+        this.nameGenerator = new BotNameGenerator(config.bots().namePool(), config.bots().nameStyle());
     }
 
     /**

@@ -32,8 +32,14 @@ network:
 bots:
   # Tvrdý strop počtu botů.
   max-count: 50
-  # Vlastní pool jmen (prázdné = vestavěný seznam).
+  # Vlastní pool jmen (prázdné = vestavěný seznam). Když je vyplněný, použije
+  # se doslova a volba name-style se ignoruje.
   name-pool: []
+  # Styl generovaných jmen (jen pro vestavěný pool):
+  #   mixed = reálná jména i herní nicky (výchozí, vypadá jako běžný server)
+  #   real  = jen reálná křestní jména (Martin, Lucka, …)
+  #   gamer = jen herní přezdívky (xX_Reaper_Xx, ShadowWolf42, iSn1per, …)
+  name-style: mixed
   # Nové boty obsadit profesí podle osobnosti (stavitel, kopáč, dřevorubec,
   # lovec, kovář, enchanter, obchodník, rybář, farmář). Role násobí priority
   # souvisejících činností; /botalive role ji umí kdykoli změnit.
