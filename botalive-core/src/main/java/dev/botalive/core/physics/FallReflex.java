@@ -120,6 +120,9 @@ public final class FallReflex {
         BlockPos pos = top;
         for (int depth = 0; depth <= CLUTCH_SCAN_DEPTH; depth++) {
             BlockTraits t = world.traitsAt(pos);
+            if (t.powderSnow()) {
+                return true; // prašan pád utlumí (a reflex pak bota vyhrabe)
+            }
             if (t.liquid()) {
                 return !t.hazard();
             }
@@ -153,6 +156,9 @@ public final class FallReflex {
         BlockPos support = ahead.down();
         for (int drop = 0; drop <= SAFE_DROP + 1; drop++) {
             BlockTraits t = world.traitsAt(support);
+            if (t.powderSnow()) {
+                return false; // prašan pád utlumí – bezpečný seskok
+            }
             if (t.liquid()) {
                 // Voda dopad tlumí; láva je jistá smrt.
                 return t.hazard();

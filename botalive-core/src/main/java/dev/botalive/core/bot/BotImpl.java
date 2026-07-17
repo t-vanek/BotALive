@@ -736,6 +736,10 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
         if (alive && !paused.get() && worldView != null) {
             input = dev.botalive.core.physics.LiquidReflex.apply(
                     input, navDriven, physics.position(), worldView);
+            // Prašan: zabořený bot mrzne – vyhrabat se skokem k nejbližšímu
+            // bezpečí. Přebíjí vše, v prašanu nemá žádný cíl co pohledávat.
+            input = dev.botalive.core.physics.PowderSnowReflex.apply(
+                    input, physics.inPowderSnow(), physics.position(), worldView);
         }
 
         // Vyhýbání davu: odpuzuj se od blízkých hráčů/botů, ať se boti neslévají

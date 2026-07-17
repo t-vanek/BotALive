@@ -134,4 +134,33 @@ class FallReflexTest {
 
         assertSame(in, out, "bez záchrany v dosahu se vstup nemění");
     }
+
+    @Test
+    void clutchMiriNaPrasan() {
+        // Tvrdá podlaha, jen na (2, z=0) leží prašan – clutch míří na východ.
+        FakeWorldView world = new FakeWorldView(FLOOR);
+        world.set(2, FLOOR + 1, 0, FakeWorldView.POWDER);
+
+        MoveInput out = FallReflex.apply(MoveInput.IDLE, false, false, 6.0,
+                new Vec3(0.5, FEET_Y + 8, 0.5), world);
+
+        assertTrue(out.direction().x() > 0.9,
+                "clutch má kormidlovat do prašanu na východě, dir=" + out.direction());
+    }
+
+    @Test
+    void srazSPrasanemNaDneNeprikrci() {
+        // Sráz před botem (hlubší než bezpečný seskok na tvrdo), ale na dně
+        // je prašan → seskok je bezpečný.
+        FakeWorldView world = new FakeWorldView(FLOOR);
+        for (int y = FLOOR; y >= FLOOR - 2; y--) {
+            world.set(3, y, 0, dev.botalive.core.world.BlockTraits.AIR);
+        }
+        world.set(3, FLOOR - 3, 0, FakeWorldView.POWDER);
+
+        MoveInput out = FallReflex.apply(east(), false, true, 0.0,
+                new Vec3(2.5, FEET_Y, 0.5), world);
+
+        assertFalse(out.sneak(), "sráz s prašanem na dně nemá spouštět přikrčení");
+    }
 }
