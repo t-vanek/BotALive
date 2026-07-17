@@ -101,6 +101,13 @@ inventář a historii; po restartu serveru pokračuje tam, kde skončil.
   bloky i brnění si přitáhnou z hlavního inventáře do hotbaru, když je
   potřebují; odkládají při tom do prázdných/obyčejných slotů, nikdy
   neobětují nástroj ani jídlo.
+- **Stanice a tavicí řetězy** – nad základní pec boti craftí **udírnu**
+  (jídlo 2× rychleji) i **blastovou pec** včetně prerekvizit: pec sama
+  taví cobble → kámen → smooth stone, když je na blastovou pec potřeba,
+  a při nouzi o palivo pálí klády na **dřevěné uhlí** (soběstačný palivový
+  okruh). Palivo se obětuje podle priority (uhlí → prkna → klády) a
+  **opotřebené nástroje** (nad 85 %) se pro plánování nepočítají – bot si
+  vyrobí náhradu dřív, než mu prasknou v ruce.
 - **Domov se vším všudy** – k domu boti craftí a osazují dveře, uvnitř
   pochodeň a postel (vlna z lovu ovcí → spawn point).
 - **Rozumí prosbám** – chat zvládá věcné dotazy a prosby: „kde jsi?",

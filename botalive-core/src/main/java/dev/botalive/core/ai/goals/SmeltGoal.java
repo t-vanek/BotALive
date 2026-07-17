@@ -62,9 +62,21 @@ public final class SmeltGoal extends AbstractGoal {
             return 0;
         }
         var snapshot = ctx.serverView().latest();
-        if (snapshot == null
-                || !snapshot.hasItem(FurnaceService::isSmeltable)
-                || !snapshot.hasItem(FurnaceService::isFuel)) {
+        if (snapshot == null || !snapshot.hasItem(FurnaceService::isFuel)) {
+            return 0;
+        }
+        // Základní suroviny, NEBO tavicí řetězy: kámen na blastovou pec
+        // (má pec + železo, chybí smooth stone) / dřevěné uhlí (došlo palivo).
+        boolean smeltables = snapshot.hasItem(FurnaceService::isSmeltable);
+        boolean stoneChain = snapshot.hasItem(m -> m == org.bukkit.Material.FURNACE)
+                && !snapshot.hasItem(m -> m == org.bukkit.Material.BLAST_FURNACE)
+                && snapshot.hasItem(m -> m == org.bukkit.Material.IRON_INGOT)
+                && snapshot.hasItem(m -> m == org.bukkit.Material.COBBLESTONE
+                        || m == org.bukkit.Material.STONE);
+        boolean charcoalChain = !snapshot.hasItem(m -> m == org.bukkit.Material.COAL
+                        || m == org.bukkit.Material.CHARCOAL)
+                && snapshot.hasItem(m -> m.name().endsWith("_LOG"));
+        if (!smeltables && !stoneChain && !charcoalChain) {
             return 0;
         }
         double patience = bot.personality().trait(Trait.PATIENCE);
