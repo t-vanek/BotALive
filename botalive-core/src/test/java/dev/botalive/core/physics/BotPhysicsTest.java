@@ -171,6 +171,76 @@ class BotPhysicsTest {
     }
 
     @Test
+    void diagonalniSprintSkokPresRoh() {
+        // Dvě platformy dotýkající se jen rohem: A (x,z ≤ 0), B (x,z ≥ 2);
+        // mezera je rohový sloupec (1,1) a sousední rohové sloupce.
+        FakeWorldView world = new FakeWorldView(0);
+        for (int x = -2; x <= 0; x++) {
+            for (int z = -2; z <= 0; z++) {
+                world.set(x, FLOOR, z, FakeWorldView.SOLID);
+            }
+        }
+        for (int x = 2; x <= 4; x++) {
+            for (int z = 2; z <= 4; z++) {
+                world.set(x, FLOOR, z, FakeWorldView.SOLID);
+            }
+        }
+        BotPhysics physics = new BotPhysics(world, new Vec3(-1.5, FEET_Y, -1.5));
+
+        Vec3 diag = new Vec3(1, 0, 1).normalized();
+        double minY = FEET_Y;
+        boolean crossed = false;
+        for (int i = 0; i < 300 && !crossed; i++) {
+            Vec3 ahead = physics.position().add(diag.mul(0.7));
+            boolean edge = !world.traitsAt(ahead.toBlockPos().down()).solid();
+            boolean jump = physics.onGround() && edge;
+            physics.step(new MoveInput(diag, true, jump, false));
+            minY = Math.min(minY, physics.position().y());
+            crossed = physics.onGround()
+                    && physics.position().x() > 2.0 && physics.position().z() > 2.0;
+        }
+
+        assertTrue(crossed, "bot má přeskočit rohovou mezeru, pos=" + physics.position());
+        assertTrue(minY >= FEET_Y - 0.1,
+                "bot nesmí propadnout do rohové mezery, minY=" + minY);
+    }
+
+    @Test
+    void sprintSkokSDopademONizsi() {
+        // Mezera 2 bloků (x=3,4), dopadová platforma o blok níž (y = FLOOR−1).
+        FakeWorldView world = new FakeWorldView(0);
+        for (int x = -2; x <= 2; x++) {
+            for (int z = -2; z <= 2; z++) {
+                world.set(x, FLOOR, z, FakeWorldView.SOLID);
+            }
+        }
+        for (int x = 5; x <= 9; x++) {
+            for (int z = -2; z <= 2; z++) {
+                world.set(x, FLOOR - 1, z, FakeWorldView.SOLID);
+            }
+        }
+        BotPhysics physics = new BotPhysics(world, new Vec3(0.5, FEET_Y, 0.5));
+
+        Vec3 east = new Vec3(1, 0, 0);
+        double minY = FEET_Y;
+        boolean crossed = false;
+        for (int i = 0; i < 300 && !crossed; i++) {
+            boolean edge = !world.traitsAt(
+                    physics.position().add(0.7, 0, 0).toBlockPos().down()).solid();
+            boolean jump = physics.onGround() && edge;
+            physics.step(new MoveInput(east, true, jump, false));
+            minY = Math.min(minY, physics.position().y());
+            crossed = physics.onGround() && physics.position().x() > 5.2;
+        }
+
+        assertTrue(crossed, "bot má doletět na nižší platformu, x=" + physics.position().x());
+        assertEquals(FEET_Y - 1, physics.position().y(), 0.05,
+                "dopad má být o blok níž");
+        assertTrue(minY >= FEET_Y - 1.1,
+                "bot nesmí propadnout do mezery, minY=" + minY);
+    }
+
+    @Test
     void knockbackNastaviRychlost() {
         FakeWorldView world = new FakeWorldView(FLOOR);
         BotPhysics physics = new BotPhysics(world, new Vec3(0.5, FEET_Y, 0.5));

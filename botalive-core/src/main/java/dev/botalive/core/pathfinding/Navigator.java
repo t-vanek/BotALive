@@ -20,8 +20,9 @@ import java.util.concurrent.CompletableFuture;
  *   <li>waypoint se považuje za dosažený s tolerancí (bot nechodí „po pravítku"),</li>
  *   <li>sprint se zapíná na delších rovných úsecích podle povahy bota,</li>
  *   <li>skok se vyvolá, když je další waypoint výš,</li>
- *   <li>mezery 1–2 bloků (naplánované pathfinderem) se přeskakují rozběhem
- *       a odrazem na hraně; širší mezera vynucuje sprint,</li>
+ *   <li>mezery 1–2 bloků (naplánované pathfinderem, i diagonální nebo
+ *       s dopadem o blok níž) se přeskakují rozběhem a odrazem na hraně;
+ *       širší mezera vynucuje sprint,</li>
  *   <li>zavřené dveře v cestě bot otevře interakcí,</li>
  *   <li>detekce zaseknutí: bez postupu několik desítek ticků → požádá o novou cestu,</li>
  *   <li>replanning je asynchronní – bot mezitím dojíždí starou cestu.</li>
@@ -250,10 +251,11 @@ public final class Navigator {
         Vec3 direction = delta.horizontal().normalized();
 
         // Skok přes mezeru: waypoint dál než sousední blok ve stejné výšce
-        // znamená naplánovaný přeskok (pathfinder jiné dlouhé segmenty negeneruje).
-        // Rozběh sprintem a odraz přesně na hraně – u širší mezery je sprint
-        // nutný, aby doletěl.
-        boolean gapSegment = onGround && !inWater && Math.abs(delta.y()) < 0.6
+        // (nebo o blok níž – dopad s klesáním) znamená naplánovaný přeskok;
+        // pathfinder jiné dlouhé segmenty negeneruje. Rozběh sprintem a odraz
+        // přesně na hraně – u širší mezery je sprint nutný, aby doletěl.
+        boolean gapSegment = onGround && !inWater
+                && delta.y() > -1.6 && delta.y() < 0.6
                 && delta.horizontalLength() > 1.4;
         if (gapSegment) {
             boolean wideGap = delta.horizontalLength() > 2.2;
