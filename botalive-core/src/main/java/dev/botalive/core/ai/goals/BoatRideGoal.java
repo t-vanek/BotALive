@@ -7,6 +7,7 @@ import dev.botalive.core.ai.BotContext;
 import dev.botalive.core.entity.TrackedEntity;
 import dev.botalive.core.util.BlockPos;
 import dev.botalive.core.util.Vec3;
+import dev.botalive.core.vehicle.Boats;
 import dev.botalive.core.world.WorldView;
 
 import java.util.Map;
@@ -177,18 +178,17 @@ public final class BoatRideGoal extends AbstractGoal {
             finish(ctx, 600);
             return;
         }
-        int slot = snapshot.findHotbarSlot(BoatRideGoal::isBoatItem);
-        if (slot < 0) {
-            finish(ctx, 1200); // loď má jen v hlavním inventáři – neumí ji vzít do ruky
-            return;
-        }
-        BlockPos water = nearestWater(ctx, 4);
-        if (water == null) {
+        BlockPos water = Boats.nearestWater(ctx.worldView(), ctx.position().toBlockPos(), 4);
+        if (water == null || !snapshot.hasItem(Boats::isBoatItem)) {
             finish(ctx, 1200);
             return;
         }
         if (waitTicks == 0) {
-            ctx.actions().selectHotbar(slot);
+            // Vzít loď do ruky – i z batohu (equipMatching ji přitáhne do hotbaru).
+            if (!ctx.inventory().equipMatching(snapshot, Boats::isBoatItem)) {
+                finish(ctx, 1200);
+                return;
+            }
             ctx.humanizer().lookAt(ctx.position().add(0, 1.62, 0), water.center().add(0, 0.9, 0));
             waitTicks++;
         } else if (waitTicks++ >= 8) {
@@ -266,23 +266,14 @@ public final class BoatRideGoal extends AbstractGoal {
 
     private Optional<TrackedEntity> findBoatEntity(BotContext ctx) {
         Optional<TrackedEntity> boat = ctx.entities().nearest(ctx.position(), 16,
-                e -> isBoatType(e.type().name()));
+                e -> Boats.isBoatType(e.type().name()));
         boat.ifPresent(b -> boatEntityId = b.entityId());
         return boat;
     }
 
-    private static boolean isBoatType(String typeName) {
-        return typeName.endsWith("_BOAT") || typeName.endsWith("_RAFT");
-    }
-
-    private static boolean isBoatItem(org.bukkit.Material material) {
-        String name = material.name();
-        return name.endsWith("_BOAT") || name.endsWith("_RAFT");
-    }
-
     private boolean hasBoatItem(BotContext ctx) {
         var snapshot = ctx.serverView().latest();
-        return snapshot != null && snapshot.hasItem(BoatRideGoal::isBoatItem);
+        return snapshot != null && snapshot.hasItem(Boats::isBoatItem);
     }
 
     /** Otevřená voda poblíž: aspoň ~třetina vzorků v okolí je hladina. */
@@ -301,30 +292,5 @@ public final class BoatRideGoal extends AbstractGoal {
             }
         }
         return water >= samples / 3;
-    }
-
-    /** Nejbližší vodní blok v malém okolí (pro položení lodi). */
-    private BlockPos nearestWater(BotContext ctx, int radius) {
-        WorldView world = ctx.worldView();
-        BlockPos feet = ctx.position().toBlockPos();
-        BlockPos best = null;
-        double bestDist = Double.MAX_VALUE;
-        for (int dx = -radius; dx <= radius; dx++) {
-            for (int dy = -2; dy <= 0; dy++) {
-                for (int dz = -radius; dz <= radius; dz++) {
-                    BlockPos pos = feet.offset(dx, dy, dz);
-                    var traits = world.traitsAt(pos);
-                    if (traits.liquid() && !traits.hazard()
-                            && world.traitsAt(pos.up()).passable()) {
-                        double dist = pos.distanceSquared(feet);
-                        if (dist < bestDist) {
-                            bestDist = dist;
-                            best = pos;
-                        }
-                    }
-                }
-            }
-        }
-        return best;
     }
 }

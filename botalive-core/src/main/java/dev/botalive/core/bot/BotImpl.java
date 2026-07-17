@@ -129,6 +129,8 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
     private MoveInput requestedMove;
     /** Probíhající zásah do terénu při zdolávání překážky (kopání/pokládání). */
     private dev.botalive.core.tasks.BotTask obstacleTask;
+    /** Odpočet, než bot znovu zváží loď (po přejezdu/neúspěchu se nezkouší hned). */
+    private int boatCheckCooldown;
     /** Odpočet periodické kontroly brnění v hotbaru. */
     private int armorCheckTicks = 60;
     /** Životní ambice (cache; zdroj pravdy je paměť AMBITION). */
@@ -669,6 +671,14 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
         if (vehicle.mounted()) {
             boolean idleInVehicle = !combat.engaged();
             humanizer.tick(position().add(0, 1.62, 0), idleInVehicle && alive);
+            // Vozidlová úloha (plavba člunem za cílem) řídí kurz i vysednutí –
+            // musí se tickovat i tady, jinak by po nasednutí ztratila kontrolu.
+            if (obstacleTask instanceof dev.botalive.core.tasks.VehicleTask
+                    && alive && !paused.get() && obstacleTask.tick(this)) {
+                obstacleTask = null;
+                boatCheckCooldown = 200;
+                navigator.assistResolved(physics.position());
+            }
             vehicle.tick();
             chat.tick();
             return;
@@ -684,6 +694,9 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
         boolean navDriven = false;
         if (obstacleTask != null) {
             if (obstacleTask.tick(this)) {
+                if (obstacleTask instanceof dev.botalive.core.tasks.VehicleTask) {
+                    boatCheckCooldown = 200; // po přejezdu/neúspěchu loď hned nezkoušet
+                }
                 obstacleTask = null;
                 navigator.assistResolved(physics.position());
                 input = MoveInput.IDLE;
@@ -698,6 +711,13 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
                 if (obstacleTask == null) {
                     navigator.assistFailed();
                 }
+            } else if (alive && !paused.get() && !combat.engaged()
+                    && config.ai().boats() && !"boat".equals(brain.currentGoalId())
+                    && shouldBoardBoat()) {
+                // Široká voda ve směru cíle + dostupná loď → přeplout místo plavání.
+                // (Rekreační cíl „boat" si loď řídí sám – tomu do toho nesahat.)
+                obstacleTask = new dev.botalive.core.tasks.WaterCrossTask(navigator.destination());
+                LOG.debug("[{}] [nav] loď: přejezd vody k {}", name, navigator.destination());
             }
             // Pohyb: explicitní požadavek cíle > navigace > stání.
             if (requestedMove != null) {
@@ -741,7 +761,10 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
             humanizer.lookAlong(input.direction());
         }
 
-        boolean idle = input == MoveInput.IDLE && !combat.engaged();
+        // Zásah do terénu (míření na blok/hladinu) není „nicnedělání" – jinak by
+        // idle-rozhlížení humanizeru přepsalo namířený pohled (kritické pro
+        // pokládání lodi přes raycast v {@link dev.botalive.core.tasks.WaterCrossTask}).
+        boolean idle = input == MoveInput.IDLE && !combat.engaged() && obstacleTask == null;
         humanizer.tick(physics.position().add(0, 1.62, 0), idle && alive);
 
         physics.step(input);
@@ -769,6 +792,49 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
 
         chat.tick();
         trackDistance();
+    }
+
+    /**
+     * Rozhodne, jestli si teď vzít loď na překonání vody.
+     *
+     * <p>Na rozdíl od terénních zásahů se loď nespouští ze zaseknutí (A* vodu
+     * přeplave, takže navigace neuvázne), ale proaktivně: navigace míří přes
+     * souvislou vodu širší než {@link dev.botalive.core.vehicle.Boats#MIN_CROSS_WIDTH}
+     * a bot má loď (v inventáři nebo poblíž na hladině). Loď je mnohem rychlejší
+     * než plavání. Po přejezdu/neúspěchu drží {@link #boatCheckCooldown} odstup,
+     * aby bot u nedosažitelného cíle loď nezkoušel donekonečna.</p>
+     *
+     * @return {@code true} když se teď vyplatí nasednout do lodi
+     */
+    private boolean shouldBoardBoat() {
+        if (boatCheckCooldown > 0) {
+            boatCheckCooldown--;
+            return false;
+        }
+        if (worldView == null || physics == null || !navigator.navigating()) {
+            return false;
+        }
+        BlockPos dest = navigator.destination();
+        if (dest == null) {
+            return false;
+        }
+        BlockPos feet = physics.position().toBlockPos();
+        boolean preferX = Math.abs(dest.x() - feet.x()) >= Math.abs(dest.z() - feet.z());
+        int sx = preferX ? Integer.signum(dest.x() - feet.x()) : 0;
+        int sz = preferX ? 0 : Integer.signum(dest.z() - feet.z());
+        if (sx == 0 && sz == 0) {
+            return false;
+        }
+        if (dev.botalive.core.vehicle.Boats.openWaterWidth(worldView, feet, sx, sz)
+                < dev.botalive.core.vehicle.Boats.MIN_CROSS_WIDTH) {
+            return false;
+        }
+        var snapshot = serverView.latest();
+        boolean hasItem = snapshot != null
+                && snapshot.hasItem(dev.botalive.core.vehicle.Boats::isBoatItem);
+        boolean boatNearby = entities.nearest(physics.position(), 12,
+                e -> dev.botalive.core.vehicle.Boats.isBoatType(e.type().name())).isPresent();
+        return hasItem || boatNearby;
     }
 
     /**
