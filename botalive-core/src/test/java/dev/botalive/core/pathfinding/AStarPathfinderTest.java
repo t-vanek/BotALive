@@ -85,6 +85,81 @@ class AStarPathfinderTest {
     }
 
     @Test
+    void vynoriSeZVodniJamy() {
+        FakeWorldView world = new FakeWorldView(FLOOR);
+        // Vodní jáma 1×1 hloubky 4 (vyhloubená do podlahy, po hladinu):
+        // bot na dně musí vyplavat sloupcem vzhůru.
+        for (int y = FEET - 4; y <= FEET; y++) {
+            world.set(3, y, 0, FakeWorldView.WATER);
+        }
+        Path path = new AStarPathfinder(world)
+                .findPath(new BlockPos(3, FEET - 4, 0), new BlockPos(6, FEET, 0), 0);
+
+        assertTrue(path.complete(), "z vodní jámy se má dát vyplavat: " + path.waypoints());
+        assertTrue(path.waypoints().stream().anyMatch(p -> p.y() == FEET),
+                "cesta má vystoupat k hladině");
+    }
+
+    @Test
+    void preplaveVodniPrekop() {
+        FakeWorldView world = new FakeWorldView(FLOOR);
+        // Vodní příkop přes celou šíři (x=3..4): plave se skrz, ne okolo.
+        for (int x = 3; x <= 4; x++) {
+            for (int z = -8; z <= 8; z++) {
+                world.set(x, FEET, z, FakeWorldView.WATER);
+                world.set(x, FLOOR, z, FakeWorldView.WATER);
+            }
+        }
+        Path path = new AStarPathfinder(world)
+                .findPath(new BlockPos(0, FEET, 0), new BlockPos(7, FEET, 0), 0);
+
+        assertTrue(path.complete(), "voda se má dát přeplavat");
+        assertTrue(path.waypoints().stream()
+                        .anyMatch(p -> world.traitsAt(p).liquid()),
+                "cesta má vést vodou (plavání)");
+    }
+
+    @Test
+    void seskociZVyskyDoHlubokeVody() {
+        FakeWorldView world = new FakeWorldView(FLOOR);
+        // Útes: bot startuje na věži výšky 8; hned vedle bazén hloubky 2.
+        int towerTop = FEET + 8;
+        world.wall(0, FEET, towerTop - 1, 0);
+        for (int x = 1; x <= 2; x++) {
+            world.set(x, FEET, 0, FakeWorldView.WATER);
+            world.set(x, FLOOR, 0, FakeWorldView.WATER);
+        }
+        Path path = new AStarPathfinder(world)
+                .findPath(new BlockPos(0, towerTop, 0), new BlockPos(6, FEET, 0), 0);
+
+        assertTrue(path.complete(), "seskok do hluboké vody má být povolen");
+        assertTrue(path.waypoints().stream().anyMatch(p -> world.traitsAt(p).liquid()),
+                "cesta má vést dopadem do vody: " + path.waypoints());
+    }
+
+    @Test
+    void neseskociZVyskyDoLavy() {
+        FakeWorldView world = new FakeWorldView(FLOOR);
+        // Stejný útes, ale dole láva – seskok je zakázaný a cesta nevede.
+        int towerTop = FEET + 8;
+        world.wall(0, FEET, towerTop - 1, 0);
+        for (int x = 1; x <= 8; x++) {
+            for (int z = -8; z <= 8; z++) {
+                world.set(x, FEET, z, FakeWorldView.HAZARD);
+                world.set(x, FLOOR, z, FakeWorldView.HAZARD);
+            }
+        }
+        Path path = new AStarPathfinder(world)
+                .findPath(new BlockPos(0, towerTop, 0), new BlockPos(6, FEET, 0), 2000);
+
+        assertFalse(path.complete(), "do lávy se nesmí seskočit ani vstoupit");
+        for (BlockPos waypoint : path.waypoints()) {
+            assertFalse(world.traitsAt(waypoint).hazard(),
+                    "žádný waypoint nesmí být v lávě: " + waypoint);
+        }
+    }
+
+    @Test
     void nedosazitelnyCilVratiCastecnouCestu() {
         FakeWorldView world = new FakeWorldView(FLOOR);
         // Cíl obezděný ze všech stran do výšky 2 (skok nestačí).

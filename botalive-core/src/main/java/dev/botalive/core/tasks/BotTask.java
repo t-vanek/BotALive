@@ -25,4 +25,14 @@ public interface BotTask {
      * @param ctx kontext bota
      */
     void cancel(BotContext ctx);
+
+    /**
+     * Pohybový záměr tasku pro aktuální tick. Většina tasků stojí na místě
+     * (default IDLE); tasky jako přemostění potřebují bota i posouvat.
+     *
+     * @return pohybový vstup pro fyziku
+     */
+    default dev.botalive.core.physics.MoveInput move() {
+        return dev.botalive.core.physics.MoveInput.IDLE;
+    }
 }

@@ -108,6 +108,21 @@ inventář a historii; po restartu serveru pokračuje tam, kde skončil.
   okruh). Palivo se obětuje podle priority (uhlí → prkna → klády) a
   **opotřebené nástroje** (nad 85 %) se pro plánování nepočítají – bot si
   vyrobí náhradu dřív, než mu prasknou v ruce.
+- **Plavání a voda** – boti se nikdy netopí: pod hladinou reflexivně
+  vyplavou, u břehu se výskokem vyhoupnou na souš („water hop") a
+  pathfinding vodou počítá – plavou svisle vodním sloupcem, přeplavávají
+  jezera a z výšky smí seskočit do hluboké vody (2+ bloky), nikdy do
+  mělčiny nebo lávy.
+- **Láva a propasti** – lávě se cesty vyhýbají obloukem; když ale jiná
+  cesta není, bot si přes lávové jezero **postaví most** (blok po bloku,
+  jako hráč) a úzký pruh zvládne přeskočit sprintem. Krátkou díru
+  v podlaze přemostí jen s dohledným protějším břehem – žádné pochody po
+  jednom bloku do prázdna. U srázů přibrzdí, aby ho setrvačnost
+  nepřenesla přes hranu.
+- **Kolidace a zaseknutí** – čelní střet dvou botů řeší úkrok do strany
+  (deterministicky podle id, žádné věčné přetlačování); nízkou překážku,
+  na které se chůze zasekne, zkusí bot nejdřív přeskočit, teprve pak
+  přeplánovat cestu či zasáhnout do terénu.
 - **Kovadlina** – výrazně opotřebené nástroje a zbroj (nad ~60 %, pečliví
   boti dřív) si bot nese ke kovadlině – a když žádná není, vyrobí si ji
   (9 ingotů → 3 bloky železa + 4 ingoty) a postaví vedle sebe. Oprava

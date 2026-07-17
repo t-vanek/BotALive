@@ -681,26 +681,41 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
             obstacleTask = null;
         }
         MoveInput input;
+        boolean navDriven = false;
         if (obstacleTask != null) {
             if (obstacleTask.tick(this)) {
                 obstacleTask = null;
                 navigator.assistResolved(physics.position());
+                input = MoveInput.IDLE;
+            } else {
+                input = obstacleTask.move(); // most se posouvá, ostatní zásahy stojí
             }
-            input = MoveInput.IDLE; // během zásahu stát
         } else {
             if (alive && !paused.get() && !combat.engaged() && navigator.needsAssist()) {
                 obstacleTask = planObstacleRecovery();
+                LOG.debug("[{}] [nav] assist: plán={}", name,
+                        obstacleTask == null ? "žádný (vzdávám)" : obstacleTask.getClass().getSimpleName());
                 if (obstacleTask == null) {
                     navigator.assistFailed();
                 }
             }
             // Pohyb: explicitní požadavek cíle > navigace > stání.
-            input = requestedMove != null
-                    ? requestedMove
-                    : navigator.tick(physics.position(), physics.onGround());
+            if (requestedMove != null) {
+                input = requestedMove;
+            } else {
+                input = navigator.tick(physics.position(), physics.onGround(), physics.inWater());
+                navDriven = navigator.hasPath();
+            }
         }
         if (!alive || paused.get()) {
             input = MoveInput.IDLE;
+        }
+
+        // Tekutinové reflexy: útěk z lávy přebíjí vše, vynoření z vody chrání
+        // boty bez aktivní plavecké navigace (stojící, ručně řízené cíle).
+        if (alive && !paused.get() && worldView != null) {
+            input = dev.botalive.core.physics.LiquidReflex.apply(
+                    input, navDriven, physics.position(), worldView);
         }
 
         // Vyhýbání davu: odpuzuj se od blízkých hráčů/botů, ať se boti neslévají
@@ -787,6 +802,15 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
         BlockPos front = feet.offset(sx, 0, sz);
         int dy = Integer.signum(destination.y() - feet.y());
 
+        // Tekutina v cestě (lávové jezero, hluboká voda) → přemostit směrem
+        // k cíli. Klasika hráče: blok do hladiny, krok, další blok.
+        boolean liquidAhead = worldView.traitsAt(front).liquid()
+                || (worldView.traitsAt(front).passable()
+                        && worldView.traitsAt(front.down()).liquid());
+        if (liquidAhead && inventoryHelper.equipBuildingBlock(serverView.latest())) {
+            return new dev.botalive.core.tasks.BridgeTask(sx, sz);
+        }
+
         // Kandidáti na vylámání podle směru (v pořadí důležitosti).
         List<BlockPos> candidates = dy > 0
                 ? List.of(feet.up().up(), front.up().up(), front.up())
@@ -803,14 +827,26 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
                     material != null ? material : org.bukkit.Material.STONE);
             return new dev.botalive.core.tasks.MineBlockTask(block);
         }
-        // Vpředu nic pevného → mezera v podlaze: přemostit blokem.
+        // Vpředu nic pevného → mezera v podlaze: přemostit blokem. Jen krátkou
+        // díru s dohledným protějším břehem – ne pochodovat po bloku do prázdna.
         if (dy <= 0 && worldView.traitsAt(front).passable()
                 && worldView.traitsAt(front.down()).passable()
                 && !liquidNear(front.down())
+                && landingAhead(feet, sx, sz)
                 && inventoryHelper.equipBuildingBlock(serverView.latest())) {
             return new dev.botalive.core.tasks.PlaceBlockTask(front.down());
         }
         return null;
+    }
+
+    /** Pevný břeh ve směru mostku do 4 bloků (podlaha v úrovni nohou). */
+    private boolean landingAhead(BlockPos feet, int sx, int sz) {
+        for (int i = 2; i <= 4; i++) {
+            if (worldView.traitsAt(feet.offset(sx * i, -1, sz * i)).solid()) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**

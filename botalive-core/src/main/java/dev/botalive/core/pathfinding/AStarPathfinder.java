@@ -37,9 +37,13 @@ public final class AStarPathfinder {
     private static final int COST_CLIMB = 12;
     private static final int COST_DOOR = 15;
     private static final int COST_NEAR_HAZARD = 60;
+    /** Přirážka za svislý záběr při plavání (stoupání je dřina). */
+    private static final int COST_SWIM_VERTICAL = 6;
 
     /** Maximální bezpečná výška seskoku (bez poškození stojí za to). */
     private static final int MAX_DROP = 3;
+    /** Maximální seskok do hluboké vody (dopad do vody neubližuje). */
+    private static final int MAX_WATER_DROP = 20;
 
     /** Ceny za blízkost místa, kde bot zemřel / poznal nebezpečí. */
     private static final int COST_DANGER_NEAR = 80;
@@ -106,7 +110,29 @@ public final class AStarPathfinder {
         }
         // Rozpočet vyčerpán – vrátit nejlepší částečnou cestu (pokud někam vede).
         List<BlockPos> partial = reconstruct(best);
+        if (partial.size() <= 1) {
+            logDeadStart(start, goal, expanded);
+        }
         return new Path(partial, false);
+    }
+
+    /** Diagnostika mrtvého startu: mapa traits okolí (S=solid W=liquid .=passable ?=unknown). */
+    private void logDeadStart(BlockPos start, BlockPos goal, int expanded) {
+        StringBuilder sb = new StringBuilder();
+        for (int dy = 2; dy >= -1; dy--) {
+            sb.append("y").append(dy >= 0 ? "+" : "").append(dy).append("[");
+            for (int dz = -1; dz <= 1; dz++) {
+                for (int dx = -1; dx <= 1; dx++) {
+                    BlockTraits t = world.traitsAt(start.offset(dx, dy, dz));
+                    sb.append(t == BlockTraits.UNKNOWN ? '?'
+                            : t.solid() ? 'S' : t.liquid() ? 'W' : t.passable() ? '.' : 'x');
+                }
+                sb.append(dz < 1 ? '|' : ']');
+            }
+            sb.append(' ');
+        }
+        org.slf4j.LoggerFactory.getLogger(AStarPathfinder.class).debug(
+                "[astar] mrtvý start {} → {} (expanded={}): {}", start, goal, expanded, sb);
     }
 
     /** Vygeneruje sousedy uzlu a zařadí je do open setu. */
@@ -133,6 +159,17 @@ public final class AStarPathfinder {
             tryAdd(current, pos.up(), COST_CLIMB, goal, open, visited);
             tryAdd(current, pos.down(), COST_CLIMB, goal, open, visited);
         }
+
+        // Plavání svisle: ve vodním sloupci se bot může vynořit i potopit.
+        BlockTraits here = world.traitsAt(pos);
+        if (here.liquid() && !here.hazard()) {
+            if (isStandable(pos.up())) {
+                tryAdd(current, pos.up(), COST_WATER + COST_SWIM_VERTICAL, goal, open, visited);
+            }
+            if (isStandable(pos.down())) {
+                tryAdd(current, pos.down(), COST_WATER, goal, open, visited);
+            }
+        }
     }
 
     /**
@@ -158,13 +195,22 @@ public final class AStarPathfinder {
             }
         }
 
-        // Seskok: sloupec pod cílem musí být průchozí až k dopadu.
+        // Seskok: sloupec pod cílem musí být průchozí až k dopadu. Do výšky
+        // MAX_DROP kamkoli; hlouběji jen do vody hluboké aspoň 2 (dopad do
+        // mělčiny nebo na zem by bota zranil či zabil).
         if (isPassable(target) && isPassable(target.up())) {
             BlockPos drop = target;
-            for (int depth = 1; depth <= MAX_DROP; depth++) {
+            for (int depth = 1; depth <= MAX_WATER_DROP; depth++) {
                 drop = drop.down();
                 if (isStandable(drop)) {
-                    int cost = base + depth * COST_FALL_PER_BLOCK + terrainPenalty(drop);
+                    BlockTraits landing = world.traitsAt(drop);
+                    boolean deepWater = landing.liquid() && !landing.hazard()
+                            && world.traitsAt(drop.down()).liquid();
+                    if (depth > MAX_DROP && !deepWater) {
+                        return; // vysoký pád bez vodní jistoty – nejdeme
+                    }
+                    int cost = base + Math.min(depth, MAX_DROP + 2) * COST_FALL_PER_BLOCK
+                            + terrainPenalty(drop);
                     tryAdd(current, drop, cost, goal, open, visited);
                     return;
                 }
@@ -172,7 +218,6 @@ public final class AStarPathfinder {
                     return; // narazili jsme do zdi/hazardu – seskok nelze
                 }
             }
-            // Hlubší propast – voda dole by to jistila, ale bez informace nejdeme.
         }
     }
 

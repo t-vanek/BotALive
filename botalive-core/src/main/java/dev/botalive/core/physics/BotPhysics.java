@@ -166,6 +166,12 @@ public final class BotPhysics {
         if (verticalCollision) {
             velocity = new Vec3(velocity.x(), 0, velocity.z());
         }
+
+        // Výskok z vody na břeh: plavec u stěny se skokem vyhoupne o blok výš
+        // (vanilla „water hop") – jinak by bot u břehu jen šlapal vodu.
+        if (inWater && input.jump() && horizontalCollision) {
+            velocity = new Vec3(velocity.x(), 0.3, velocity.z());
+        }
     }
 
     /** Zjistí, v jakém prostředí se bot nachází (voda, žebřík). */
