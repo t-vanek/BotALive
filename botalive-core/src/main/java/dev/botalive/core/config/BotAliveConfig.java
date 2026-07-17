@@ -113,6 +113,10 @@ public record BotAliveConfig(
      *                              staveniště domů); false = jen povrchová těžba
      * @param ladders               smí boti stavět žebříky na přelezení svislých stěn
      *                              vyšších než skok (vyžaduje {@code terraforming})
+     * @param boats                 smí boti použít loď k překonání široké vody: když
+     *                              navigace míří přes souvislou vodní plochu a bot má
+     *                              loď (v inventáři nebo poblíž), nasedne a přepluje ji
+     *                              místo pomalého plavání
      * @param dailyRhythm           denní rytmus: ráno pole, přes den těžba/stavba,
      *                              večer družení, v noci domů (jemné násobiče utility)
      * @param desperation           nouzové chování: hladový bot bez prostředků krade
@@ -120,7 +124,7 @@ public record BotAliveConfig(
      */
     public record Ai(int decisionIntervalTicks, double goalHysteresis,
                      int viewDistanceBlocks, String difficulty, boolean terraforming,
-                     boolean ladders, boolean dailyRhythm, boolean desperation) {
+                     boolean ladders, boolean boats, boolean dailyRhythm, boolean desperation) {
     }
 
     /**

@@ -53,11 +53,14 @@ public final class VehicleController {
     }
 
     /**
-     * Požádá o vysednutí (sneak – stejně jako hráč).
+     * Požádá o vysednutí – „drží" sneak (stejně jako hráč, který podrží shift).
+     *
+     * <p>Posílá jen stisk (bez okamžitého uvolnění – to by záměr zrušilo dřív,
+     * než ho server v ticku zpracuje). Volá se opakovaně, dokud server jezdce
+     * nevysadí; klid nastane sám, jakmile bot po vysednutí zase chodí.</p>
      */
     public void requestDismount() {
         connection.send(new ServerboundPlayerInputPacket(false, false, false, false, false, true, false));
-        connection.send(new ServerboundPlayerInputPacket(false, false, false, false, false, false, false));
     }
 
     /**

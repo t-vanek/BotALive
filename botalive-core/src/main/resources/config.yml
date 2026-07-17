@@ -66,6 +66,11 @@ ai:
   # skok (víc než 1 blok) a bot má v inventáři žebříky, přilepí je na stěnu
   # a přeleze ji – místo hloubení schodiště. Vyžaduje terraforming: true.
   ladders: true
+  # Smí boti použít loď k překonání vody? Když navigace míří přes souvislou
+  # vodní plochu širší než pár bloků a bot má loď (v inventáři nebo poblíž
+  # na hladině), nasedne a přepluje ji – místo pomalého plavání. U břehu
+  # vysedne a pokračuje pěšky. Nevyžaduje terraforming (loď nemění terén).
+  boats: true
   # Denní rytmus: ráno pole a výroba, přes den těžba a stavba, večer družení
   # a úklid, v noci domů. Každý bot má osobní posun (skřivan/sova) podle
   # povahy. Jemné násobiče – osobnost a profese zůstávají hlavní.
