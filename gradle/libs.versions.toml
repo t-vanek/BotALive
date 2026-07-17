@@ -11,6 +11,7 @@ fastutil = "8.5.3"                    # Plné primitivní kolekce (pathfinding).
 sqlite = "3.53.2.0"                   # Výchozí embedded databáze
 postgresql = "42.7.13"                # Volitelná produkční databáze
 slf4j = "2.0.17"                      # Logovací fasáda (implementaci dodává server)
+vaultapi = "1.7.1"                    # Vault API (ekonomika) – jen compileOnly, dodává plugin Vault
 junit = "6.1.2"                       # Testovací framework
 
 [libraries]
@@ -22,6 +23,7 @@ fastutil = { module = "it.unimi.dsi:fastutil", version.ref = "fastutil" }
 sqlite-jdbc = { module = "org.xerial:sqlite-jdbc", version.ref = "sqlite" }
 postgresql = { module = "org.postgresql:postgresql", version.ref = "postgresql" }
 slf4j-api = { module = "org.slf4j:slf4j-api", version.ref = "slf4j" }
+vaultapi = { module = "com.github.MilkBowl:VaultAPI", version.ref = "vaultapi" }
 junit-bom = { module = "org.junit:junit-bom", version.ref = "junit" }
 junit-jupiter = { module = "org.junit.jupiter:junit-jupiter" }
 junit-platform-launcher = { module = "org.junit.platform:junit-platform-launcher" }

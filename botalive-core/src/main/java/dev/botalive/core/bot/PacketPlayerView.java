@@ -62,6 +62,16 @@ final class PacketPlayerView {
         Material offhand = offhandItem != null && mapper != null
                 ? mapper.materialOf(offhandItem.getId()) : null;
 
+        // Sloty brnění okna inventáře: 5 helma, 6 prsník, 7 kalhoty, 8 boty
+        // → Bukkit pořadí [boty, kalhoty, prsník, helma].
+        Material[] armor = new Material[4];
+        for (int i = 0; i < 4; i++) {
+            ItemStack piece = inventory.slot(5 + i);
+            if (piece != null && mapper != null) {
+                armor[3 - i] = mapper.materialOf(piece.getId());
+            }
+        }
+
         boolean inLava = false;
         if (world != null) {
             BlockTraits feet = world.traitsAt(position.toBlockPos());
@@ -69,7 +79,7 @@ final class PacketPlayerView {
         }
         return new ServerSideView.Snapshot(
                 new Location(null, position.x(), position.y(), position.z()),
-                hotbar, hotbarCounts, main, offhand,
+                hotbar, hotbarCounts, main, offhand, armor,
                 state.health(),
                 state.food(),
                 state.expLevel(),

@@ -344,11 +344,21 @@ public final class BotAliveCommand implements TabExecutor {
         for (Trait trait : Trait.values()) {
             double value = personality.trait(trait);
             int bars = (int) Math.round(value * 10);
-            sender.sendMessage(Component.text(" " + trait.name().toLowerCase() + " ",
+            var line = Component.text(" " + trait.name().toLowerCase() + " ",
                             NamedTextColor.GRAY)
                     .append(Component.text("█".repeat(bars), NamedTextColor.GREEN))
                     .append(Component.text("░".repeat(10 - bars), NamedTextColor.DARK_GRAY))
-                    .append(Component.text(" %.2f".formatted(value), NamedTextColor.WHITE)));
+                    .append(Component.text(" %.2f".formatted(value), NamedTextColor.WHITE));
+            // Vývoj osobnosti: ukázat drift vůči základu ze seedu.
+            if (personality instanceof dev.botalive.core.personality.PersonalityImpl impl) {
+                double drift = value - impl.baseTrait(trait);
+                if (Math.abs(drift) >= 0.03) {
+                    line = line.append(Component.text(
+                            " %s%.2f".formatted(drift > 0 ? "↗ +" : "↘ −", Math.abs(drift)),
+                            NamedTextColor.AQUA));
+                }
+            }
+            sender.sendMessage(line);
         }
     }
 
@@ -406,11 +416,23 @@ public final class BotAliveCommand implements TabExecutor {
             success(sender, "Vynucený cíl zrušen");
             return;
         }
-        // Přehled utility hodnot.
+        // Přehled utility hodnot + intent (co bot dělá vlastními slovy).
         Map<String, Double> utilities = bot.get() instanceof BotImpl impl
                 ? impl.utilitySnapshot() : Map.of();
         info(sender, "Cíle bota '" + bot.get().name() + "' (aktivní: "
                 + bot.get().snapshot().currentGoal() + "):");
+        if (bot.get() instanceof BotImpl impl) {
+            String intent = impl.explainCurrentGoal();
+            if (intent != null) {
+                sender.sendMessage(Component.text(" záměr: „" + intent + "“",
+                        NamedTextColor.AQUA));
+            }
+            String ambition = impl.ambitionLine();
+            if (ambition != null) {
+                sender.sendMessage(Component.text(" životní cíl: " + ambition,
+                        NamedTextColor.GOLD));
+            }
+        }
         utilities.entrySet().stream()
                 .sorted(Map.Entry.<String, Double>comparingByValue().reversed())
                 .forEach(entry -> sender.sendMessage(Component.text(

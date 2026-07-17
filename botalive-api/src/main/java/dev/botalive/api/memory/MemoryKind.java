@@ -50,5 +50,8 @@ public enum MemoryKind {
     ENCHANTING_TABLE,
 
     /** Ochočené zvíře bota (subjekt = UUID zvířete). */
-    PET
+    PET,
+
+    /** Životní ambice bota (dlouhodobý projekt; data {@code type}). */
+    AMBITION
 }

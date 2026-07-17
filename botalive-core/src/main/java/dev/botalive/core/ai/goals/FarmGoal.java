@@ -197,4 +197,9 @@ public final class FarmGoal extends AbstractGoal {
         }
         return best;
     }
+
+    @Override
+    public String explain(dev.botalive.api.bot.Bot bot) {
+        return "starám se o pole";
+    }
 }

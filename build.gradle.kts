@@ -27,6 +27,11 @@ subprojects {
         maven("https://repo.opencollab.dev/maven-snapshots/") {
             name = "opencollab-snapshots"
         }
+        maven("https://jitpack.io") {
+            name = "jitpack"
+            // Jen VaultAPI – ať JitPack nestíní ostatní závislosti.
+            content { includeGroup("com.github.MilkBowl") }
+        }
     }
 
     extensions.configure<JavaPluginExtension> {

@@ -55,7 +55,10 @@ public final class ConfigLoader {
                 Math.max(1, c.getInt("ai.decision-interval-ticks", 5)),
                 c.getDouble("ai.goal-hysteresis", 1.15),
                 c.getInt("ai.view-distance-blocks", 32),
-                c.getString("ai.difficulty", "normal")
+                c.getString("ai.difficulty", "normal"),
+                c.getBoolean("ai.terraforming", true),
+                c.getBoolean("ai.daily-rhythm", true),
+                c.getBoolean("ai.desperation", true)
         );
 
         var chat = new BotAliveConfig.Chat(
@@ -76,7 +79,8 @@ public final class ConfigLoader {
 
         var economy = new BotAliveConfig.Economy(
                 c.getBoolean("economy.enabled", true),
-                c.getDouble("economy.starting-balance", 100.0)
+                c.getDouble("economy.starting-balance", 100.0),
+                c.getBoolean("economy.vault", true)
         );
 
         var worlds = new BotAliveConfig.Worlds(

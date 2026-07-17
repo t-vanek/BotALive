@@ -48,6 +48,7 @@ public final class ServerSideView {
             int[] hotbarCounts,
             Material[] mainInventory,
             Material offhand,
+            Material[] armor,
             double health,
             int foodLevel,
             int expLevel,
@@ -164,12 +165,19 @@ public final class ServerSideView {
                 main[i] = item.getType();
             }
         }
+        Material[] armor = new Material[4];
+        ItemStack[] worn = inventory.getArmorContents(); // boty, kalhoty, prsník, helma
+        for (int i = 0; i < 4 && i < worn.length; i++) {
+            if (worn[i] != null && !worn[i].getType().isAir()) {
+                armor[i] = worn[i].getType();
+            }
+        }
         Material feet = player.getLocation().getBlock().getType();
         ItemStack offhandItem = inventory.getItemInOffHand();
         Material offhand = offhandItem.getType().isAir() ? null : offhandItem.getType();
         return new Snapshot(
                 player.getLocation().clone(),
-                hotbar, hotbarCounts, main, offhand,
+                hotbar, hotbarCounts, main, offhand, armor,
                 player.getHealth(),
                 player.getFoodLevel(),
                 player.getLevel(),

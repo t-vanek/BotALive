@@ -3,6 +3,7 @@ package dev.botalive.core.bootstrap;
 import dev.botalive.api.BotAliveApi;
 import dev.botalive.api.BotAliveProvider;
 import dev.botalive.core.ai.GoalRegistryImpl;
+import dev.botalive.core.ai.goals.BuildHouseGoal;
 import dev.botalive.core.ai.goals.BuildShelterGoal;
 import dev.botalive.core.ai.goals.CollectItemsGoal;
 import dev.botalive.core.ai.goals.CombatGoal;
@@ -152,9 +153,11 @@ public final class CompositionRoot {
         }
 
         // Boti.
+        dev.botalive.core.social.CrimeLog crimeLog = container.register(
+                dev.botalive.core.social.CrimeLog.class, new dev.botalive.core.social.CrimeLog());
         BotImpl.SharedServices services = new BotImpl.SharedServices(
                 config, worldViews, bridge, tickEngine, navigation, repository,
-                phrases, stateMapper, itemMapper);
+                phrases, stateMapper, itemMapper, crimeLog);
         BotManagerImpl botManager = container.register(BotManagerImpl.class,
                 new BotManagerImpl(config, repository, goalRegistry, services));
         pvp.attach(botManager);
@@ -185,17 +188,22 @@ public final class CompositionRoot {
         registry.register("explore", bot -> new ExploreGoal());
         registry.register("eat", bot -> new EatGoal());
         registry.register("survive", bot -> new SurviveGoal());
+        registry.register("creeper-dodge", bot -> new dev.botalive.core.ai.goals.CreeperDodgeGoal());
         registry.register("combat", bot -> new CombatGoal());
         registry.register("collect", bot -> new CollectItemsGoal());
         registry.register("socialize", bot -> new SocializeGoal());
+        registry.register("share", bot -> new dev.botalive.core.ai.goals.ShareGoal());
         registry.register("mine", bot -> new MineGoal());
         registry.register("home", bot -> new ReturnHomeGoal());
         registry.register("shelter", bot -> new BuildShelterGoal());
+        registry.register("house", bot -> new BuildHouseGoal());
         registry.register("follow", bot -> new FollowPlayerGoal());
         registry.register("craft", bot -> new CraftGoal(crafting));
         registry.register("farm", bot -> new FarmGoal());
         registry.register("sleep", bot -> new SleepGoal());
         registry.register("stash", bot -> new StashGoal(containers));
+        registry.register("steal", bot -> new dev.botalive.core.ai.goals.StealGoal(containers));
+        registry.register("rob", bot -> new dev.botalive.core.ai.goals.RobGoal(pvp));
         registry.register("boat", bot -> new BoatRideGoal());
         registry.register("minecart", bot -> new MinecartRideGoal());
         registry.register("trade", bot -> new TradeGoal(trades));

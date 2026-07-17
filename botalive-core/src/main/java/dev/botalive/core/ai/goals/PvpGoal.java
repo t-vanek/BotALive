@@ -193,6 +193,9 @@ public final class PvpGoal extends AbstractGoal {
         if (targetGone && !announced) {
             announced = true;
             ctx.stats().addKill();
+            // Vítězství formuje povahu: odvaha a chuť do soubojů rostou.
+            ctx.gainExperience(dev.botalive.core.personality.PersonalityEvolution
+                    .BotExperience.PVP_KILL);
             if (ctx.rng().chance(0.4)) {
                 ctx.chat().sayFrom(PhraseCategory.PVP_TAUNTS, null);
             }

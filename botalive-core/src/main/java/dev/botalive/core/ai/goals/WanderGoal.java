@@ -70,4 +70,9 @@ public final class WanderGoal extends AbstractGoal {
         }
         return null;
     }
+
+    @Override
+    public String explain(dev.botalive.api.bot.Bot bot) {
+        return "jen se tak procházím";
+    }
 }

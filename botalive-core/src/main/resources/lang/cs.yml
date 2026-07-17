@@ -16,6 +16,12 @@
 patterns:
   greeting: '\b(ahoj|ahojky|čau|cau|čauky|čus|nazdar|zdar|dobrej|hi|hello|hey)\b'
   thanks: '\b(díky|dík|diky|dikec|thx|thanks|dekuju|děkuju|děkuji)\b'
+  what-doing: 'co\s+(teď\s+|ted\s+|to\s+)?(děláš|delas|děláte|delate|robíš|robis)|čím\s+se\s+zabýváš|cim\s+se\s+zabyvas'
+  where-are-you: 'kde\s+(jsi|ses|seš|jseš)|kde\s+tě\s+najdu|kde\s+te\s+najdu'
+  what-have: 'co\s+(máš|mas)(\s+u\s+sebe|\s+v\s+batohu|\s+s\s+sebou)?|co\s+neseš|co\s+nesete'
+  where-village: 'kde\s+je\s+(nejbližší\s+|nejblizsi\s+)?vesnice|nevíš\s+o\s+vesnici|nevis\s+o\s+vesnici'
+  come-here: 'pojď\s+(sem|ke\s+mně|za\s+mnou)|pod\s+(sem|za\s+mnou|ke\s+mne)|následuj\s+mě|nasleduj\s+me'
+  give-food: 'dej\s+mi\s+(něco\s+k\s+jídlu|neco\s+k\s+jidlu|jídlo|jidlo|najíst|najist)|hoď\s+mi\s+(jídlo|jidlo|žrádlo|zradlo)'
 
 phrases:
   greetings:

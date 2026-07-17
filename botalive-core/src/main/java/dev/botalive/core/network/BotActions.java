@@ -175,6 +175,14 @@ public final class BotActions {
     }
 
     /**
+     * Prohodí držený item s offhandem (klávesa F) – např. štít do druhé ruky.
+     */
+    public void swapOffhand() {
+        connection.send(new ServerboundPlayerActionPacket(PlayerAction.SWAP_HANDS,
+                Vector3i.from(0, 0, 0), Direction.DOWN, state.nextSequence()));
+    }
+
+    /**
      * Požádá o respawn po smrti.
      */
     public void respawn() {

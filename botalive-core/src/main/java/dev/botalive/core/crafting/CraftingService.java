@@ -75,21 +75,28 @@ public final class CraftingService implements dev.botalive.core.station.Crafting
      * @return plán, nebo {@code null} když nic nedává smysl
      */
     public static CraftPlanner.Plan nextPlan(PlayerInventory inventory) {
-        int cobbleStd = count(inventory, Material.COBBLESTONE);
-        return CraftPlanner.next(new CraftPlanner.State(
-                countMatching(inventory, m -> Tag.LOGS.isTagged(m)),
-                countMatching(inventory, m -> Tag.PLANKS.isTagged(m)),
-                count(inventory, Material.STICK),
-                cobbleStd + count(inventory, Material.COBBLED_DEEPSLATE),
-                inventory.contains(Material.CRAFTING_TABLE),
-                containsTool(inventory, "_PICKAXE"),
-                inventory.contains(Material.STONE_PICKAXE) || betterPickaxe(inventory),
-                containsTool(inventory, "_SWORD"),
-                inventory.contains(Material.STONE_SWORD),
-                containsAxe(inventory),
+        Map<Material, Integer> items = new java.util.HashMap<>();
+        for (ItemStack item : inventory.getStorageContents()) {
+            if (item != null && !item.getType().isAir()) {
+                items.merge(item.getType(), item.getAmount(), Integer::sum);
+            }
+        }
+        int cobbleStd = items.getOrDefault(Material.COBBLESTONE, 0);
+        return CraftPlanner.next(new CraftPlanner.State(items,
                 firstMatching(inventory, m -> Tag.LOGS.isTagged(m)),
                 firstMatching(inventory, m -> Tag.PLANKS.isTagged(m)),
-                cobbleStd >= 3 ? Material.COBBLESTONE : Material.COBBLED_DEEPSLATE));
+                cobbleStd >= 3 ? Material.COBBLESTONE : Material.COBBLED_DEEPSLATE,
+                firstMatching(inventory, m -> m.name().endsWith("_WOOL"))));
+    }
+
+    private static boolean containsMatching(PlayerInventory inventory,
+                                            java.util.function.Predicate<Material> predicate) {
+        for (ItemStack item : inventory.getStorageContents()) {
+            if (item != null && predicate.test(item.getType())) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** Provede plán: ověří suroviny (+ ponk), spotřebuje a vloží výsledek. */

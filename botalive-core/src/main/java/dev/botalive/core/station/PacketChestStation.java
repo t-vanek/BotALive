@@ -26,6 +26,14 @@ public final class PacketChestStation implements ChestStation {
     private static final int KEEP_BUILDING_BLOCKS = 32;
 
     @Override
+    public CompletableFuture<Integer> withdrawSupplies(BotContext ctx, String worldName,
+                                                       BlockPos chestPos, boolean includeGear) {
+        // Paketový režim (cizí server) nouzový výběr zatím neumí – kliky
+        // container→inventář se přidají později; bot na cizím serveru nekrade.
+        return CompletableFuture.completedFuture(0);
+    }
+
+    @Override
     public CompletableFuture<Integer> depositJunk(BotContext ctx, String worldName,
                                                   BlockPos chestPos) {
         return StationFlow.run("stash-" + ctx.bot().name(), 0, () -> {

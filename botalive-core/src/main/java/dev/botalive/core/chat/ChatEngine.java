@@ -14,6 +14,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 /**
  * Konverzační engine jednoho bota.
@@ -43,6 +44,8 @@ public final class ChatEngine {
     private final BotAliveConfig.Chat config;
     private final PhraseBank phrases;
     private final Consumer<String> sender;
+    /** Napojení na stav bota (intent, poloha, inventář, prosby); může být null. */
+    private final ChatContext botContext;
 
     /** Příchozí zprávy ze síťového vlákna. */
     private final Queue<Inbound> inbox = new ConcurrentLinkedQueue<>();
@@ -73,16 +76,18 @@ public final class ChatEngine {
      * @param config      konfigurace chatu
      * @param phrases     banka frází zvoleného jazyka (sdílená všemi boty)
      * @param sender      callback pro fyzické odeslání zprávy (přes BotChatEvent)
+     * @param botContext  napojení na stav bota (intent, poloha, prosby; může být null)
      */
     public ChatEngine(String botName, Personality personality, BotRandom rng,
                       BotAliveConfig.Chat config, PhraseBank phrases,
-                      Consumer<String> sender) {
+                      Consumer<String> sender, ChatContext botContext) {
         this.botName = botName;
         this.personality = personality;
         this.rng = rng;
         this.config = config;
         this.phrases = phrases;
         this.sender = sender;
+        this.botContext = botContext;
         this.style = ChatStyle.derive(personality, rng, config.wordsPerMinute());
         this.typos = new TypoEngine(rng);
     }
@@ -188,6 +193,14 @@ public final class ChatEngine {
         String content = inbound.content;
         String name = inbound.senderName;
 
+        // Věcné otázky a prosby → odpovědi ze skutečného stavu bota.
+        if (botContext != null) {
+            String informed = informedReply(inbound, content, name);
+            if (informed != null) {
+                return informed;
+            }
+        }
+
         PhraseCategory category;
         if (phrases.isGreeting(content)) {
             category = PhraseCategory.GREETINGS;
@@ -207,6 +220,34 @@ public final class ChatEngine {
             category = rng.chance(0.5) ? PhraseCategory.AGREEMENT : PhraseCategory.CONFUSED;
         }
         return phrases.pick(category, rng, name);
+    }
+
+    /** Odpověď na věcnou otázku/prosbu ze stavu bota, nebo {@code null}. */
+    private String informedReply(Inbound inbound, String content, String name) {
+        if (phrases.matches("what-doing", content)) {
+            String activity = botContext.describeActivity();
+            return activity != null && !activity.isBlank()
+                    ? activity : phrases.pick(PhraseCategory.IDLE_CHATTER, rng, name);
+        }
+        if (phrases.matches("where-village", content)) {
+            String village = botContext.describeVillage();
+            return village != null ? village : "o zadne vesnici nevim";
+        }
+        if (phrases.matches("where-are-you", content)) {
+            return botContext.describeLocation();
+        }
+        if (phrases.matches("what-have", content)) {
+            return botContext.describeInventory();
+        }
+        if (phrases.matches("come-here", content)) {
+            return botContext.followRequest(inbound.sender)
+                    ? "jasne, jdu za tebou" : "ted fakt nemuzu";
+        }
+        if (phrases.matches("give-food", content)) {
+            return botContext.giveFoodRequest(inbound.sender)
+                    ? "na, chytej" : "nemam nic navic, sorry";
+        }
+        return null;
     }
 
     /** Zařadí zprávu do odchozí fronty: aplikuje styl, překlepy a případnou opravu. */

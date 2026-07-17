@@ -84,6 +84,10 @@ public final class SmeltGoal extends AbstractGoal {
         switch (phase) {
             case FIND -> {
                 furnace = collecting ? pendingFurnace : findFurnace(ctx, bot);
+                if (furnace == null && !collecting) {
+                    // Pec nikde – bot si vlastní vyrobenou postaví vedle sebe.
+                    furnace = placeOwnStation(ctx, org.bukkit.Material.FURNACE);
+                }
                 if (furnace == null) {
                     if (collecting) {
                         pendingFurnace = null; // pec zmizela z evidence
@@ -229,5 +233,10 @@ public final class SmeltGoal extends AbstractGoal {
     private static boolean isFurnaceBlock(Material material) {
         return material == Material.FURNACE || material == Material.BLAST_FURNACE
                 || material == Material.SMOKER;
+    }
+
+    @Override
+    public String explain(dev.botalive.api.bot.Bot bot) {
+        return "tavím rudu v peci";
     }
 }

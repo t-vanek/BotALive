@@ -127,8 +127,11 @@ public final class PhraseBankLoader {
                     ? List.of() : phrases.getStringList(category.key());
             lists.put(category, list); // úplnost vynutí konstruktor PhraseBank
         }
-        return new PhraseBank(lists,
-                requirePattern(root, "greeting"), requirePattern(root, "thanks"));
+        java.util.Map<String, Pattern> patterns = new java.util.LinkedHashMap<>();
+        for (String key : PhraseBank.PATTERN_KEYS) {
+            patterns.put(key, requirePattern(root, key));
+        }
+        return new PhraseBank(lists, patterns);
     }
 
     /** Překryje fallback banku hodnotami definovanými v {@code root}. */
@@ -141,9 +144,11 @@ public final class PhraseBankLoader {
                     ? List.of() : phrases.getStringList(category.key());
             lists.put(category, list.isEmpty() ? fallback.list(category) : list);
         }
-        return new PhraseBank(lists,
-                overlayPattern(root, "greeting", fallback.greeting(), sourceName),
-                overlayPattern(root, "thanks", fallback.thanks(), sourceName));
+        java.util.Map<String, Pattern> patterns = new java.util.LinkedHashMap<>();
+        for (String key : PhraseBank.PATTERN_KEYS) {
+            patterns.put(key, overlayPattern(root, key, fallback.pattern(key), sourceName));
+        }
+        return new PhraseBank(lists, patterns);
     }
 
     /** Vzor z vrstvy, při absenci/chybě vzor z fallbacku. */

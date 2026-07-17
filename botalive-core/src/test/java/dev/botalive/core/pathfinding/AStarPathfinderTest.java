@@ -32,6 +32,25 @@ class AStarPathfinderTest {
     }
 
     @Test
+    void vyhybaSeMistuSmrti() {
+        FakeWorldView world = new FakeWorldView(FLOOR);
+        BlockPos danger = new BlockPos(3, FEET, 0); // tady bot minule zemřel
+        Path avoided = new AStarPathfinder(world, java.util.List.of(danger))
+                .findPath(new BlockPos(0, FEET, 0), new BlockPos(8, FEET, 0), 0);
+
+        assertTrue(avoided.complete(), "cesta má dorazit i s obchůzkou");
+        // Obchůzka: žádný waypoint v těsné blízkosti místa smrti.
+        boolean tooClose = avoided.waypoints().stream()
+                .anyMatch(p -> p.distanceSquared(danger) <= 2 * 2);
+        assertFalse(tooClose, "cesta má místo smrti obejít: " + avoided.waypoints());
+        // Bez vzpomínky vede přímo (kontrola, že penalizace je příčinou obchůzky).
+        Path direct = new AStarPathfinder(world)
+                .findPath(new BlockPos(0, FEET, 0), new BlockPos(8, FEET, 0), 0);
+        assertTrue(direct.waypoints().stream().anyMatch(p -> p.distanceSquared(danger) <= 1),
+                "bez vzpomínky se čekala přímá cesta přes dané místo");
+    }
+
+    @Test
     void prekonaZedVyskyJedna() {
         FakeWorldView world = new FakeWorldView(FLOOR);
         // Zeď výšky 1 napříč cestou (x=3, celý rozsah z).

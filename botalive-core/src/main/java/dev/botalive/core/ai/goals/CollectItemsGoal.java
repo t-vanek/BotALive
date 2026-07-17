@@ -59,4 +59,9 @@ public final class CollectItemsGoal extends AbstractGoal {
     public boolean finished(Bot bot) {
         return emptyTicks > 20;
     }
+
+    @Override
+    public String explain(dev.botalive.api.bot.Bot bot) {
+        return "sbírám věci ze země";
+    }
 }

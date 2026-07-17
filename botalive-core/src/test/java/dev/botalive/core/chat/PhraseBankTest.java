@@ -56,6 +56,29 @@ class PhraseBankTest {
     }
 
     @Test
+    void rozpoznavaniOtazkyCoDelas() {
+        PhraseBank bank = PhraseBankLoader.builtIn();
+        assertTrue(bank.isAskingActivity("co děláš?"));
+        assertTrue(bank.isAskingActivity("co delas"));
+        assertTrue(bank.isAskingActivity("Pepo co teď děláš?"));
+        assertTrue(bank.isAskingActivity("čím se zabýváš"));
+        assertFalse(bank.isAskingActivity("co je to za blok"));
+        assertFalse(bank.isAskingActivity("ahoj"));
+    }
+
+    @Test
+    void rozpoznavaniVecnychOtazek() {
+        PhraseBank bank = PhraseBankLoader.builtIn();
+        assertTrue(bank.matches("where-are-you", "Pepo kde jsi?"));
+        assertTrue(bank.matches("what-have", "co máš u sebe"));
+        assertTrue(bank.matches("where-village", "kde je nejbližší vesnice?"));
+        assertTrue(bank.matches("come-here", "pojď za mnou"));
+        assertTrue(bank.matches("give-food", "dej mi něco k jídlu"));
+        assertFalse(bank.matches("give-food", "kde jsi"));
+        assertFalse(bank.matches("come-here", "co děláš"));
+    }
+
+    @Test
     void uzivatelskySouborPrepisujeJenDefinovaneKategorie() throws Exception {
         writeLang("cs", """
                 phrases:

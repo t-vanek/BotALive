@@ -38,6 +38,10 @@ public final class ContainerService implements dev.botalive.core.station.ChestSt
     /** Kolik kusů stavebního materiálu si bot nechává na stavění/crafting. */
     private static final int KEEP_BUILDING_BLOCKS = 32;
 
+    /** Stropy nouzového výběru: bot krade jen to, co teď potřebuje. */
+    private static final int STEAL_FOOD_LIMIT = 8;
+    private static final int STEAL_BLOCK_LIMIT = 16;
+
     private final MainThreadBridge bridge;
 
     /**
@@ -113,6 +117,85 @@ public final class ContainerService implements dev.botalive.core.station.ChestSt
                 }
             }
             return moved;
+        }).exceptionally(t -> 0);
+    }
+
+    @Override
+    public CompletableFuture<Integer> withdrawSupplies(dev.botalive.core.ai.BotContext ctx,
+                                                       String worldName, BlockPos chestPos,
+                                                       boolean includeGear) {
+        UUID botId = ctx.bot().id();
+        World world = Bukkit.getWorld(worldName);
+        Player player = Bukkit.getPlayer(botId);
+        if (world == null || player == null) {
+            return CompletableFuture.completedFuture(0);
+        }
+        Location location = new Location(world, chestPos.x(), chestPos.y(), chestPos.z());
+        return bridge.callAt(location, () -> {
+            if (player.getLocation().distanceSquared(location) > 6 * 6) {
+                return 0; // bot mezitím odešel – nesahat na cizí region
+            }
+            if (!(world.getBlockAt(chestPos.x(), chestPos.y(), chestPos.z())
+                    .getState() instanceof Container container)) {
+                return 0;
+            }
+            Inventory chest = container.getInventory();
+            var playerInventory = player.getInventory();
+            int taken = 0;
+            int foodTaken = 0;
+            boolean toolTaken = false;
+            int blocksTaken = 0;
+
+            for (int slot = 0; slot < chest.getSize(); slot++) {
+                ItemStack stack = chest.getItem(slot);
+                if (stack == null) {
+                    continue;
+                }
+                Material material = stack.getType();
+                boolean want = false;
+                int wantCount = 0;
+                if (InventoryHelper.isFood(material) && foodTaken < STEAL_FOOD_LIMIT) {
+                    want = true;
+                    wantCount = Math.min(stack.getAmount(), STEAL_FOOD_LIMIT - foodTaken);
+                } else if (includeGear && !toolTaken
+                        && (InventoryHelper.isTool(material, InventoryHelper.ToolType.PICKAXE)
+                        || InventoryHelper.isTool(material, InventoryHelper.ToolType.AXE))) {
+                    want = true;
+                    wantCount = 1;
+                } else if (includeGear && blocksTaken < STEAL_BLOCK_LIMIT
+                        && (InventoryHelper.isBuildingBlock(material)
+                        || material.name().endsWith("_LOG"))) {
+                    want = true;
+                    wantCount = Math.min(stack.getAmount(), STEAL_BLOCK_LIMIT - blocksTaken);
+                }
+                if (!want || wantCount <= 0) {
+                    continue;
+                }
+                ItemStack take = stack.clone();
+                take.setAmount(wantCount);
+                var leftover = playerInventory.addItem(take);
+                int moved = wantCount - leftover.values().stream()
+                        .mapToInt(ItemStack::getAmount).sum();
+                if (moved <= 0) {
+                    break; // plný inventář bota
+                }
+                if (moved >= stack.getAmount()) {
+                    chest.setItem(slot, null);
+                } else {
+                    stack.setAmount(stack.getAmount() - moved);
+                    chest.setItem(slot, stack);
+                }
+                taken += moved;
+                if (InventoryHelper.isFood(material)) {
+                    foodTaken += moved;
+                } else if (wantCount == 1 && moved >= 1
+                        && !InventoryHelper.isBuildingBlock(material)) {
+                    toolTaken = true;
+                } else {
+                    blocksTaken += moved;
+                }
+            }
+            return taken;
         }).exceptionally(t -> 0);
     }
 }

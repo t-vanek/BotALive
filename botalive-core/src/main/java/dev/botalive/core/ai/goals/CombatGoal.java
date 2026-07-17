@@ -150,4 +150,9 @@ public final class CombatGoal extends AbstractGoal {
                         .noneMatch(r -> r.kind() == MemoryKind.PET))
                 .findFirst();
     }
+
+    @Override
+    public String explain(dev.botalive.api.bot.Bot bot) {
+        return "bojuju o život!";
+    }
 }

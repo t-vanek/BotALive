@@ -26,6 +26,11 @@ dependencies {
     api(project(":botalive-api"))
 
     compileOnly(libs.paper.api)
+    // Vault (ekonomika) je volitelná runtime závislost (softdepend) – třídy
+    // dodává plugin Vault, my proti API jen kompilujeme.
+    compileOnly(libs.vaultapi) {
+        exclude(group = "org.bukkit", module = "bukkit")
+    }
 
     implementation(libs.mcprotocollib) {
         // Server poskytuje vlastní (novější) Adventure a Gson – nebundlovat.
@@ -56,6 +61,9 @@ dependencies {
     testRuntimeOnly(libs.junit.platform.launcher)
     // Testy potřebují Paper typy (Material, BlockData) na classpath.
     testImplementation(libs.paper.api)
+    testImplementation(libs.vaultapi) {
+        exclude(group = "org.bukkit", module = "bukkit")
+    }
 }
 
 tasks.named<ShadowJar>("shadowJar") {

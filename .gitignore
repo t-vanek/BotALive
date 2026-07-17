@@ -1,6 +1,8 @@
-# Gradle
+# Gradle (jen výstupy buildů, ne zdrojové balíčky pojmenované "build")
 .gradle/
-build/
+/build/
+botalive-api/build/
+botalive-core/build/
 
 # IDE
 .idea/

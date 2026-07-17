@@ -87,4 +87,9 @@ public final class ReturnHomeGoal extends AbstractGoal {
         // U domova chvíli poklimbat, pak pustit rozhodování dál.
         return restTicks > 200;
     }
+
+    @Override
+    public String explain(dev.botalive.api.bot.Bot bot) {
+        return "vracím se domů";
+    }
 }
