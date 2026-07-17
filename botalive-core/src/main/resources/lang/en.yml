@@ -17,6 +17,12 @@
 patterns:
   greeting: '\b(hi|hello|hey|heya|hiya|yo|sup|howdy)\b'
   thanks: '\b(thanks|thank you|thx|ty|cheers|thankyou)\b'
+  what-doing: 'what\s+(are\s+you|r\s+u|ya)\s+(doing|up\s+to)|whatcha\s+doin|wyd\b'
+  where-are-you: 'where\s+(are\s+you|r\s+u|you\s+at)|where\s+can\s+i\s+find\s+you'
+  what-have: 'what\s+(do\s+you|u)\s+(have|got)|what\s+are\s+you\s+carrying|inv\?'
+  where-village: 'where\s+is\s+(the\s+|a\s+)?(nearest\s+)?village|know\s+a\s+village'
+  come-here: 'come\s+(here|to\s+me|with\s+me)|follow\s+me'
+  give-food: 'give\s+me\s+(some\s+)?food|got\s+(any\s+)?food|feed\s+me|toss\s+me\s+food'
 
 phrases:
   greetings:

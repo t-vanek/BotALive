@@ -161,4 +161,9 @@ public final class SleepGoal extends AbstractGoal {
         }
         return null;
     }
+
+    @Override
+    public String explain(dev.botalive.api.bot.Bot bot) {
+        return "je noc, jdu spát";
+    }
 }

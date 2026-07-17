@@ -41,13 +41,31 @@ public final class AStarPathfinder {
     /** Maximální bezpečná výška seskoku (bez poškození stojí za to). */
     private static final int MAX_DROP = 3;
 
+    /** Ceny za blízkost místa, kde bot zemřel / poznal nebezpečí. */
+    private static final int COST_DANGER_NEAR = 80;
+    private static final int COST_DANGER = 30;
+    private static final int DANGER_NEAR_SQ = 3 * 3;
+    private static final int DANGER_FAR_SQ = 6 * 6;
+
     private final WorldView world;
+    private final java.util.List<BlockPos> dangers;
 
     /**
      * @param world pohled na svět (thread-safe)
      */
     public AStarPathfinder(WorldView world) {
+        this(world, java.util.List.of());
+    }
+
+    /**
+     * @param world   pohled na svět (thread-safe)
+     * @param dangers místa špatných vzpomínek (smrti, nebezpečí) – cesta se
+     *                jim vyhýbá, existuje-li rozumná obchůzka; průchod se
+     *                zdražuje, nezakazuje (bot nesmí uvíznout)
+     */
+    public AStarPathfinder(WorldView world, java.util.List<BlockPos> dangers) {
         this.world = world;
+        this.dangers = dangers == null ? java.util.List.of() : dangers;
     }
 
     /**
@@ -168,7 +186,7 @@ public final class AStarPathfinder {
     private void tryAdd(Node parent, BlockPos pos, int moveCost, BlockPos goal,
                         PriorityQueue<Node> open, Long2ObjectOpenHashMap<Node> visited) {
         long key = pos.asLong();
-        int g = parent.g + moveCost;
+        int g = parent.g + moveCost + dangerPenalty(pos);
         Node existing = visited.get(key);
         if (existing != null && existing.g <= g) {
             return;
@@ -176,6 +194,23 @@ public final class AStarPathfinder {
         Node node = new Node(pos, parent, g, heuristic(pos, goal));
         visited.put(key, node);
         open.add(node);
+    }
+
+    /** Přirážka za krok poblíž špatné vzpomínky (smrt, nebezpečí). */
+    private int dangerPenalty(BlockPos pos) {
+        if (dangers.isEmpty()) {
+            return 0;
+        }
+        int penalty = 0;
+        for (BlockPos danger : dangers) {
+            double distSq = pos.distanceSquared(danger);
+            if (distSq <= DANGER_NEAR_SQ) {
+                penalty += COST_DANGER_NEAR;
+            } else if (distSq <= DANGER_FAR_SQ) {
+                penalty += COST_DANGER;
+            }
+        }
+        return penalty;
     }
 
     /** Oktilová heuristika (konzistentní pro 8-směrový pohyb). */

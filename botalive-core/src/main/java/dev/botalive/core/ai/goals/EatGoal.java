@@ -78,4 +78,9 @@ public final class EatGoal extends AbstractGoal {
     public boolean finished(Bot bot) {
         return phase == Phase.DONE;
     }
+
+    @Override
+    public String explain(dev.botalive.api.bot.Bot bot) {
+        return "mám hlad, dávám si něco k jídlu";
+    }
 }

@@ -109,9 +109,16 @@ public record BotAliveConfig(
      * @param goalHysteresis        bonus aktivního cíle proti kmitání (1.15 = +15 %)
      * @param viewDistanceBlocks    dohled botů na entity (bloky)
      * @param difficulty            easy|normal|hard|nightmare – škáluje reakce a přesnost
+     * @param terraforming          smí boti měnit terén (razit štoly za rudou, upravovat
+     *                              staveniště domů); false = jen povrchová těžba
+     * @param dailyRhythm           denní rytmus: ráno pole, přes den těžba/stavba,
+     *                              večer družení, v noci domů (jemné násobiče utility)
+     * @param desperation           nouzové chování: hladový bot bez prostředků krade
+     *                              z truhel a v krajní nouzi přepadá (jen v mezích pvp.*)
      */
     public record Ai(int decisionIntervalTicks, double goalHysteresis,
-                     int viewDistanceBlocks, String difficulty) {
+                     int viewDistanceBlocks, String difficulty, boolean terraforming,
+                     boolean dailyRhythm, boolean desperation) {
     }
 
     /**
@@ -142,12 +149,14 @@ public record BotAliveConfig(
     }
 
     /**
-     * Vnitřní ekonomika.
+     * Ekonomika botů.
      *
      * @param enabled         zapnuto/vypnuto
      * @param startingBalance počáteční zůstatek nového bota
+     * @param vault           použít serverovou ekonomiku přes Vault, je-li dostupná
+     *                        (jinak interní peněženka v databázi)
      */
-    public record Economy(boolean enabled, double startingBalance) {
+    public record Economy(boolean enabled, double startingBalance, boolean vault) {
     }
 
     /**

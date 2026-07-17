@@ -239,4 +239,9 @@ public final class FishGoal extends AbstractGoal {
         }
         return null;
     }
+
+    @Override
+    public String explain(dev.botalive.api.bot.Bot bot) {
+        return "rybařím, snad něco zabere";
+    }
 }

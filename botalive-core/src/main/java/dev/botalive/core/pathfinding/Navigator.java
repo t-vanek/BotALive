@@ -37,6 +37,8 @@ public final class Navigator {
     private final BotActions actions;
     private final BotRandom rng;
     private final Personality personality;
+    /** Dodavatel míst špatných vzpomínek (smrti/nebezpečí) – učení z chyb. */
+    private java.util.function.Supplier<java.util.List<BlockPos>> dangerSupplier;
 
     private WorldView world;
     private Path path;
@@ -47,6 +49,11 @@ public final class Navigator {
     private Vec3 lastProgressPos = Vec3.ZERO;
     private int ticksWithoutProgress;
     private int repathAttempts;
+
+    /** Kolikrát smí bot cestu „odblokovat" zásahem do terénu, než to vzdá. */
+    private static final int MAX_ASSIST_CYCLES = 10;
+    private boolean assistNeeded;
+    private int assistCycles;
 
     /**
      * @param service     asynchronní pathfinding
@@ -72,6 +79,16 @@ public final class Navigator {
     }
 
     /**
+     * Nastaví zdroj špatných vzpomínek (paměť DEATH/DANGER aktuálního světa);
+     * cesty se jim pak vyhýbají – bot se učí z vlastních chyb.
+     *
+     * @param supplier dodavatel míst (může vracet prázdný seznam)
+     */
+    public void dangerSupplier(java.util.function.Supplier<java.util.List<BlockPos>> supplier) {
+        this.dangerSupplier = supplier;
+    }
+
+    /**
      * Zahájí navigaci k cíli. Výpočet je asynchronní; do té doby bot stojí
      * (nebo dokončuje předchozí cestu, pokud vede stejným směrem).
      *
@@ -82,11 +99,13 @@ public final class Navigator {
         if (world == null) {
             return;
         }
-        if (to.equals(destination) && (hasPath() || pendingPath != null)) {
-            return; // už tam jdeme
+        if (to.equals(destination) && (hasPath() || pendingPath != null || assistNeeded)) {
+            return; // už tam jdeme (nebo čekáme na odblokování terénu)
         }
         destination = to;
         repathAttempts = 0;
+        assistNeeded = false;
+        assistCycles = 0;
         requestPath(from);
     }
 
@@ -97,6 +116,35 @@ public final class Navigator {
         destination = null;
         pendingPath = null;
         ticksWithoutProgress = 0;
+        assistNeeded = false;
+        assistCycles = 0;
+    }
+
+    /**
+     * @return {@code true} když navigace narazila (nedosažitelný cíl nebo tvrdé
+     *         zaseknutí) a čeká na zásah do terénu – prokopání/přemostění
+     */
+    public boolean needsAssist() {
+        return assistNeeded;
+    }
+
+    /**
+     * Zásah do terénu proběhl – zkusit cestu znovu.
+     *
+     * @param from aktuální pozice bota
+     */
+    public void assistResolved(Vec3 from) {
+        assistNeeded = false;
+        assistCycles++;
+        repathAttempts = 0;
+        path = null;
+        requestPath(from);
+    }
+
+    /** Zásah do terénu není možný – navigaci vzdát (cíl si vybere jinak). */
+    public void assistFailed() {
+        assistNeeded = false;
+        stop();
     }
 
     /** @return {@code true} pokud má bot rozpracovanou cestu */
@@ -122,6 +170,10 @@ public final class Navigator {
      * @return pohybový vstup pro fyziku (IDLE pokud není kam jít)
      */
     public MoveInput tick(Vec3 position, boolean onGround) {
+        // Během čekání na zásah do terénu bot stojí.
+        if (assistNeeded) {
+            return MoveInput.IDLE;
+        }
         // Vyzvednout dopočítanou cestu.
         if (pendingPath != null && pendingPath.isDone()) {
             Path computed = pendingPath.join();
@@ -130,7 +182,12 @@ public final class Navigator {
                 path = computed;
                 waypointIndex = 0;
             } else if (destination != null) {
-                stop(); // cíl je nedosažitelný
+                // Cíl je pěšky nedosažitelný – šance na odblokování terénu.
+                if (assistCycles < MAX_ASSIST_CYCLES) {
+                    assistNeeded = true;
+                    return MoveInput.IDLE;
+                }
+                stop();
             }
         }
         if (!hasPath()) {
@@ -198,6 +255,10 @@ public final class Navigator {
             repathAttempts++;
             path = null;
             requestPath(position);
+        } else if (destination != null && assistCycles < MAX_ASSIST_CYCLES) {
+            // Replany nepomohly – překážka chce zásah (prokopat/přemostit).
+            assistNeeded = true;
+            path = null;
         } else {
             stop(); // vzdáváme to – cíl si vybere něco jiného
         }
@@ -207,6 +268,8 @@ public final class Navigator {
         if (world == null || destination == null) {
             return;
         }
-        pendingPath = service.findPath(world, from.toBlockPos(), destination, 0);
+        java.util.List<BlockPos> dangers = dangerSupplier != null
+                ? dangerSupplier.get() : java.util.List.of();
+        pendingPath = service.findPath(world, from.toBlockPos(), destination, 0, dangers);
     }
 }

@@ -133,4 +133,9 @@ public final class BuildShelterGoal extends AbstractGoal {
         }
         cooldownTicks = 6000; // ~5 minut
     }
+
+    @Override
+    public String explain(dev.botalive.api.bot.Bot bot) {
+        return "stmívá se, stavím si nouzový úkryt";
+    }
 }

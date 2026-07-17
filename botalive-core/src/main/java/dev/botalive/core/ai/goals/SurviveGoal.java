@@ -88,4 +88,9 @@ public final class SurviveGoal extends AbstractGoal {
         // Konec, když je bot chvíli v bezpečí a neregeneruje-li, aspoň nehoří.
         return safeTicks > 60 && !burning && health >= 8;
     }
+
+    @Override
+    public String explain(dev.botalive.api.bot.Bot bot) {
+        return "teď hlavně přežít";
+    }
 }

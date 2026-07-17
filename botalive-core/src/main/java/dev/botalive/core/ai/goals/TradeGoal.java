@@ -195,4 +195,9 @@ public final class TradeGoal extends AbstractGoal {
                 ctx.config().ai().viewDistanceBlocks(),
                 e -> e.type() == EntityType.VILLAGER && e.uuid() != null);
     }
+
+    @Override
+    public String explain(dev.botalive.api.bot.Bot bot) {
+        return "obchoduju s vesničanem";
+    }
 }

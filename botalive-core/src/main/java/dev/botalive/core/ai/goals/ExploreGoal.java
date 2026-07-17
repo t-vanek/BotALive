@@ -133,4 +133,9 @@ public final class ExploreGoal extends AbstractGoal {
         // Neznámý (nenačtený) terén – vrátit odhad, pathfinder dojde na hranici známého.
         return new BlockPos(x, aroundY, z);
     }
+
+    @Override
+    public String explain(dev.botalive.api.bot.Bot bot) {
+        return "prozkoumávám okolí, co tu je";
+    }
 }

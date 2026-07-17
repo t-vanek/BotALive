@@ -30,6 +30,7 @@ public final class Brain {
     private final int decisionInterval;
     private final double hysteresis;
     private final dev.botalive.core.util.BotRandom rng;
+    private final DayRhythm rhythm;
 
     /** Volatile: čtou je i cizí vlákna (příkazy, snapshoty). */
     private volatile Goal current;
@@ -45,11 +46,20 @@ public final class Brain {
      */
     public Brain(Bot bot, List<Goal> goals, int decisionInterval, double hysteresis,
                  dev.botalive.core.util.BotRandom rng) {
+        this(bot, goals, decisionInterval, hysteresis, rng, null);
+    }
+
+    /**
+     * @param rhythm denní rytmus bota, nebo {@code null} (vypnuto)
+     */
+    public Brain(Bot bot, List<Goal> goals, int decisionInterval, double hysteresis,
+                 dev.botalive.core.util.BotRandom rng, DayRhythm rhythm) {
         this.bot = bot;
         this.goals = goals;
         this.decisionInterval = decisionInterval;
         this.hysteresis = hysteresis;
         this.rng = rng;
+        this.rhythm = rhythm;
         this.ticksToDecision = rng.rangeInt(0, decisionInterval); // rozfázování mezi boty
     }
 
@@ -57,6 +67,23 @@ public final class Brain {
     public String currentGoalId() {
         Goal goal = current;
         return goal == null ? null : goal.id();
+    }
+
+    /**
+     * Lidsky čitelné vysvětlení, co bot právě dělá a proč (intent vrstva).
+     *
+     * @return věta v první osobě, nebo {@code null} když cíl nemá co říct
+     */
+    public String explainCurrent() {
+        Goal goal = current;
+        if (goal instanceof dev.botalive.core.ai.goals.AbstractGoal explainable) {
+            try {
+                return explainable.explain(bot);
+            } catch (Exception e) {
+                return null; // vysvětlení nesmí nikdy shodit chat/příkaz
+            }
+        }
+        return null;
     }
 
     /**
@@ -106,6 +133,11 @@ public final class Brain {
             try {
                 goal.tick(bot);
                 if (goal.finished(bot)) {
+                    // Vynucení uvolnit HNED: decide() by jinak viděl current == null
+                    // a vynucený (už hotový) cíl donekonečna restartoval.
+                    if (goal.id().equals(forcedGoalId)) {
+                        forcedGoalId = null;
+                    }
                     switchTo(null);
                     ticksToDecision = 0;
                 }
@@ -152,6 +184,14 @@ public final class Brain {
             }
             // Profese vychyluje priority (kovář taví ochotněji, lovec loví...).
             utility *= dev.botalive.core.role.RoleProfiles.weight(bot.role(), goal.id());
+            // Denní rytmus: ráno pole, přes den těžba/stavba, večer družení.
+            if (rhythm != null) {
+                utility *= rhythm.multiplier(goal.id(), BotContext.of(bot).worldTime());
+            }
+            // Životní ambice táhne související cíle (dokud není splněná).
+            if (bot instanceof dev.botalive.core.bot.BotImpl impl) {
+                utility *= impl.ambitionWeight(goal.id());
+            }
             // Hystereze aktivního cíle + drobný rozhodovací šum.
             if (goal == current) {
                 utility *= hysteresis;

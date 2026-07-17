@@ -68,7 +68,8 @@ import java.util.concurrent.atomic.AtomicReference;
  * {@link EntityTracker}); server-side data čte AI přes {@link ServerSideView}
  * snapshoty. Veřejné API metody jsou bezpečné z libovolného vlákna.</p>
  */
-public final class BotImpl implements Bot, BotContext, NetworkEvents {
+public final class BotImpl implements Bot, BotContext, NetworkEvents,
+        dev.botalive.core.chat.ChatContext {
 
     private static final Logger LOG = LoggerFactory.getLogger(BotImpl.class);
 
@@ -104,6 +105,7 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents {
     private final MainThreadBridge bridge;
     private final BotTickEngine tickEngine;
     private final BotRepository repository;
+    private final SharedServices services;
     private final Brain brain;
 
     /** Klientský world model (jen v režimu {@code packet}, jinak {@code null}). */
@@ -125,6 +127,14 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents {
 
     /** Pohyb vyžádaný cílem pro aktuální tick (přebíjí navigátor). */
     private MoveInput requestedMove;
+    /** Probíhající zásah do terénu při zdolávání překážky (kopání/pokládání). */
+    private dev.botalive.core.tasks.BotTask obstacleTask;
+    /** Odpočet periodické kontroly brnění v hotbaru. */
+    private int armorCheckTicks = 60;
+    /** Životní ambice (cache; zdroj pravdy je paměť AMBITION). */
+    private volatile dev.botalive.core.ai.Ambition ambition;
+    private volatile dev.botalive.core.ai.Ambition.Progress ambitionProgress;
+    private int ambitionRefreshTicks;
 
     /** Čeká se na první teleport po loginu/respawnu (pošle se PlayerLoaded). */
     private volatile boolean awaitingFirstTeleport = true;
@@ -167,6 +177,7 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents {
         this.bridge = services.bridge();
         this.tickEngine = services.tickEngine();
         this.repository = services.repository();
+        this.services = services;
 
         this.rng = new BotRandom(id.getLeastSignificantBits() ^ System.nanoTime());
         this.itemMapper = services.itemMapper();
@@ -182,15 +193,193 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents {
         this.movementSender = new MovementSender(connection, clientState);
         this.humanizer = new Humanizer(rng, personality);
         this.navigator = new Navigator(services.navigation(), actions, rng, personality);
+        this.navigator.dangerSupplier(this::dangerMemories);
         this.inventoryHelper = new InventoryHelper(actions);
         this.combat = new CombatController(actions, humanizer, rng, personality, config.combat(),
                 CombatDifficulty.fromConfig(config.ai().difficulty()), inventoryHelper);
         this.vehicle = new VehicleController(connection, clientState);
         this.serverView = new ServerSideView(id, bridge);
         this.chat = new ChatEngine(name, personality, rng, config.chat(),
-                services.phrases(), this::deliverChat);
+                services.phrases(), this::deliverChat, this);
         this.brain = new Brain(this, goalFactory.apply(this),
-                config.ai().decisionIntervalTicks(), config.ai().goalHysteresis(), rng);
+                config.ai().decisionIntervalTicks(), config.ai().goalHysteresis(), rng,
+                config.ai().dailyRhythm()
+                        ? new dev.botalive.core.ai.DayRhythm(
+                                personality.trait(dev.botalive.api.personality.Trait.LAZINESS))
+                        : null);
+    }
+
+    /**
+     * Intent vrstva: popis aktuální činnosti bota (pro chat a příkazy).
+     *
+     * @return věta v první osobě, nebo {@code null}
+     */
+    public String explainCurrentGoal() {
+        Brain currentBrain = brain;
+        return currentBrain == null ? null : currentBrain.explainCurrent();
+    }
+
+    @Override
+    public dev.botalive.core.social.CrimeLog crimeLog() {
+        return services.crimeLog();
+    }
+
+    /** Přepočte ambici a postup (cache pro mozek a příkazy). */
+    private void refreshAmbition() {
+        if (ambition == null) {
+            var records = memory.recall(MemoryKind.AMBITION);
+            if (!records.isEmpty()) {
+                ambition = dev.botalive.core.ai.Ambition.parse(
+                        records.getFirst().data().get("type"));
+            }
+        }
+        if (ambition == null) {
+            return;
+        }
+        var needs = dev.botalive.core.ai.BotNeeds.assess(serverView.latest());
+        boolean hasHouse = memory.recall(MemoryKind.HOME).stream()
+                .anyMatch(r -> "house".equals(r.data().get("type")));
+        var snapshot = serverView.latest();
+        boolean hasBed = snapshot != null
+                && snapshot.hasItem(m -> m.name().endsWith("_BED"));
+        ambitionProgress = ambition.progress(needs, hasHouse, hasBed, wallet.balance());
+    }
+
+    /**
+     * Násobič utility cíle podle životní ambice (1.0 mimo ambici).
+     *
+     * @param goalId id cíle
+     * @return násobič
+     */
+    public double ambitionWeight(String goalId) {
+        var current = ambition;
+        var progress = ambitionProgress;
+        if (current == null || progress == null) {
+            return 1.0;
+        }
+        return current.weight(goalId, progress.complete());
+    }
+
+    /** @return řádka „životní cíl" pro příkazy, nebo {@code null} */
+    public String ambitionLine() {
+        var current = ambition;
+        var progress = ambitionProgress;
+        if (current == null) {
+            return null;
+        }
+        if (progress == null) {
+            return current.label();
+        }
+        return current.label() + " (krok " + progress.step() + "/" + progress.total()
+                + ": " + progress.label() + ")";
+    }
+
+    // ------------------------------------------------------------ ChatContext
+
+    @Override
+    public String describeActivity() {
+        return explainCurrentGoal();
+    }
+
+    @Override
+    public String describeLocation() {
+        if (physics == null) {
+            return null;
+        }
+        Vec3 pos = physics.position();
+        String where = "jsem na %d, %d, %d".formatted(
+                (int) pos.x(), (int) pos.y(), (int) pos.z());
+        return worldView != null ? where + " (" + worldView.worldName() + ")" : where;
+    }
+
+    @Override
+    public String describeInventory() {
+        var snapshot = serverView.latest();
+        if (snapshot == null) {
+            return "ted nevim, co vlastne nesu";
+        }
+        Map<org.bukkit.Material, Integer> counts = new java.util.LinkedHashMap<>();
+        var hotbar = snapshot.hotbar();
+        int[] amounts = snapshot.hotbarCounts();
+        for (int i = 0; i < hotbar.length; i++) {
+            if (hotbar[i] != null) {
+                counts.merge(hotbar[i], amounts != null ? Math.max(amounts[i], 1) : 1,
+                        Integer::sum);
+            }
+        }
+        for (var material : snapshot.mainInventory()) {
+            if (material != null) {
+                counts.merge(material, 1, Integer::sum);
+            }
+        }
+        if (counts.isEmpty()) {
+            return "mam uplne prazdno";
+        }
+        StringBuilder sb = new StringBuilder("mam: ");
+        counts.entrySet().stream()
+                .sorted((a, b) -> b.getValue() - a.getValue())
+                .limit(4)
+                .forEach(e -> sb.append(e.getValue() > 1 ? e.getValue() + "x " : "")
+                        .append(e.getKey().name().toLowerCase(java.util.Locale.ROOT))
+                        .append(", "));
+        return sb.substring(0, sb.length() - 2);
+    }
+
+    @Override
+    public String describeVillage() {
+        if (worldView == null || physics == null) {
+            return null;
+        }
+        Vec3 pos = physics.position();
+        return memory.recallNearest(MemoryKind.VILLAGE, worldView.worldName(),
+                        (int) pos.x(), (int) pos.y(), (int) pos.z())
+                .map(r -> "vesnice je u %d, %d, %d".formatted(r.x(), r.y(), r.z()))
+                .orElse(null);
+    }
+
+    @Override
+    public boolean followRequest(UUID requester) {
+        double helpfulness = personality.trait(dev.botalive.api.personality.Trait.HELPFULNESS);
+        boolean friend = memory.recallAbout(requester).stream()
+                .anyMatch(r -> r.kind() == MemoryKind.FRIEND);
+        if (!friend && helpfulness < 0.45) {
+            return false;
+        }
+        return brain.forceGoal("follow");
+    }
+
+    @Override
+    public boolean giveFoodRequest(UUID requester) {
+        var snapshot = serverView.latest();
+        if (snapshot == null
+                || !snapshot.hasItem(dev.botalive.core.inventory.InventoryHelper::isFood)) {
+            return false;
+        }
+        double helpfulness = personality.trait(dev.botalive.api.personality.Trait.HELPFULNESS);
+        boolean friend = memory.recallAbout(requester).stream()
+                .anyMatch(r -> r.kind() == MemoryKind.FRIEND);
+        if (!friend && helpfulness < 0.5) {
+            return false;
+        }
+        return brain.forceGoal("share");
+    }
+
+    @Override
+    public void gainExperience(dev.botalive.core.personality.PersonalityEvolution
+                                       .BotExperience experience) {
+        if (!(personality instanceof dev.botalive.core.personality.PersonalityImpl impl)) {
+            return;
+        }
+        var result = dev.botalive.core.personality.PersonalityEvolution.apply(impl, experience);
+        if (!result.changed()) {
+            return;
+        }
+        repository.savePersonalityTraits(id, impl);
+        for (String line : result.announcements()) {
+            if (rng.chance(0.6)) {
+                chat.say(line);
+            }
+        }
     }
 
     /**
@@ -215,7 +404,8 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents {
             BotRepository repository,
             dev.botalive.core.chat.PhraseBank phrases,
             dev.botalive.core.world.state.BlockStateMapper stateMapper,
-            dev.botalive.core.world.state.ItemMapper itemMapper
+            dev.botalive.core.world.state.ItemMapper itemMapper,
+            dev.botalive.core.social.CrimeLog crimeLog
     ) {
     }
 
@@ -300,6 +490,7 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents {
                 Map.of("message", deathMessage), 0.9);
         memory.remember(MemoryKind.LOST_ITEMS, worldName,
                 (int) pos.x(), (int) pos.y(), (int) pos.z(), null, Map.of(), 0.8);
+        gainExperience(dev.botalive.core.personality.PersonalityEvolution.BotExperience.DEATH);
         new BotDiedEvent(this, worldName, (int) pos.x(), (int) pos.y(), (int) pos.z()).callEvent();
 
         // Humanizovaný respawn: 1.5–6 s „vzpamatovávání".
@@ -459,10 +650,31 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents {
             return;
         }
 
-        // Pohyb: explicitní požadavek cíle > navigace > stání.
-        MoveInput input = requestedMove != null
-                ? requestedMove
-                : navigator.tick(physics.position(), physics.onGround());
+        // Zdolávání překážek: když navigace narazí (zazděno, jáma, mezera),
+        // bot si cestu odblokuje sám – prokopáním nebo položením bloku.
+        if (obstacleTask != null && (!alive || paused.get())) {
+            obstacleTask.cancel(this);
+            obstacleTask = null;
+        }
+        MoveInput input;
+        if (obstacleTask != null) {
+            if (obstacleTask.tick(this)) {
+                obstacleTask = null;
+                navigator.assistResolved(physics.position());
+            }
+            input = MoveInput.IDLE; // během zásahu stát
+        } else {
+            if (alive && !paused.get() && !combat.engaged() && navigator.needsAssist()) {
+                obstacleTask = planObstacleRecovery();
+                if (obstacleTask == null) {
+                    navigator.assistFailed();
+                }
+            }
+            // Pohyb: explicitní požadavek cíle > navigace > stání.
+            input = requestedMove != null
+                    ? requestedMove
+                    : navigator.tick(physics.position(), physics.onGround());
+        }
         if (!alive || paused.get()) {
             input = MoveInput.IDLE;
         }
@@ -497,8 +709,120 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents {
         movementSender.tick(physics.position(), humanizer.yaw(), humanizer.pitch(),
                 physics.onGround(), physics.horizontalCollision(), input);
 
+        // Periodicky: přepočet postupu k životní ambici (levné, cache 2 s).
+        if (--ambitionRefreshTicks <= 0) {
+            ambitionRefreshTicks = 40;
+            refreshAmbition();
+        }
+
+        // Periodicky: sebrané brnění nasadit + štít do druhé ruky.
+        if (alive && !paused.get() && !combat.engaged() && --armorCheckTicks <= 0) {
+            armorCheckTicks = 100 + rng.rangeInt(0, 60);
+            var snapshot = serverView.latest();
+            if (!inventoryHelper.equipBetterArmor(snapshot,
+                    humanizer.yaw(), humanizer.pitch())
+                    && snapshot != null
+                    && snapshot.offhand() != org.bukkit.Material.SHIELD
+                    && inventoryHelper.equipItem(snapshot, org.bukkit.Material.SHIELD)) {
+                actions.swapOffhand();
+            }
+        }
+
         chat.tick();
         trackDistance();
+    }
+
+    /**
+     * Naplánuje zásah do terénu pro odblokování cesty.
+     *
+     * <p>Eskalace jako u hráče: cíl výš → vylámat schod vzhůru (strop nad
+     * hlavou, hlava na schodu); rovně/dolů → prorazit štolu 1×2; mezera
+     * v podlaze → přemostit blokem. Vše jen s {@code ai.terraforming},
+     * s kontrolou tekutin a s nástrojem v ruce.</p>
+     *
+     * @return task zásahu, nebo {@code null} když zásah nedává smysl
+     */
+    private dev.botalive.core.tasks.BotTask planObstacleRecovery() {
+        if (!config.ai().terraforming() || worldView == null || physics == null) {
+            return null;
+        }
+        BlockPos destination = navigator.destination();
+        if (destination == null) {
+            return null;
+        }
+        BlockPos feet = physics.position().toBlockPos();
+        int dx = Integer.signum(destination.x() - feet.x());
+        int dz = Integer.signum(destination.z() - feet.z());
+        boolean preferX = Math.abs(destination.x() - feet.x())
+                >= Math.abs(destination.z() - feet.z());
+        int sx = preferX ? dx : 0;
+        int sz = preferX ? 0 : dz;
+        if (sx == 0 && sz == 0) {
+            sx = dx != 0 ? dx : 1;
+        }
+        BlockPos front = feet.offset(sx, 0, sz);
+        int dy = Integer.signum(destination.y() - feet.y());
+
+        // Kandidáti na vylámání podle směru (v pořadí důležitosti).
+        List<BlockPos> candidates = dy > 0
+                ? List.of(feet.up().up(), front.up().up(), front.up())
+                : List.of(front.up(), front);
+        for (BlockPos block : candidates) {
+            if (!worldView.traitsAt(block).solid()) {
+                continue;
+            }
+            if (liquidNear(block)) {
+                return null; // za překážkou číhá voda/láva – nechat být
+            }
+            var material = worldView.materialAt(block);
+            inventoryHelper.equipBestTool(serverView.latest(),
+                    material != null ? material : org.bukkit.Material.STONE);
+            return new dev.botalive.core.tasks.MineBlockTask(block);
+        }
+        // Vpředu nic pevného → mezera v podlaze: přemostit blokem.
+        if (dy <= 0 && worldView.traitsAt(front).passable()
+                && worldView.traitsAt(front.down()).passable()
+                && !liquidNear(front.down())
+                && inventoryHelper.equipBuildingBlock(serverView.latest())) {
+            return new dev.botalive.core.tasks.PlaceBlockTask(front.down());
+        }
+        return null;
+    }
+
+    /**
+     * Místa špatných vzpomínek v aktuálním světě – bot se učí z vlastních
+     * smrtí a poznaných nebezpečí: pathfinding jim zdražuje průchod.
+     *
+     * @return pozice DEATH/DANGER vzpomínek (max 24)
+     */
+    private List<BlockPos> dangerMemories() {
+        if (worldView == null) {
+            return List.of();
+        }
+        String worldName = worldView.worldName();
+        List<BlockPos> result = new java.util.ArrayList<>();
+        for (MemoryKind kind : List.of(MemoryKind.DEATH, MemoryKind.DANGER)) {
+            for (var record : memory.recall(kind)) {
+                if (worldName.equals(record.world())) {
+                    result.add(new BlockPos(record.x(), record.y(), record.z()));
+                    if (result.size() >= 24) {
+                        return result;
+                    }
+                }
+            }
+        }
+        return result;
+    }
+
+    /** Voda/láva v bloku nebo těsném okolí. */
+    private boolean liquidNear(BlockPos block) {
+        return worldView.traitsAt(block).liquid()
+                || worldView.traitsAt(block.up()).liquid()
+                || worldView.traitsAt(block.down()).liquid()
+                || worldView.traitsAt(block.offset(1, 0, 0)).liquid()
+                || worldView.traitsAt(block.offset(-1, 0, 0)).liquid()
+                || worldView.traitsAt(block.offset(0, 0, 1)).liquid()
+                || worldView.traitsAt(block.offset(0, 0, -1)).liquid();
     }
 
     /** Aplikuje teleporty od serveru na fyziku. */
@@ -560,6 +884,15 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents {
         LOG.info("[{}] Naspawnován na {} v {}", name, position.toBlockPos(),
                 worldView != null ? worldView.worldName() : "?");
 
+        // Životní ambice: vybrat jednou podle povahy a zapamatovat.
+        if (memory.recall(MemoryKind.AMBITION).isEmpty()) {
+            var picked = dev.botalive.core.ai.Ambition.pick(personality);
+            memory.remember(MemoryKind.AMBITION,
+                    worldView != null ? worldView.worldName() : "", 0, 0, 0, null,
+                    Map.of("type", picked.name()), 1.0);
+            this.ambition = picked;
+        }
+
         // Domov: pokud bot žádný nemá, je jím první spawn.
         if (worldView != null && memory.recall(MemoryKind.HOME).isEmpty()) {
             BlockPos pos = position.toBlockPos();
@@ -591,6 +924,10 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents {
         this.physics = new BotPhysics(worldView, position);
         navigator.world(worldView);
         entities.clear();
+        if (obstacleTask != null) {
+            obstacleTask.cancel(this);
+            obstacleTask = null;
+        }
         worldView.prefetch(position.toBlockPos(), 2);
     }
 

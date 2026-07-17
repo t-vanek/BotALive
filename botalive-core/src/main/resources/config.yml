@@ -58,6 +58,19 @@ ai:
   view-distance-blocks: 32
   # easy | normal | hard | nightmare – přesnost a reakce v boji.
   difficulty: normal
+  # Smí boti měnit terén? Razí štoly a schodiště za rudou (bezpečně: nikdy
+  # kolmo dolů, kontrola lávy/vody) a upravují staveniště domů.
+  # false = jen povrchová těžba a žádné stavební úpravy terénu.
+  terraforming: true
+  # Denní rytmus: ráno pole a výroba, přes den těžba a stavba, večer družení
+  # a úklid, v noci domů. Každý bot má osobní posun (skřivan/sova) podle
+  # povahy. Jemné násobiče – osobnost a profese zůstávají hlavní.
+  daily-rhythm: true
+  # Nouzové chování: hladový bot bez jídla a prostředků si „půjčí" z cizí
+  # truhly (pár jídel, nástroj, trocha materiálu) a v krajní nouzi přepadne
+  # okolního hráče/bota kvůli kořisti. Přepadení VŽDY respektuje sekci pvp
+  # (enabled / attack-players / attack-bots + férovostní stropy).
+  desperation: true
 
 chat:
   enabled: true
@@ -84,6 +97,11 @@ combat:
 economy:
   enabled: true
   starting-balance: 100.0
+  # Napojení na serverovou ekonomiku přes Vault: je-li nainstalovaný Vault
+  # a ekonomický plugin (EssentialsX, CMI...), peníze botů žijí ve stejné
+  # ekonomice jako hráčům (/pay botovi funguje, /baltop je vidí).
+  # false = vždy interní peněženka v databázi BotAlive.
+  vault: true
 
 worlds:
   # Povolené světy pro boty (prázdné = všechny kromě blacklistu).

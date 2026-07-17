@@ -106,4 +106,9 @@ public final class HuntGoal extends AbstractGoal {
         }
         return false;
     }
+
+    @Override
+    public String explain(dev.botalive.api.bot.Bot bot) {
+        return "lovím zvěř, ať mám co jíst";
+    }
 }

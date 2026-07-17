@@ -84,6 +84,10 @@ public final class StashGoal extends AbstractGoal {
             case FIND -> {
                 chest = findChest(ctx, bot);
                 if (chest == null) {
+                    // Truhla nikde – vlastní vyrobená se položí hned vedle.
+                    chest = AbstractGoal.placeOwnStation(ctx, Material.CHEST);
+                }
+                if (chest == null) {
                     cooldownTicks = 1800; // žádná truhla v okolí
                     phase = Phase.DONE;
                     return;
@@ -108,6 +112,8 @@ public final class StashGoal extends AbstractGoal {
                 if (--waitTicks > 0) {
                     return;
                 }
+                // U své truhly nejdřív odhalit případnou krádež (kniha zločinů).
+                discoverTheft(ctx, bot);
                 // Klik na truhlu – server otevře okno (animace víka pro okolí).
                 ctx.actions().useItemOn(chest, Direction.UP);
                 waitTicks = ctx.rng().rangeInt(15, 35); // "probírá se obsahem"
@@ -156,14 +162,34 @@ public final class StashGoal extends AbstractGoal {
         return phase == Phase.DONE;
     }
 
-    /** Zapamatuje si truhlu (důležitost roste s užitečností). */
+    /** Zapamatuje si truhlu jako VLASTNÍ (důležitost roste s užitečností). */
     private void rememberChest(BotContext ctx, Bot bot, int movedItems) {
         if (ctx.worldView() != null && chest != null) {
             bot.memory().remember(MemoryKind.CHEST, ctx.worldView().worldName(),
                     chest.x(), chest.y(), chest.z(), null,
-                    Map.of("deposited", String.valueOf(movedItems)),
+                    Map.of("deposited", String.valueOf(movedItems), "owner", "self"),
                     movedItems > 0 ? 0.7 : 0.4);
         }
+    }
+
+    /**
+     * Odhalení krádeže z vlastní truhly: vztek, nepřátelství (živí existující
+     * PvP pomstu) a poučení do povahy.
+     */
+    private void discoverTheft(BotContext ctx, Bot bot) {
+        if (ctx.worldView() == null || chest == null) {
+            return;
+        }
+        ctx.crimeLog().discoverTheft(ctx.worldView().worldName(), chest, bot.id())
+                .ifPresent(theft -> {
+                    ctx.chat().say("hej! nekdo mi vybral truhlu... "
+                            + theft.thiefName() + ", to mi zaplatis!");
+                    bot.memory().remember(MemoryKind.ENEMY, ctx.worldView().worldName(),
+                            chest.x(), chest.y(), chest.z(), theft.thief(),
+                            Map.of("reason", "krádež z truhly"), 0.8);
+                    ctx.gainExperience(dev.botalive.core.personality.PersonalityEvolution
+                            .BotExperience.WAS_ROBBED);
+                });
     }
 
     /** Najde truhlu: paměť → sken okolí. */
@@ -198,5 +224,10 @@ public final class StashGoal extends AbstractGoal {
             }
         }
         return null;
+    }
+
+    @Override
+    public String explain(dev.botalive.api.bot.Bot bot) {
+        return "ukládám přebytky do truhly";
     }
 }

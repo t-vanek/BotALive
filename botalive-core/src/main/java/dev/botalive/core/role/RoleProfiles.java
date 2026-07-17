@@ -17,11 +17,11 @@ public final class RoleProfiles {
 
     private static final Map<BotRole, Map<String, Double>> WEIGHTS = Map.of(
             BotRole.BUILDER, Map.of(
-                    "shelter", 2.5, "craft", 1.4, "mine", 1.3, "home", 1.3),
+                    "shelter", 2.5, "house", 3.0, "craft", 1.4, "mine", 1.3, "home", 1.3),
             BotRole.MINER, Map.of(
                     "mine", 2.5, "collect", 1.3, "craft", 1.2, "smelt", 1.3),
             BotRole.LUMBERJACK, Map.of(
-                    "mine", 2.2, "craft", 1.4, "shelter", 1.2),
+                    "mine", 2.2, "craft", 1.4, "shelter", 1.2, "house", 1.4),
             BotRole.HUNTER, Map.of(
                     "hunt", 2.5, "combat", 1.4, "collect", 1.2, "tame", 1.5),
             BotRole.BLACKSMITH, Map.of(
@@ -33,7 +33,7 @@ public final class RoleProfiles {
             BotRole.FISHERMAN, Map.of(
                     "fish", 2.6, "boat", 1.4),
             BotRole.FARMER, Map.of(
-                    "farm", 2.5, "trade", 1.3, "craft", 1.1)
+                    "farm", 2.5, "trade", 1.3, "craft", 1.1, "share", 1.5)
     );
 
     private RoleProfiles() {

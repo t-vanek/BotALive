@@ -180,6 +180,35 @@ public final class BotRepository {
         });
     }
 
+    /**
+     * Uloží aktuální (vyvinuté) rysy a archetyp osobnosti.
+     *
+     * <p>Osobnost se vývojem podle prožitků mění – ukládá se celý stav rysů,
+     * takže po restartu bot pokračuje s povahou, kterou si vypěstoval.</p>
+     *
+     * @param botId       UUID bota
+     * @param personality osobnost s aktuálními hodnotami
+     * @return future dokončení zápisu
+     */
+    public CompletableFuture<Void> savePersonalityTraits(UUID botId, Personality personality) {
+        Map<String, Double> raw = new java.util.LinkedHashMap<>();
+        personality.traits().forEach((k, v) -> raw.put(k.name(), v));
+        String json = GSON.toJson(raw);
+        String archetype = personality.archetype();
+        return db.async(connection -> {
+            try (PreparedStatement ps = connection.prepareStatement(
+                    "UPDATE ba_personalities SET traits_json = ?, archetype = ? WHERE bot_id = ?")) {
+                ps.setString(1, json);
+                ps.setString(2, archetype);
+                ps.setString(3, botId.toString());
+                ps.executeUpdate();
+            } catch (SQLException e) {
+                throw new IllegalStateException(e);
+            }
+            return null;
+        });
+    }
+
     // ----------------------------------------------------------------- paměť
 
     /**

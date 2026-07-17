@@ -37,4 +37,9 @@ public final class IdleGoal extends AbstractGoal {
             }
         }
     }
+
+    @Override
+    public String explain(dev.botalive.api.bot.Bot bot) {
+        return "ale nic, jen tak odpočívám";
+    }
 }

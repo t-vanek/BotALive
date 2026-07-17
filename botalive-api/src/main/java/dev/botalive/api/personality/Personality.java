@@ -5,8 +5,12 @@ import java.util.Map;
 /**
  * Osobnost bota – sada rysů a odvozený komunikační styl.
  *
- * <p>Osobnost je nemutabilní: generuje se jednou (deterministicky ze seedu),
- * ukládá se do databáze a po restartu serveru se obnoví beze změny.</p>
+ * <p>Základ osobnosti se generuje deterministicky ze seedu, ale povaha se
+ * <b>pomalu vyvíjí podle prožitků</b>: komu projde krádež, tomu roste
+ * chamtivost; kdo pomáhá, tomu roste ochota; smrt učí opatrnosti. Drift je
+ * omezený, jádro povahy zůstává. Aktuální hodnoty rysů se persistují –
+ * po restartu bot pokračuje s povahou, kterou si vypěstoval. Čtení hodnot
+ * je thread-safe (snapshot).</p>
  */
 public interface Personality {
 

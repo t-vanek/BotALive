@@ -50,12 +50,27 @@ public final class NavigationService {
      * @return future s cestou (nikdy neselže – při chybě vrací prázdnou cestu)
      */
     public CompletableFuture<Path> findPath(WorldView world, BlockPos start, BlockPos goal, int nodeBudget) {
+        return findPath(world, start, goal, nodeBudget, java.util.List.of());
+    }
+
+    /**
+     * Naplánuje cestu s vyhýbáním se špatným vzpomínkám bota.
+     *
+     * @param world      pohled na svět
+     * @param start      startovní blok
+     * @param goal       cílový blok
+     * @param nodeBudget rozpočet uzlů (0 = default)
+     * @param dangers    místa smrtí/nebezpečí z paměti bota (může být prázdné)
+     * @return future s cestou (nikdy neselže – při chybě vrací prázdnou cestu)
+     */
+    public CompletableFuture<Path> findPath(WorldView world, BlockPos start, BlockPos goal,
+                                            int nodeBudget, java.util.List<BlockPos> dangers) {
         // Prefetch okolí, ať má A* s čím pracovat, než se pustí do výpočtu.
         world.prefetch(start, 2);
         world.prefetch(goal, 1);
         return CompletableFuture.supplyAsync(() -> {
             try {
-                return new AStarPathfinder(world).findPath(start, goal, nodeBudget);
+                return new AStarPathfinder(world, dangers).findPath(start, goal, nodeBudget);
             } catch (Throwable t) {
                 LOG.warn("Pathfinding selhal ({} -> {}): {}", start, goal, t.toString());
                 return new Path(java.util.List.of(), false);

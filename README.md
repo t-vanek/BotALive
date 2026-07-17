@@ -27,7 +27,11 @@ inventář a historii; po restartu serveru pokračuje tam, kde skončil.
   nebezpečí, smrti, domov… v SQLite (výchozí) nebo PostgreSQL, s write-behind
   ukládáním a slučováním blízkých vzpomínek.
 - **Vlastní A\* pathfinding** – asynchronní, s cenami za vodu a seskoky, tvrdým
-  zákazem lávy/propastí, skoky, šplháním, otevíráním dveří a detekcí zaseknutí.
+  zákazem lávy/propastí, skoky, šplháním, otevíráním dveří i branek a detekcí
+  zaseknutí. Když cesta nevede, bot to nevzdá: **eskaluje jako hráč** –
+  replanning → prokopání překážky (štola 1×2, schod vzhůru z jámy; s nástrojem
+  a kontrolou tekutin) → přemostění mezery položeným blokem. Zásahy do terénu
+  respektují `ai.terraforming` a mají strop na jednu cestu.
 - **Lidský projev** – omezená rychlost otáčení hlavy s easingem a šumem, trvalá
   chyba míření, log-normální reakční latence, mikro-rozhlížení, pauzy,
   rozfázované ticky. Chat s přemýšlením, rychlostí psaní, překlepy (QWERTZ
@@ -51,10 +55,64 @@ inventář a historii; po restartu serveru pokračuje tam, kde skončil.
   kočku rybou, papouška semínky, koně/osla/mulu/lamu opakovaným nasedáním
   (server je shazuje, dokud nepovolí). Mazlíčky si pamatují (`PET`),
   ochočení vlci pak botovi vanilla mechanikou pomáhají v boji.
-- **Survival progrese** – boti těží dřevo a rudy, craftí (prkna → tyčky → ponk
-  → dřevěné → kamenné nástroje), farmaří (sklizeň + přesazení), v noci spí
-  v posteli nebo si staví úkryt a přebytky si ukládají do truhel, které si
-  pamatují.
+- **Kompletní crafting progrese** – boti si nafarmí suroviny a projdou celý
+  vanilla řetěz: prkna → tyčky → ponk → dřevěné → kamenné nástroje (včetně
+  sekery a lopaty) → **pec** (vyrobí a sami postaví) → pochodně → železné
+  nástroje → **štít** (nosí ho v druhé ruce a blokují s ním) → železné
+  brnění → diamantové nástroje a brnění → **luk a šípy** (dálkový boj) →
+  truhla (položí si vlastní) → loďka → dveře a postel. Farmaří (sklizeň +
+  přesazení), v noci spí v posteli nebo si staví úkryt a přebytky ukládají
+  do truhel. Netherit chybí záměrně (vyžaduje Nether).
+- **Těžba s účelem** – bot ví, co mu chybí: bez kamenných nástrojů kope kámen,
+  s kamenným krumpáčem shání železo a uhlí, se železným jde po diamantech
+  (tier gating – nekope rudu nástrojem, ze kterého by nic nepadlo). K zasypané
+  rudě si **prorazí štolu**, do hloubky sestupuje schodištěm (nikdy kolmo
+  dolů, kontrola lávy/vody před každým blokem), sleduje celé žíly a ve štolách
+  si rozmisťuje pochodně. Vypínatelné přes `ai.terraforming`.
+- **Stavba domů** – bot si najde rovné místo, připraví staveniště a postaví
+  skutečný domek (zdi, dveřní otvor, střecha). Dům si uloží jako domov a
+  vrací se do něj; role stavitel staví ochotněji.
+- **Boti vědí, co dělají** – intent vrstva: každý cíl umí říct, co a proč bot
+  právě dělá. `/botalive goal` ukazuje záměr („těžím iron_ore – chci si
+  vyrobit železný krumpáč"), na otázku „co děláš?" v chatu bot odpoví podle
+  skutečné činnosti a záměry občas sám komentuje.
+- **Denní rytmus** – boti si den strukturují: ráno pole a výroba, přes den
+  těžba a stavba, večer družení a úklid do truhel, v noci domů. Každý bot má
+  osobní posun (skřivan/sova) podle povahy; násobiče jsou jemné, osobnost
+  a profese zůstávají hlavní (`ai.daily-rhythm`).
+- **Sdílení a vzpomínky** – ochotní boti rozdávají přebytky jídla lidem
+  okolo („na, vem si něco k jídlu") a obdarované si pamatují jako přátele;
+  kopáči se vracejí do dolů, kde už dřív rudu našli.
+- **Nouzové chování** – hladovějící bot bez jídla a prostředků si „půjčí"
+  z cizí truhly (pár jídel, nástroj, trocha materiálu – slušní se omluví,
+  chamtiví ne) a v krajní nouzi i přepadne okolního hráče či bota kvůli
+  kořisti. Přepadení **vždy respektuje sekci `pvp`** (enabled /
+  attack-players / attack-bots + férovostní stropy) a kamarádi jsou tabu.
+  Vypínatelné přes `ai.desperation`.
+- **Životní ambice** – každý bot má dlouhodobý projekt podle povahy (železná
+  výbava / útulný domov / zbohatnout): jemně táhne související cíle a je
+  vidět v `/botalive goal` („životní cíl: zbohatnout, krok 1/3"). Postup se
+  počítá ze stavu, takže přežívá restart.
+- **Učení z chyb a reflexy** – pathfinding zdražuje průchod místy, kde bot
+  zemřel (paměť DEATH/DANGER); creeper v odpalové vzdálenosti spouští
+  okamžitý úprk; sebrané brnění si boti sami nasazují.
+- **Domov se vším všudy** – k domu boti craftí a osazují dveře, uvnitř
+  pochodeň a postel (vlna z lovu ovcí → spawn point).
+- **Rozumí prosbám** – chat zvládá věcné dotazy a prosby: „kde jsi?",
+  „co máš u sebe?", „kde je vesnice?", „pojď za mnou", „dej mi jídlo"
+  (vyhoví dle povahy a přátelství). Hladový bot navíc nejdřív slušně
+  poprosí okolí, než sáhne ke krádeži.
+- **Zločin má oběti** – krádeže se zapisují do sdílené knihy zločinů;
+  majitel vyloupené truhly to při návštěvě odhalí, naštve se, pachatele si
+  uloží jako nepřítele (pomsta přes PvP feud) a poučí se z toho. Vlastní
+  truhly boti nevykrádají.
+- **Vývoj osobnosti** – povaha botů se formuje prožitky: komu projde krádež
+  či přepadení, tomu roste chamtivost a agrese („začíná ho to bavit") a
+  jeho zábrany klesají; kdo rozdává a pomáhá, tomu roste ochota; smrt učí
+  opatrnosti, vítězství odvaze. Posuny jsou malé, omezené vůči základu ze
+  seedu (jádro povahy zůstává) a persistentní. `/botalive personality`
+  ukazuje drift šipkami (`caution 0,54 ↗ +0,06`), proměnu bot občas sám
+  okomentuje v chatu a může se změnit i jeho archetyp.
 - **Lodě a minecarty** – bot vozidlo najde (nebo položí z inventáře), nasedne
   a jede s klientskou simulací vanilla kinematiky (MoveVehicle/PaddleBoat
   pakety): loď pluje nejdelším vodním koridorem a u břehu vysedne, vozík
@@ -67,6 +125,11 @@ inventář a historii; po restartu serveru pokračuje tam, kde skončil.
 - **Obchod s vesničany** – prodej plodin a surovin za smaragdy, nákup jídla
   při hladu; skutečné receptury vesničana včetně limitů zásob. Objevené
   vesnice si bot pamatuje a výdělek se propisuje do ekonomiky.
+- **Vault ekonomika** – je-li nainstalovaný Vault s ekonomickým pluginem
+  (EssentialsX, CMI…), peníze botů žijí v serverové ekonomice: hráči jim
+  můžou poslat `/pay`, boti figurují v `/baltop` a výdělky z těžby či
+  obchodu se propisují všem. Bez Vaultu (nebo s `economy.vault: false`)
+  se použije interní persistentní peněženka.
 - **Cizí servery s plným survivalem** – volitelný klientský world model
   (`network.world-model: packet`): geometrie světa se parsuje přímo z chunk
   paketů (block states, registry dimenzí, blokové změny) a **crafting,
@@ -96,6 +159,7 @@ inventář a historii; po restartu serveru pokračuje tam, kde skončil.
 | Java | 25+ |
 | Režim | `online-mode=false` (boti jsou offline klienti), příp. Velocity s offline backendem |
 | Databáze | nic (SQLite embedded), volitelně PostgreSQL |
+| Ekonomika | interní (výchozí), volitelně Vault + ekonomický plugin |
 
 ## Build
 

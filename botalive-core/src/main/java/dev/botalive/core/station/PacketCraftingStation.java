@@ -114,24 +114,19 @@ public final class PacketCraftingStation implements CraftingStation {
 
     /** Souhrn inventáře pro plánovač progrese. */
     private static CraftPlanner.State plannerState(Windows.SlotMaps inv) {
-        int cobbleStd = inv.count(m -> m == Material.COBBLESTONE);
-        Material stone = cobbleStd >= 3 ? Material.COBBLESTONE : Material.COBBLED_DEEPSLATE;
-        return new CraftPlanner.State(
-                inv.count(PacketCraftingStation::isLog),
-                inv.count(PacketCraftingStation::isPlanks),
-                inv.count(m -> m == Material.STICK),
-                cobbleStd + inv.count(m -> m == Material.COBBLED_DEEPSLATE),
-                inv.count(m -> m == Material.CRAFTING_TABLE) > 0,
-                inv.findSlot(m -> m.name().endsWith("_PICKAXE")) >= 0,
-                inv.findSlot(m -> m == Material.STONE_PICKAXE || m == Material.IRON_PICKAXE
-                        || m == Material.DIAMOND_PICKAXE || m == Material.NETHERITE_PICKAXE) >= 0,
-                inv.findSlot(m -> m.name().endsWith("_SWORD")) >= 0,
-                inv.findSlot(m -> m == Material.STONE_SWORD) >= 0,
-                inv.findSlot(m -> m.name().endsWith("_AXE")
-                        && !m.name().endsWith("_PICKAXE")) >= 0,
+        java.util.Map<Material, Integer> items = new java.util.HashMap<>();
+        inv.materials().forEach((slot, material) -> {
+            if (material != null) {
+                items.merge(material, Math.max(inv.counts().getOrDefault(slot, 1), 1),
+                        Integer::sum);
+            }
+        });
+        int cobbleStd = items.getOrDefault(Material.COBBLESTONE, 0);
+        return new CraftPlanner.State(items,
                 inv.findMaterial(PacketCraftingStation::isLog),
                 inv.findMaterial(PacketCraftingStation::isPlanks),
-                stone);
+                cobbleStd >= 3 ? Material.COBBLESTONE : Material.COBBLED_DEEPSLATE,
+                inv.findMaterial(m -> m.name().endsWith("_WOOL")));
     }
 
     private static boolean isLog(Material material) {

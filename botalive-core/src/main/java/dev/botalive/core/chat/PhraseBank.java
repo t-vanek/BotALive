@@ -14,8 +14,8 @@ import java.util.regex.Pattern;
  * náhodně (per-bot RNG), takže se odpovědi neopakují synchronně. Obsah se
  * načítá z jazykových souborů {@code lang/<kód>.yml}
  * (viz {@link PhraseBankLoader}) – kromě frází i <b>rozpoznávací vzory</b>
- * (pozdrav, poděkování), protože klasifikace příchozích zpráv je stejně
- * jazyková jako odpovědi.</p>
+ * (pozdrav, poděkování, otázka „co děláš?"), protože klasifikace příchozích
+ * zpráv je stejně jazyková jako odpovědi.</p>
  *
  * <p>Instance je nemutabilní a sdílená všemi boty (čtou ji souběžně
  * z tick vláken). Fráze podporují placeholder {@code {name}} pro jméno
@@ -27,16 +27,19 @@ public final class PhraseBank {
     static final int PATTERN_FLAGS = Pattern.CASE_INSENSITIVE
             | Pattern.UNICODE_CASE | Pattern.UNICODE_CHARACTER_CLASS;
 
+    /** Klíče rozpoznávacích vzorů (sekce {@code patterns} jazykového souboru). */
+    static final List<String> PATTERN_KEYS = List.of(
+            "greeting", "thanks", "what-doing", "where-are-you", "what-have",
+            "where-village", "come-here", "give-food");
+
     private final Map<PhraseCategory, List<String>> phrases;
-    private final Pattern greeting;
-    private final Pattern thanks;
+    private final Map<String, Pattern> patterns;
 
     /**
      * @param phrases  fráze podle kategorií (všechny kategorie, neprázdné seznamy)
-     * @param greeting vzor rozpoznání pozdravu v příchozí zprávě
-     * @param thanks   vzor rozpoznání poděkování v příchozí zprávě
+     * @param patterns rozpoznávací vzory podle klíčů {@link #PATTERN_KEYS}
      */
-    PhraseBank(Map<PhraseCategory, List<String>> phrases, Pattern greeting, Pattern thanks) {
+    PhraseBank(Map<PhraseCategory, List<String>> phrases, Map<String, Pattern> patterns) {
         EnumMap<PhraseCategory, List<String>> copy = new EnumMap<>(PhraseCategory.class);
         for (PhraseCategory category : PhraseCategory.values()) {
             List<String> list = phrases.get(category);
@@ -46,8 +49,12 @@ public final class PhraseBank {
             copy.put(category, List.copyOf(list));
         }
         this.phrases = copy;
-        this.greeting = greeting;
-        this.thanks = thanks;
+        for (String key : PATTERN_KEYS) {
+            if (patterns.get(key) == null) {
+                throw new IllegalStateException("Chybí vzor patterns." + key);
+            }
+        }
+        this.patterns = Map.copyOf(patterns);
     }
 
     /**
@@ -71,11 +78,21 @@ public final class PhraseBank {
     }
 
     /**
+     * @param key     klíč vzoru z {@link #PATTERN_KEYS}
+     * @param message příchozí zpráva (v původní velikosti písmen)
+     * @return {@code true} pokud zpráva vzoru odpovídá
+     */
+    public boolean matches(String key, String message) {
+        Pattern pattern = patterns.get(key);
+        return pattern != null && pattern.matcher(message).find();
+    }
+
+    /**
      * @param message příchozí zpráva (v původní velikosti písmen)
      * @return {@code true} pokud zpráva vypadá jako pozdrav
      */
     public boolean isGreeting(String message) {
-        return greeting.matcher(message).find();
+        return matches("greeting", message);
     }
 
     /**
@@ -83,16 +100,19 @@ public final class PhraseBank {
      * @return {@code true} pokud zpráva vypadá jako poděkování
      */
     public boolean isThanks(String message) {
-        return thanks.matcher(message).find();
+        return matches("thanks", message);
     }
 
-    /** @return vzor pozdravu (pro overlay při načítání) */
-    Pattern greeting() {
-        return greeting;
+    /**
+     * @param message příchozí zpráva
+     * @return {@code true} pokud se zpráva ptá, co bot dělá
+     */
+    public boolean isAskingActivity(String message) {
+        return matches("what-doing", message);
     }
 
-    /** @return vzor poděkování (pro overlay při načítání) */
-    Pattern thanks() {
-        return thanks;
+    /** @return vzor daného klíče (pro overlay při načítání) */
+    Pattern pattern(String key) {
+        return patterns.get(key);
     }
 }

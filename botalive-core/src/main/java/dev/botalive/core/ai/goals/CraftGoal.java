@@ -180,4 +180,9 @@ public final class CraftGoal extends AbstractGoal {
         }
         return false;
     }
+
+    @Override
+    public String explain(dev.botalive.api.bot.Bot bot) {
+        return "vyrábím si další vybavení";
+    }
 }

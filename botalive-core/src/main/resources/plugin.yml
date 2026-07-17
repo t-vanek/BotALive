@@ -3,6 +3,7 @@ version: '1.0.0'
 main: dev.botalive.core.BotAlivePlugin
 api-version: '26.1'
 folia-supported: true
+softdepend: [Vault]
 author: BotAlive
 description: Plně autonomní AI hráči připojení jako skuteční klienti (MCProtocolLib).
 website: https://github.com/t-vanek/BotALive

@@ -104,6 +104,17 @@ public interface BotContext {
     void requestMove(MoveInput input);
 
     /**
+     * Zaznamená prožitek formující osobnost (vývoj rysů + persistence
+     * + případný komentář bota k vlastní proměně).
+     *
+     * @param experience prožitek
+     */
+    void gainExperience(dev.botalive.core.personality.PersonalityEvolution.BotExperience experience);
+
+    /** @return sdílená kniha zločinů (krádeže mají oběti a následky) */
+    dev.botalive.core.social.CrimeLog crimeLog();
+
+    /**
      * Odhadne dobu těžby bloku v ticích – autoritativně přes server-side
      * {@code Block.getBreakSpeed(Player)} (zohledňuje nástroj, enchanty, efekty).
      *

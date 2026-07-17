@@ -8,6 +8,9 @@ import dev.botalive.api.bot.BotSpawnSpec;
 import dev.botalive.api.event.BotRemovedEvent;
 import dev.botalive.core.config.BotAliveConfig;
 import dev.botalive.core.economy.BotWalletImpl;
+import dev.botalive.core.economy.EconomyGateway;
+import dev.botalive.core.economy.VaultBotWallet;
+import dev.botalive.core.economy.VaultEconomy;
 import dev.botalive.core.memory.BotMemoryImpl;
 import dev.botalive.core.persistence.BotRepository;
 import dev.botalive.core.via.ViaCompat;
@@ -51,6 +54,11 @@ public final class BotManagerImpl implements BotManager {
     private final Map<UUID, BotImpl> byId = new ConcurrentHashMap<>();
     private final Map<String, UUID> byName = new ConcurrentHashMap<>();
 
+    /** Serverová ekonomika (Vault); resolví se líně – poskytovatelé se registrují
+     *  až ve svém onEnable, které může běžet po našem. Boti spawnují později. */
+    private volatile EconomyGateway economyGateway;
+    private volatile boolean economyResolved;
+
     /**
      * @param config       konfigurace
      * @param repository   repozitář
@@ -75,6 +83,32 @@ public final class BotManagerImpl implements BotManager {
         return nameGenerator.next(name ->
                 byName.containsKey(name.toLowerCase(Locale.ROOT))
                         || Bukkit.getPlayerExact(name) != null);
+    }
+
+    /**
+     * Jednorázová (líná) detekce serverové ekonomiky přes Vault.
+     *
+     * @return brána na ekonomiku, nebo {@code null} (interní peněženka)
+     */
+    private EconomyGateway resolveEconomy() {
+        if (!economyResolved) {
+            synchronized (this) {
+                if (!economyResolved) {
+                    if (config.economy().vault()) {
+                        economyGateway = VaultEconomy.detect(services.bridge()).orElse(null);
+                        if (economyGateway != null) {
+                            LOG.info("Ekonomika botů poběží přes Vault (poskytovatel: {})",
+                                    economyGateway.providerName());
+                        } else {
+                            LOG.info("Vault ekonomika není k dispozici – boti použijí "
+                                    + "interní peněženku");
+                        }
+                    }
+                    economyResolved = true;
+                }
+            }
+        }
+        return economyGateway;
     }
 
     @Override
@@ -120,8 +154,12 @@ public final class BotManagerImpl implements BotManager {
                 .thenCombine(repository.loadRole(botId), IdentityData::withRole)
                 .thenCompose(identity -> {
                     BotMemoryImpl memory = new BotMemoryImpl(botId, repository, identity.memories());
-                    BotWalletImpl wallet = new BotWalletImpl(botId, repository, identity.balance(),
-                            config.economy().enabled());
+                    EconomyGateway gateway = config.economy().enabled() ? resolveEconomy() : null;
+                    dev.botalive.api.economy.BotWallet wallet = gateway != null
+                            ? new VaultBotWallet(botId, gateway, repository::saveWallet,
+                                    config.economy().startingBalance())
+                            : new BotWalletImpl(botId, repository, identity.balance(),
+                                    config.economy().enabled());
                     BotStats stats = new BotStats(botId, repository);
                     Function<Bot, List<Goal>> goalFactory = goalRegistry::instantiateAll;
 
