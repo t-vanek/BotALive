@@ -19,6 +19,7 @@ import dev.botalive.core.combat.CombatController;
 import dev.botalive.core.combat.CombatDifficulty;
 import dev.botalive.core.config.BotAliveConfig;
 import dev.botalive.core.entity.EntityTracker;
+import dev.botalive.core.entity.TrackedEntity;
 import dev.botalive.core.human.Humanizer;
 import dev.botalive.core.inventory.ClientInventory;
 import dev.botalive.core.inventory.InventoryHelper;
@@ -33,6 +34,7 @@ import dev.botalive.core.pathfinding.NavigationService;
 import dev.botalive.core.pathfinding.Navigator;
 import dev.botalive.core.persistence.BotRepository;
 import dev.botalive.core.physics.BotPhysics;
+import dev.botalive.core.physics.CrowdAvoidance;
 import dev.botalive.core.physics.MoveInput;
 import dev.botalive.core.scheduler.BotTickEngine;
 import dev.botalive.core.scheduler.MainThreadBridge;
@@ -463,6 +465,24 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents {
                 : navigator.tick(physics.position(), physics.onGround());
         if (!alive || paused.get()) {
             input = MoveInput.IDLE;
+        }
+
+        // Vyhýbání davu: odpuzuj se od blízkých hráčů/botů, ať se boti neslévají
+        // na stejné místo. Platí i v boji – tam se ale vyloučí cíl útoku, aby se
+        // bot pořád mohl přiblížit k protivníkovi, jen se nehromadil na ostatních
+        // útočnících stejného cíle.
+        if (alive && !paused.get()) {
+            int targetId = combat.engaged() && combat.target() != null
+                    ? combat.target().entityId() : -1;
+            List<TrackedEntity> crowd = entities.nearby(physics.position(), CrowdAvoidance.radius(),
+                    e -> e.isPlayer() && e.entityId() != targetId);
+            if (!crowd.isEmpty()) {
+                Vec3 steered = CrowdAvoidance.steer(
+                        physics.position(), clientState.entityId(), crowd, input.direction());
+                if (!steered.equals(input.direction())) {
+                    input = new MoveInput(steered, input.sprint(), input.jump(), input.sneak());
+                }
+            }
         }
 
         // Přirozený pohled ve směru chůze (pokud cíl neřídí pohled sám).
