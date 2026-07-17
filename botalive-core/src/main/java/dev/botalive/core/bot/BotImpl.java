@@ -756,6 +756,17 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
             }
         }
 
+        // Pádový reflex: záchranná síť pro neřízený pohyb. Když bota u nebezpečné
+        // hrany postrčí dav (nebo se jen tak přišourá), přikrčí se a ochrana hrany
+        // ho zadrží. Řízený pohyb – navigace s cestou, zdolávání překážky
+        // (most/žebřík/loď) i cíl s vlastním requestedMove – ví, co dělá; do toho
+        // reflex nesahá, jinak by se bot u každého schodu zbytečně zaseknul.
+        boolean movementManaged = navDriven || obstacleTask != null || requestedMove != null;
+        if (alive && !paused.get() && worldView != null) {
+            input = dev.botalive.core.physics.FallReflex.apply(
+                    input, movementManaged, physics.onGround(), physics.position(), worldView);
+        }
+
         // Přirozený pohled ve směru chůze (pokud cíl neřídí pohled sám).
         if (requestedMove == null && input.direction().horizontalLength() > 1.0E-4) {
             humanizer.lookAlong(input.direction());
@@ -770,6 +781,12 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
         physics.step(input);
         movementSender.tick(physics.position(), humanizer.yaw(), humanizer.pitch(),
                 physics.onGround(), physics.horizontalCollision(), input);
+
+        // Diagnostika tvrdých dopadů (poškození řeší server; tady jen záznam).
+        if (physics.landedThisTick() && physics.lastFallDamage() > 0) {
+            LOG.debug("[{}] tvrdý dopad z ~{} bloků (odhad {} poškození)",
+                    name, String.format("%.1f", physics.lastFallDistance()), physics.lastFallDamage());
+        }
 
         // Periodicky: přepočet postupu k životní ambici (levné, cache 2 s).
         if (--ambitionRefreshTicks <= 0) {
