@@ -44,6 +44,21 @@ class CrowdAvoidanceTest {
     }
 
     @Test
+    void celniBlokUhneDoStrany() {
+        // Soused stojí přesně v cestě (bot jde na východ, soused na východě).
+        // Prosté odpuzování by se se směrem vyrušilo – čeká se úkrok do strany.
+        Vec3 desired = new Vec3(1, 0, 0);
+        Vec3 out = CrowdAvoidance.steer(new Vec3(0, 64, 0), 2,
+                List.of(playerAt(7, 1.0, 0)), desired);
+        assertTrue(out.horizontalLength() > 0.5, "úkrok nesmí bota zastavit: " + out);
+        assertTrue(Math.abs(out.z()) > 0.5, "čekal se boční úkrok (z-složka): " + out);
+        // Deterministicky: liché id uhne na druhou stranu než sudé.
+        Vec3 other = CrowdAvoidance.steer(new Vec3(0, 64, 0), 3,
+                List.of(playerAt(7, 1.0, 0)), desired);
+        assertTrue(out.z() * other.z() < 0, "různá parita id má uhnout opačně");
+    }
+
+    @Test
     void presnyPrekryvRozbijeSymetrii() {
         // Dva boti na identické pozici musí dostat nenulový (a různý) směr úniku.
         Vec3 self = new Vec3(0, 64, 0);

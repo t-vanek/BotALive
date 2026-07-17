@@ -67,6 +67,35 @@ class BotPhysicsTest {
     }
 
     @Test
+    void plavecSeSkokemVyhoupneNaBreh() {
+        FakeWorldView world = new FakeWorldView(FLOOR);
+        // Bazén (x 0..2) o blok zapuštěný; břeh od x=3 v úrovni FEET_Y.
+        for (int x = 0; x <= 2; x++) {
+            for (int z = -2; z <= 2; z++) {
+                world.set(x, (int) FEET_Y - 1, z, FakeWorldView.WATER);
+            }
+        }
+        // Podlahu pod bazénem posunout o 2 dolů (voda hloubky 2).
+        for (int x = 0; x <= 2; x++) {
+            for (int z = -2; z <= 2; z++) {
+                world.set(x, (int) FEET_Y - 2, z, FakeWorldView.WATER);
+            }
+        }
+        BotPhysics physics = new BotPhysics(world, new Vec3(1.5, FEET_Y - 1, 0.5));
+
+        // Plavat na východ se skokem – u stěny břehu se má vyhoupnout nahoru.
+        MoveInput swim = new MoveInput(new Vec3(1, 0, 0), false, true, false);
+        for (int i = 0; i < 200 && physics.position().x() < 3.6; i++) {
+            physics.step(swim);
+        }
+
+        assertTrue(physics.position().x() >= 3.6,
+                "plavec se má dostat na břeh, x=" + physics.position().x());
+        assertTrue(physics.position().y() >= FEET_Y - 0.05,
+                "plavec má stát na úrovni břehu, y=" + physics.position().y());
+    }
+
+    @Test
     void knockbackNastaviRychlost() {
         FakeWorldView world = new FakeWorldView(FLOOR);
         BotPhysics physics = new BotPhysics(world, new Vec3(0.5, FEET_Y, 0.5));

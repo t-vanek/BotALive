@@ -78,6 +78,19 @@ public final class CrowdAvoidance {
         if (count == 0 || push.horizontalLength() < EPS) {
             return desired;
         }
+        // Čelní blok: odpuzování míří téměř proti směru chůze → prosté smíchání
+        // by bota zastavilo a oba by se donekonečna přetlačovali. Místo toho
+        // uhnout do strany (deterministicky podle id) a soupeře obejít.
+        if (desired.horizontalLength() > EPS) {
+            Vec3 d = desired.horizontal().normalized();
+            Vec3 p = push.normalized();
+            double dot = d.x() * p.x() + d.z() * p.z();
+            if (dot < -0.75) {
+                double side = (selfId & 1) == 0 ? 1 : -1;
+                Vec3 slide = new Vec3(-d.z() * side, 0, d.x() * side);
+                return d.mul(0.4).add(slide).horizontal().normalized();
+            }
+        }
         Vec3 separation = push.normalized().mul(SEPARATION_WEIGHT);
         Vec3 blended = desired.add(separation);
         return blended.horizontalLength() < EPS ? Vec3.ZERO : blended.horizontal().normalized();
