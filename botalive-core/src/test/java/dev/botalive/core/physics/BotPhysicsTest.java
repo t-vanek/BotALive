@@ -136,6 +136,41 @@ class BotPhysicsTest {
     }
 
     @Test
+    void sprintSkokPrekonaDvoublokovouMezeru() {
+        // Dvě platformy s mezerou 2 bloků (x=3,4 je bezedné prázdno).
+        FakeWorldView world = new FakeWorldView(0);
+        for (int x = -2; x <= 2; x++) {
+            for (int z = -2; z <= 2; z++) {
+                world.set(x, FLOOR, z, FakeWorldView.SOLID);
+            }
+        }
+        for (int x = 5; x <= 9; x++) {
+            for (int z = -2; z <= 2; z++) {
+                world.set(x, FLOOR, z, FakeWorldView.SOLID);
+            }
+        }
+        BotPhysics physics = new BotPhysics(world, new Vec3(0.5, FEET_Y, 0.5));
+
+        // Emulace navigátoru: sprint na východ, odraz na hraně (kousek před
+        // botem chybí podlaha) – stejná logika jako Navigator.takeoffEdge.
+        Vec3 east = new Vec3(1, 0, 0);
+        double minY = FEET_Y;
+        boolean crossed = false;
+        for (int i = 0; i < 300 && !crossed; i++) {
+            boolean edge = !world.traitsAt(
+                    physics.position().add(0.7, 0, 0).toBlockPos().down()).solid();
+            boolean jump = physics.onGround() && edge;
+            physics.step(new MoveInput(east, true, jump, false));
+            minY = Math.min(minY, physics.position().y());
+            crossed = physics.onGround() && physics.position().x() > 5.2;
+        }
+
+        assertTrue(crossed, "bot má přeskočit mezeru, x=" + physics.position().x());
+        assertTrue(minY >= FEET_Y - 0.1,
+                "bot nesmí propadnout do mezery, minY=" + minY);
+    }
+
+    @Test
     void knockbackNastaviRychlost() {
         FakeWorldView world = new FakeWorldView(FLOOR);
         BotPhysics physics = new BotPhysics(world, new Vec3(0.5, FEET_Y, 0.5));

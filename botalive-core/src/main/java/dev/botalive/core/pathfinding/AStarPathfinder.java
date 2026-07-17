@@ -15,7 +15,8 @@ import java.util.PriorityQueue;
  *
  * <p>Prohledává „pochozí" pozice (pevný blok pod nohama, průchozí prostor pro
  * tělo). Podporované pohyby: 4 kardinální směry, diagonály (bez řezání rohů),
- * výstup o 1 blok (skok), seskok až o 3 bloky, šplhání po žebřících a plavání.
+ * výstup o 1 blok (skok), seskok až o 3 bloky, skok přes mezeru 1–2 bloků
+ * (sprint-skok), šplhání po žebřících a plavání.
  * Cenová funkce penalizuje vodu, seskoky a blízkost hazardů (láva, oheň,
  * kaktus), tvrdě zakazuje vstup do hazardu a do nenačtených chunků.</p>
  *
@@ -44,6 +45,13 @@ public final class AStarPathfinder {
     private static final int MAX_DROP = 3;
     /** Maximální seskok do hluboké vody (dopad do vody neubližuje). */
     private static final int MAX_WATER_DROP = 20;
+
+    /** Nejširší mezera, kterou bot přeskočí (sprint-skok zvládne 2 bloky prázdna). */
+    private static final int MAX_GAP = 2;
+    /** Přirážka za skok přes mezeru (rizikovější než chůze, levnější než obcházka). */
+    private static final int COST_GAP_JUMP = 18;
+    /** Do jaké hloubky kontrolovat dno mezery na hazard (láva = skok zakázán). */
+    private static final int GAP_HAZARD_SCAN = 8;
 
     /** Ceny za blízkost místa, kde bot zemřel / poznal nebezpečí. */
     private static final int COST_DANGER_NEAR = 80;
@@ -151,6 +159,9 @@ public final class AStarPathfinder {
                     continue;
                 }
                 stepTowards(current, pos.offset(dx, 0, dz), diagonal, goal, open, visited);
+                if (!diagonal) {
+                    tryGapJump(current, dx, dz, goal, open, visited);
+                }
             }
         }
 
@@ -219,6 +230,59 @@ public final class AStarPathfinder {
                 }
             }
         }
+    }
+
+    /**
+     * Skok přes mezeru: 1–2 sloupce prázdna v kardinálním směru, dopad ve
+     * stejné výšce. Mezisloupce musí být průchozí v úrovni nohou, hlavy i nad
+     * hlavou (letová dráha) a nesmí být pochozí (jinak stačí obyčejný krok).
+     * Nad lávou/ohněm se neskáče – nepovedený skok by byl smrtelný.
+     */
+    private void tryGapJump(Node current, int dx, int dz, BlockPos goal,
+                            PriorityQueue<Node> open, Long2ObjectOpenHashMap<Node> visited) {
+        BlockPos pos = current.pos;
+        // Volný strop nad hlavou pro odraz.
+        if (!isPassable(pos.offset(0, 2, 0))) {
+            return;
+        }
+        for (int span = 2; span <= MAX_GAP + 1; span++) {
+            // Nový mezisloupec (poslední před dopadem pro tento rozpon).
+            BlockPos gap = pos.offset(dx * (span - 1), 0, dz * (span - 1));
+            if (isStandable(gap)) {
+                return; // není mezera – řeší obyčejný krok
+            }
+            if (!isPassable(gap) || !isPassable(gap.up()) || !isPassable(gap.offset(0, 2, 0))) {
+                return; // zeď/hazard v letové dráze
+            }
+            if (hazardBelow(gap)) {
+                return; // láva na dně – radši obchůzka
+            }
+            BlockPos landing = pos.offset(dx * span, 0, dz * span);
+            if (isStandable(landing) && isPassable(landing.offset(0, 2, 0))
+                    && !world.traitsAt(landing).liquid()) {
+                int cost = span * COST_STRAIGHT + COST_GAP_JUMP
+                        + (span - 2) * COST_GAP_JUMP / 2 // širší mezera = větší riziko
+                        + terrainPenalty(landing);
+                tryAdd(current, landing, cost, goal, open, visited);
+                return;
+            }
+        }
+    }
+
+    /** Je na dně sloupce (do {@link #GAP_HAZARD_SCAN} bloků) hazard – láva, oheň? */
+    private boolean hazardBelow(BlockPos top) {
+        BlockPos pos = top.down();
+        for (int depth = 1; depth <= GAP_HAZARD_SCAN; depth++) {
+            BlockTraits t = world.traitsAt(pos);
+            if (t.hazard()) {
+                return true;
+            }
+            if (t.solid() || t.liquid()) {
+                return false; // pevné/vodní dno je bezpečné
+            }
+            pos = pos.down();
+        }
+        return false; // bezedno – pád je riziko skoku, ne hazard dna
     }
 
     /** Diagonála je povolená jen, když jsou oba přiléhající sloupce průchozí (žádné řezání rohů). */

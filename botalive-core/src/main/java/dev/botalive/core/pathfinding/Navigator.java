@@ -20,6 +20,8 @@ import java.util.concurrent.CompletableFuture;
  *   <li>waypoint se považuje za dosažený s tolerancí (bot nechodí „po pravítku"),</li>
  *   <li>sprint se zapíná na delších rovných úsecích podle povahy bota,</li>
  *   <li>skok se vyvolá, když je další waypoint výš,</li>
+ *   <li>mezery 1–2 bloků (naplánované pathfinderem) se přeskakují rozběhem
+ *       a odrazem na hraně; širší mezera vynucuje sprint,</li>
  *   <li>zavřené dveře v cestě bot otevře interakcí,</li>
  *   <li>detekce zaseknutí: bez postupu několik desítek ticků → požádá o novou cestu,</li>
  *   <li>replanning je asynchronní – bot mezitím dojíždí starou cestu.</li>
@@ -247,6 +249,20 @@ public final class Navigator {
         }
         Vec3 direction = delta.horizontal().normalized();
 
+        // Skok přes mezeru: waypoint dál než sousední blok ve stejné výšce
+        // znamená naplánovaný přeskok (pathfinder jiné dlouhé segmenty negeneruje).
+        // Rozběh sprintem a odraz přesně na hraně – u širší mezery je sprint
+        // nutný, aby doletěl.
+        boolean gapSegment = onGround && !inWater && Math.abs(delta.y()) < 0.6
+                && delta.horizontalLength() > 1.4;
+        if (gapSegment) {
+            boolean wideGap = delta.horizontalLength() > 2.2;
+            if (takeoffEdge(position, direction)) {
+                return new MoveInput(direction, wideGap, true, false);
+            }
+            return new MoveInput(direction, wideGap, false, false);
+        }
+
         // Hrana srázu: před botem zeje díra hlubší než bezpečný seskok a cesta
         // dolů nevede → přibrzdit, ať setrvačnost nepřenese bota přes okraj.
         if (onGround && !inWater && !jump && delta.y() > -0.5 && cliffAhead(position, direction)) {
@@ -255,6 +271,12 @@ public final class Navigator {
 
         boolean sprint = !inWater && shouldSprint(delta);
         return MoveInput.of(direction, sprint, jump);
+    }
+
+    /** Odrazová hrana: kousek před botem už chybí pevná podlaha pod nohama. */
+    private boolean takeoffEdge(Vec3 position, Vec3 direction) {
+        BlockPos ahead = position.add(direction.mul(0.7)).toBlockPos();
+        return !world.traitsAt(ahead.down()).solid();
     }
 
     /** Sloupec kousek před botem nemá do 4 bloků pod nohama nic pevného ani vodu. */

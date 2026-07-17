@@ -223,4 +223,77 @@ class AStarPathfinderTest {
 
         assertFalse(path.complete(), "obezděný cíl nesmí být dosažen");
     }
+
+    /**
+     * Dvě platformy oddělené mezerou šířky {@code gapWidth} (sloupce
+     * x = 3 .. 3+gapWidth−1 jsou bezedné prázdno), z v [−1..1].
+     */
+    private static FakeWorldView platformsWithGap(int gapWidth) {
+        FakeWorldView world = new FakeWorldView(0);
+        for (int z = -1; z <= 1; z++) {
+            for (int x = -1; x <= 2; x++) {
+                world.set(x, FLOOR, z, FakeWorldView.SOLID);
+            }
+            for (int x = 3 + gapWidth; x <= 8 + gapWidth; x++) {
+                world.set(x, FLOOR, z, FakeWorldView.SOLID);
+            }
+        }
+        return world;
+    }
+
+    /** Nejdelší vodorovný krok mezi po sobě jdoucími waypointy (start = from). */
+    private static int longestStep(Path path, BlockPos from) {
+        int longest = 0;
+        BlockPos prev = from;
+        for (BlockPos p : path.waypoints()) {
+            int step = Math.abs(p.x() - prev.x()) + Math.abs(p.z() - prev.z());
+            longest = Math.max(longest, step);
+            prev = p;
+        }
+        return longest;
+    }
+
+    @Test
+    void preskociJednoblokovouMezeru() {
+        BlockPos start = new BlockPos(0, FEET, 0);
+        Path path = new AStarPathfinder(platformsWithGap(1))
+                .findPath(start, new BlockPos(6, FEET, 0), 0);
+
+        assertTrue(path.complete(), "mezera 1 blok má jít přeskočit: " + path.waypoints());
+        assertTrue(longestStep(path, start) >= 2,
+                "cesta má obsahovat skok přes mezeru: " + path.waypoints());
+        assertTrue(path.waypoints().stream().noneMatch(p -> p.x() == 3),
+                "žádný waypoint nesmí ležet v mezeře: " + path.waypoints());
+    }
+
+    @Test
+    void preskociDvoublokovouMezeru() {
+        BlockPos start = new BlockPos(0, FEET, 0);
+        Path path = new AStarPathfinder(platformsWithGap(2))
+                .findPath(start, new BlockPos(7, FEET, 0), 0);
+
+        assertTrue(path.complete(), "mezera 2 bloky má jít přeskočit: " + path.waypoints());
+        assertTrue(longestStep(path, start) >= 3,
+                "cesta má obsahovat sprint-skok přes 2 bloky: " + path.waypoints());
+    }
+
+    @Test
+    void nepreskociMezeruNadLavou() {
+        FakeWorldView world = platformsWithGap(1);
+        for (int z = -1; z <= 1; z++) {
+            world.set(3, FLOOR, z, FakeWorldView.HAZARD); // láva na dně mezery
+        }
+        Path path = new AStarPathfinder(world)
+                .findPath(new BlockPos(0, FEET, 0), new BlockPos(6, FEET, 0), 2000);
+
+        assertFalse(path.complete(), "nad lávou se neskáče – nepovedený skok je smrt");
+    }
+
+    @Test
+    void nepreskociprilisSirokouMezeru() {
+        Path path = new AStarPathfinder(platformsWithGap(3))
+                .findPath(new BlockPos(0, FEET, 0), new BlockPos(8, FEET, 0), 2000);
+
+        assertFalse(path.complete(), "mezera 3 bloky je nad síly sprint-skoku");
+    }
 }
