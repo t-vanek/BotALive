@@ -96,6 +96,11 @@ inventář a historii; po restartu serveru pokračuje tam, kde skončil.
 - **Učení z chyb a reflexy** – pathfinding zdražuje průchod místy, kde bot
   zemřel (paměť DEATH/DANGER); creeper v odpalové vzdálenosti spouští
   okamžitý úprk; sebrané brnění si boti sami nasazují.
+- **Plná správa inventáře** – boti klikají ve vlastním okně inventáře
+  (SWAP, čistý protokol → funguje i na cizích serverech): nástroje, jídlo,
+  bloky i brnění si přitáhnou z hlavního inventáře do hotbaru, když je
+  potřebují; odkládají při tom do prázdných/obyčejných slotů, nikdy
+  neobětují nástroj ani jídlo.
 - **Domov se vším všudy** – k domu boti craftí a osazují dveře, uvnitř
   pochodeň a postel (vlna z lovu ovcí → spawn point).
 - **Rozumí prosbám** – chat zvládá věcné dotazy a prosby: „kde jsi?",

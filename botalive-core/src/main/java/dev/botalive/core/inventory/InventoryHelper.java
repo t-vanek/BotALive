@@ -16,13 +16,113 @@ import java.util.Locale;
  */
 public final class InventoryHelper {
 
+    /**
+     * Přitažení itemu z hlavního inventáře do hotbaru (kliky ve vlastním okně).
+     *
+     * @see #puller(ItemPuller)
+     */
+    @FunctionalInterface
+    public interface ItemPuller {
+        /**
+         * @param predicate co přitáhnout
+         * @return hotbar index, kam item dorazil, nebo -1
+         */
+        int pullToHotbar(java.util.function.Predicate<Material> predicate);
+    }
+
     private final BotActions actions;
+    private ItemPuller puller;
 
     /**
      * @param actions akční primitivy (přepínání slotů)
      */
     public InventoryHelper(BotActions actions) {
         this.actions = actions;
+    }
+
+    /**
+     * Napojí přitahování itemů z hlavního inventáře – equip metody pak umí
+     * sáhnout i mimo hotbar (SWAP klik ve vlastním okně inventáře).
+     *
+     * @param puller implementace přitažení (typicky BotImpl přes ContainerClicker)
+     */
+    public void puller(ItemPuller puller) {
+        this.puller = puller;
+    }
+
+    /** Vybere slot: hotbar → přitažení z hlavního inventáře → -1. */
+    private int slotOrPull(ServerSideView.Snapshot snapshot,
+                           java.util.function.Predicate<Material> predicate) {
+        int slot = snapshot.findHotbarSlot(predicate);
+        if (slot >= 0) {
+            return slot;
+        }
+        return puller != null ? puller.pullToHotbar(predicate) : -1;
+    }
+
+    /**
+     * Najde v hlavním inventáři nejlepší slot vyhovující predikátu
+     * (řadí podle tieru nástroje/brnění; jinak první výskyt).
+     *
+     * @param snapshot  server-side snapshot
+     * @param predicate podmínka na materiál
+     * @return index v {@code mainInventory()} (0–26), nebo -1
+     */
+    public static int findBestInMain(ServerSideView.Snapshot snapshot,
+                                     java.util.function.Predicate<Material> predicate) {
+        if (snapshot == null) {
+            return -1;
+        }
+        Material[] main = snapshot.mainInventory();
+        int best = -1;
+        int bestScore = -1;
+        for (int i = 0; i < main.length; i++) {
+            if (main[i] == null || !predicate.test(main[i])) {
+                continue;
+            }
+            int score = Math.max(toolTier(main[i]), armorTier(main[i]));
+            if (score > bestScore) {
+                bestScore = score;
+                best = i;
+            }
+        }
+        return best;
+    }
+
+    /**
+     * Vybere hotbar slot, kam lze bezpečně odložit přitažený item:
+     * prázdný → obyčejný materiál (bloky) → nejpočetnější stack. Nikdy nástroj
+     * ani jídlo, pokud existuje jiná možnost.
+     *
+     * @param snapshot server-side snapshot
+     * @return hotbar index 0–8
+     */
+    public static int chooseHotbarDumpSlot(ServerSideView.Snapshot snapshot) {
+        Material[] hotbar = snapshot.hotbar();
+        for (int j = 0; j < hotbar.length; j++) {
+            if (hotbar[j] == null) {
+                return j;
+            }
+        }
+        for (int j = 0; j < hotbar.length; j++) {
+            if (isBuildingBlock(hotbar[j]) || hotbar[j] == Material.DIRT
+                    || hotbar[j] == Material.GRAVEL || hotbar[j] == Material.SAND) {
+                return j;
+            }
+        }
+        int[] counts = snapshot.hotbarCounts();
+        int best = 0;
+        int bestCount = -1;
+        for (int j = 0; j < hotbar.length; j++) {
+            boolean precious = toolTier(hotbar[j]) > 0 || armorTier(hotbar[j]) > 0
+                    || isFood(hotbar[j]);
+            int count = counts != null ? counts[j] : 1;
+            if (!precious && count > bestCount) {
+                bestCount = count;
+                best = j;
+            }
+        }
+        return best;
     }
 
     /** Kategorie nástroje. */
@@ -171,6 +271,16 @@ public final class InventoryHelper {
                 bestSlot = i;
             }
         }
+        // Lepší nástroj v hlavním inventáři? Přitáhnout (kliky vlastního okna).
+        int mainBest = findBestInMain(snapshot, m -> isTool(m, type));
+        if (puller != null && mainBest >= 0
+                && toolTier(snapshot.mainInventory()[mainBest]) > bestTier) {
+            int pulled = puller.pullToHotbar(m -> isTool(m, type));
+            if (pulled >= 0) {
+                actions.selectHotbar(pulled);
+                return true;
+            }
+        }
         if (bestSlot >= 0) {
             actions.selectHotbar(bestSlot);
             return true;
@@ -188,9 +298,9 @@ public final class InventoryHelper {
         if (snapshot == null) {
             return false;
         }
-        int slot = snapshot.findHotbarSlot(m -> isTool(m, ToolType.SWORD));
+        int slot = slotOrPull(snapshot, m -> isTool(m, ToolType.SWORD));
         if (slot < 0) {
-            slot = snapshot.findHotbarSlot(m -> isTool(m, ToolType.AXE));
+            slot = slotOrPull(snapshot, m -> isTool(m, ToolType.AXE));
         }
         if (slot >= 0) {
             actions.selectHotbar(slot);
@@ -209,7 +319,7 @@ public final class InventoryHelper {
         if (snapshot == null) {
             return false;
         }
-        int slot = snapshot.findHotbarSlot(InventoryHelper::isFood);
+        int slot = slotOrPull(snapshot, InventoryHelper::isFood);
         if (slot >= 0) {
             actions.selectHotbar(slot);
             return true;
@@ -227,7 +337,7 @@ public final class InventoryHelper {
         if (snapshot == null) {
             return false;
         }
-        int slot = snapshot.findHotbarSlot(InventoryHelper::isBuildingBlock);
+        int slot = slotOrPull(snapshot, InventoryHelper::isBuildingBlock);
         if (slot >= 0) {
             actions.selectHotbar(slot);
             return true;
@@ -303,22 +413,37 @@ public final class InventoryHelper {
         }
         Material[] hotbar = snapshot.hotbar();
         for (int i = 0; i < hotbar.length; i++) {
-            Material item = hotbar[i];
-            if (item == null) {
-                continue;
-            }
-            int slot = armorSlot(item);
-            if (slot < 0) {
-                continue;
-            }
-            Material worn = slot < snapshot.armor().length ? snapshot.armor()[slot] : null;
-            if (armorTier(item) > (worn == null ? 0 : armorTier(worn))) {
+            if (isArmorUpgrade(snapshot, hotbar[i])) {
                 actions.selectHotbar(i);
                 actions.useItem(yaw, pitch);
                 return true;
             }
         }
+        // Kus v hlavním inventáři? Přitáhnout klikem a rovnou nasadit.
+        if (puller != null
+                && findBestInMain(snapshot, m -> isArmorUpgrade(snapshot, m)) >= 0) {
+            int pulled = puller.pullToHotbar(m -> isArmorUpgrade(snapshot, m));
+            if (pulled >= 0) {
+                actions.selectHotbar(pulled);
+                actions.useItem(yaw, pitch);
+                return true;
+            }
+        }
         return false;
+    }
+
+    /** Je item kus brnění lepší než právě nošený ve svém slotu? */
+    private static boolean isArmorUpgrade(ServerSideView.Snapshot snapshot, Material item) {
+        if (item == null) {
+            return false;
+        }
+        int slot = armorSlot(item);
+        if (slot < 0) {
+            return false;
+        }
+        Material worn = snapshot.armor() != null && slot < snapshot.armor().length
+                ? snapshot.armor()[slot] : null;
+        return armorTier(item) > (worn == null ? 0 : armorTier(worn));
     }
 
     /**
@@ -332,7 +457,7 @@ public final class InventoryHelper {
         if (snapshot == null) {
             return false;
         }
-        int slot = snapshot.findHotbarSlot(m -> m == material);
+        int slot = slotOrPull(snapshot, m -> m == material);
         if (slot >= 0) {
             actions.selectHotbar(slot);
             return true;
@@ -352,7 +477,7 @@ public final class InventoryHelper {
         if (snapshot == null) {
             return false;
         }
-        int slot = snapshot.findHotbarSlot(predicate);
+        int slot = slotOrPull(snapshot, predicate);
         if (slot >= 0) {
             actions.selectHotbar(slot);
             return true;
