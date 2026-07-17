@@ -166,6 +166,37 @@ class CraftPlannerTest {
     }
 
     @Test
+    void kovadlinaACompaster() {
+        Object[] geared = {Material.OAK_PLANKS, 20, Material.STICK, 8,
+                Material.COBBLESTONE, 3, Material.CRAFTING_TABLE, 1,
+                Material.FURNACE, 1, Material.SMOKER, 1, Material.BLAST_FURNACE, 1,
+                Material.TORCH, 8, Material.SHIELD, 1,
+                Material.DIAMOND_PICKAXE, 1, Material.DIAMOND_SWORD, 1,
+                Material.DIAMOND_AXE, 1, Material.STONE_SHOVEL, 1,
+                Material.DIAMOND_CHESTPLATE, 1, Material.DIAMOND_LEGGINGS, 1,
+                Material.DIAMOND_HELMET, 1, Material.DIAMOND_BOOTS, 1,
+                Material.BOW, 1, Material.ARROW, 16, Material.CHEST, 1,
+                Material.OAK_BOAT, 1, Material.OAK_DOOR, 1, Material.RED_BED, 1};
+        // Přebytek železa → bloky → kovadlina.
+        CraftPlanner.Plan blok = CraftPlanner.next(state(concat(geared,
+                Material.IRON_INGOT, 35)));
+        assertEquals("blok železa", blok.id());
+        CraftPlanner.Plan kovadlina = CraftPlanner.next(state(concat(geared,
+                Material.IRON_BLOCK, 3, Material.IRON_INGOT, 4)));
+        assertEquals("kovadlina", kovadlina.id());
+        assertEquals(3, kovadlina.ingredients().get(Material.IRON_BLOCK));
+
+        // Dostatek prken → půlky → composter.
+        CraftPlanner.Plan pulky = CraftPlanner.next(state(concat(geared,
+                Material.ANVIL, 1)));
+        assertEquals("dřevěné půlky", pulky.id());
+        CraftPlanner.Plan composter = CraftPlanner.next(state(concat(geared,
+                Material.ANVIL, 1, Material.OAK_SLAB, 7)));
+        assertEquals("composter", composter.id());
+        assertEquals(7, composter.ingredients().get(Material.OAK_SLAB));
+    }
+
+    @Test
     void udirnaABlastovaPec() {
         Object[] geared = {Material.OAK_PLANKS, 8, Material.STICK, 8,
                 Material.COBBLESTONE, 3, Material.CRAFTING_TABLE, 1,

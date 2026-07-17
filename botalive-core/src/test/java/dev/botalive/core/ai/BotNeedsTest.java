@@ -23,7 +23,7 @@ class BotNeedsTest {
             counts[i] = hotbar[i] == null ? 0 : 1;
         }
         return new ServerSideView.Snapshot(null, bar, counts, new Material[27], null,
-                new Material[4], 20, 20, 0, false, false, false, 1000, 0);
+                new Material[4], null, 0, 20, 20, 0, false, false, false, 1000, 0);
     }
 
     @Test

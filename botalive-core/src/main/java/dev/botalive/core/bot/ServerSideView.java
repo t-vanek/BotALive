@@ -49,6 +49,8 @@ public final class ServerSideView {
             Material[] mainInventory,
             Material offhand,
             Material[] armor,
+            Material damagedTool,
+            int damagedToolPercent,
             double health,
             int foodLevel,
             int expLevel,
@@ -172,12 +174,31 @@ public final class ServerSideView {
                 armor[i] = worn[i].getType();
             }
         }
+        // Nejopotřebenější nástroj (pro rozhodování o opravě u kovadliny).
+        Material damagedTool = null;
+        int damagedPercent = 0;
+        for (ItemStack item : inventory.getStorageContents()) {
+            if (item == null) {
+                continue;
+            }
+            int max = item.getType().getMaxDurability();
+            if (max <= 0
+                    || !(item.getItemMeta() instanceof org.bukkit.inventory.meta.Damageable d)) {
+                continue;
+            }
+            int percent = d.getDamage() * 100 / max;
+            if (percent > damagedPercent) {
+                damagedPercent = percent;
+                damagedTool = item.getType();
+            }
+        }
         Material feet = player.getLocation().getBlock().getType();
         ItemStack offhandItem = inventory.getItemInOffHand();
         Material offhand = offhandItem.getType().isAir() ? null : offhandItem.getType();
         return new Snapshot(
                 player.getLocation().clone(),
                 hotbar, hotbarCounts, main, offhand, armor,
+                damagedTool, damagedPercent,
                 player.getHealth(),
                 player.getFoodLevel(),
                 player.getLevel(),

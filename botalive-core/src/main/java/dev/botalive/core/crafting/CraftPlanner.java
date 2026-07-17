@@ -313,6 +313,37 @@ public final class CraftPlanner {
                     plank, 3, plank, 5, plank, 6, plank, 7, plank, 8), true);
         }
 
+        // ---- kovadlina (opravy nástrojů; drahá – až při přebytku železa)
+        if (s.hasTable() && !s.has(Material.ANVIL)
+                && s.count(Material.IRON_BLOCK) < 3 && iron >= 13) {
+            return new Plan("blok železa", matrix(
+                    Material.IRON_INGOT, 0, Material.IRON_INGOT, 1, Material.IRON_INGOT, 2,
+                    Material.IRON_INGOT, 3, Material.IRON_INGOT, 4, Material.IRON_INGOT, 5,
+                    Material.IRON_INGOT, 6, Material.IRON_INGOT, 7,
+                    Material.IRON_INGOT, 8), true);
+        }
+        if (s.hasTable() && !s.has(Material.ANVIL)
+                && s.count(Material.IRON_BLOCK) >= 3 && iron >= 4) {
+            return new Plan("kovadlina", matrix(
+                    Material.IRON_BLOCK, 0, Material.IRON_BLOCK, 1, Material.IRON_BLOCK, 2,
+                    Material.IRON_INGOT, 4, Material.IRON_INGOT, 6,
+                    Material.IRON_INGOT, 7, Material.IRON_INGOT, 8), true);
+        }
+
+        // ---- composter (hnojivo ze semínek; farmářský okruh)
+        if (s.hasTable() && plank != null && !s.has(Material.COMPOSTER)
+                && s.countMatching(m -> m.name().endsWith("_SLAB")) < 7 && s.planks() >= 11) {
+            return new Plan("dřevěné půlky", matrix(
+                    plank, 0, plank, 1, plank, 2), true);
+        }
+        if (s.hasTable() && !s.has(Material.COMPOSTER)
+                && s.countMatching(m -> m.name().endsWith("_SLAB")) >= 7) {
+            Material slab = firstSlab(s);
+            return new Plan("composter", matrix(
+                    slab, 0, slab, 2, slab, 3, slab, 5,
+                    slab, 6, slab, 7, slab, 8), true);
+        }
+
         // ---- vybavení domova
         if (s.hasTable() && s.planks() >= 6 && plank != null
                 && !s.hasMatching(m -> m.name().endsWith("_DOOR"))) {
@@ -327,6 +358,21 @@ public final class CraftPlanner {
                     plank, 3, plank, 4, plank, 5), true);
         }
         return null;
+    }
+
+    /** První druh dřevěné půlky v inventáři. */
+    private static Material firstSlab(State s) {
+        for (Material material : s.items().keySet()) {
+            if (material.name().endsWith("_SLAB") && s.count(material) >= 7) {
+                return material;
+            }
+        }
+        for (Material material : s.items().keySet()) {
+            if (material.name().endsWith("_SLAB")) {
+                return material;
+            }
+        }
+        return Material.OAK_SLAB;
     }
 
     /** Má sekeru v tieru {@code tier} nebo lepší (bez krumpáčů). */

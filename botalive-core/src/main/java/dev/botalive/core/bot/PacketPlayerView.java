@@ -80,6 +80,7 @@ final class PacketPlayerView {
         return new ServerSideView.Snapshot(
                 new Location(null, position.x(), position.y(), position.z()),
                 hotbar, hotbarCounts, main, offhand, armor,
+                null, 0, // opotřebení jen v server režimu (klientský model ho nečte)
                 state.health(),
                 state.food(),
                 state.expLevel(),
