@@ -96,6 +96,45 @@ class BotPhysicsTest {
     }
 
     @Test
+    void vyslapeSloupecZebriku() {
+        FakeWorldView world = new FakeWorldView(FLOOR);
+        // Sloupec žebříků ve vlastním sloupci bota (x=0), 4 patra nad podlahou,
+        // za nimi pevná stěna. Bot se skokem šplhá vzhůru.
+        for (int y = (int) FEET_Y; y <= (int) FEET_Y + 3; y++) {
+            world.set(0, y, 0, FakeWorldView.CLIMBABLE);
+            world.set(1, y, 0, FakeWorldView.SOLID);
+        }
+        BotPhysics physics = new BotPhysics(world, new Vec3(0.5, FEET_Y, 0.5));
+
+        // Držení „nahoru" po žebříku (jump = stoupání).
+        MoveInput climb = new MoveInput(Vec3.ZERO, false, true, false);
+        for (int i = 0; i < 80; i++) {
+            physics.step(climb);
+        }
+
+        assertTrue(physics.position().y() >= FEET_Y + 2.5,
+                "bot má vyšplhat po žebříku, y=" + physics.position().y());
+    }
+
+    @Test
+    void bezZebrikuNestoupa() {
+        FakeWorldView world = new FakeWorldView(FLOOR);
+        BotPhysics physics = new BotPhysics(world, new Vec3(0.5, FEET_Y, 0.5));
+
+        // Bez žebříku samotný „jump" bota nevynese trvale nahoru (skáče na místě
+        // a padá zpět) – nikdy nevyšplhá o víc než jeden blok.
+        MoveInput climb = new MoveInput(Vec3.ZERO, false, true, false);
+        double maxY = FEET_Y;
+        for (int i = 0; i < 80; i++) {
+            physics.step(climb);
+            maxY = Math.max(maxY, physics.position().y());
+        }
+
+        assertTrue(maxY < FEET_Y + 1.5,
+                "bez žebříku má bot jen skákat na místě, maxY=" + maxY);
+    }
+
+    @Test
     void knockbackNastaviRychlost() {
         FakeWorldView world = new FakeWorldView(FLOOR);
         BotPhysics physics = new BotPhysics(world, new Vec3(0.5, FEET_Y, 0.5));

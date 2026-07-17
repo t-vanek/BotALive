@@ -111,6 +111,8 @@ public record BotAliveConfig(
      * @param difficulty            easy|normal|hard|nightmare – škáluje reakce a přesnost
      * @param terraforming          smí boti měnit terén (razit štoly za rudou, upravovat
      *                              staveniště domů); false = jen povrchová těžba
+     * @param ladders               smí boti stavět žebříky na přelezení svislých stěn
+     *                              vyšších než skok (vyžaduje {@code terraforming})
      * @param dailyRhythm           denní rytmus: ráno pole, přes den těžba/stavba,
      *                              večer družení, v noci domů (jemné násobiče utility)
      * @param desperation           nouzové chování: hladový bot bez prostředků krade
@@ -118,7 +120,7 @@ public record BotAliveConfig(
      */
     public record Ai(int decisionIntervalTicks, double goalHysteresis,
                      int viewDistanceBlocks, String difficulty, boolean terraforming,
-                     boolean dailyRhythm, boolean desperation) {
+                     boolean ladders, boolean dailyRhythm, boolean desperation) {
     }
 
     /**

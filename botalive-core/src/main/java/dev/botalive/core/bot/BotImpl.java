@@ -811,6 +811,17 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
             return new dev.botalive.core.tasks.BridgeTask(sx, sz);
         }
 
+        // Svislá stěna vyšší než skok (front i patro nad ním pevné) a cíl výš →
+        // přilepit žebřík a přelézt ji. Klasika hráče místo hloubení schodiště;
+        // řeší i zdi se stropem, kudy se prokopat vzhůru nedá.
+        if (dy > 0 && config.ai().ladders()
+                && worldView.traitsAt(front).solid()
+                && worldView.traitsAt(front.up()).solid()
+                && !liquidNear(front)
+                && inventoryHelper.equipItem(serverView.latest(), org.bukkit.Material.LADDER)) {
+            return new dev.botalive.core.tasks.LadderTask(sx, sz);
+        }
+
         // Kandidáti na vylámání podle směru (v pořadí důležitosti).
         List<BlockPos> candidates = dy > 0
                 ? List.of(feet.up().up(), front.up().up(), front.up())
