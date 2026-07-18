@@ -23,6 +23,32 @@ patterns:
   where-village: 'where\s+is\s+(the\s+|a\s+)?(nearest\s+)?village|know\s+a\s+village'
   come-here: 'come\s+(here|to\s+me|with\s+me)|follow\s+me'
   give-food: 'give\s+me\s+(some\s+)?food|got\s+(any\s+)?food|feed\s+me|toss\s+me\s+food'
+  help: '\b(help(\s+me)?|save\s+me|sos|assist)\b'
+  give-item: '\b(give|toss|throw|lend|spare)\s+me\b|\bgot\s+(any|some|spare)\b|\bi\s+need\b|\bcan\s+i\s+(have|get)\b'
+
+# Item aliases for "give me ..." requests – key is a word from the message
+# (lowercase), value is the list of materials the bot may hand over.
+items:
+  wood: [OAK_LOG, BIRCH_LOG, SPRUCE_LOG, JUNGLE_LOG, ACACIA_LOG, DARK_OAK_LOG]
+  logs: [OAK_LOG, BIRCH_LOG, SPRUCE_LOG, JUNGLE_LOG, ACACIA_LOG, DARK_OAK_LOG]
+  planks: [OAK_PLANKS, BIRCH_PLANKS, SPRUCE_PLANKS, JUNGLE_PLANKS, ACACIA_PLANKS, DARK_OAK_PLANKS]
+  stone: [COBBLESTONE, STONE]
+  cobble: [COBBLESTONE]
+  coal: [COAL, CHARCOAL]
+  iron: [IRON_INGOT]
+  gold: [GOLD_INGOT]
+  diamond: [DIAMOND]
+  diamonds: [DIAMOND]
+  torch: [TORCH]
+  torches: [TORCH]
+  sticks: [STICK]
+  dirt: [DIRT]
+  sand: [SAND]
+  bread: [BREAD]
+  meat: [COOKED_BEEF, COOKED_PORKCHOP, COOKED_CHICKEN, COOKED_MUTTON]
+  apple: [APPLE]
+  seeds: [WHEAT_SEEDS]
+  wheat: [WHEAT]
 
 phrases:
   greetings:
@@ -123,6 +149,81 @@ phrases:
     - "who's next?"
     - "stay down"
     - "think twice next time"
+  attacked:
+    - "ow! what's your problem?!"
+    - "hey! stop that"
+    - "you hitting me?!"
+    - "what are you doing?!"
+    - "ouch, that hurt"
+    - "not cool man"
+    - "are you crazy?"
+    - "stop it!"
+  hurt-by-mob:
+    - "ow, something bit me"
+    - "zombie! get away"
+    - "ow ow, where did that come from"
+    - "something's after me!"
+    - "watch out, mobs"
+    - "that stung"
+  mob-warning:
+    - "creeper!!"
+    - "watch out, creeper!"
+    - "CREEPER, run!"
+    - "careful, something's hissing"
+    - "mobs! heads up"
+  weather-rain:
+    - "raining again huh"
+    - "here comes the rain"
+    - "ugly weather"
+    - "it's pouring"
+    - "rain, great"
+  weather-thunder:
+    - "thunderstorm, better get inside"
+    - "I don't like that thunder"
+    - "lightning, stay safe"
+    - "wow that was loud"
+  nightfall:
+    - "getting dark, watch for mobs"
+    - "night's coming, heading home"
+    - "zombies will be out soon"
+    - "night... I hate the night"
+    - "no bed? tough luck"
+  hungry:
+    - "I'm starving"
+    - "my stomach is growling"
+    - "I need to eat something"
+    - "dying of hunger here"
+    - "anyone got food? seriously hungry"
+  low-health:
+    - "ow, I'm nearly dead"
+    - "I need to heal up"
+    - "not many hearts left"
+    - "one more hit and I'm done"
+    - "this hurts, gotta hide"
+  request-accept:
+    - "sure, coming"
+    - "ok, wait there"
+    - "alright, on my way"
+    - "yeah, be right there"
+    - "ok then"
+  request-decline:
+    - "can't right now"
+    - "sorry, busy"
+    - "not now"
+    - "sorry, no time"
+    - "maybe later"
+  give-accept:
+    - "here, catch"
+    - "there you go"
+    - "sure, here"
+    - "tossing you some"
+    - "here, enjoy"
+  give-decline:
+    - "got nothing to spare, sorry"
+    - "don't have enough myself"
+    - "nothing to give right now"
+    - "all out"
+    - "sorry, I need it"
   emojis:
     - ":D"
     - ":)"

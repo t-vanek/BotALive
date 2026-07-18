@@ -49,7 +49,7 @@ public final class CreeperDodgeGoal extends AbstractGoal {
         BotContext ctx = ctx(bot);
         ctx.navigator().stop();
         if (ctx.rng().chance(0.3)) {
-            ctx.chat().say("creeper!!");
+            ctx.chat().sayUrgent(dev.botalive.core.chat.PhraseCategory.MOB_WARNING, null);
         }
     }
 

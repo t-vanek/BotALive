@@ -36,6 +36,8 @@ public final class ShareGoal extends AbstractGoal {
     private int giveTicks;
     private int given;
     private int approachTicks;
+    /** Adresná prosba z chatu: konkrétní materiály (null = režim jídla). */
+    private java.util.List<org.bukkit.Material> requestedItems;
 
     /** Vytvoří cíl. */
     public ShareGoal() {
@@ -73,11 +75,24 @@ public final class ShareGoal extends AbstractGoal {
     public void start(Bot bot) {
         BotContext ctx = ctx(bot);
         phase = Phase.APPROACH;
-        target = ctx.entities().nearest(ctx.position(), 12, TrackedEntity::isPlayer)
-                .orElse(null);
         given = 0;
         giveTicks = 0;
         approachTicks = 0;
+        requestedItems = null;
+        // Adresná prosba z chatu má přednost: jde se za prosícím a nese se,
+        // o co si řekl (prázdné materiály = jídlo).
+        var request = ctx.takeShareRequest();
+        if (request != null) {
+            target = ctx.entities().byUuid(request.requester()).orElse(null);
+            if (!request.foodOnly()) {
+                requestedItems = request.materials();
+            }
+            if (target != null) {
+                return;
+            }
+        }
+        target = ctx.entities().nearest(ctx.position(), 12, TrackedEntity::isPlayer)
+                .orElse(null);
     }
 
     @Override
@@ -110,13 +125,13 @@ public final class ShareGoal extends AbstractGoal {
                 }
             }
             case GIVE -> {
-                // Dívat se na obdarovaného a v lidském tempu upouštět jídlo.
+                // Dívat se na obdarovaného a v lidském tempu upouštět dary.
                 ctx.humanizer().lookAt(ctx.position().add(0, 1.62, 0),
                         targetPos.add(0, 1.5, 0));
                 if (--giveTicks > 0) {
                     return;
                 }
-                if (given >= GIFT_COUNT || !equipFood(ctx)) {
+                if (given >= GIFT_COUNT || !equipGift(ctx)) {
                     onShared(ctx, bot);
                     return;
                 }
@@ -148,9 +163,18 @@ public final class ShareGoal extends AbstractGoal {
 
     // ==================================================================
 
-    private boolean equipFood(BotContext ctx) {
+    /** Vezme do ruky další dar: vyžádaný materiál, jinak jídlo. */
+    private boolean equipGift(BotContext ctx) {
         ServerSideView.Snapshot snapshot = ctx.serverView().latest();
         if (snapshot == null) {
+            return false;
+        }
+        if (requestedItems != null) {
+            for (org.bukkit.Material material : requestedItems) {
+                if (ctx.inventory().equipItem(snapshot, material)) {
+                    return true;
+                }
+            }
             return false;
         }
         return ctx.inventory().equipFood(snapshot);
@@ -169,7 +193,7 @@ public final class ShareGoal extends AbstractGoal {
                         java.util.Map.of("via", "gift"), 0.6);
             }
             if (ctx.rng().chance(0.6)) {
-                ctx.chat().say("na, vem si neco k jidlu");
+                ctx.chat().sayFrom(dev.botalive.core.chat.PhraseCategory.GIVE_ACCEPT, null);
             }
         }
         finish(ctx);

@@ -32,22 +32,25 @@ public final class PhraseBank {
     /** Klíče rozpoznávacích vzorů (sekce {@code patterns} jazykového souboru). */
     static final List<String> PATTERN_KEYS = List.of(
             "greeting", "thanks", "what-doing", "where-are-you", "what-have",
-            "where-village", "come-here", "give-food");
+            "where-village", "come-here", "give-food", "help", "give-item");
 
     /** Placeholder jména s volitelným pádem: {@code {name}} nebo {@code {name:5}}. */
     private static final Pattern NAME_PLACEHOLDER = Pattern.compile("\\{name(?::([1-7]))?\\}");
 
     private final Map<PhraseCategory, List<String>> phrases;
     private final Map<String, Pattern> patterns;
+    /** Aliasy itemů pro prosby: slovo (malými, jak je v yml) → materiály. */
+    private final Map<String, List<org.bukkit.Material>> itemAliases;
     private final NameInflector inflector;
 
     /**
-     * @param phrases   fráze podle kategorií (všechny kategorie, neprázdné seznamy)
-     * @param patterns  rozpoznávací vzory podle klíčů {@link #PATTERN_KEYS}
-     * @param inflector skloňování jmen podle jazyka frází
+     * @param phrases     fráze podle kategorií (všechny kategorie, neprázdné seznamy)
+     * @param patterns    rozpoznávací vzory podle klíčů {@link #PATTERN_KEYS}
+     * @param itemAliases aliasy itemů pro prosby (může být prázdné)
+     * @param inflector   skloňování jmen podle jazyka frází
      */
     PhraseBank(Map<PhraseCategory, List<String>> phrases, Map<String, Pattern> patterns,
-               NameInflector inflector) {
+               Map<String, List<org.bukkit.Material>> itemAliases, NameInflector inflector) {
         EnumMap<PhraseCategory, List<String>> copy = new EnumMap<>(PhraseCategory.class);
         for (PhraseCategory category : PhraseCategory.values()) {
             List<String> list = phrases.get(category);
@@ -63,6 +66,7 @@ public final class PhraseBank {
             }
         }
         this.patterns = Map.copyOf(patterns);
+        this.itemAliases = Map.copyOf(itemAliases);
         this.inflector = inflector == null ? NameInflector.IDENTITY : inflector;
     }
 
@@ -71,7 +75,47 @@ public final class PhraseBank {
      * @return kopie banky se zadaným skloňovačem (fráze a vzory sdílené)
      */
     PhraseBank withInflector(NameInflector newInflector) {
-        return new PhraseBank(phrases, patterns, newInflector);
+        return new PhraseBank(phrases, patterns, itemAliases, newInflector);
+    }
+
+    /**
+     * Najde ve zprávě žádané itemy podle aliasů jazyka.
+     *
+     * @param message příchozí zpráva
+     * @return materiály, o které si pisatel říká (bez duplicit, může být prázdné)
+     */
+    public List<org.bukkit.Material> requestedItems(String message) {
+        if (itemAliases.isEmpty()) {
+            return List.of();
+        }
+        String lower = message.toLowerCase(java.util.Locale.ROOT);
+        java.util.LinkedHashSet<org.bukkit.Material> found = new java.util.LinkedHashSet<>();
+        for (String word : lower.split("[^\\p{L}\\p{N}]+")) {
+            List<org.bukkit.Material> materials = itemAliases.get(word);
+            if (materials != null) {
+                found.addAll(materials);
+            }
+        }
+        return List.copyOf(found);
+    }
+
+    /**
+     * Tvary jména bota, na které má reagovat jako na zmínku – včetně
+     * skloněných pádů a jádra nicku („Karle", „Ninjo"), malými písmeny.
+     *
+     * @param botName jméno bota
+     * @return množina tvarů (vždy obsahuje aspoň jméno samotné)
+     */
+    public java.util.Set<String> mentionForms(String botName) {
+        java.util.Set<String> forms = new java.util.HashSet<>();
+        forms.add(botName.toLowerCase(java.util.Locale.ROOT));
+        for (int grammaticalCase = 2; grammaticalCase <= 7; grammaticalCase++) {
+            String declined = inflector.inflect(botName, grammaticalCase);
+            if (declined != null && !declined.isEmpty()) {
+                forms.add(declined.toLowerCase(java.util.Locale.ROOT));
+            }
+        }
+        return forms;
     }
 
     /**
@@ -143,5 +187,10 @@ public final class PhraseBank {
     /** @return vzor daného klíče (pro overlay při načítání) */
     Pattern pattern(String key) {
         return patterns.get(key);
+    }
+
+    /** @return aliasy itemů (pro overlay při načítání) */
+    Map<String, List<org.bukkit.Material>> itemAliases() {
+        return itemAliases;
     }
 }

@@ -168,6 +168,36 @@ class PhraseBankTest {
     }
 
     @Test
+    void aliasyItemuNajdouMaterialyVProsbe() {
+        PhraseBank bank = PhraseBankLoader.builtIn();
+        var wanted = bank.requestedItems("Karle, dej mi prosím dřevo a uhlí");
+        assertTrue(wanted.contains(org.bukkit.Material.OAK_LOG),
+                "dřevo má najít klády: " + wanted);
+        assertTrue(wanted.contains(org.bukkit.Material.COAL), "uhlí má najít coal: " + wanted);
+        assertTrue(bank.requestedItems("jak se máš?").isEmpty(),
+                "běžná zpráva nemá najít žádné itemy");
+    }
+
+    @Test
+    void vzoryProsbyOPomocAItem() {
+        PhraseBank bank = PhraseBankLoader.builtIn();
+        assertTrue(bank.matches("help", "pomoc, jdou po mně!"));
+        assertTrue(bank.matches("help", "pomozte mi někdo"));
+        assertTrue(bank.matches("give-item", "dej mi dřevo"));
+        assertTrue(bank.matches("give-item", "hodíš mi uhlí?"));
+        assertFalse(bank.matches("give-item", "jdu kopat"), "běžná věta není prosba");
+    }
+
+    @Test
+    void mentionFormsObsahujiSklonenaJadra() {
+        PhraseBank bank = PhraseBankLoader.builtIn();
+        var forms = bank.mentionForms("Karel13");
+        assertTrue(forms.contains("karel13"), "vždy celé jméno: " + forms);
+        assertTrue(forms.contains("karle"), "5. pád jádra: " + forms);
+        assertTrue(forms.contains("karlovi"), "3. pád jádra: " + forms);
+    }
+
+    @Test
     void anglickeFrazeNechavajiJmenoBezeZmeny() {
         PhraseBank bank = PhraseBankLoader.load(tempDir.toFile(), "en");
         BotRandom rng = new BotRandom(7);

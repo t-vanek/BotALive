@@ -107,10 +107,45 @@ public final class ServerEventListener implements Listener {
                     damager.getUniqueId(),
                     Map.of("type", damager.getType().name()), severity);
 
+            boolean byPlayer = damager instanceof Player;
             // PvP: útoky hráčů/botů evidovat jako hrozbu + svolat spojence.
-            if (damager instanceof Player) {
+            if (byPlayer) {
                 pvp.onBotAttacked(bot, damager.getUniqueId(), damager.getEntityId());
             }
+            // Chatová reakce na přepadení/kousnutí (jedna hláška na potyčku).
+            if (bot instanceof dev.botalive.core.bot.BotImpl impl) {
+                impl.onAttackedChat(byPlayer);
+            }
         });
+    }
+
+    // ------------------------------------------------------- počasí a svět
+
+    /** Začátek deště → občasný komentář botů v daném světě. */
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onWeatherChange(org.bukkit.event.weather.WeatherChangeEvent event) {
+        if (!event.toWeatherState()) {
+            return; // konec deště nekomentujeme
+        }
+        notifyWeather(event.getWorld().getName(), false);
+    }
+
+    /** Začátek bouřky → občasný komentář botů v daném světě. */
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onThunderChange(org.bukkit.event.weather.ThunderChangeEvent event) {
+        if (!event.toThunderState()) {
+            return;
+        }
+        notifyWeather(event.getWorld().getName(), true);
+    }
+
+    private void notifyWeather(String worldName, boolean thunder) {
+        for (var bot : botManager.all()) {
+            if (bot instanceof dev.botalive.core.bot.BotImpl impl
+                    && impl.worldView() != null
+                    && worldName.equals(impl.worldView().worldName())) {
+                impl.onWeatherChanged(thunder);
+            }
+        }
     }
 }

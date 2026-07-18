@@ -36,6 +36,30 @@ public enum PhraseCategory {
     PVP_ASSIST,
     /** Hlášky po vyhraném souboji. */
     PVP_TAUNTS,
+    /** Reakce na přepadení hráčem (vztek/strach podle povahy). */
+    ATTACKED,
+    /** Reakce na zranění mobem (zombie, kostlivec…). */
+    HURT_BY_MOB,
+    /** Varování před nebezpečným mobem poblíž (creeper!). */
+    MOB_WARNING,
+    /** Komentář, když začne pršet. */
+    WEATHER_RAIN,
+    /** Komentář, když začne bouřka. */
+    WEATHER_THUNDER,
+    /** Komentář při soumraku (jde tma, mobové). */
+    NIGHTFALL,
+    /** Stěžování na hlad (málo jídla v žaludku). */
+    HUNGRY,
+    /** Stěžování na málo životů. */
+    LOW_HEALTH,
+    /** Souhlas s prosbou (pojď za mnou, pomoc…). */
+    REQUEST_ACCEPT,
+    /** Odmítnutí prosby. */
+    REQUEST_DECLINE,
+    /** Předání itemu/jídla („na, chytej"). */
+    GIVE_ACCEPT,
+    /** Odmítnutí předání (nemám / nechám si). */
+    GIVE_DECLINE,
     /** Smajlíky přidávané podle stylu psaní. */
     EMOJIS;
 

@@ -129,6 +129,9 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
     private MoveInput requestedMove;
     /** Probíhající zásah do terénu při zdolávání překážky (kopání/pokládání). */
     private dev.botalive.core.tasks.BotTask obstacleTask;
+
+    /** Adresná prosba o sdílení z chatu; vyzvedne si ji ShareGoal. */
+    private volatile dev.botalive.core.ai.ShareRequest pendingShare;
     /** Odpočet, než bot znovu zváží loď (po přejezdu/neúspěchu se nezkouší hned). */
     private int boatCheckCooldown;
     /** Odpočet periodické kontroly brnění v hotbaru. */
@@ -387,7 +390,56 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
         if (!friend && helpfulness < 0.5) {
             return false;
         }
+        pendingShare = new dev.botalive.core.ai.ShareRequest(requester, java.util.List.of());
         return brain.forceGoal("share");
+    }
+
+    @Override
+    public boolean helpRequest(UUID requester) {
+        // Na pomoc vyráží stateční a ochotní; kamarádovi skoro každý.
+        double courage = personality.trait(dev.botalive.api.personality.Trait.COURAGE);
+        double helpfulness = personality.trait(dev.botalive.api.personality.Trait.HELPFULNESS);
+        boolean friend = memory.recallAbout(requester).stream()
+                .anyMatch(r -> r.kind() == MemoryKind.FRIEND);
+        if (!friend && courage + helpfulness < 0.9) {
+            return false;
+        }
+        // Dojít za volajícím; boj u něj převezme bojová AI (hrozby, moby).
+        return brain.forceGoal("follow");
+    }
+
+    @Override
+    public boolean giveItemRequest(UUID requester, java.util.List<org.bukkit.Material> wanted) {
+        var snapshot = serverView.latest();
+        if (snapshot == null || wanted.isEmpty()
+                || !snapshot.hasItem(wanted::contains)) {
+            return false;
+        }
+        double helpfulness = personality.trait(dev.botalive.api.personality.Trait.HELPFULNESS);
+        double greed = personality.trait(dev.botalive.api.personality.Trait.GREED);
+        boolean friend = memory.recallAbout(requester).stream()
+                .anyMatch(r -> r.kind() == MemoryKind.FRIEND);
+        // Chamtiví boti se s cizími nedělí, i když jsou jinak ochotní.
+        if (!friend && helpfulness < 0.4 + greed * 0.35) {
+            return false;
+        }
+        pendingShare = new dev.botalive.core.ai.ShareRequest(requester, java.util.List.copyOf(wanted));
+        return brain.forceGoal("share");
+    }
+
+    @Override
+    public int nearbyPlayerCount() {
+        if (physics == null) {
+            return 0;
+        }
+        return entities.nearby(physics.position(), 16, TrackedEntity::isPlayer).size();
+    }
+
+    @Override
+    public dev.botalive.core.ai.ShareRequest takeShareRequest() {
+        dev.botalive.core.ai.ShareRequest request = pendingShare;
+        pendingShare = null;
+        return request;
     }
 
     @Override
@@ -814,8 +866,86 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
             }
         }
 
+        environmentChatter();
         chat.tick();
         trackDistance();
+    }
+
+    // ------------------------------------------------- reakce na dění kolem
+
+    /** Poslední chatová reakce na útok (ms) – jedna hláška na potyčku. */
+    private long lastAttackReactMs;
+    /** Stav prostředí pro hrany (soumrak, hlad, málo životů). */
+    private long prevWorldTime = -1;
+    private int prevFood = 20;
+    private float prevHealth = 20;
+
+    /**
+     * Chatová reakce na útok (volá {@code ServerEventListener} z herního
+     * vlákna). Jedna hláška na potyčku – další rány už bot nekomentuje,
+     * řeší je bojová AI.
+     *
+     * @param byPlayer {@code true} útočil hráč/bot, {@code false} mob
+     */
+    public void onAttackedChat(boolean byPlayer) {
+        long now = System.currentTimeMillis();
+        if (now - lastAttackReactMs < 30_000 || clientState.dead()) {
+            return;
+        }
+        lastAttackReactMs = now;
+        if (rng.chance(0.7)) {
+            chat.sayUrgent(byPlayer ? dev.botalive.core.chat.PhraseCategory.ATTACKED
+                    : dev.botalive.core.chat.PhraseCategory.HURT_BY_MOB, null);
+        }
+    }
+
+    /**
+     * Změna počasí ve světě bota (volá {@code ServerEventListener}).
+     * Jen občasný komentář – guvernér chatu tlumí dav.
+     *
+     * @param thunder {@code true} začala bouřka, {@code false} začal déšť
+     */
+    public void onWeatherChanged(boolean thunder) {
+        if (clientState.dead() || paused.get()) {
+            return;
+        }
+        double sociability = personality.trait(dev.botalive.api.personality.Trait.SOCIABILITY);
+        if (rng.chance(0.10 + sociability * 0.12)) {
+            chat.sayFrom(thunder ? dev.botalive.core.chat.PhraseCategory.WEATHER_THUNDER
+                    : dev.botalive.core.chat.PhraseCategory.WEATHER_RAIN, null);
+        }
+    }
+
+    /**
+     * Hrany herních mechanik → občasné hlášky: soumrak, hlad, málo životů.
+     * Vše jde přes spontánní guvernér chatu (rozestupy, tlumení v davu),
+     * takže z 30 botů okomentuje soumrak jen pár – jako na skutečném serveru.
+     */
+    private void environmentChatter() {
+        if (clientState.dead() || paused.get()) {
+            return;
+        }
+        // Soumrak: čas překročil ~12800 (mobové za chvíli venku).
+        long time = worldTime();
+        if (time >= 0) {
+            if (prevWorldTime >= 0 && prevWorldTime < 12_800 && time >= 12_800
+                    && rng.chance(0.25)) {
+                chat.sayFrom(dev.botalive.core.chat.PhraseCategory.NIGHTFALL, null);
+            }
+            prevWorldTime = time;
+        }
+        // Hlad: kleslo jídlo pod 6 (začíná být vážné).
+        int food = clientState.food();
+        if (prevFood > 6 && food <= 6 && rng.chance(0.5)) {
+            chat.sayFrom(dev.botalive.core.chat.PhraseCategory.HUNGRY, null);
+        }
+        prevFood = food;
+        // Málo životů: kleslo zdraví pod 6 (3 srdce).
+        float health = clientState.health();
+        if (prevHealth > 6 && health <= 6 && health > 0 && rng.chance(0.6)) {
+            chat.sayUrgent(dev.botalive.core.chat.PhraseCategory.LOW_HEALTH, null);
+        }
+        prevHealth = health;
     }
 
     /**
