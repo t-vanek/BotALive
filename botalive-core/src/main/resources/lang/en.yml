@@ -345,6 +345,30 @@ phrases:
     - "taking the night shift, holler if anything comes up"
     - "patrolling the village, nothing gets in"
     - "watch duty starts now, mobs don't stand a chance"
+  end-depart:
+    - "off to the End. if I don't come back, my chest is yours"
+    - "gear packed, portal located... the dragon can come meet me"
+    - "going dragon hunting, wish me luck"
+    - "heading to the End, whoever's coming better hurry"
+    - "the portal awaits. hope I'm actually ready for this"
+  end-arrive:
+    - "so this is the End... eyes down, don't look at the endermen"
+    - "wow, nothing but stone and void. and a dragon somewhere"
+    - "the End! one wrong step here is a very long fall"
+    - "made it through. this place is... different"
+    - "obsidian platform, void everywhere. alright, let's do this"
+  dragon-slain:
+    - "THE DRAGON IS DEAD! I actually did it!!"
+    - "took the dragon down. who's the legend now?"
+    - "dragon down! it's raining xp :D"
+    - "it's done. the DRAGON is done. can't believe it"
+    - "victory! the dragon has fallen, going home a hero"
+  end-return:
+    - "heading home from the End, mission complete"
+    - "enough adventure, time to go home"
+    - "pockets full, time to leave this emptiness"
+    - "looking for the exit portal, home is calling"
+    - "the End is nice and all, but home is home"
   emojis:
     - ":D"
     - ":)"

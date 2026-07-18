@@ -138,6 +138,14 @@ public final class ConfigLoader {
                 Math.max(1, c.getInt("settlement.grudge-window-hours", 2))
         );
 
+        var end = new BotAliveConfig.End(
+                c.getBoolean("end.enabled", true),
+                c.getBoolean("end.dragon-fight", true),
+                c.getBoolean("end.hunt-endermen", true),
+                Math.max(1, c.getInt("end.expedition-cooldown-minutes", 90)),
+                Math.min(1, Math.max(0, c.getDouble("end.min-courage", 0.5)))
+        );
+
         var performance = new BotAliveConfig.Performance(
                 c.getInt("performance.tick-threads", 0),
                 c.getInt("performance.pathfinding-threads", 0),
@@ -159,6 +167,6 @@ public final class ConfigLoader {
         );
 
         return new BotAliveConfig(network, bots, ai, chat, combat, economy, memory,
-                worlds, spawn, teleport, pvp, settlement, performance, persistence);
+                worlds, spawn, teleport, pvp, settlement, end, performance, persistence);
     }
 }

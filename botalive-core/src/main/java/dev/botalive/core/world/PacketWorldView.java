@@ -202,4 +202,9 @@ public final class PacketWorldView implements WorldView {
     public String worldName() {
         return worldKey;
     }
+
+    @Override
+    public Dimension dimension() {
+        return Dimension.fromWorldKey(worldKey);
+    }
 }

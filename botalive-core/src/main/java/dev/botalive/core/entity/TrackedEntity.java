@@ -113,11 +113,15 @@ public final class TrackedEntity {
         return type == EntityType.PLAYER;
     }
 
-    /** @return {@code true} pokud jde o nepřátelského moba */
+    /**
+     * @return {@code true} pokud jde o nepřátelského moba. Enderman tu záměrně
+     *         není – je neutrální a útok na něj (nebo pohled do očí) znamená
+     *         v Endu rozsudek smrti; rozzuřené endermany řeší ENEMY paměť.
+     */
     public boolean isHostile() {
         return switch (type) {
             case ZOMBIE, ZOMBIE_VILLAGER, HUSK, DROWNED, SKELETON, STRAY, BOGGED, WITHER_SKELETON,
-                 CREEPER, SPIDER, CAVE_SPIDER, ENDERMAN, WITCH, PILLAGER, VINDICATOR, EVOKER,
+                 CREEPER, SPIDER, CAVE_SPIDER, WITCH, PILLAGER, VINDICATOR, EVOKER,
                  RAVAGER, VEX, PHANTOM, BLAZE, GHAST, MAGMA_CUBE, SLIME, SILVERFISH, ENDERMITE,
                  GUARDIAN, ELDER_GUARDIAN, SHULKER, HOGLIN, ZOGLIN, PIGLIN_BRUTE, WARDEN, BREEZE,
                  CREAKING -> true;
@@ -144,5 +148,25 @@ public final class TrackedEntity {
             case WOLF, CAT, PARROT, HORSE, DONKEY, MULE, LLAMA -> true;
             default -> false;
         };
+    }
+
+    /** @return {@code true} pokud jde o endermana (neutrál – nekoukat, neprovokovat) */
+    public boolean isEnderman() {
+        return type == EntityType.ENDERMAN;
+    }
+
+    /** @return {@code true} pokud jde o dračí (end) krystal na obsidiánovém pilíři */
+    public boolean isEndCrystal() {
+        return type == EntityType.END_CRYSTAL;
+    }
+
+    /** @return {@code true} pokud jde o ender draka */
+    public boolean isEnderDragon() {
+        return type == EntityType.ENDER_DRAGON;
+    }
+
+    /** @return {@code true} pokud jde o oblak efektu (dračí dech, lektvary) */
+    public boolean isEffectCloud() {
+        return type == EntityType.AREA_EFFECT_CLOUD;
     }
 }

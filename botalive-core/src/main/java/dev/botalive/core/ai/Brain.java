@@ -177,6 +177,7 @@ public final class Brain {
 
         Goal best = null;
         double bestUtility = 0;
+        dev.botalive.core.world.Dimension dimension = BotContext.of(bot).dimension();
         for (Goal goal : goals) {
             double utility;
             try {
@@ -188,10 +189,16 @@ public final class Brain {
             if (utility <= 0) {
                 continue;
             }
+            // Dimenze škrtá, co v ní nedává smysl (v Endu postel exploduje...).
+            utility *= DimensionPolicy.weight(goal.id(), dimension);
+            if (utility <= 0) {
+                continue;
+            }
             // Profese vychyluje priority (kovář taví ochotněji, lovec loví...).
             utility *= dev.botalive.core.role.RoleProfiles.weight(bot.role(), goal.id());
             // Denní rytmus: ráno pole, přes den těžba/stavba, večer družení.
-            if (rhythm != null) {
+            // V Endu/Netheru není den a noc – rytmus tam neplatí.
+            if (rhythm != null && DimensionPolicy.rhythmApplies(dimension)) {
                 utility *= rhythm.multiplier(goal.id(), BotContext.of(bot).worldTime());
             }
             // Životní ambice táhne související cíle (dokud není splněná).

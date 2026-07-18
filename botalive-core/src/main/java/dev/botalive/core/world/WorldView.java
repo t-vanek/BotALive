@@ -60,4 +60,10 @@ public interface WorldView {
      * @return název Bukkit světa, na který se pohled dívá
      */
     String worldName();
+
+    /**
+     * @return typ dimenze světa (overworld/nether/end) – rozhoduje o gatingu
+     *         cílů (spánek, farmaření…) a chování specifickém pro End
+     */
+    Dimension dimension();
 }

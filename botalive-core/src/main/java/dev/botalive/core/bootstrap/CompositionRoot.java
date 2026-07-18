@@ -242,6 +242,10 @@ public final class CompositionRoot {
         registry.register("buy", bot -> new dev.botalive.core.ai.goals.BuyGoal(market));
         registry.register("reconcile", bot -> new dev.botalive.core.ai.goals.ReconcileGoal(socialGraph));
         registry.register("guard", bot -> new dev.botalive.core.ai.goals.GuardGoal());
+        registry.register("end-travel", bot -> new dev.botalive.core.ai.goals.EndTravelGoal());
+        registry.register("dragon-fight", bot -> new dev.botalive.core.ai.goals.DragonFightGoal());
+        registry.register("end-harvest", bot -> new dev.botalive.core.ai.goals.EndHarvestGoal());
+        registry.register("end-return", bot -> new dev.botalive.core.ai.goals.EndReturnGoal());
     }
 
     /**

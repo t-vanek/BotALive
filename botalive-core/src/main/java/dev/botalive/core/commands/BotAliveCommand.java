@@ -47,10 +47,10 @@ public final class BotAliveCommand implements TabExecutor {
 
     private static final List<String> ADMIN_SUBCOMMANDS = List.of(
             "create", "remove", "pause", "resume", "personality", "memory",
-            "goal", "stats", "role", "settlements");
+            "goal", "stats", "role", "settlements", "end");
     private static final List<String> SUBCOMMANDS = List.of(
             "create", "remove", "tp", "list", "pause", "resume",
-            "personality", "memory", "goal", "stats", "role", "settlements");
+            "personality", "memory", "goal", "stats", "role", "settlements", "end");
 
     private final BotManagerImpl botManager;
     private final GoalRegistryImpl goalRegistry;
@@ -105,6 +105,7 @@ public final class BotAliveCommand implements TabExecutor {
             case "stats" -> stats(sender, args);
             case "role" -> role(sender, args);
             case "settlements" -> settlements(sender);
+            case "end" -> endPortal(sender, args);
             default -> help(sender);
         }
         return true;
@@ -553,6 +554,55 @@ public final class BotAliveCommand implements TabExecutor {
         return bot;
     }
 
+    /**
+     * {@code /botalive end portal <x> <y> <z> [svět]} – prozradí všem botům
+     * polohu portálu do Endu (PORTAL vzpomínka {@code type=end}). Odtud se
+     * znalost šíří dál drby; boti s výbavou a odvahou pak plánují výpravy.
+     */
+    private void endPortal(CommandSender sender, String[] args) {
+        if (args.length < 5 || !args[1].equalsIgnoreCase("portal")) {
+            error(sender, "Použití: /botalive end portal <x> <y> <z> [svět]");
+            return;
+        }
+        int x;
+        int y;
+        int z;
+        try {
+            x = Integer.parseInt(args[2]);
+            y = Integer.parseInt(args[3]);
+            z = Integer.parseInt(args[4]);
+        } catch (NumberFormatException e) {
+            error(sender, "Souřadnice musí být celá čísla");
+            return;
+        }
+        String world;
+        if (args.length >= 6) {
+            if (Bukkit.getWorld(args[5]) == null) {
+                error(sender, "Svět '" + args[5] + "' neexistuje");
+                return;
+            }
+            world = args[5];
+        } else if (sender instanceof Player player) {
+            world = player.getWorld().getName();
+        } else if (!Bukkit.getWorlds().isEmpty()) {
+            world = Bukkit.getWorlds().getFirst().getName();
+        } else {
+            error(sender, "Není z čeho odvodit svět – zadej ho parametrem");
+            return;
+        }
+        var bots = botManager.all();
+        if (bots.isEmpty()) {
+            error(sender, "Žádní boti nejsou připojení");
+            return;
+        }
+        for (Bot bot : bots) {
+            bot.memory().remember(MemoryKind.PORTAL, world, x, y, z, null,
+                    Map.of("type", "end", "via", "admin"), 0.95);
+        }
+        success(sender, "Portál do Endu na " + x + " " + y + " " + z + " (" + world
+                + ") teď zná " + bots.size() + " botů");
+    }
+
     private void help(CommandSender sender) {
         info(sender, "BotAlive – autonomní AI hráči");
         boolean admin = sender.hasPermission(PERM_ADMIN);
@@ -623,6 +673,9 @@ public final class BotAliveCommand implements TabExecutor {
                 case "create" -> {
                     return List.of();
                 }
+                case "end" -> {
+                    return filter(List.of("portal"), args[1]);
+                }
                 default -> {
                 }
             }
@@ -647,6 +700,10 @@ public final class BotAliveCommand implements TabExecutor {
         }
         if (args.length == 4 && args[0].equalsIgnoreCase("goal") && args[2].equalsIgnoreCase("set")) {
             return filter(goalRegistry.registeredIds(), args[3]);
+        }
+        if (args.length == 6 && args[0].equalsIgnoreCase("end")) {
+            return filter(Bukkit.getWorlds().stream()
+                    .map(org.bukkit.World::getName).toList(), args[5]);
         }
         return List.of();
     }

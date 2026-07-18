@@ -93,14 +93,14 @@ public final class SocialGraph {
         places.addAll(teller.memory().recall(MemoryKind.VILLAGE));
         places.addAll(teller.memory().recall(MemoryKind.MINE));
         places.addAll(teller.memory().recall(MemoryKind.DANGER));
+        places.addAll(teller.memory().recall(MemoryKind.PORTAL));
         List<MemoryRecord> shareable = shareable(places,
                 teller.memory().recall(MemoryKind.ENEMY), trust, listener.id());
         int told = 0;
-        Map<String, String> stamp = Map.of("via", "gossip", "from", teller.name());
         while (told < MAX_SHARED && !shareable.isEmpty()) {
             MemoryRecord record = shareable.remove(rng.rangeInt(0, shareable.size() - 1));
             listener.memory().remember(record.kind(), record.world(), record.x(),
-                    record.y(), record.z(), record.subject(), stamp,
+                    record.y(), record.z(), record.subject(), gossipData(record, teller),
                     record.importance() * GOSSIP_FACTOR);
             told++;
         }
@@ -108,9 +108,29 @@ public final class SocialGraph {
     }
 
     /**
+     * Data předávané kopie drbu: značka gossip + klíče, které nesou význam
+     * vzpomínky (portál by bez {@code to}/{@code type} přestal být portálem
+     * do Endu).
+     */
+    private static Map<String, String> gossipData(MemoryRecord record, Bot teller) {
+        Map<String, String> data = new java.util.HashMap<>();
+        data.put("via", "gossip");
+        data.put("from", teller.name());
+        String to = record.data().get("to");
+        if (to != null) {
+            data.put("to", to);
+        }
+        String type = record.data().get("type");
+        if (type != null) {
+            data.put("type", type);
+        }
+        return Map.copyOf(data);
+    }
+
+    /**
      * Co z vypravěčovy paměti stojí za řeč (čistá logika, testovatelná).
      *
-     * @param places     vzpomínky na místa (VILLAGE/MINE/DANGER)
+     * @param places     vzpomínky na místa (VILLAGE/MINE/DANGER/PORTAL)
      * @param grudges    vypravěčovy ENEMY vzpomínky
      * @param trust      vypravěčovo přátelství k posluchači (0–1)
      * @param listenerId posluchač (pomluvy o něm samém se neříkají jemu)

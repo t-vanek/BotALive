@@ -41,7 +41,9 @@ public final class PersonalityEvolution {
         /** Vyhrál souboj. */
         PVP_KILL,
         /** Zjistil, že ho někdo okradl. */
-        WAS_ROBBED
+        WAS_ROBBED,
+        /** Skolil ender draka. */
+        DRAGON_SLAIN
     }
 
     private static final Map<BotExperience, Map<Trait, Double>> DELTAS = Map.of(
@@ -60,7 +62,9 @@ public final class PersonalityEvolution {
                     Trait.COURAGE, 0.015, Trait.AGGRESSION, 0.010),
             BotExperience.WAS_ROBBED, Map.of(
                     Trait.CAUTION, 0.015, Trait.AGGRESSION, 0.015,
-                    Trait.HELPFULNESS, -0.010)
+                    Trait.HELPFULNESS, -0.010),
+            BotExperience.DRAGON_SLAIN, Map.of(
+                    Trait.COURAGE, 0.030, Trait.CAUTION, -0.010)
     );
 
     /**

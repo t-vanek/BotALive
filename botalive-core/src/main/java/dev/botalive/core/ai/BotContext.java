@@ -65,6 +65,9 @@ public interface BotContext {
     /** @return pohled na svět, ve kterém bot je (může být {@code null} před spawnem) */
     WorldView worldView();
 
+    /** @return dimenze světa bota ({@code OVERWORLD}, dokud svět není známý) */
+    dev.botalive.core.world.Dimension dimension();
+
     /** @return per-bot náhoda */
     BotRandom rng();
 

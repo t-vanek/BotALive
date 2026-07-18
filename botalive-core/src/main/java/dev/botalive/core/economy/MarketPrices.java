@@ -13,16 +13,19 @@ import java.util.Map;
  */
 public final class MarketPrices {
 
-    private static final Map<Material, Double> BASE = Map.of(
-            Material.BREAD, 2.0,
-            Material.COOKED_BEEF, 3.0,
-            Material.COOKED_PORKCHOP, 3.0,
-            Material.COOKED_CHICKEN, 2.5,
-            Material.COOKED_MUTTON, 2.5,
-            Material.BAKED_POTATO, 1.5,
-            Material.WHEAT, 0.8,
-            Material.COAL, 1.5,
-            Material.IRON_INGOT, 6.0);
+    private static final Map<Material, Double> BASE = Map.ofEntries(
+            Map.entry(Material.BREAD, 2.0),
+            Map.entry(Material.COOKED_BEEF, 3.0),
+            Map.entry(Material.COOKED_PORKCHOP, 3.0),
+            Map.entry(Material.COOKED_CHICKEN, 2.5),
+            Map.entry(Material.COOKED_MUTTON, 2.5),
+            Map.entry(Material.BAKED_POTATO, 1.5),
+            Map.entry(Material.WHEAT, 0.8),
+            Map.entry(Material.COAL, 1.5),
+            Map.entry(Material.IRON_INGOT, 6.0),
+            // Kořist z Endu – perly jsou vzácné zboží, chorus kuriozita.
+            Map.entry(Material.ENDER_PEARL, 12.0),
+            Map.entry(Material.CHORUS_FRUIT, 1.5));
 
     private MarketPrices() {
     }

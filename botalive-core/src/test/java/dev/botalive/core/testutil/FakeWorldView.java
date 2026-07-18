@@ -80,6 +80,7 @@ public final class FakeWorldView implements WorldView {
 
     private final int floorY;
     private final Map<Long, BlockTraits> overrides = new HashMap<>();
+    private dev.botalive.core.world.Dimension dimension = dev.botalive.core.world.Dimension.OVERWORLD;
 
     /**
      * @param floorY výška horní hrany podlahy (bloky na floorY jsou pevné)
@@ -144,5 +145,21 @@ public final class FakeWorldView implements WorldView {
     @Override
     public String worldName() {
         return "fake";
+    }
+
+    @Override
+    public dev.botalive.core.world.Dimension dimension() {
+        return dimension;
+    }
+
+    /**
+     * Přepne dimenzi syntetického světa (testy End chování).
+     *
+     * @param dimension dimenze
+     * @return this (řetězení)
+     */
+    public FakeWorldView dimension(dev.botalive.core.world.Dimension dimension) {
+        this.dimension = dimension;
+        return this;
     }
 }

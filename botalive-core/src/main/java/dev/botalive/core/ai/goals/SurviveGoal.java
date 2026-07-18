@@ -67,16 +67,33 @@ public final class SurviveGoal extends AbstractGoal {
         BotContext ctx = ctx(bot);
         Vec3 pos = ctx.position();
 
-        Optional<TrackedEntity> threat = ctx.entities().nearest(pos, 24, TrackedEntity::isHostile);
+        // Hrozba je i neutrál, který bota nedávno napadl (rozzuřený enderman,
+        // vlk…) – ti v isHostile nefigurují, ale utéct se před nimi musí.
+        Optional<TrackedEntity> threat = ctx.entities().nearest(pos, 24,
+                e -> e.isHostile() || recentAggressor(bot, e));
         if (threat.isPresent()) {
-            // Panický útěk přímo od hrozby.
+            // Panický útěk přímo od hrozby – ale ne přes hranu srázu či voidu.
             Vec3 away = pos.sub(threat.get().position()).horizontal().normalized();
-            ctx.requestMove(MoveInput.of(away, true, ctx.onGround() && ctx.rng().chance(0.2)));
-            ctx.humanizer().lookAlong(away);
+            MoveInput flee = EdgeGuard.apply(ctx.worldView(), pos,
+                    MoveInput.of(away, true, ctx.onGround() && ctx.rng().chance(0.2)));
+            ctx.requestMove(flee);
+            if (flee.direction().horizontalLength() > 1.0E-4) {
+                ctx.humanizer().lookAlong(flee.direction());
+            }
             safeTicks = 0;
         } else {
             safeTicks++;
         }
+    }
+
+    /** Nedávný útočník z paměti (ENEMY do minuty) – zuřící neutrální mob. */
+    private static boolean recentAggressor(Bot bot, TrackedEntity entity) {
+        if (entity.uuid() == null || entity.isPlayer()) {
+            return false;
+        }
+        long now = System.currentTimeMillis();
+        return bot.memory().recallAbout(entity.uuid()).stream()
+                .anyMatch(r -> r.kind() == MemoryKind.ENEMY && now - r.updatedAt() < 60_000);
     }
 
     @Override

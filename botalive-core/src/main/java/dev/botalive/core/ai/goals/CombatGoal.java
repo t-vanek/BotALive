@@ -108,9 +108,11 @@ public final class CombatGoal extends AbstractGoal {
             }
         }
 
-        // Bojový pohyb (výběr zbraně – melee/luk/štít – řídí controller).
-        ctx.requestMove(ctx.combat().tick(ctx.position(), ctx.clientState().health(),
-                ctx.onGround(), ctx.serverView().latest()));
+        // Bojový pohyb (výběr zbraně – melee/luk/štít – řídí controller);
+        // strafing a ústup nesmí přenést bota přes hranu srázu či voidu.
+        ctx.requestMove(EdgeGuard.apply(ctx.worldView(), ctx.position(),
+                ctx.combat().tick(ctx.position(), ctx.clientState().health(),
+                        ctx.onGround(), ctx.serverView().latest())));
     }
 
     @Override

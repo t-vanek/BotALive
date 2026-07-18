@@ -31,7 +31,14 @@ public final class EatGoal extends AbstractGoal {
             return 0;
         }
         var snapshot = ctx.serverView().latest();
-        if (snapshot == null || !snapshot.hasItem(InventoryHelper::isFood)) {
+        if (snapshot == null) {
+            return 0;
+        }
+        // Nouzové jídlo (chorus ovoce – teleportuje) se počítá až při
+        // opravdovém hladu; typicky uvázlý průzkumník Endu bez zásob.
+        boolean hasFood = snapshot.hasItem(InventoryHelper::isFood)
+                || (food <= 8 && snapshot.hasItem(InventoryHelper::isEmergencyFood));
+        if (!hasFood) {
             return 0;
         }
         // Hlad 17 → mírná priorita, hlad 0 → kritická.
@@ -51,7 +58,13 @@ public final class EatGoal extends AbstractGoal {
         switch (phase) {
             case EQUIP -> {
                 ctx.navigator().stop();
-                if (ctx.inventory().equipFood(ctx.serverView().latest())) {
+                var snapshot = ctx.serverView().latest();
+                boolean ready = ctx.inventory().equipFood(snapshot)
+                        // Z nouze i chorus ovoce – teleport je menší zlo než hlad.
+                        || (ctx.clientState().food() <= 8 && snapshot != null
+                                && ctx.inventory().equipItem(snapshot,
+                                        org.bukkit.Material.CHORUS_FRUIT));
+                if (ready) {
                     // krátká lidská prodleva mezi výběrem slotu a jídlem
                     if (eatingTicks++ >= ctx.rng().rangeInt(3, 8)) {
                         ctx.actions().useItem(ctx.humanizer().yaw(), ctx.humanizer().pitch());

@@ -53,5 +53,8 @@ public enum MemoryKind {
     PET,
 
     /** Životní ambice bota (dlouhodobý projekt; data {@code type}). */
-    AMBITION
+    AMBITION,
+
+    /** Životní úspěch – trofej (data {@code type}, např. {@code dragon}). */
+    TROPHY
 }

@@ -43,6 +43,9 @@ public final class Humanizer {
 
     private int idleLookCooldown;
 
+    /** Chůze s pohledem u země (End) – kdo se koukne endermanovi do očí, prohrál. */
+    private boolean groundGaze;
+
     /**
      * @param rng         per-bot náhoda
      * @param personality osobnost (ovlivňuje četnost mikro-chování)
@@ -100,7 +103,20 @@ public final class Humanizer {
         }
         targetYaw = (float) Math.toDegrees(Math.atan2(-direction.x(), direction.z()))
                 + (float) rng.gaussian(0, 2.0);
-        targetPitch = (float) rng.gaussian(8, 4); // při chůzi kouká mírně dolů
+        // Při chůzi kouká mírně dolů; v Endu výrazně dolů – zkušený hráč
+        // mezi endermany nikdy nenosí kříž ve výšce očí.
+        targetPitch = (float) rng.gaussian(groundGaze ? 38 : 8, 4);
+    }
+
+    /**
+     * Zapne/vypne chůzi s pohledem u země (disciplína pohledu v Endu).
+     * Cílené pohledy ({@link #lookAt}) – míření, klik na blok – zůstávají
+     * nedotčené; mění se jen držení hlavy při chůzi a mikro-rozhlížení.
+     *
+     * @param enabled {@code true} v Endu
+     */
+    public void groundGaze(boolean enabled) {
+        this.groundGaze = enabled;
     }
 
     /**
@@ -141,7 +157,10 @@ public final class Humanizer {
         double curiosity = personality.trait(Trait.CURIOSITY);
         if (rng.chance(0.03 + curiosity * 0.05)) {
             targetYaw = wrapDegrees(yaw + (float) rng.gaussian(0, 45));
-            targetPitch = clamp((float) rng.gaussian(5, 15), -60f, 60f);
+            // V Endu se i zvědavost drží u země (endermani).
+            targetPitch = groundGaze
+                    ? clamp((float) rng.gaussian(35, 10), 10f, 60f)
+                    : clamp((float) rng.gaussian(5, 15), -60f, 60f);
             idleLookCooldown = rng.rangeInt(20, 100);
         }
     }

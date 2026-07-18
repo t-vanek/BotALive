@@ -102,6 +102,14 @@ public enum PhraseCategory {
     RECONCILE_REJECT,
     /** Lovec nastupuje na noční hlídku vesnice. */
     GUARD_NIGHT,
+    /** Odchod na výpravu do Endu (u portálu / před cestou). */
+    END_DEPART,
+    /** Příchod do Endu (první dojmy po průchodu portálem). */
+    END_ARRIVE,
+    /** Oslava skolení ender draka. */
+    DRAGON_SLAIN,
+    /** Návrat z Endu domů (hledání výstupního portálu). */
+    END_RETURN,
     /** Smajlíky přidávané podle stylu psaní. */
     EMOJIS;
 
