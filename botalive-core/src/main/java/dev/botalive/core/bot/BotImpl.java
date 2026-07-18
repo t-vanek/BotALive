@@ -787,7 +787,7 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
         // boty bez aktivní plavecké navigace (stojící, ručně řízené cíle).
         if (alive && !paused.get() && worldView != null) {
             input = dev.botalive.core.physics.LiquidReflex.apply(
-                    input, navDriven, physics.position(), worldView);
+                    input, navDriven, physics.position(), physics.submergedTicks(), worldView);
             // Prašan: zabořený bot mrzne – vyhrabat se skokem k nejbližšímu
             // bezpečí. Přebíjí vše, v prašanu nemá žádný cíl co pohledávat.
             input = dev.botalive.core.physics.PowderSnowReflex.apply(

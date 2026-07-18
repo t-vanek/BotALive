@@ -487,6 +487,28 @@ class AStarPathfinderTest {
     }
 
     @Test
+    void plavePoHladineMistoPodvodnihoTunelu() {
+        FakeWorldView world = new FakeWorldView(FLOOR);
+        // Vodní příkop: hladina ve FEET, hloubka 3. Přes příkop se dá plavat
+        // po hladině (hlava venku) i tunelem u dna – dno má být dražší.
+        for (int x = 2; x <= 6; x++) {
+            for (int z = -2; z <= 2; z++) {
+                for (int y = FEET - 3; y <= FEET; y++) {
+                    world.set(x, y, z, FakeWorldView.WATER);
+                }
+            }
+        }
+        Path path = new AStarPathfinder(world)
+                .findPath(new BlockPos(0, FEET, 0), new BlockPos(8, FEET, 0), 0);
+
+        assertTrue(path.complete(), "příkop se má dát přeplavat: " + path.waypoints());
+        assertTrue(path.waypoints().stream()
+                        .noneMatch(p -> world.traitsAt(p).liquid()
+                                && world.traitsAt(p.up()).liquid()),
+                "cesta má držet hladinu (hlava venku), ne dno: " + path.waypoints());
+    }
+
+    @Test
     void vysokySnihPrekonaSkokem() {
         FakeWorldView world = corridorWithWall();
         // Místo zdi šest vrstev sněhu (0.625) – přes step-up to nejde, skokem ano.
