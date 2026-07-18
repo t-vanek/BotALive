@@ -35,6 +35,8 @@ public final class StealGoal extends AbstractGoal {
     private int waitTicks;
     private int cooldownTicks;
     private int taken;
+    /** Sken přes studenou chunk cache (po teleportu) chvíli opakovat. */
+    private final ScanRetry scanRetry = new ScanRetry(3, 25);
 
     /**
      * @param containers sdílená stanice truhel
@@ -72,6 +74,7 @@ public final class StealGoal extends AbstractGoal {
         chest = null;
         loot = null;
         taken = 0;
+        scanRetry.reset();
         // Spolupráce před zločinem: nejdřív o jídlo slušně poprosit – ochotný
         // bot poblíž zareaguje na „dej mi jídlo" intent a rozdělí se.
         BotContext ctx = ctx(bot);
@@ -95,8 +98,19 @@ public final class StealGoal extends AbstractGoal {
         BotContext ctx = ctx(bot);
         switch (phase) {
             case FIND -> {
+                if (scanRetry.waiting()) {
+                    return; // čeká se na async chunk snapshoty
+                }
                 chest = findChest(ctx, bot);
                 if (chest == null) {
+                    if (scanRetry.shouldRetry()) {
+                        // Studená chunk cache (po teleportu): zahřát okolí
+                        // a sken za chvíli zopakovat – bot mezitím stojí.
+                        if (scanRetry.firstFailure() && ctx.worldView() != null) {
+                            ctx.worldView().prefetch(ctx.position().toBlockPos(), 1);
+                        }
+                        return;
+                    }
                     cooldownTicks = 1200; // žádná truhla – nouze trvá, zkusit jinak
                     phase = Phase.DONE;
                     return;

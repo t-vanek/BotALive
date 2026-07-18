@@ -1017,7 +1017,10 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
                 navigator.stop();
                 combat.disengage();
                 vehicle.stopCruise();
-                if (worldChanged) {
+                // Zahřát chunk cache kolem cíle i bez změny světa: sken cílů
+                // hned po teleportu jinak kouká do prázdna (async snapshoty
+                // s TTL) a zbytečně to vzdá.
+                if (worldView != null) {
                     worldView.prefetch(target.toBlockPos(), 2);
                 }
             }

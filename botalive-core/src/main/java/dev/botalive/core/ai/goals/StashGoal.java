@@ -30,6 +30,8 @@ public final class StashGoal extends AbstractGoal {
     private final ChestStation containers;
 
     private Phase phase = Phase.FIND;
+    /** Sken přes studenou chunk cache (po teleportu) chvíli opakovat. */
+    private final ScanRetry scanRetry = new ScanRetry(3, 25);
     private BlockPos chest;
     private StationPlacement placement;
     private int waitTicks;
@@ -77,6 +79,7 @@ public final class StashGoal extends AbstractGoal {
         chest = null;
         placement = null;
         deposit = null;
+        scanRetry.reset();
     }
 
     @Override
@@ -84,10 +87,22 @@ public final class StashGoal extends AbstractGoal {
         BotContext ctx = ctx(bot);
         switch (phase) {
             case FIND -> {
+                if (scanRetry.waiting()) {
+                    return; // čeká se na async chunk snapshoty
+                }
                 chest = findChest(ctx, bot);
                 if (chest != null) {
                     placement = null;
                     phase = Phase.GO;
+                    return;
+                }
+                // Studená chunk cache: neukvapit se s pokládkou vlastní
+                // truhly (stála by hned vedle neviděné existující) – nejdřív
+                // zahřát okolí a sken zopakovat.
+                if (placement == null && scanRetry.shouldRetry()) {
+                    if (scanRetry.firstFailure() && ctx.worldView() != null) {
+                        ctx.worldView().prefetch(ctx.position().toBlockPos(), 1);
+                    }
                     return;
                 }
                 // Truhla nikde – vlastní vyrobená se položí hned vedle.
