@@ -74,6 +74,14 @@ public final class PacketWorldManager {
     }
 
     /** @return aktivní pohled, nebo {@code null} před prvním loginem */
+    /**
+     * @param id síťové ID enchantu
+     * @return klíč enchantu z registru konfigurační fáze, nebo {@code null}
+     */
+    public String enchantmentKey(int id) {
+        return registry.enchantmentKey(id);
+    }
+
     public PacketWorldView currentView() {
         return current;
     }

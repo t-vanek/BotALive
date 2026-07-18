@@ -117,6 +117,10 @@ public final class CompositionRoot {
                 dev.botalive.core.station.EnchantStation.class,
                 packetStations ? new dev.botalive.core.station.PacketEnchantStation()
                         : new EnchantService(bridge));
+        dev.botalive.core.station.SmithingStation smithing = container.register(
+                dev.botalive.core.station.SmithingStation.class,
+                packetStations ? new dev.botalive.core.station.PacketSmithingStation()
+                        : new dev.botalive.core.inventory.SmithingService(bridge));
         dev.botalive.core.pvp.PvpCoordinator pvp = container.register(
                 dev.botalive.core.pvp.PvpCoordinator.class,
                 new dev.botalive.core.pvp.PvpCoordinator(config.pvp()));
@@ -137,7 +141,7 @@ public final class CompositionRoot {
                 dev.botalive.core.inventory.AnvilService.class,
                 new dev.botalive.core.inventory.AnvilService(bridge));
         registerBuiltInGoals(goalRegistry, crafting, containers, trades, furnaces,
-                enchanting, pvp, taming, anvils, market, socialGraph);
+                enchanting, smithing, pvp, taming, anvils, market, socialGraph);
 
         // Block-state a item mappery pro klientský world model (jen režim
         // packet): přesné tabulky z registrů hostitelského serveru jsou správné
@@ -199,6 +203,7 @@ public final class CompositionRoot {
                                              dev.botalive.core.station.TradeStation trades,
                                              dev.botalive.core.station.FurnaceStation furnaces,
                                              dev.botalive.core.station.EnchantStation enchanting,
+                                             dev.botalive.core.station.SmithingStation smithing,
                                              dev.botalive.core.pvp.PvpCoordinator pvp,
                                              dev.botalive.core.tame.TameService taming,
                                              dev.botalive.core.inventory.AnvilService anvils,
@@ -234,6 +239,7 @@ public final class CompositionRoot {
         registry.register("fish", bot -> new FishGoal());
         registry.register("smelt", bot -> new SmeltGoal(furnaces));
         registry.register("enchant", bot -> new EnchantGoal(enchanting));
+        registry.register("smith", bot -> new dev.botalive.core.ai.goals.SmithGoal(smithing));
         registry.register("pvp", bot -> new dev.botalive.core.ai.goals.PvpGoal(pvp));
         registry.register("tame", bot -> new dev.botalive.core.ai.goals.TameGoal(taming));
         registry.register("recover", bot -> new dev.botalive.core.ai.goals.RecoverItemsGoal());
@@ -242,6 +248,8 @@ public final class CompositionRoot {
         registry.register("buy", bot -> new dev.botalive.core.ai.goals.BuyGoal(market));
         registry.register("reconcile", bot -> new dev.botalive.core.ai.goals.ReconcileGoal(socialGraph));
         registry.register("guard", bot -> new dev.botalive.core.ai.goals.GuardGoal());
+        registry.register("nether", bot -> new dev.botalive.core.ai.goals.NetherGoal(containers));
+        registry.register("drink", bot -> new dev.botalive.core.ai.goals.DrinkPotionGoal());
         registry.register("end-travel", bot -> new dev.botalive.core.ai.goals.EndTravelGoal());
         registry.register("dragon-fight", bot -> new dev.botalive.core.ai.goals.DragonFightGoal());
         registry.register("end-harvest", bot -> new dev.botalive.core.ai.goals.EndHarvestGoal());

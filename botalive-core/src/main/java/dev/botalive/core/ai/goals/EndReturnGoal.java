@@ -8,7 +8,7 @@ import dev.botalive.core.chat.PhraseCategory;
 import dev.botalive.core.inventory.InventoryHelper;
 import dev.botalive.core.util.BlockPos;
 import dev.botalive.core.util.Vec3;
-import dev.botalive.core.world.Dimension;
+import dev.botalive.core.world.WorldDimension;
 import dev.botalive.core.world.WorldView;
 import org.bukkit.Material;
 
@@ -42,7 +42,7 @@ public final class EndReturnGoal extends AbstractGoal {
     @Override
     public double utility(Bot bot) {
         BotContext ctx = ctx(bot);
-        if (ctx.clientState().dead() || ctx.dimension() != Dimension.THE_END) {
+        if (ctx.clientState().dead() || ctx.dimension() != WorldDimension.END) {
             return 0;
         }
         if (cooldownTicks > 0) {
@@ -77,7 +77,7 @@ public final class EndReturnGoal extends AbstractGoal {
                 .filter(r -> !"gossip".equals(r.data().get("via")))
                 .filter(r -> {
                     String to = r.data().get("to");
-                    return to != null && Dimension.fromWorldKey(to) == Dimension.THE_END;
+                    return to != null && WorldDimension.fromWorldKey(to) == WorldDimension.END;
                 })
                 .mapToLong(dev.botalive.api.memory.MemoryRecord::updatedAt)
                 .max().orElse(0);
@@ -161,7 +161,7 @@ public final class EndReturnGoal extends AbstractGoal {
 
     @Override
     public boolean finished(Bot bot) {
-        return phase == Phase.DONE || ctx(bot).dimension() != Dimension.THE_END;
+        return phase == Phase.DONE || ctx(bot).dimension() != WorldDimension.END;
     }
 
     @Override

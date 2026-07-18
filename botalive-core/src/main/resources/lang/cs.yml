@@ -360,6 +360,29 @@ phrases:
     - "beru si noční, kdyby něco, křičte"
     - "obejdu vesnici, ať sem nic neleze"
     - "hlídka nastupuje, moby nemají šanci"
+  nether-depart:
+    - "jdu do netheru, držte mi palce"
+    - "portál je nachystanej, jdu na výpravu"
+    - "nether... tak snad se vrátím celej"
+    - "výprava do pekla, kdyžtak mi napište pomník"
+    - "balím krumpáč, nether čeká"
+  nether-arrive:
+    - "uf, to je vedro"
+    - "všude samá láva, parádní výlet"
+    - "tak jsem v pekle, vypadá to tu... červeně"
+    - "hlavně nespadnout do lávy, hlavně nespadnout do lávy"
+    - "ten vzduch se tu skoro nedá dejchat"
+  nether-return:
+    - "jsem zpátky! a živej!"
+    - "domů z pekla, už nikdy... teda do příští výpravy"
+    - "koukejte, co jsem přinesl z netheru"
+    - "čerstvej vzduch! ten mi chyběl"
+    - "mise splněna: přežít nether"
+  nether-loot:
+    - "MÁM TROSKY! netherit bude!"
+    - "to je ono! tohle jsem hledal"
+    - "jackpot! tohle se bude hodit"
+    - "paráda, batoh se plní"
   end-depart:
     - "jdu do Endu. jestli se nevrátím, truhla je vaše"
     - "výbava sbalená, portál znám... drak si mě najde sám"

@@ -62,7 +62,42 @@ inventář a historii; po restartu serveru pokračuje tam, kde skončil.
   brnění → diamantové nástroje a brnění → **luk a šípy** (dálkový boj) →
   truhla (položí si vlastní) → loďka → dveře a postel. Farmaří (sklizeň +
   přesazení), v noci spí v posteli nebo si staví úkryt a přebytky ukládají
-  do truhel. Netherit chybí záměrně (vyžaduje Nether).
+  do truhel. Progresi uzavírá **netherit** (viz Nether níže).
+- **Plná podpora Netheru** – připravený bot (výbava dle `nether.min-gear-tier`,
+  jídlo, křesadlo z pazourku) si najde portál z paměti, objeví cizí, nebo si
+  **postaví vlastní**: vytěží 14 obsidiánu diamantovým krumpáčem, postaví rám
+  4×5 v pořadí se stálou oporou a zapálí ho křesadlem. Průchod si pamatuje
+  z obou stran (PORTAL paměť), takže trefí domů. V Netheru těží quartz,
+  netherové zlato, glowstone a **starodávné trosky** (schodiště k y≈15 se
+  sondami proti lávě), vylupuje truhly pevností a bastionů (**kovářské
+  šablony!**), pamatuje si struktury (FORTRESS/BASTION) a se zlatými botami
+  na nohou **směňuje ingoty s pigliny**. Výprava má časový rozpočet
+  a návratové pojistky (zdraví, hlad, plný batoh); zombifikovaných piglinů
+  a endermanů si nevšímá, dokud si nezačnou. Doma trosky přetaví na úlomky,
+  z úlomků a zlata složí **netheritový ingot** a u kovářského stolu povýší
+  diamantovou výbavu na **netheritovou** (enchanty i poškození zůstávají).
+  Postel v Netheru nikdy nepoužije (vybuchla by) a portálům se cesty
+  vyhýbají – dimenzi nikdy nezmění omylem. Kořist se propisuje do života
+  společenství: quartz se prodává na trhu, blaze rody topí v peci, mince
+  z těžby jdou do peněženky, portály si kamarádi předávají v drbech
+  a kovářská šablona se dá zkopírovat (7 diamantů + netherrack), takže na
+  netherit dosáhne celá výbava. Nether se postupně **kolonizuje**: u
+  netherské strany portálu si bot založí předsunutou základnu (truhla,
+  paměť `OUTPOST`), vrací se k ní stejným portálem, odkládá do ní balast
+  z těžby (delší výpravy s volným batohem) a před sestupem do hloubky se
+  napije odolnosti ohni. Vše laditelné sekcí `nether.*`.
+- **Lektvary a metadata itemy** – boti rozumí itemům, jejichž identita je
+  až v metadatech: snapshot inventáře nese **varianty** (typ lektvaru,
+  enchant knihy) a klient sleduje aktivní efekty z paketů. Lektvary
+  z barteru a truhel se pijí v nouzi: **odolnost ohni**, když bot hoří
+  nebo stojí v lávě (a efekt ještě neběží), **léčení/regenerace** při
+  nízkém zdraví – láhev vody si s medicínou nikdy nesplete. Když bot
+  hoří, sáhne přednostně po **splash variantě** a rozbije si ji pod
+  nohama (okamžitá záchrana, žádných 1,6 s pití). Obalené
+  a svítící šípy se počítají jako střelivo (server je z inventáře střílí
+  sám) a **enchantované knihy** z kořisti bot nosí ke kovadlině
+  a aplikuje na nejlepší kompatibilní kus (Bukkit hlídá kompatibilitu
+  i konflikty, kniha se spotřebuje, XP se strhne).
 - **Těžba s účelem** – bot ví, co mu chybí: bez kamenných nástrojů kope kámen,
   s kamenným krumpáčem shání železo a uhlí, se železným jde po diamantech
   (tier gating – nekope rudu nástrojem, ze kterého by nic nepadlo). K zasypané
@@ -335,14 +370,25 @@ vyexportuje šablony `plugins/BotAlive/lang/cs.yml` a `en.yml`:
 Placeholder `{name}` se nahrazuje jménem protistrany. Kategorie: `greetings`,
 `confused`, `agreement`, `disagreement`, `youre-welcome`, `idle-chatter`,
 `death-reactions`, `combat-taunts`, `meet-player`, `pvp-help-calls`,
-`pvp-assist`, `pvp-taunts`, `emojis`.
+`pvp-assist`, `pvp-taunts`, `nether-depart`, `nether-arrive`,
+`nether-return`, `nether-loot`, `end-depart`, `end-arrive`,
+`dragon-slain`, `end-return`, `emojis`.
 
 ## Známá omezení a roadmapa
 - Boti vyžadují offline-mode (jsou to nepodepsaní klienti); na online-mode
   serveru se plugin korektně odmítne připojit a vysvětlí proč.
+- Nether má vědomé hranice: boti nejezdí na striderech a přes velké lávové
+  oceány nestaví dlouhé mosty (BridgeTask má strop 12 bloků – cesta se
+  hledá jinudy). Brewing, respawn anchor a boj s witherem nejsou v plánu;
+  nether wart se sbírá jen jako kořist z truhel. Varianty lektvarů fungují
+  i v packet režimu (POTION_CONTENTS komponenta + tabulka typů lektvarů
+  z registrů hostitele, stejný vzor jako itemy) a enchanty knih se čtou
+  z dynamického registru konfigurační fáze. Splash lektvary bot
+  hází jen sám pod sebe (nouzová záchrana); útočné házení po nepřátelích
+  chybí.
 - End: vnější ostrovy (end gateway, end cities, shulkeři, elytra) zatím
   nejsou – boti operují na hlavním ostrově; chorus sklízejí, jen když na
   něj narazí. Průlet gatewayí hozenou perlou je na roadmapě.
-- Strongholdy boti sami nehledají (oči Enderu vyžadují Nether) – portál
+- Strongholdy boti sami nehledají (oči Enderu se zatím necraftí) – portál
   do Endu se naučí průchodem, náhodným objevem, drby, nebo od admina
   (`/botalive end portal`).

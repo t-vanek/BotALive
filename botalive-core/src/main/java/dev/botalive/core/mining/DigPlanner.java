@@ -121,6 +121,43 @@ public final class DigPlanner {
     }
 
     /**
+     * Tekutina v bloku nebo jeho 6-okolí → blok se nesmí vytěžit (provalila
+     * by se láva/voda). Sdílená sonda vykonavatelů výkopu ({@code MineGoal},
+     * {@code NetherGoal}) – bezpečnostní logika žije na jednom místě.
+     *
+     * @param world pohled na svět
+     * @param block blok k vytěžení
+     * @return {@code true} pokud je těžba nebezpečná
+     */
+    public static boolean unsafeToBreak(WorldView world, BlockPos block) {
+        if (world.traitsAt(block).liquid()) {
+            return true;
+        }
+        return world.traitsAt(block.up()).liquid()
+                || world.traitsAt(block.down()).liquid()
+                || world.traitsAt(block.offset(1, 0, 0)).liquid()
+                || world.traitsAt(block.offset(-1, 0, 0)).liquid()
+                || world.traitsAt(block.offset(0, 0, 1)).liquid()
+                || world.traitsAt(block.offset(0, 0, -1)).liquid();
+    }
+
+    /**
+     * Je blok odkrytý (má průchozího souseda)? Sdílené kritérium povrchové
+     * těžby – bot kope jen to, k čemu se dostane.
+     *
+     * @param world pohled na svět
+     * @param pos   pozice bloku
+     * @return {@code true} pokud má blok průchozího souseda
+     */
+    public static boolean isExposed(WorldView world, BlockPos pos) {
+        return world.traitsAt(pos.up()).passable() || world.traitsAt(pos.down()).passable()
+                || world.traitsAt(pos.offset(1, 0, 0)).passable()
+                || world.traitsAt(pos.offset(-1, 0, 0)).passable()
+                || world.traitsAt(pos.offset(0, 0, 1)).passable()
+                || world.traitsAt(pos.offset(0, 0, -1)).passable();
+    }
+
+    /**
      * Naplánuje schodiště na cílovou hloubku (těžební sestup naslepo).
      *
      * @param feet     aktuální pozice nohou

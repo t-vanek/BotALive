@@ -62,10 +62,10 @@ public interface WorldView {
     String worldName();
 
     /**
-     * @return typ dimenze světa (overworld/nether/end) – rozhoduje o gatingu
-     *         cílů (spánek, farmaření…) a chování specifickém pro End
+     * @return dimenze světa (overworld/nether/end) – řídí chování závislé
+     *         na prostředí (spánek, farmaření, výpravy do Netheru)
      */
-    Dimension dimension();
+    WorldDimension dimension();
 
     /**
      * @return spodní hrana světa (min Y) – pod ní už je jen void

@@ -45,6 +45,9 @@ import java.util.concurrent.ConcurrentHashMap;
  * @param softLanding dopad na blok tlumí poškození z pádu (seno, slime, med, postel)
  * @param powderSnow  prašan – hustý sníh, do kterého se entity boří (mrznutí,
  *                    pomalé klesání, únik skokem); zároveň {@code hazard}
+ * @param portal      portálový blok (nether/end portál) – průchozí, ale delší
+ *                    pobyt v něm teleportuje; pathfinding ho penalizuje, aby
+ *                    boti neměnili dimenzi omylem (záměrný vstup řeší výprava)
  * @param floorHeight výška horní pochozí plochy kolize v buňce: 0 = žádná
  *                    (vzduch, koberec), (0,1) = částečný blok, ve kterém bot
  *                    stojí nohama (deska 0.5, postel 0.5625, sníh po vrstvách),
@@ -70,6 +73,7 @@ public record BlockTraits(
         boolean openable,
         boolean softLanding,
         boolean powderSnow,
+        boolean portal,
         double floorHeight,
         double speedFactor,
         double slipperiness,
@@ -115,14 +119,14 @@ public record BlockTraits(
                                      boolean door, boolean hazard, boolean openable, boolean softLanding,
                                      boolean powderSnow) {
         return new BlockTraits(passable, solid, liquid, climbable, door, hazard, openable, softLanding,
-                powderSnow, solid ? 1.0 : 0.0, 1.0, DEFAULT_SLIPPERINESS, false, false,
+                powderSnow, false, solid ? 1.0 : 0.0, 1.0, DEFAULT_SLIPPERINESS, false, false,
                 solid ? FULL_BOXES : NO_BOXES);
     }
 
     /** @return kopie s jinými kolizními boxy (floorHeight a stepFriendly se přepočítají) */
     public BlockTraits withBoxes(double[] newBoxes) {
         return new BlockTraits(passable, solid, liquid, climbable, door, hazard, openable, softLanding,
-                powderSnow, floorOf(newBoxes), speedFactor, slipperiness, web, stepFriendlyOf(newBoxes),
+                powderSnow, portal, floorOf(newBoxes), speedFactor, slipperiness, web, stepFriendlyOf(newBoxes),
                 newBoxes);
     }
 
@@ -201,6 +205,8 @@ public record BlockTraits(
                 || m == Material.SOUL_CAMPFIRE;
         boolean openable = doorLike || Tag.TRAPDOORS.isTagged(m);
         boolean web = m == Material.COBWEB;
+        boolean portal = m == Material.NETHER_PORTAL || m == Material.END_PORTAL
+                || m == Material.END_GATEWAY;
         // occluding = plný neprůhledný blok; isSolid zahrnuje i ploty apod.
         boolean solid = m.isSolid() && !doorLike && !Tag.TRAPDOORS.isTagged(m);
         boolean passable = !solid && !liquid && !hazard;
@@ -216,7 +222,7 @@ public record BlockTraits(
                 // Materiálová úroveň nezná otevřenost – dveře/vrata se berou jako
                 // zavřené (bot je před průchodem otevře; otevřený stav zjemní
                 // až computeState).
-                handOpenable, hazard, openable, softLanding, powderSnow,
+                handOpenable, hazard, openable, softLanding, powderSnow, portal,
                 floorOf(boxes), speed, slip, web, stepFriendlyOf(boxes), boxes);
     }
 
@@ -272,7 +278,7 @@ public record BlockTraits(
 
         return new BlockTraits(passable, base.solid(), liquid, base.climbable(), door,
                 base.hazard(), base.openable(), base.softLanding(), base.powderSnow(),
-                floor, base.speedFactor(), base.slipperiness(), base.web(),
+                base.portal(), floor, base.speedFactor(), base.slipperiness(), base.web(),
                 stepFriendlyOf(boxes), boxes);
     }
 

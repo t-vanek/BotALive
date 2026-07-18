@@ -85,6 +85,28 @@ class AStarPathfinderTest {
     }
 
     @Test
+    void portaloveBlokyObchaziAleCilovyPortalDosahne() {
+        FakeWorldView world = new FakeWorldView(FLOOR);
+        // Pruh portálových bloků napříč přímou trasou (x=3, z −1..1);
+        // obchůzka kolem existuje a je levnější než portálová přirážka.
+        for (int z = -1; z <= 1; z++) {
+            world.set(3, FEET, z, FakeWorldView.PORTAL);
+            world.set(3, FEET + 1, z, FakeWorldView.PORTAL);
+        }
+        Path around = new AStarPathfinder(world)
+                .findPath(new BlockPos(0, FEET, 0), new BlockPos(6, FEET, 0), 0);
+        assertTrue(around.complete());
+        assertFalse(around.waypoints().stream()
+                        .anyMatch(p -> world.traitsAt(p).portal()),
+                "bot nemá měnit dimenzi omylem: " + around.waypoints());
+
+        // Záměrný vstup: portálová buňka jako cíl je pořád dosažitelná.
+        Path into = new AStarPathfinder(world)
+                .findPath(new BlockPos(0, FEET, 0), new BlockPos(3, FEET, 0), 0);
+        assertTrue(into.complete(), "cíl uvnitř portálu musí být dosažitelný");
+    }
+
+    @Test
     void vynoriSeZVodniJamy() {
         FakeWorldView world = new FakeWorldView(FLOOR);
         // Vodní jáma 1×1 hloubky 4 (vyhloubená do podlahy, po hladinu):

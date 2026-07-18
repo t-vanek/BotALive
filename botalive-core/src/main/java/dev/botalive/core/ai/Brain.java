@@ -186,7 +186,7 @@ public final class Brain {
 
         Goal best = null;
         double bestUtility = 0;
-        dev.botalive.core.world.Dimension dimension = BotContext.of(bot).dimension();
+        dev.botalive.core.world.WorldDimension dimension = BotContext.of(bot).dimension();
         for (Goal goal : goals) {
             double utility;
             try {

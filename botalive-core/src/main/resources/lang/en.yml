@@ -345,6 +345,29 @@ phrases:
     - "taking the night shift, holler if anything comes up"
     - "patrolling the village, nothing gets in"
     - "watch duty starts now, mobs don't stand a chance"
+  nether-depart:
+    - "off to the nether, wish me luck"
+    - "portal's ready, expedition time"
+    - "the nether... well, hope I come back in one piece"
+    - "trip to hell, write me a nice tombstone if not"
+    - "packing up, nether awaits"
+  nether-arrive:
+    - "phew, it's hot in here"
+    - "lava everywhere, lovely vacation spot"
+    - "so this is hell, it's... very red"
+    - "don't fall in the lava, don't fall in the lava"
+    - "can barely breathe in this air"
+  nether-return:
+    - "I'm back! and alive!"
+    - "home from hell, never again... until next trip"
+    - "look what I brought from the nether"
+    - "fresh air! I missed it"
+    - "mission accomplished: survive the nether"
+  nether-loot:
+    - "ANCIENT DEBRIS! netherite incoming!"
+    - "that's it! that's what I came for"
+    - "jackpot! this will come in handy"
+    - "sweet, the bag is filling up"
   end-depart:
     - "off to the End. if I don't come back, my chest is yours"
     - "gear packed, portal located... the dragon can come meet me"

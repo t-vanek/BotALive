@@ -83,7 +83,7 @@ public final class SurviveGoal extends AbstractGoal {
             MoveInput flee = MoveInput.of(away, true, ctx.onGround() && ctx.rng().chance(0.2));
             // V Endu panika nesmí skončit ve voidu; v overworldu zůstává útěk
             // přímočarý – slepá zatáčka podél hrany umí vrátit bota k hrozbě.
-            if (ctx.dimension() == dev.botalive.core.world.Dimension.THE_END) {
+            if (ctx.dimension() == dev.botalive.core.world.WorldDimension.END) {
                 flee = dev.botalive.core.physics.EdgeGuard.apply(ctx.worldView(), pos, flee);
             }
             ctx.requestMove(flee);

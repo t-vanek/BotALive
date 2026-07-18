@@ -23,6 +23,9 @@ public final class MarketPrices {
             Map.entry(Material.WHEAT, 0.8),
             Map.entry(Material.COAL, 1.5),
             Map.entry(Material.IRON_INGOT, 6.0),
+            // Netherová kořist – čisté komodity bez craftovacího užití
+            // (zlato se neprodává: je potřeba na netheritový ingot a barter).
+            Map.entry(Material.QUARTZ, 1.0),
             // Kořist z Endu – perly jsou vzácné zboží, chorus kuriozita.
             Map.entry(Material.ENDER_PEARL, 12.0),
             Map.entry(Material.CHORUS_FRUIT, 1.5));

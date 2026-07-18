@@ -93,10 +93,13 @@ public final class SocialGraph {
         places.addAll(teller.memory().recall(MemoryKind.VILLAGE));
         places.addAll(teller.memory().recall(MemoryKind.MINE));
         places.addAll(teller.memory().recall(MemoryKind.DANGER));
+        // Portály se sdílí taky – vesnice tak časem používá společný portál
+        // do Netheru místo lesa rámů (výprava čte „to"/„built" z dat).
         places.addAll(teller.memory().recall(MemoryKind.PORTAL));
-        // Portál, o kterém posluchač už ví, se znovu nevypráví: opakovaný
+        // Portál, o kterém posluchač už ví, se ale znovu nevypráví: opakovaný
         // remember by se slil do jeho záznamu, přepsal data drbem a bumpl
-        // updatedAt – u vlastního průchodu by to resetovalo cooldown výprav.
+        // updatedAt – u vlastního průchodu by to resetovalo cooldown výprav
+        // do Endu a přepsalo prvoruční „to".
         places.removeIf(record -> record.kind() == MemoryKind.PORTAL
                 && knowsPlace(listener, record));
         List<MemoryRecord> shareable = shareable(places,
@@ -105,7 +108,7 @@ public final class SocialGraph {
         while (told < MAX_SHARED && !shareable.isEmpty()) {
             MemoryRecord record = shareable.remove(rng.rangeInt(0, shareable.size() - 1));
             listener.memory().remember(record.kind(), record.world(), record.x(),
-                    record.y(), record.z(), record.subject(), gossipData(record, teller),
+                    record.y(), record.z(), record.subject(), gossipStamp(teller, record),
                     record.importance() * GOSSIP_FACTOR);
             told++;
         }
@@ -120,31 +123,29 @@ public final class SocialGraph {
     }
 
     /**
-     * Data předávané kopie drbu: značka gossip + {@code type}, který nese
-     * význam vzpomínky. Klíč {@code to} (vlastní průchod portálem) se
-     * <b>nikdy</b> nekopíruje – z doslechu se nestává cesta, kterou posluchač
-     * sám prošel (měřil by se z ní rozestup výprav do Endu). Průchod se
-     * posluchači předá jako spatřený portál ({@code type=end}).
+     * Razítko drbu; klíče nesoucí význam („to"/„built" u portálů) se
+     * zachovávají – bez nich by předaný portál nebyl použitelný. Rozestup
+     * výprav do Endu drby neovlivní: čtení vlastních průchodů filtruje
+     * značku {@code via=gossip} ({@code EndKnowledge.recentEndVisit}).
      */
-    private static Map<String, String> gossipData(MemoryRecord record, Bot teller) {
-        Map<String, String> data = new java.util.HashMap<>();
-        data.put("via", "gossip");
-        data.put("from", teller.name());
-        String type = record.data().get("type");
-        if (type == null && dev.botalive.core.world.Dimension.fromWorldKey(
-                record.data().get("to")) == dev.botalive.core.world.Dimension.THE_END) {
-            type = dev.botalive.core.ai.EndKnowledge.TYPE_END;
+    private static Map<String, String> gossipStamp(Bot teller, MemoryRecord record) {
+        Map<String, String> stamp = new java.util.HashMap<>();
+        if (record.data() != null) {
+            record.data().forEach((key, value) -> {
+                if (key.equals("to") || key.equals("built")) {
+                    stamp.put(key, value);
+                }
+            });
         }
-        if (type != null) {
-            data.put("type", type);
-        }
-        return Map.copyOf(data);
+        stamp.put("via", "gossip");
+        stamp.put("from", teller.name());
+        return stamp;
     }
 
     /**
      * Co z vypravěčovy paměti stojí za řeč (čistá logika, testovatelná).
      *
-     * @param places     vzpomínky na místa (VILLAGE/MINE/DANGER/PORTAL)
+     * @param places     vzpomínky na místa (VILLAGE/MINE/DANGER)
      * @param grudges    vypravěčovy ENEMY vzpomínky
      * @param trust      vypravěčovo přátelství k posluchači (0–1)
      * @param listenerId posluchač (pomluvy o něm samém se neříkají jemu)

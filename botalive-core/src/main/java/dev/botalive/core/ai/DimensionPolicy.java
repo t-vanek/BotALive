@@ -1,6 +1,6 @@
 package dev.botalive.core.ai;
 
-import dev.botalive.core.world.Dimension;
+import dev.botalive.core.world.WorldDimension;
 
 import java.util.Map;
 
@@ -46,7 +46,9 @@ public final class DimensionPolicy {
             Map.entry("enchant", 0.0),
             Map.entry("smelt", 0.4),     // tavení mid-výpravy jen z nouze
             Map.entry("explore", 0.5),   // opatrně, kolem je void
-            Map.entry("end-travel", 0.0) // už tam je
+            Map.entry("end-travel", 0.0), // už tam je
+            Map.entry("nether", 0.0),     // výprava do Netheru se plánuje doma
+            Map.entry("smith", 0.0)       // kovářský stůl do Endu nepatří
     );
 
     /** Cíle vypnuté v Netheru (boti se tam zatím dostávají jen teleportem). */
@@ -86,11 +88,12 @@ public final class DimensionPolicy {
      * @param dimension dimenze světa bota
      * @return násobič (1.0 = bez omezení, 0 = cíl v dimenzi vypnutý)
      */
-    public static double weight(String goalId, Dimension dimension) {
+    public static double weight(String goalId, WorldDimension dimension) {
         return switch (dimension) {
-            case THE_END -> END.getOrDefault(goalId, 1.0);
+            case END -> END.getOrDefault(goalId, 1.0);
             case NETHER -> NETHER.getOrDefault(goalId, 1.0);
-            case OVERWORLD -> OVERWORLD.getOrDefault(goalId, 1.0);
+            // UNKNOWN = před spawnem; chová se overworldově (cíle beztak neběží).
+            case OVERWORLD, UNKNOWN -> OVERWORLD.getOrDefault(goalId, 1.0);
         };
     }
 
@@ -101,7 +104,7 @@ public final class DimensionPolicy {
      * @param dimension dimenze
      * @return {@code true} jen v overworldu
      */
-    public static boolean rhythmApplies(Dimension dimension) {
-        return dimension == Dimension.OVERWORLD;
+    public static boolean rhythmApplies(WorldDimension dimension) {
+        return dimension == WorldDimension.OVERWORLD || dimension == WorldDimension.UNKNOWN;
     }
 }

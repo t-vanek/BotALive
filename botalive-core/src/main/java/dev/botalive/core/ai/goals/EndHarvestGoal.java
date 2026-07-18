@@ -10,7 +10,7 @@ import dev.botalive.core.physics.EdgeGuard;
 import dev.botalive.core.tasks.MineBlockTask;
 import dev.botalive.core.util.BlockPos;
 import dev.botalive.core.util.Vec3;
-import dev.botalive.core.world.Dimension;
+import dev.botalive.core.world.WorldDimension;
 import dev.botalive.core.world.WorldView;
 import org.bukkit.Material;
 
@@ -55,7 +55,7 @@ public final class EndHarvestGoal extends AbstractGoal {
     public double utility(Bot bot) {
         BotContext ctx = ctx(bot);
         if (!ctx.config().end().enabled() || ctx.clientState().dead()
-                || ctx.dimension() != Dimension.THE_END) {
+                || ctx.dimension() != WorldDimension.END) {
             return 0;
         }
         if (cooldownTicks > 0) {

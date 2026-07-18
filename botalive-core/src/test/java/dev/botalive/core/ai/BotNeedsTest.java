@@ -22,7 +22,7 @@ class BotNeedsTest {
             bar[i] = hotbar[i];
             counts[i] = hotbar[i] == null ? 0 : 1;
         }
-        return new ServerSideView.Snapshot(null, bar, counts, new Material[27], null,
+        return new ServerSideView.Snapshot(null, bar, counts, new Material[27], null, null, null,
                 new Material[4], null, 0, 20, 20, 0, false, false, false, 1000, 0);
     }
 
@@ -68,6 +68,36 @@ class BotNeedsTest {
         assertEquals(3, BotNeeds.requiredPickTier(Material.DEEPSLATE_LAPIS_ORE));
         assertEquals(4, BotNeeds.requiredPickTier(Material.DIAMOND_ORE));
         assertEquals(4, BotNeeds.requiredPickTier(Material.GOLD_ORE));
+    }
+
+    @Test
+    void netherovyTierGating() {
+        // Netherové zlato padá z libovolného krumpáče (na rozdíl od overworld
+        // zlata) a trosky/obsidián jen z diamantového.
+        assertEquals(1, BotNeeds.requiredPickTier(Material.NETHER_GOLD_ORE));
+        assertEquals(1, BotNeeds.requiredPickTier(Material.NETHER_QUARTZ_ORE));
+        assertEquals(1, BotNeeds.requiredPickTier(Material.GLOWSTONE));
+        assertEquals(5, BotNeeds.requiredPickTier(Material.ANCIENT_DEBRIS));
+        assertEquals(5, BotNeeds.requiredPickTier(Material.OBSIDIAN));
+    }
+
+    @Test
+    void pripravaNaNetherVeWishlistu() {
+        // Diamantový krumpáč bez křesadla → gravel (pazourek) a obsidián.
+        BotNeeds needs = BotNeeds.assess(snapshot(Material.DIAMOND_PICKAXE, Material.TORCH));
+        assertTrue(needs.miningWishlist().contains(Material.GRAVEL));
+        assertTrue(needs.miningWishlist().contains(Material.OBSIDIAN));
+
+        // S křesadlem gravel mizí, obsidián zůstává, dokud není 14 kusů.
+        BotNeeds withFlint = BotNeeds.assess(
+                snapshot(Material.DIAMOND_PICKAXE, Material.TORCH, Material.FLINT_AND_STEEL));
+        assertFalse(withFlint.miningWishlist().contains(Material.GRAVEL));
+        assertTrue(withFlint.miningWishlist().contains(Material.OBSIDIAN));
+
+        // Železný krumpáč na nether přípravu nestačí.
+        BotNeeds iron = BotNeeds.assess(snapshot(Material.IRON_PICKAXE, Material.TORCH));
+        assertFalse(iron.miningWishlist().contains(Material.GRAVEL));
+        assertFalse(iron.miningWishlist().contains(Material.OBSIDIAN));
     }
 
     @Test

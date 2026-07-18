@@ -12,7 +12,7 @@ import dev.botalive.core.physics.EdgeGuard;
 import dev.botalive.core.physics.MoveInput;
 import dev.botalive.core.util.BlockPos;
 import dev.botalive.core.util.Vec3;
-import dev.botalive.core.world.Dimension;
+import dev.botalive.core.world.WorldDimension;
 
 import java.util.Map;
 import java.util.Optional;
@@ -64,7 +64,7 @@ public final class DragonFightGoal extends AbstractGoal {
         BotContext ctx = ctx(bot);
         var cfg = ctx.config().end();
         if (!cfg.enabled() || !cfg.dragonFight() || !ctx.config().combat().enabled()
-                || ctx.clientState().dead() || ctx.dimension() != Dimension.THE_END) {
+                || ctx.clientState().dead() || ctx.dimension() != WorldDimension.END) {
             return 0;
         }
         boolean dragonVisible = findDragon(ctx).isPresent();
@@ -239,7 +239,7 @@ public final class DragonFightGoal extends AbstractGoal {
         // Hotovo, když po započatém boji drak zmizel a oslava proběhla
         // (fightStarted se shodil), nebo když bot z Endu odešel.
         BotContext ctx = ctx(bot);
-        if (ctx.dimension() != Dimension.THE_END) {
+        if (ctx.dimension() != WorldDimension.END) {
             return true;
         }
         return !fightStarted && findDragon(ctx).isEmpty()

@@ -24,7 +24,7 @@ class EndReadinessTest {
         for (int i = 0; i < main.length && i < 27; i++) {
             inventory[i] = main[i];
         }
-        return new ServerSideView.Snapshot(null, bar, counts, inventory, null,
+        return new ServerSideView.Snapshot(null, bar, counts, inventory, null, null, null,
                 armor, null, 0, 20, 20, 0, false, false, false, 1000, 0);
     }
 

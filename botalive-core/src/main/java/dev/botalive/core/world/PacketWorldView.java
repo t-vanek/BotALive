@@ -204,8 +204,9 @@ public final class PacketWorldView implements WorldView {
     }
 
     @Override
-    public Dimension dimension() {
-        return Dimension.fromWorldKey(worldKey);
+    public WorldDimension dimension() {
+        // Packet režim nemá Bukkit Environment – odhad z klíče světa.
+        return WorldDimension.fromWorldKey(worldKey);
     }
 
     @Override

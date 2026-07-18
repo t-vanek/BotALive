@@ -26,7 +26,6 @@ import java.util.concurrent.ConcurrentHashMap;
 public final class SnapshotWorldView implements WorldView {
 
     private final World world;
-    private final Dimension dimension;
     private final MainThreadBridge bridge;
 
     /** Cache snapshotů: klíč = kompaktní (chunkX, chunkZ). */
@@ -42,7 +41,6 @@ public final class SnapshotWorldView implements WorldView {
      */
     public SnapshotWorldView(World world, MainThreadBridge bridge, BotAliveConfig.Performance perf) {
         this.world = Objects.requireNonNull(world, "world");
-        this.dimension = Dimension.fromBukkit(world.getEnvironment());
         this.bridge = bridge;
         this.snapshots = Caffeine.newBuilder()
                 .maximumSize(perf.chunkCacheSize())
@@ -130,8 +128,8 @@ public final class SnapshotWorldView implements WorldView {
     }
 
     @Override
-    public Dimension dimension() {
-        return dimension;
+    public WorldDimension dimension() {
+        return WorldDimension.fromEnvironment(world.getEnvironment());
     }
 
     @Override

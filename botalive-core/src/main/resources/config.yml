@@ -216,6 +216,26 @@ settlement:
   # opustil vesnici. Starší křivdy doutnají v PvP paměti, ale nestěhuje se.
   grudge-window-hours: 2
 
+nether:
+  # Výpravy do Netheru: bot s výbavou si postaví (nebo najde) portál, projde
+  # jím, v Netheru těží quartz, nether zlato, glowstone a starodávné trosky
+  # a s kořistí se vrací domů. Z trosek se taví netheritové úlomky, s nimi
+  # a zlatem vzniká netheritový ingot a u kovářského stolu (s šablonou
+  # z bastionu) povýší diamantová výbava na netheritovou.
+  # false = boti do Netheru sami nechodí (portály dál obcházejí obloukem).
+  enabled: true
+  # Smí si boti stavět vlastní portály (14 obsidiánu + křesadlo)?
+  # false = používají jen portály, které ve světě najdou nebo si pamatují.
+  build-portals: true
+  # Výměnný obchod s pigliny: bot se zlatým kusem zbroje jim hází zlaté
+  # ingoty a sbírá, co za ně padne (obsidián, gravel, občas i vzácnosti).
+  barter: true
+  # Časový rozpočet jedné výpravy (minuty) – pak se bot vrací k portálu.
+  max-trip-minutes: 20
+  # Minimální tier zbraně a zbroje pro výpravu (4 = železo, 5 = diamant).
+  # S horší výbavou se do pekla nechodí.
+  min-gear-tier: 4
+
 end:
   # Výpravy do dimenze End. Bot, který zná portál (prošel jím, našel ho při
   # toulkách, doslechl se o něm drby od kamaráda, nebo mu ho prozradil admin

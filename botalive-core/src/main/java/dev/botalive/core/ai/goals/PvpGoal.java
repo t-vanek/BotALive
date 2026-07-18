@@ -172,7 +172,7 @@ public final class PvpGoal extends AbstractGoal {
         dev.botalive.core.physics.MoveInput pvpMove = ctx.combat().tick(
                 ctx.position(), ctx.clientState().health(),
                 ctx.onGround(), ctx.serverView().latest());
-        if (ctx.dimension() == dev.botalive.core.world.Dimension.THE_END) {
+        if (ctx.dimension() == dev.botalive.core.world.WorldDimension.END) {
             pvpMove = dev.botalive.core.physics.EdgeGuard.apply(
                     ctx.worldView(), ctx.position(), pvpMove);
         }

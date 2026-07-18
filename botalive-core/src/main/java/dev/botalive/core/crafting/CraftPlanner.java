@@ -17,10 +17,13 @@ import java.util.function.Predicate;
  *
  * <p>Kompletní řetěz: suroviny → ponk → dřevěné → kamenné nástroje →
  * pec → pochodně → železné nástroje a sekera → štít → železné brnění →
- * diamantové nástroje a brnění → luk a šípy → truhla → loďka.
- * Diamantová generace nahrazuje železnou automaticky (kontroly „už má
- * lepší" berou vyšší tier v potaz). Netherit vyžaduje Nether – mimo
- * dosah botů, záměrně chybí.</p>
+ * diamantové nástroje a brnění → luk a šípy → výbava do Netheru
+ * (křesadlo, zlaté boty) → truhla → loďka. Diamantová generace nahrazuje
+ * železnou automaticky (kontroly „už má lepší" berou vyšší tier v potaz).
+ * Netherit uzavírá progresi: starodávné trosky z Netheru se taví na
+ * úlomky ({@code FurnaceService}), 4 úlomky + 4 zlato = ingot a povýšení
+ * diamantové výbavy provádí kovářský stůl ({@code SmithingService},
+ * s šablonou z bastionu).</p>
  */
 public final class CraftPlanner {
 
@@ -284,6 +287,15 @@ public final class CraftPlanner {
             return diamondArmor;
         }
 
+        // ---- křesadlo (klíč do Netheru; PŘED šípy – jinak by opakovaná
+        // výroba šípů spolykala každý pazourek a křesadlo by nikdy nevzniklo)
+        boolean netherPrep = s.hasToolAtLeast("_PICKAXE", 5);
+        if (netherPrep && iron >= 1 && s.has(Material.FLINT)
+                && !s.has(Material.FLINT_AND_STEEL)) {
+            return new Plan("křesadlo", matrix(
+                    Material.IRON_INGOT, 0, Material.FLINT, 1), false);
+        }
+
         // ---- luk a šípy (dálkový boj)
         if (s.hasTable() && s.count(Material.STRING) >= 3 && s.sticks() >= 3
                 && !s.has(Material.BOW) && !s.has(Material.CROSSBOW)) {
@@ -297,6 +309,49 @@ public final class CraftPlanner {
                 && s.count(Material.ARROW) < 16) {
             return new Plan("šípy", matrix(
                     Material.FLINT, 1, Material.STICK, 4, Material.FEATHER, 7), true);
+        }
+
+        // ---- výbava do Netheru (má smysl až s diamantovým krumpáčem –
+        // obsidián se jiným nevytěží; křesadlo viz výše před šípy)
+        if (netherPrep && s.hasTable() && s.count(Material.GOLD_INGOT) >= 6
+                && !s.has(Material.GOLDEN_BOOTS)) {
+            // Zlaté boty piglini respektují; 2 ingoty navíc zůstávají na barter.
+            return new Plan("zlaté boty", matrix(
+                    Material.GOLD_INGOT, 0, Material.GOLD_INGOT, 2,
+                    Material.GOLD_INGOT, 6, Material.GOLD_INGOT, 8), true);
+        }
+
+        // ---- netherit (kořist z Netheru: trosky → úlomky → ingot; povýšení
+        // výbavy dělá kovářský stůl přes SmithingService)
+        if (s.hasTable() && s.count(Material.NETHERITE_SCRAP) >= 4
+                && s.count(Material.GOLD_INGOT) >= 4 && !s.has(Material.NETHERITE_INGOT)) {
+            return new Plan("netheritový ingot", matrix(
+                    Material.NETHERITE_SCRAP, 0, Material.NETHERITE_SCRAP, 1,
+                    Material.NETHERITE_SCRAP, 2, Material.NETHERITE_SCRAP, 3,
+                    Material.GOLD_INGOT, 4, Material.GOLD_INGOT, 5,
+                    Material.GOLD_INGOT, 6, Material.GOLD_INGOT, 7), true);
+        }
+        if (s.hasTable() && !s.has(Material.SMITHING_TABLE) && iron >= 2
+                && s.planks() >= 4 && plank != null
+                && (s.has(Material.NETHERITE_INGOT) || s.has(Material.NETHERITE_SCRAP)
+                        || s.has(Material.ANCIENT_DEBRIS))) {
+            return new Plan("kovářský stůl", matrix(
+                    Material.IRON_INGOT, 0, Material.IRON_INGOT, 1,
+                    plank, 3, plank, 4, plank, 6, plank, 7), true);
+        }
+        // Kopie šablony (7 diamantů + netherrack): šablona z bastionu je
+        // jedna, ale povýšit chce bot celou výbavu – duplikace se vyplatí,
+        // dokud zbývá víc diamantových kusů a je z čeho ji zaplatit.
+        if (s.hasTable() && s.count(Material.NETHERITE_UPGRADE_SMITHING_TEMPLATE) == 1
+                && s.count(Material.DIAMOND) >= 7 && s.has(Material.NETHERRACK)
+                && diamondGearPieces(s) >= 2
+                && (s.has(Material.NETHERITE_INGOT) || s.count(Material.NETHERITE_SCRAP) >= 4
+                        || s.has(Material.ANCIENT_DEBRIS))) {
+            return new Plan("kopie kovářské šablony", matrix(
+                    Material.DIAMOND, 0, Material.NETHERITE_UPGRADE_SMITHING_TEMPLATE, 1,
+                    Material.DIAMOND, 2, Material.DIAMOND, 3, Material.NETHERRACK, 4,
+                    Material.DIAMOND, 5, Material.DIAMOND, 6, Material.DIAMOND, 7,
+                    Material.DIAMOND, 8), true);
         }
 
         // ---- truhla a loďka (zázemí a cestování; rezerva prken)
@@ -373,6 +428,17 @@ public final class CraftPlanner {
             }
         }
         return Material.OAK_SLAB;
+    }
+
+    /** Počet diamantových kusů výbavy (kandidátů na povýšení na netherit). */
+    private static int diamondGearPieces(State s) {
+        return s.countMatching(m -> {
+            String n = m.name();
+            return n.startsWith("DIAMOND_") && (n.endsWith("_PICKAXE") || n.endsWith("_SWORD")
+                    || n.endsWith("_AXE") || n.endsWith("_SHOVEL") || n.endsWith("_HOE")
+                    || n.endsWith("_CHESTPLATE") || n.endsWith("_LEGGINGS")
+                    || n.endsWith("_HELMET") || n.endsWith("_BOOTS"));
+        });
     }
 
     /** Má sekeru v tieru {@code tier} nebo lepší (bez krumpáčů). */

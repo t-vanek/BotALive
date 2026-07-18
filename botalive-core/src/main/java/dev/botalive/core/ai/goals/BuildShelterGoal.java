@@ -39,6 +39,10 @@ public final class BuildShelterGoal extends AbstractGoal {
             cooldownTicks -= ctx.config().ai().decisionIntervalTicks();
             return 0;
         }
+        // Úkryty na noc patří do overworldu (v Netheru není noc).
+        if (outsideOverworld(ctx)) {
+            return 0;
+        }
         // Úkryt se staví na noc – a taky v bouřce (blesky zakládají požáry),
         // když je domov z ruky.
         if (!isNight(ctx.worldTime()) && !ctx.thundering()) {

@@ -452,9 +452,96 @@ v utility** – stav deště/bouřky drží `BotClientState` z GameEvent paketů
 (funguje i v packet režimu): bouřka boostuje návrat domů a povoluje denní
 úkryt, déšť bez bouřky zvedá rybaření.
 
-Hotovo ve fázi 16: dimenze End. (1) **Dimenzní povědomí** –
+Hotovo ve fázi 16: plná podpora Netheru (`core/nether` + cíl `nether`).
+
+- **Dimenze jako vlastnost world view** (`WorldView.dimension()`,
+  `WorldDimension`): server režim čte autoritativně Bukkit
+  `World.Environment`, packet režim heuristicky z protokolového klíče světa
+  (`minecraft:the_nether`, `world_nether`…). Cíle vázané na overworld
+  (spánek – postel v Netheru **vybuchuje**, farmy, rybaření, stavba domů,
+  vesnice, trh, ukládání do truhel, klasická těžba) se mimo overworld
+  odmlčí jedním sdíleným gatem (`AbstractGoal.outsideOverworld`).
+- **Portálový blok je trait** (`BlockTraits.portal` + `COST_PORTAL` v A*):
+  vnitřní smyčka pathfinderu zůstává čistě nad traits (žádné dotazy na
+  materiály) a boti portály obcházejí – dimenzi nikdy nezmění omylem.
+  Záměrný vstup penalizace neblokuje: cíl cesty smí být portálová buňka
+  (konstantní přirážka, žádný zákaz).
+- **Rám se staví plný, 14 obsidiánu** (`PortalBlueprint`): ekonomický rám
+  bez rohů by při pokládce horní řady neměl žádného pevného souseda
+  a vyžadoval dočasné opěrné bloky. Pořadí spodní řada → sloupky zdola
+  → horní řada od krajů zaručuje, že každý blok má oporu v zemi nebo v už
+  položeném sousedovi (invariant hlídá test). Zapaluje se křesadlem přes
+  horní plochu spodního obsidiánu; křesadlo a zlaté boty přidává
+  `CraftPlanner` po diamantovém krumpáči (dřív nemá smysl – obsidián jiným
+  nejde vytěžit) a pazourek/obsidián si bot řekne přes `BotNeeds` wishlist.
+- **PORTAL paměť z obou stran**: odchodová vzpomínka vzniká při živém
+  respawnu se změnou světa (jako dřív), příletová při **prvním teleportu
+  v novém světě** (`BotImpl.onSpawnComplete`) – to je pozice cílového
+  portálu, tedy cesta zpátky. Návrat výpravy: paměť → sken → stavba
+  vlastního portálu z kořisti → kotva `NetherMath.toNether(domov)`
+  (overworld/8, celočíselně k −∞) a hledání cestou. V Netheru drží cíl
+  `nether` utilitu 30 bez ohledu na config – bot přerušený bojem, jídlem
+  nebo restartem serveru se k návratu vždy vrátí a v pekle „nezůstane
+  bydlet" (restart uprostřed výpravy naváže s polovičním rozpočtem).
+- **Výprava s rozpočty** (`NetherGoal`): časový limit
+  (`nether.max-trip-minutes`), návrat při zdraví < 8 / hladu < 6 / plném
+  batohu; výkopy sdílejí sondy `MineGoal` (podlaha do 3 bloků, tekutina
+  v 6-okolí = stop). Gear gating je čistá funkce (`NetherReadiness`).
+  Truhly pevností/bastionů vylupuje `ChestStation.lootValuables`
+  (server-side i paketové kliky; klasifikace kořisti sdílená
+  v `ContainerService.isValuableLoot` – hlavně **kovářské šablony**).
+  Barter: se zlatými botami na nohou (nasazuje se výslovně – tier logika
+  by zlato nikdy nevzala) bot piglinovi hodí ingot a počká si na zboží.
+- **Netheritový řetěz**: pec taví `ANCIENT_DEBRIS` (rozšíření SMELTABLE),
+  `CraftPlanner` skládá ingot (4 úlomky + 4 zlato) a kovářský stůl;
+  povýšení dělá `SmithingStation` – server-side `SmithingService`
+  (`ItemStack.withType` zachová enchanty a poškození, spotřeba šablony
+  + ingotu dle vanilly, precedent §9) a `PacketSmithingStation` (explicitní
+  dvojice kliků do slotů 0–2, výběr výsledku shift-klikem, §13). Nový cíl
+  `smith` je aktivní jen s kompletní trojicí ingot+šablona+diamantový kus.
+- **Neutrální mobové**: z `TrackedEntity.isHostile` vypadl ENDERMAN –
+  boti na neutrální druhy (enderman, piglin, zombifikovaný piglin) útočí
+  jen odvetou přes čerstvou ENEMY vzpomínku, přesně jako hráč, který si
+  s hordou zombifikovaných piglinů nezačíná. Piglinům se navíc platí
+  respektem: zlaté boty v Netheru = klid a možnost barteru.
+
+Hotovo ve fázi 17: lektvary a metadata itemy.
+
+- **Varianty itemů ve snapshotu** (`Snapshot.itemVariants`, `ItemVariants`):
+  identita lektvarů, obalených šípů a enchantovaných knih žije v ItemMeta,
+  ne v Materialu – snapshot proto nese slotovou mapu normalizovaných
+  variant (`fire_resistance`, `sharpness:4`), plněnou v server režimu na
+  vlákně entity z `PotionMeta`/`EnchantmentStorageMeta`. Packet režim čte
+  typ lektvaru z komponenty `POTION_CONTENTS`: registr lektvarů je
+  statický (per verze protokolu), takže `ReflectionItemMapper` sestavuje
+  tabulku id → klíč z `BuiltInRegistries.POTION` hostitele stejně jako
+  u itemů (§11 – platí táž verzní podmínka a degradace). Enchanty knih
+  jsou naopak **dynamický** registr: `DimensionRegistry` si z konfigurační
+  fáze ukládá klíče v pořadí síťových ID (stejně jako dimenze a biomy)
+  a `PacketPlayerView` jimi překládá `STORED_ENCHANTMENTS` komponentu –
+  boti na cizích serverech tak znají i obsah enchantovaných knih.
+- **Aktivní efekty z paketů** (`BotClientState.effectActive`):
+  UpdateMobEffect/RemoveMobEffect se sledují s časem vypršení (-1 =
+  nekonečno), respawn efekty čistí. Funguje v obou režimech world modelu –
+  je to čistě protokolová znalost.
+- **Pití jako nouzový reflex, ne alchymie** (cíl `drink`): boti nevaří,
+  lektvary mají z barteru a truhel. Utility se probouzí jen v nouzi:
+  odolnost ohni při hoření/lávě (95 – nad bojem; 1,6 s pití se vyplatí),
+  léčení/regenerace při zdraví ≤ 10. Typ se ověřuje přes varianty – láhev
+  vody není medicína; splash lektvary se záměrně ignorují (házení je jiná
+  mechanika). Mechanika pití zrcadlí jídlo (use + ~32 ticků); úspěch
+  potvrzuje aplikovaný efekt z paketu, u okamžitého léčení nárůst zdraví.
+- **Enchantované knihy u kovadliny** (`AnvilService.applyBook`
+  + rozšířený `RepairGoal`): kniha z kořisti se aplikuje na nejlepší
+  kompatibilní kus (Bukkit `canEnchantItem`/`conflictsWith`, vyšší úroveň
+  vyhrává), spotřebuje se a strhne 4 XP úrovně – zjednodušení bez
+  prior-work penalizace po precedentu oprav (§9). Obalené/svítící šípy
+  jsou střelivo už tím, že je server při střelbě z luku bere z inventáře
+  sám – stačilo je počítat v kontrolách zásob.
+
+Hotovo ve fázi 18: dimenze End. (1) **Dimenzní povědomí** –
 `WorldView.dimension()` (server mode z Bukkit `World.Environment`, packet
-mode z klíče světa přes `Dimension.fromWorldKey`) a centrální
+mode z klíče světa přes `WorldDimension.fromWorldKey`) a centrální
 `DimensionPolicy` aplikovaná v `Brain.decide()`: jediné místo, které ví,
 že v Endu/Netheru **postel exploduje** (spánek 0), že se v Endu nestaví,
 nefarmaří a nenavigují vzpomínky z jiného světa (home/stash/steal), a že
@@ -492,9 +579,9 @@ pouhý výpadek z trackeru umí i drak kroužící mimo dosah sledování entit
 → `TROPHY type=dragon`, oslava, odvaha roste), `end-harvest` (osamocení endermani na perly, end stone na mosty,
 chorus když je) a `end-return` (výstupní portál na fontáně existuje jen
 po drakovi – „nenašel jsem portál" znamená „drak žije, zpátky do
-práce"). (5) **Ambice `DRAGON_SLAYER`** – skóre COURAGE ×0.95: odvážlivec
-si nejdřív splní železnou výbavu (COURAGE ×1.0) a drak je jeho druhý
-sen; `Ambition.progress` přešel na `State` record (výbava, luk, znalost
+práce"). (5) **Ambice `DRAGON_SLAYER`** – skóre COURAGE ×0.9: odvážlivec
+si nejdřív splní železnou výbavu (COURAGE ×1.0), chamtivý dá přednost
+i netheritu, a na draka dojde, když je odvaha dominantní rys; `Ambition.progress` přešel na `State` record (výbava, luk, znalost
 portálu, trofej), gating `end.enabled` drží `BotImpl` (enum zůstává
 čistý). Ceník trhu zná `ender_pearl`, chorus ovoce je nouzové jídlo
 (`isEmergencyFood` – jí se až při hladu ≤ 8, teleport je menší zlo).

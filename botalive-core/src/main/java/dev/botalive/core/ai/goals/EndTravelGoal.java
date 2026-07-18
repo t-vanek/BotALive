@@ -9,7 +9,7 @@ import dev.botalive.core.ai.EndReadiness;
 import dev.botalive.core.chat.PhraseCategory;
 import dev.botalive.core.util.BlockPos;
 import dev.botalive.core.util.Vec3;
-import dev.botalive.core.world.Dimension;
+import dev.botalive.core.world.WorldDimension;
 import dev.botalive.core.world.WorldView;
 import org.bukkit.Material;
 
@@ -54,7 +54,7 @@ public final class EndTravelGoal extends AbstractGoal {
         BotContext ctx = ctx(bot);
         var cfg = ctx.config().end();
         if (!cfg.enabled() || ctx.clientState().dead()
-                || ctx.dimension() != Dimension.OVERWORLD) {
+                || ctx.dimension() != WorldDimension.OVERWORLD) {
             return 0;
         }
         if (cooldownTicks > 0) {
@@ -180,7 +180,7 @@ public final class EndTravelGoal extends AbstractGoal {
 
     @Override
     public boolean finished(Bot bot) {
-        return phase == Phase.DONE || ctx(bot).dimension() == Dimension.THE_END;
+        return phase == Phase.DONE || ctx(bot).dimension() == WorldDimension.END;
     }
 
     /**

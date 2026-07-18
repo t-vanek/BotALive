@@ -51,6 +51,12 @@ public final class AStarPathfinder {
     private static final int COST_SLOW_SURFACE = 15;
     /** Přirážka za svislý záběr při plavání (stoupání je dřina). */
     private static final int COST_SWIM_VERTICAL = 6;
+    /**
+     * Přirážka za portálový blok – průchozí je, ale pobyt v něm teleportuje
+     * do jiné dimenze. Cesty ho obcházejí; záměrný vstup (cíl = portál) tím
+     * zdraží jen o konstantu a projde.
+     */
+    private static final int COST_PORTAL = 50;
 
     /** Maximální bezpečná výška seskoku (bez poškození stojí za to). */
     private static final int MAX_DROP = 3;
@@ -526,6 +532,11 @@ public final class AStarPathfinder {
         }
         if (feetTraits.door()) {
             penalty += COST_DOOR;
+        }
+        // Portálový blok – neprocházet omylem (změna dimenze); záměrnému
+        // vstupu (portál je cílem cesty) konstanta nebrání.
+        if (feetTraits.portal() || world.traitsAt(feet.up()).portal()) {
+            penalty += COST_PORTAL;
         }
         // Pomalý povrch pod nohama (soul sand, med) – chůze po něm se vleče.
         BlockTraits support = feetTraits.floorHeight() > 0

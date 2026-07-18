@@ -37,8 +37,8 @@ public final class EndKnowledge {
             return false;
         }
         String to = record.data().get("to");
-        if (to != null && dev.botalive.core.world.Dimension.fromWorldKey(to)
-                == dev.botalive.core.world.Dimension.THE_END) {
+        if (to != null && dev.botalive.core.world.WorldDimension.fromWorldKey(to)
+                == dev.botalive.core.world.WorldDimension.END) {
             return true;
         }
         return TYPE_END.equals(record.data().get("type"));
@@ -106,8 +106,8 @@ public final class EndKnowledge {
                 .filter(r -> !"gossip".equals(r.data().get("via")))
                 .filter(r -> {
                     String to = r.data().get("to");
-                    return to != null && dev.botalive.core.world.Dimension.fromWorldKey(to)
-                            == dev.botalive.core.world.Dimension.THE_END;
+                    return to != null && dev.botalive.core.world.WorldDimension.fromWorldKey(to)
+                            == dev.botalive.core.world.WorldDimension.END;
                 })
                 .anyMatch(r -> nowMs - r.updatedAt() < windowMs);
     }

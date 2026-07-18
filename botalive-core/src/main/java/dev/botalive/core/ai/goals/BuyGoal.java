@@ -47,6 +47,10 @@ public final class BuyGoal extends AbstractGoal {
         if (!ctx.config().economy().enabled() || !ctx.config().economy().botTrade()) {
             return 0;
         }
+        // Trh se odehrává doma v overworldu.
+        if (outsideOverworld(ctx)) {
+            return 0;
+        }
         if (cooldownTicks > 0) {
             cooldownTicks -= ctx.config().ai().decisionIntervalTicks();
             return 0;

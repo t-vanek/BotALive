@@ -34,6 +34,15 @@ public enum MemoryKind {
     /** Portál (nether/end). */
     PORTAL,
 
+    /** Nether pevnost (nether brick) – zdroj blaze rodů a nether wartu. */
+    FORTRESS,
+
+    /** Bastion (blackstone) – truhly s kovářskými šablonami a zlatem. */
+    BASTION,
+
+    /** Předsunutá základna v Netheru (truhla u portálu). */
+    OUTPOST,
+
     /** Místo úmrtí bota. */
     DEATH,
 

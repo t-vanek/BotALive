@@ -25,7 +25,7 @@ public final class DayRhythm {
                     "compost", 1.4, "repair", 1.3),
             Phase.DAY, Map.of(
                     "mine", 1.4, "house", 1.5, "explore", 1.3, "trade", 1.3,
-                    "hunt", 1.2, "farm", 1.1),
+                    "hunt", 1.2, "farm", 1.1, "nether", 1.3),
             Phase.EVENING, Map.of(
                     "socialize", 1.6, "home", 1.5, "stash", 1.4, "share", 1.5,
                     "craft", 1.2, "smelt", 1.3, "mine", 0.8),
