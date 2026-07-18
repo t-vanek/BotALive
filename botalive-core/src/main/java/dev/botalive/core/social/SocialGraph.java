@@ -134,8 +134,10 @@ public final class SocialGraph {
             record.data().forEach((key, value) -> {
                 // „type" nese objevené/admin portály do Endu, „dim" anotaci
                 // dimenze – bez nich by drb přestal být použitelným portálem.
+                // „eyes" ušetří posluchači cestu k rámu, na který nemá oči.
                 if (key.equals("to") || key.equals("built")
-                        || key.equals("type") || key.equals("dim")) {
+                        || key.equals("type") || key.equals("dim")
+                        || key.equals("eyes")) {
                     stamp.put(key, value);
                 }
             });
