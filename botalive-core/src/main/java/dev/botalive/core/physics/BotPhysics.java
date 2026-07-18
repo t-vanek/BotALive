@@ -20,7 +20,6 @@ public final class BotPhysics {
 
     private static final double GRAVITY = 0.08;
     private static final double AIR_DRAG_Y = 0.98;
-    private static final double GROUND_FRICTION = 0.546;   // 0.91 * 0.6 slip
     private static final double AIR_FRICTION = 0.91;
     private static final double WALK_ACCEL = 0.098;
     private static final double SPRINT_ACCEL = 0.127;
@@ -51,12 +50,18 @@ public final class BotPhysics {
     /** Vodorovný „stuck" multiplikátor prašanu (vanilla 0.9 na tick bez setrvačnosti). */
     private static final double SNOW_STUCK_HORIZONTAL = 0.9;
 
+    /** Vodorovný multiplikátor „váznutí" v pavučině (vanilla 0.25). */
+    private static final double WEB_HORIZONTAL = 0.25;
+    /** Svislý multiplikátor váznutí v pavučině (vanilla 0.05). */
+    private static final double WEB_VERTICAL = 0.05;
+
     private Vec3 position;
     private Vec3 velocity = Vec3.ZERO;
     private boolean onGround;
     private boolean inWater;
     private boolean onClimbable;
     private boolean inPowderSnow;
+    private boolean inWeb;
     private boolean horizontalCollision;
 
     /** Kumulovaná výška aktuálního pádu (bloky); nula, když bot nepadá. */
@@ -100,6 +105,11 @@ public final class BotPhysics {
     /** @return {@code true} pokud se bot boří v prašanu (powder snow) */
     public boolean inPowderSnow() {
         return inPowderSnow;
+    }
+
+    /** @return {@code true} pokud bot vázne v pavučině */
+    public boolean inWeb() {
+        return inWeb;
     }
 
     /** @return {@code true} pokud tick skončil vodorovnou kolizí (naražení do zdi) */
@@ -177,6 +187,7 @@ public final class BotPhysics {
         double vz = velocity.z();
 
         // --- Akcelerace ze vstupu -------------------------------------------------
+        BlockTraits support = supportTraits();
         Vec3 dir = input.direction();
         if (dir.horizontalLength() > EPSILON) {
             // V prašanu se bot brodí plnou chodeckou silou (vzdušná akcelerace
@@ -186,6 +197,14 @@ public final class BotPhysics {
                     : input.sneak() ? SNEAK_ACCEL
                     : input.sprint() ? SPRINT_ACCEL
                     : WALK_ACCEL;
+            if (onGround && !inPowderSnow) {
+                // Vanilla: pozemní akcelerace škáluje s (0.6/slip)³ – na ledu
+                // se špatně zrychluje; pomalé povrchy (soul sand, med) navíc
+                // tlumí přes speedFactor.
+                double slip = support.slipperiness();
+                double slipRatio = BlockTraits.DEFAULT_SLIPPERINESS / slip;
+                accel *= slipRatio * slipRatio * slipRatio * support.speedFactor();
+            }
             vx += dir.x() * accel;
             vz += dir.z() * accel;
         }
@@ -195,6 +214,12 @@ public final class BotPhysics {
             vy = input.jump() ? Math.min(vy + 0.04, 0.12) : (vy - 0.02) * WATER_DRAG;
             vx *= WATER_DRAG;
             vz *= WATER_DRAG;
+        } else if (inWeb) {
+            // Pavučina: pohyb drasticky vázne v obou osách (vanilla stuck
+            // multiplikátory), rychlost se mezi ticky neakumuluje.
+            vy = (vy - GRAVITY) * WEB_VERTICAL;
+            vx *= WEB_HORIZONTAL;
+            vz *= WEB_HORIZONTAL;
         } else if (inPowderSnow) {
             // Prašan: hustý sníh bez kolize – bot se boří. Držení skoku znamená
             // pomalé stoupání (vanilla únik jump-spamem), jinak zvolna klesá;
@@ -240,11 +265,11 @@ public final class BotPhysics {
         onGround = verticalCollision && attempted.y() < 0;
 
         // --- Pády: kumulace výšky a odhad poškození při dopadu ---------------------
-        // Ve vodě, na žebříku a v prašanu se pád „nuluje" (měkký doskok).
-        // Jinak přičítáme uraženou výšku klesání; v ticku dopadu spočteme
-        // poškození a resetujeme.
+        // Ve vodě, na žebříku, v prašanu a v pavučině se pád „nuluje" (měkký
+        // doskok). Jinak přičítáme uraženou výšku klesání; v ticku dopadu
+        // spočteme poškození a resetujeme.
         landedThisTick = false;
-        if (inWater || onClimbable || inPowderSnow) {
+        if (inWater || onClimbable || inPowderSnow || inWeb) {
             fallDistance = 0;
         } else if (moved.y() < 0) {
             fallDistance -= moved.y(); // moved.y je záporné → přičti kladnou výšku
@@ -259,7 +284,11 @@ public final class BotPhysics {
         }
 
         // --- Tření ----------------------------------------------------------------
-        double friction = onGround ? GROUND_FRICTION : AIR_FRICTION;
+        // Pozemní tření závisí na kluzkosti opory (vanilla slip × 0.91):
+        // běžný blok 0.546, led 0.892 – bot na ledu klouže.
+        double friction = onGround
+                ? supportTraits().slipperiness() * AIR_FRICTION
+                : AIR_FRICTION;
         velocity = new Vec3(moved.x() * friction, moved.y(), moved.z() * friction);
         if (verticalCollision) {
             velocity = new Vec3(velocity.x(), 0, velocity.z());
@@ -271,8 +300,9 @@ public final class BotPhysics {
             velocity = new Vec3(velocity.x(), 0.3, velocity.z());
         }
 
-        // Prašan „drží": žádná setrvačnost mezi ticky (vanilla stuck-in-block).
-        if (inPowderSnow) {
+        // Prašan a pavučina „drží": žádná setrvačnost mezi ticky (vanilla
+        // stuck-in-block chování).
+        if (inPowderSnow || inWeb) {
             velocity = Vec3.ZERO;
         }
     }
@@ -297,7 +327,7 @@ public final class BotPhysics {
         return world.traitsAt(new Vec3(position.x(), position.y() - 0.5, position.z()).toBlockPos());
     }
 
-    /** Zjistí, v jakém prostředí se bot nachází (voda, žebřík, prašan). */
+    /** Zjistí, v jakém prostředí se bot nachází (voda, žebřík, prašan, pavučina). */
     private void updateMediums() {
         BlockPos feet = position.toBlockPos();
         BlockTraits feetTraits = world.traitsAt(feet);
@@ -305,6 +335,7 @@ public final class BotPhysics {
         inWater = feetTraits.liquid() || headTraits.liquid();
         onClimbable = feetTraits.climbable();
         inPowderSnow = feetTraits.powderSnow() || headTraits.powderSnow();
+        inWeb = feetTraits.web() || headTraits.web();
     }
 
     /**
@@ -393,13 +424,16 @@ public final class BotPhysics {
     }
 
     /**
-     * Protíná daný box aspoň jeden pevný blok? Neznámé chunky bereme jako pevné
-     * (shodně s {@link #clipAxis}) – bot se nespoléhá na nenačtený terén.
+     * Protíná daný box aspoň jednu kolizi bloku? Neznámé chunky mají plnou
+     * kolizi (shodně s {@link #clipAxis}) – bot se nespoléhá na nenačtený terén.
+     *
+     * <p>Rozsah Y začíná o buňku níž: vysoké bloky (plot 1,5) přesahují do
+     * buňky nad sebou.</p>
      */
     private boolean intersectsSolid(AABB box) {
         int minX = (int) Math.floor(box.minX());
         int maxX = (int) Math.floor(box.maxX());
-        int minY = (int) Math.floor(box.minY());
+        int minY = (int) Math.floor(box.minY()) - 1;
         int maxY = (int) Math.floor(box.maxY());
         int minZ = (int) Math.floor(box.minZ());
         int maxZ = (int) Math.floor(box.maxZ());
@@ -407,12 +441,13 @@ public final class BotPhysics {
         for (int x = minX; x <= maxX; x++) {
             for (int y = minY; y <= maxY; y++) {
                 for (int z = minZ; z <= maxZ; z++) {
-                    BlockTraits traits = world.traitsAt(new BlockPos(x, y, z));
-                    if (!traits.solid() && traits != BlockTraits.UNKNOWN) {
-                        continue;
-                    }
-                    if (box.intersects(new AABB(x, y, z, x + 1, y + 1, z + 1))) {
-                        return true;
+                    double[] boxes = world.traitsAt(new BlockPos(x, y, z)).boxes();
+                    for (int i = 0; i < boxes.length; i += 6) {
+                        AABB block = new AABB(x + boxes[i], y + boxes[i + 1], z + boxes[i + 2],
+                                x + boxes[i + 3], y + boxes[i + 4], z + boxes[i + 5]);
+                        if (box.intersects(block)) {
+                            return true;
+                        }
                     }
                 }
             }
@@ -449,7 +484,8 @@ public final class BotPhysics {
         double result = motion;
         int minX = (int) Math.floor(swept.minX());
         int maxX = (int) Math.floor(swept.maxX());
-        int minY = (int) Math.floor(swept.minY());
+        // O buňku níž kvůli přesahu vysokých bloků (plot 1,5) do buňky nad.
+        int minY = (int) Math.floor(swept.minY()) - 1;
         int maxY = (int) Math.floor(swept.maxY());
         int minZ = (int) Math.floor(swept.minZ());
         int maxZ = (int) Math.floor(swept.maxZ());
@@ -457,12 +493,13 @@ public final class BotPhysics {
         for (int x = minX; x <= maxX; x++) {
             for (int y = minY; y <= maxY; y++) {
                 for (int z = minZ; z <= maxZ; z++) {
-                    BlockTraits traits = world.traitsAt(new BlockPos(x, y, z));
-                    if (!traits.solid() && traits != BlockTraits.UNKNOWN) {
-                        continue; // neznámé chunky bereme jako zeď – bot nevkročí do nenačtena
+                    // Neznámé chunky mají plnou kolizi – bot nevkročí do nenačtena.
+                    double[] boxes = world.traitsAt(new BlockPos(x, y, z)).boxes();
+                    for (int i = 0; i < boxes.length; i += 6) {
+                        AABB block = new AABB(x + boxes[i], y + boxes[i + 1], z + boxes[i + 2],
+                                x + boxes[i + 3], y + boxes[i + 4], z + boxes[i + 5]);
+                        result = clipAgainst(box, block, result, axis);
                     }
-                    AABB block = new AABB(x, y, z, x + 1, y + 1, z + 1);
-                    result = clipAgainst(box, block, result, axis);
                 }
             }
         }

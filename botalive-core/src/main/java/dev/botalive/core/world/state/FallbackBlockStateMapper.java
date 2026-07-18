@@ -20,7 +20,7 @@ public final class FallbackBlockStateMapper implements BlockStateMapper {
     private static final int ASSUMED_STATE_COUNT = 1 << 16;
 
     private static final BlockTraits SOLID =
-            new BlockTraits(false, true, false, false, false, false, false, false, false);
+            BlockTraits.simple(false, true, false, false, false, false, false, false, false);
 
     @Override
     public BlockTraits traitsOf(int stateId) {

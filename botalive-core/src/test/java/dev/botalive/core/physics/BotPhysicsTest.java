@@ -437,4 +437,157 @@ class BotPhysicsTest {
         assertEquals(0, physics.lastFallDamage(),
                 "dopad do vody netlumí poškození, damage=" + physics.lastFallDamage());
     }
+
+    // ---------------------------------------------------------------- terén 2.0
+
+    @Test
+    void naDeskuVyjdeStepUpemBezSkoku() {
+        FakeWorldView world = new FakeWorldView(FLOOR);
+        for (int z = -2; z <= 2; z++) {
+            world.set(3, (int) FEET_Y, z, FakeWorldView.SLAB_BOTTOM);
+        }
+        BotPhysics physics = new BotPhysics(world, new Vec3(0.5, FEET_Y, 0.5));
+
+        MoveInput east = MoveInput.walk(new Vec3(1, 0, 0));
+        for (int i = 0; i < 80 && physics.position().x() < 3.5; i++) {
+            physics.step(east);
+        }
+
+        assertTrue(physics.position().x() >= 3.5,
+                "bot má vyjít na desku bez skoku, x=" + physics.position().x());
+        assertEquals(FEET_Y + 0.5, physics.position().y(), 0.05,
+                "nohy mají stát na horní ploše desky");
+    }
+
+    @Test
+    void schodyVyjdeChuziBezSkoku() {
+        FakeWorldView world = new FakeWorldView(FLOOR);
+        // Schod na x=3, terasa plné bloky od x=4.
+        for (int z = -2; z <= 2; z++) {
+            world.set(3, (int) FEET_Y, z, FakeWorldView.STAIR_EAST);
+            world.set(4, (int) FEET_Y, z, FakeWorldView.SOLID);
+            world.set(5, (int) FEET_Y, z, FakeWorldView.SOLID);
+        }
+        BotPhysics physics = new BotPhysics(world, new Vec3(0.5, FEET_Y, 0.5));
+
+        MoveInput east = MoveInput.walk(new Vec3(1, 0, 0));
+        for (int i = 0; i < 120 && physics.position().x() < 4.5; i++) {
+            physics.step(east);
+        }
+
+        assertTrue(physics.position().x() >= 4.5,
+                "bot má vyjít schody pouhou chůzí, x=" + physics.position().x());
+        assertEquals(FEET_Y + 1, physics.position().y(), 0.05,
+                "bot má stát na terase o blok výš");
+    }
+
+    @Test
+    void plotNepreleze() {
+        FakeWorldView world = new FakeWorldView(FLOOR);
+        // Plot (1,5 bloku) na x=3 – step-up 0,6 nestačí a skok 1,25 taky ne.
+        for (int z = -2; z <= 2; z++) {
+            world.set(3, (int) FEET_Y, z, FakeWorldView.FENCE);
+        }
+        BotPhysics physics = new BotPhysics(world, new Vec3(0.5, FEET_Y, 0.5));
+
+        for (int i = 0; i < 120; i++) {
+            physics.step(MoveInput.of(new Vec3(1, 0, 0), false, physics.onGround()));
+        }
+
+        assertTrue(physics.position().x() < 3.0,
+                "bot nesmí přelézt plot ani skokem, x=" + physics.position().x());
+    }
+
+    @Test
+    void pavucinaZbrzdiPadIBota() {
+        FakeWorldView world = new FakeWorldView(FLOOR);
+        // Pavučina těsně nad zemí pod bodem pádu. Klesání pavučinou je
+        // vanilla ~0.004 bloku/tick – propad jedné buňky trvá stovky ticků.
+        world.set(0, (int) FEET_Y, 0, FakeWorldView.WEB);
+
+        BotPhysics physics = new BotPhysics(world, new Vec3(0.5, FEET_Y + 8, 0.5));
+
+        boolean caught = false;
+        for (int i = 0; i < 800 && !physics.onGround(); i++) {
+            physics.step(MoveInput.IDLE);
+            caught |= physics.inWeb();
+        }
+
+        assertTrue(caught, "bot má proletět pavučinou");
+        assertTrue(physics.onGround(), "bot má nakonec dopadnout na zem");
+        assertEquals(0, physics.lastFallDamage(),
+                "pavučina nuluje pádové poškození, damage=" + physics.lastFallDamage());
+    }
+
+    @Test
+    void ledKloužeVicNezKamen() {
+        FakeWorldView stoneWorld = new FakeWorldView(FLOOR);
+        FakeWorldView iceWorld = new FakeWorldView(FLOOR);
+        for (int x = -2; x <= 12; x++) {
+            for (int z = -2; z <= 2; z++) {
+                iceWorld.set(x, FLOOR, z, FakeWorldView.ICE);
+            }
+        }
+        double stoneCoast = coastDistance(stoneWorld);
+        double iceCoast = coastDistance(iceWorld);
+
+        assertTrue(iceCoast > stoneCoast * 2,
+                "na ledu má bot dojíždět výrazně dál: led=" + iceCoast + " kámen=" + stoneCoast);
+    }
+
+    /** Rozjezd 20 ticků na východ, pak 30 ticků bez vstupu; vrací ujeté „dojíždění". */
+    private static double coastDistance(FakeWorldView world) {
+        BotPhysics physics = new BotPhysics(world, new Vec3(0.5, FEET_Y, 0.5));
+        MoveInput east = MoveInput.walk(new Vec3(1, 0, 0));
+        for (int i = 0; i < 20; i++) {
+            physics.step(east);
+        }
+        double start = physics.position().x();
+        for (int i = 0; i < 30; i++) {
+            physics.step(MoveInput.IDLE);
+        }
+        return physics.position().x() - start;
+    }
+
+    @Test
+    void soulSandZpomalujeChuzi() {
+        FakeWorldView stoneWorld = new FakeWorldView(FLOOR);
+        FakeWorldView slowWorld = new FakeWorldView(FLOOR);
+        for (int x = -2; x <= 12; x++) {
+            for (int z = -2; z <= 2; z++) {
+                slowWorld.set(x, FLOOR, z, FakeWorldView.SOUL_SAND);
+            }
+        }
+        MoveInput east = MoveInput.walk(new Vec3(1, 0, 0));
+
+        BotPhysics onStone = new BotPhysics(stoneWorld, new Vec3(0.5, FEET_Y, 0.5));
+        BotPhysics onSand = new BotPhysics(slowWorld, new Vec3(0.5, FEET_Y, 0.5));
+        for (int i = 0; i < 40; i++) {
+            onStone.step(east);
+            onSand.step(east);
+        }
+        double stoneDist = onStone.position().x() - 0.5;
+        double sandDist = onSand.position().x() - 0.5;
+
+        assertTrue(sandDist < stoneDist * 0.6,
+                "soul sand má chůzi výrazně zpomalit: sand=" + sandDist + " kámen=" + stoneDist);
+    }
+
+    @Test
+    void zavreneDvereFyzickyBlokuji() {
+        FakeWorldView world = new FakeWorldView(FLOOR);
+        for (int z = -2; z <= 2; z++) {
+            world.set(3, (int) FEET_Y, z, FakeWorldView.DOOR_CLOSED);
+            world.set(3, (int) FEET_Y + 1, z, FakeWorldView.DOOR_CLOSED);
+        }
+        BotPhysics physics = new BotPhysics(world, new Vec3(0.5, FEET_Y, 0.5));
+
+        MoveInput east = MoveInput.walk(new Vec3(1, 0, 0));
+        for (int i = 0; i < 60; i++) {
+            physics.step(east);
+        }
+
+        assertTrue(physics.position().x() < 3.0,
+                "zavřené dveře mají bota zastavit, x=" + physics.position().x());
+    }
 }

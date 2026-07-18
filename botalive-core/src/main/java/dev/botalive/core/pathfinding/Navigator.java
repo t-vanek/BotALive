@@ -54,6 +54,8 @@ public final class Navigator {
     private int repathAttempts;
     /** Zbývající ticky „odskakovacího" pokusu při zaseknutí (nízká překážka). */
     private int unstuckJumpTicks;
+    /** Cooldown mezi kliky na dveře – server dveře přepíná a stav dorazí se zpožděním. */
+    private int doorClickCooldown;
 
     /** Kolikrát smí bot cestu „odblokovat" zásahem do terénu, než to vzdá. */
     private static final int MAX_ASSIST_CYCLES = 10;
@@ -230,9 +232,15 @@ public final class Navigator {
 
         detectStuck(position);
 
-        // Zavřené dveře před nosem → otevřít.
-        if (world.traitsAt(waypoint).door()) {
+        // Zavřené dveře před nosem → otevřít. Traits znají stav dveří, takže
+        // klik padne jen na zavřené; cooldown kryje zpoždění block-update
+        // paketu, aby bot dveře omylem nepřepínal tam a zpět.
+        if (doorClickCooldown > 0) {
+            doorClickCooldown--;
+        }
+        if (world.traitsAt(waypoint).door() && doorClickCooldown == 0) {
             actions.useItemOn(waypoint, Direction.NORTH);
+            doorClickCooldown = 8;
         }
 
         boolean jump;
@@ -242,7 +250,9 @@ public final class Navigator {
             boolean submerged = world.traitsAt(position.toBlockPos().up()).liquid();
             jump = delta.y() > -0.4 || submerged;
         } else {
-            jump = delta.y() > 0.5 && onGround;
+            // Po schodech se neskáče – step-up fyzika je vyjde plynule.
+            boolean stairsAhead = world.traitsAt(waypoint.down()).stepFriendly();
+            jump = delta.y() > 0.5 && onGround && !stairsAhead;
             if (unstuckJumpTicks > 0) {
                 unstuckJumpTicks--;
                 jump = jump || onGround; // odskočit nízkou překážku (deska, koberec…)
