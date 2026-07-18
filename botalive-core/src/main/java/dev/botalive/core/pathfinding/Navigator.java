@@ -356,7 +356,12 @@ public final class Navigator {
             jump = delta.y() > 0.5 && onGround && !stairsAhead;
             if (unstuckJumpTicks > 0) {
                 unstuckJumpTicks--;
-                jump = jump || onGround; // odskočit nízkou překážku (deska, koberec…)
+                // Odskočit nízkou překážku (deska, koberec…) – ale NIKDY na hraně
+                // srázu: slepý odskok u okraje kaverny posílá boty do hlubin
+                // (dva mrtví průzkumníci na stejném útesu během provozního testu).
+                if (!cliffAhead(position, delta.horizontal().normalized())) {
+                    jump = jump || onGround;
+                }
             }
         }
         Vec3 direction = delta.horizontal().normalized();
