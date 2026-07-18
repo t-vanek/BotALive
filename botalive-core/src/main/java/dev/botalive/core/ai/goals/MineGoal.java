@@ -366,6 +366,14 @@ public final class MineGoal extends AbstractGoal {
                 mode = Mode.SURFACE;
                 return;
             }
+            // Sonda podlahy: pod budoucími chodidly musí být do 3 bloků pevno.
+            // Bez ní si bot prokopne strop velké kaverny a padá desítky bloků
+            // (dva mrtví horníci v deepslate hloubkách během provozního testu).
+            if (!DigPlanner.hasFloorBelow(world, step.feet(), 3)) {
+                abortDig();
+                cooldownTicks = 400;
+                return;
+            }
             stepBlocks.addAll(step.toBreak());
             pendingWalkAfterStep = step.feet();
         }
@@ -399,8 +407,11 @@ public final class MineGoal extends AbstractGoal {
         ctx.inventory().equipBestTool(ctx.serverView().latest(),
                 material != null ? material : Material.STONE);
         targetMaterial = material;
+        // Blok zůstává ve frontě, dokud world view nepotvrdí vzduch (větev
+        // "už průchozí" výše). Nepovedený výkop se tak zopakuje, místo aby se
+        // tiše přeskočil a bot vkročil do zdi – přesně tak se dva horníci
+        // během provozního testu udusili ve stěně.
         task = new MineBlockTask(block);
-        stepBlocks.poll();
         digTaskInPlan = true;
     }
 

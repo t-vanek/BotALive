@@ -5,6 +5,7 @@ import dev.botalive.core.util.BotRandom;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Pattern;
 
 /**
@@ -192,5 +193,40 @@ public final class PhraseBank {
     /** @return aliasy itemů (pro overlay při načítání) */
     Map<String, List<org.bukkit.Material>> itemAliases() {
         return itemAliases;
+    }
+
+    // ------------------------------------------------- sborové papouškování
+
+    /** Kdy naposledy KDOKOLI na serveru řekl danou frázi (normalizovanou). */
+    private final Map<String, Long> chorus = new ConcurrentHashMap<>();
+
+    /** Jak dlouho je fráze „vyřčená" pro celý server (sborový dedupe, ms). */
+    private static final long CHORUS_WINDOW_MS = 60_000;
+
+    /**
+     * Řekl tuhle frázi nedávno kterýkoli bot? Banka je sdílená všemi boty
+     * jazyka, takže tady se láme sborové papouškování („jj" pětkrát za minutu
+     * od pěti různých botů).
+     *
+     * @param normalized normalizovaný text fráze
+     * @param nowMs      aktuální čas (ms)
+     * @return {@code true} pokud frázi někdo řekl v okně {@link #CHORUS_WINDOW_MS}
+     */
+    public boolean saidRecentlyByAnyone(String normalized, long nowMs) {
+        Long last = chorus.get(normalized);
+        return last != null && nowMs - last < CHORUS_WINDOW_MS;
+    }
+
+    /**
+     * Zaznamená vyřčenou frázi do sborové paměti (a příležitostně ji pročistí).
+     *
+     * @param normalized normalizovaný text fráze
+     * @param nowMs      aktuální čas (ms)
+     */
+    public void markSaid(String normalized, long nowMs) {
+        chorus.put(normalized, nowMs);
+        if (chorus.size() > 256) {
+            chorus.values().removeIf(at -> nowMs - at > CHORUS_WINDOW_MS);
+        }
     }
 }
