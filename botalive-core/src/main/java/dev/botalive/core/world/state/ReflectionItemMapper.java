@@ -26,10 +26,13 @@ public final class ReflectionItemMapper implements ItemMapper {
 
     private final Material[] byId;
     private final Map<Material, Integer> byMaterial;
+    private final String[] potionById;
 
-    private ReflectionItemMapper(Material[] byId, Map<Material, Integer> byMaterial) {
+    private ReflectionItemMapper(Material[] byId, Map<Material, Integer> byMaterial,
+                                 String[] potionById) {
         this.byId = byId;
         this.byMaterial = byMaterial;
+        this.potionById = potionById;
     }
 
     /**
@@ -66,13 +69,56 @@ public final class ReflectionItemMapper implements ItemMapper {
                     byMaterial.putIfAbsent(material, id);
                 }
             }
-            LOG.info("Item tabulka sestavena z registrů serveru ({} itemů)", count);
-            return Optional.of(new ReflectionItemMapper(byId, byMaterial));
+            String[] potions = tryPotionTable(registries);
+            LOG.info("Item tabulka sestavena z registrů serveru ({} itemů, {} lektvarů)",
+                    count, potions.length);
+            return Optional.of(new ReflectionItemMapper(byId, byMaterial, potions));
         } catch (ReflectiveOperationException | RuntimeException e) {
             LOG.warn("Nepodařilo se sestavit item tabulku ({}); paketový survival "
                     + "nebude umět klasifikovat itemy", e.toString());
             return Optional.empty();
         }
+    }
+
+    /**
+     * Tabulka typů lektvarů (registr je statický jako itemy). Best-effort:
+     * selhání nechá itemy fungovat a jen vypne varianty lektvarů.
+     */
+    private static String[] tryPotionTable(Class<?> registries) {
+        try {
+            Field potionField = registries.getField("POTION");
+            Object registry = potionField.get(null);
+            Method size = registry.getClass().getMethod("size");
+            Method byIdMethod = registry.getClass().getMethod("byId", int.class);
+            Method getKey = registry.getClass().getMethod("getKey", Object.class);
+            size.setAccessible(true);
+            byIdMethod.setAccessible(true);
+            getKey.setAccessible(true);
+
+            int count = (Integer) size.invoke(registry);
+            String[] byId = new String[count];
+            for (int id = 0; id < count; id++) {
+                Object potion = byIdMethod.invoke(registry, id);
+                if (potion == null) {
+                    continue;
+                }
+                Object key = getKey.invoke(registry, potion);
+                if (key != null) {
+                    Object path = key.getClass().getMethod("getPath").invoke(key);
+                    byId[id] = String.valueOf(path);
+                }
+            }
+            return byId;
+        } catch (ReflectiveOperationException | RuntimeException e) {
+            LOG.warn("Tabulka lektvarů se nesestavila ({}); varianty lektvarů "
+                    + "v packet režimu nebudou", e.toString());
+            return new String[0];
+        }
+    }
+
+    @Override
+    public String potionKeyOf(int potionId) {
+        return potionId < 0 || potionId >= potionById.length ? null : potionById[potionId];
     }
 
     @Override

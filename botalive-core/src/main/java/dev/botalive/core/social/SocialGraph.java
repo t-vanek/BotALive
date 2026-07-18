@@ -93,18 +93,38 @@ public final class SocialGraph {
         places.addAll(teller.memory().recall(MemoryKind.VILLAGE));
         places.addAll(teller.memory().recall(MemoryKind.MINE));
         places.addAll(teller.memory().recall(MemoryKind.DANGER));
+        // Portály se sdílí taky – vesnice tak časem používá společný portál
+        // do Netheru místo lesa rámů (výprava čte „to"/„built" z dat).
+        places.addAll(teller.memory().recall(MemoryKind.PORTAL));
         List<MemoryRecord> shareable = shareable(places,
                 teller.memory().recall(MemoryKind.ENEMY), trust, listener.id());
         int told = 0;
-        Map<String, String> stamp = Map.of("via", "gossip", "from", teller.name());
         while (told < MAX_SHARED && !shareable.isEmpty()) {
             MemoryRecord record = shareable.remove(rng.rangeInt(0, shareable.size() - 1));
             listener.memory().remember(record.kind(), record.world(), record.x(),
-                    record.y(), record.z(), record.subject(), stamp,
+                    record.y(), record.z(), record.subject(), gossipStamp(teller, record),
                     record.importance() * GOSSIP_FACTOR);
             told++;
         }
         return told;
+    }
+
+    /**
+     * Razítko drbu; klíče nesoucí význam („to"/„built" u portálů) se
+     * zachovávají – bez nich by předaný portál nebyl použitelný.
+     */
+    private static Map<String, String> gossipStamp(Bot teller, MemoryRecord record) {
+        Map<String, String> stamp = new java.util.HashMap<>();
+        if (record.data() != null) {
+            record.data().forEach((key, value) -> {
+                if (key.equals("to") || key.equals("built")) {
+                    stamp.put(key, value);
+                }
+            });
+        }
+        stamp.put("via", "gossip");
+        stamp.put("from", teller.name());
+        return stamp;
     }
 
     /**

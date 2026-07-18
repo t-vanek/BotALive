@@ -113,14 +113,37 @@ public final class TrackedEntity {
         return type == EntityType.PLAYER;
     }
 
-    /** @return {@code true} pokud jde o nepřátelského moba */
+    /**
+     * Vždy nepřátelské moby bot napadá sám; <b>neutrální</b> druhy (enderman,
+     * piglin, zombifikovaný piglin) tu záměrně nejsou – na ty se útočí jen
+     * odvetou přes čerstvou ENEMY vzpomínku (viz {@code CombatGoal}), jako
+     * hráč: kdo si nezačne, s hordou zombifikovaných piglinů nebojuje.
+     * Piglina navíc krotí zlatá zbroj ({@code NetherGoal} nasazuje zlaté boty).
+     *
+     * @return {@code true} pokud jde o vždy nepřátelského moba
+     */
     public boolean isHostile() {
         return switch (type) {
             case ZOMBIE, ZOMBIE_VILLAGER, HUSK, DROWNED, SKELETON, STRAY, BOGGED, WITHER_SKELETON,
-                 CREEPER, SPIDER, CAVE_SPIDER, ENDERMAN, WITCH, PILLAGER, VINDICATOR, EVOKER,
+                 CREEPER, SPIDER, CAVE_SPIDER, WITCH, PILLAGER, VINDICATOR, EVOKER,
                  RAVAGER, VEX, PHANTOM, BLAZE, GHAST, MAGMA_CUBE, SLIME, SILVERFISH, ENDERMITE,
                  GUARDIAN, ELDER_GUARDIAN, SHULKER, HOGLIN, ZOGLIN, PIGLIN_BRUTE, WARDEN, BREEZE,
                  CREAKING -> true;
+            default -> false;
+        };
+    }
+
+    /**
+     * Nemrtví: lektvar zranění je léčí a jed na ně nefunguje – útočné
+     * splash lektvary se na ně nikdy nehází.
+     *
+     * @return {@code true} pokud jde o nemrtvého moba
+     */
+    public boolean isUndead() {
+        return switch (type) {
+            case ZOMBIE, ZOMBIE_VILLAGER, HUSK, DROWNED, SKELETON, STRAY, BOGGED,
+                 WITHER_SKELETON, PHANTOM, ZOGLIN, ZOMBIFIED_PIGLIN, WITHER,
+                 SKELETON_HORSE, ZOMBIE_HORSE -> true;
             default -> false;
         };
     }

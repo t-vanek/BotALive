@@ -34,6 +34,17 @@ public abstract class AbstractGoal implements Goal {
         return BotContext.of(bot);
     }
 
+    /**
+     * Cíle vázané na běžný svět (spánek, farmy, vesnice, rybaření, trh…)
+     * se v Netheru/Endu odmlčí – tam žije výprava ({@code NetherGoal}).
+     *
+     * @param ctx kontext bota
+     * @return {@code true} pokud bot NENÍ v overworldu
+     */
+    protected static boolean outsideOverworld(BotContext ctx) {
+        return ctx.dimension() != dev.botalive.core.world.WorldDimension.OVERWORLD;
+    }
+
     @Override
     public void start(Bot bot) {
         // výchozí: nic

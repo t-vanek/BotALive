@@ -24,7 +24,9 @@ public enum Ambition {
     /** Chce útulný domov. */
     COZY_HOME("mít útulný domov", Set.of("house", "mine", "craft", "hunt")),
     /** Chce zbohatnout. */
-    RICH("zbohatnout", Set.of("mine", "trade", "farm", "fish", "stash"));
+    RICH("zbohatnout", Set.of("mine", "trade", "farm", "fish", "stash")),
+    /** Chce dobýt Nether a povýšit výbavu na netherit. */
+    NETHERITE("mít netheritovou výbavu", Set.of("nether", "mine", "smelt", "craft", "smith"));
 
     /** Násobič utility cílů, které k ambici vedou (dokud není splněná). */
     private static final double DRIVE = 1.25;
@@ -66,7 +68,11 @@ public enum Ambition {
         return java.util.stream.Stream.of(
                         new Scored(RICH, personality.trait(Trait.GREED)),
                         new Scored(COZY_HOME, personality.trait(Trait.CAUTION)),
-                        new Scored(FULL_IRON, personality.trait(Trait.COURAGE)))
+                        new Scored(FULL_IRON, personality.trait(Trait.COURAGE)),
+                        // Netherit chce odvahu i chamtivost zároveň – průměr
+                        // drží sen o pekle typicky až jako druhý (po základech).
+                        new Scored(NETHERITE, (personality.trait(Trait.COURAGE)
+                                + personality.trait(Trait.GREED)) / 2))
                 .sorted(java.util.Comparator.comparingDouble(Scored::score).reversed())
                 .map(Scored::ambition)
                 .toList();
@@ -137,6 +143,21 @@ public enum Ambition {
                     yield new Progress(1, 3, "našetřit 250");
                 }
                 yield new Progress(0, 3, "našetřit první stovku");
+            }
+            case NETHERITE -> {
+                if (needs.pickaxeTier() >= 6) {
+                    yield new Progress(3, 3, "splněno – netherit!");
+                }
+                // Kroky jsou kumulativní: pazourek bez diamantového krumpáče
+                // ještě není „portál na dosah" (obsidián by nevytěžil).
+                if (needs.pickaxeTier() >= 5 && needs.hasFlintKit()) {
+                    yield new Progress(2, 3,
+                            "postavit portál a přinést starodávné trosky");
+                }
+                if (needs.pickaxeTier() >= 5) {
+                    yield new Progress(1, 3, "sehnat obsidián a křesadlo");
+                }
+                yield new Progress(0, 3, "dopracovat se k diamantovému krumpáči");
             }
         };
     }

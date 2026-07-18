@@ -67,7 +67,16 @@ public final class SurviveGoal extends AbstractGoal {
         BotContext ctx = ctx(bot);
         Vec3 pos = ctx.position();
 
-        Optional<TrackedEntity> threat = ctx.entities().nearest(pos, 24, TrackedEntity::isHostile);
+        // Hrozba: vždy nepřátelský mob, NEBO neutrální útočník (rozzuřený
+        // enderman, vlk…) s čerstvou ENEMY vzpomínkou – ten v klasifikaci
+        // isHostile záměrně není, ale zraněný bot před ním utíkat musí.
+        long now = System.currentTimeMillis();
+        Optional<TrackedEntity> threat = ctx.entities().nearest(pos, 24,
+                e -> e.isHostile()
+                        || (!e.isPlayer() && e.uuid() != null
+                                && bot.memory().recallAbout(e.uuid()).stream()
+                                        .anyMatch(r -> r.kind() == MemoryKind.ENEMY
+                                                && now - r.updatedAt() < 60_000)));
         if (threat.isPresent()) {
             // Panický útěk přímo od hrozby.
             Vec3 away = pos.sub(threat.get().position()).horizontal().normalized();

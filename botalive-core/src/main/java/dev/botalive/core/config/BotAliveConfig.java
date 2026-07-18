@@ -21,6 +21,7 @@ import java.util.List;
  * @param teleport    teleportace hráčů k botům a botů k hráčům
  * @param pvp         PvP botů a aliance
  * @param settlement  vesnice botů (společné stavění, parcely, roztržky)
+ * @param nether      výpravy do Netheru (portály, těžba, netherit)
  * @param performance výkonnostní laditelné parametry
  * @param persistence databáze
  */
@@ -37,6 +38,7 @@ public record BotAliveConfig(
         Teleport teleport,
         Pvp pvp,
         Settlement settlement,
+        Nether nether,
         Performance performance,
         Persistence persistence
 ) {
@@ -289,6 +291,26 @@ public record BotAliveConfig(
                              double lonerSociability, double grudgeThreshold,
                              int changeCooldownMinutes, boolean lighting,
                              boolean paths, int ghostDays, int grudgeWindowHours) {
+    }
+
+    /**
+     * Výpravy do Netheru – bot s výbavou si postaví (nebo najde) portál,
+     * v Netheru těží quartz, zlato, glowstone a starodávné trosky a vrací se
+     * domů; z trosek pak taví netherit a u kovářského stolu povyšuje výbavu.
+     *
+     * @param enabled        hlavní vypínač – vypnuto = boti do Netheru sami
+     *                       nechodí (portály ve světě dál obcházejí obloukem)
+     * @param buildPortals   smí si boti stavět vlastní portály (14 obsidiánu
+     *                       + křesadlo); vypnuto = používají jen nalezené
+     * @param barter         výměnný obchod s pigliny – bot se zlatou zbrojí
+     *                       jim hází zlaté ingoty a sbírá, co za ně padne
+     * @param maxTripMinutes časový rozpočet jedné výpravy (minuty); po
+     *                       vyčerpání se bot vrací k portálu domů
+     * @param minGearTier    minimální tier zbraně a zbroje pro výpravu
+     *                       (4 = železo, 5 = diamant) – méně vybavení = smrt
+     */
+    public record Nether(boolean enabled, boolean buildPortals, boolean barter,
+                         int maxTripMinutes, int minGearTier) {
     }
 
     /**

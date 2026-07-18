@@ -72,6 +72,10 @@ public final class MaintainHomeGoal extends AbstractGoal {
             cooldownTicks -= ctx.config().ai().decisionIntervalTicks();
             return 0;
         }
+        // Dům stojí v overworldu – z Netheru se neopravuje.
+        if (outsideOverworld(ctx)) {
+            return 0;
+        }
         // Opravuje se za světla (stejné okno jako stavba).
         long time = ctx.worldTime();
         if (time >= 11500 && time <= 23000) {

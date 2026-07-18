@@ -54,10 +54,22 @@ class AmbitionTest {
 
     @Test
     void poradiOdpovidaSileRysu() {
+        // Skóre: RICH 0.9 > COZY 0.7 > NETHERITE (0.2+0.9)/2 = 0.55 > IRON 0.2.
         var ranked = Ambition.ranked(personality(0.9, 0.7, 0.2));
         assertEquals(Ambition.RICH, ranked.get(0));
         assertEquals(Ambition.COZY_HOME, ranked.get(1));
-        assertEquals(Ambition.FULL_IRON, ranked.get(2));
+        assertEquals(Ambition.NETHERITE, ranked.get(2));
+        assertEquals(Ambition.FULL_IRON, ranked.get(3));
+    }
+
+    @Test
+    void netheritJeDruhySenOdvaznehoChamtivce() {
+        // Průměr (odvaha+chamtivost)/2 nikdy nepřekoná dominantní rys –
+        // netherit je záměrně druhý sen: po splnění železné výbavy na něj
+        // dojde řada (refreshAmbition bere další nesplněnou z ranked).
+        var ranked = Ambition.ranked(personality(0.8, 0.3, 0.9));
+        assertEquals(Ambition.FULL_IRON, ranked.get(0));
+        assertEquals(Ambition.NETHERITE, ranked.get(1));
     }
 
     @Test

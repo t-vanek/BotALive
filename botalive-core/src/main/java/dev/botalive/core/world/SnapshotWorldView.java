@@ -127,6 +127,11 @@ public final class SnapshotWorldView implements WorldView {
         return world.getName();
     }
 
+    @Override
+    public WorldDimension dimension() {
+        return WorldDimension.fromEnvironment(world.getEnvironment());
+    }
+
     /**
      * Bodová invalidace po změně bloku (volá {@code BlockChangeListener}).
      *

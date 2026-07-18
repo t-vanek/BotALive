@@ -34,6 +34,41 @@ public final class PacketChestStation implements ChestStation {
     }
 
     @Override
+    public CompletableFuture<Integer> lootValuables(BotContext ctx, String worldName,
+                                                    BlockPos chestPos) {
+        return StationFlow.run("loot-" + ctx.bot().name(), 0, () -> {
+            ItemMapper mapper = ctx.itemMapper();
+            if (mapper == null) {
+                return 0;
+            }
+            ContainerView view = StationFlow.awaitWindow(ctx,
+                    v -> v.containerSlots() > 0 && v.type() != ContainerType.MERCHANT, 3_000);
+            if (view == null) {
+                return 0;
+            }
+            int moved = 0;
+            // Sekce kontejneru: sloty 0..containerSlots-1; shift-klik posílá
+            // stack do inventáře bota.
+            for (int slot = 0; slot < view.containerSlots(); slot++) {
+                Material material = Windows.materialAt(view, mapper, slot);
+                if (material == null || !ContainerService.isValuableLoot(material)) {
+                    continue;
+                }
+                int before = Windows.amountAt(view, slot);
+                ctx.clicker().shiftClick(view.containerId(), slot);
+                StationFlow.humanPause();
+                final int slotIndex = slot;
+                StationFlow.await(() -> Windows.amountAt(view, slotIndex) != before, 600);
+                int after = Windows.amountAt(view, slot);
+                moved += Math.max(0, before - after);
+                // Nezměněný slot = stack se nevešel; menší stack (šablona!)
+                // se ještě vejít může – pokračovat, smyčka je konečná.
+            }
+            return moved;
+        });
+    }
+
+    @Override
     public CompletableFuture<Integer> depositJunk(BotContext ctx, String worldName,
                                                   BlockPos chestPos) {
         return StationFlow.run("stash-" + ctx.bot().name(), 0, () -> {

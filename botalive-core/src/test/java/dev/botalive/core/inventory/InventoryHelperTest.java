@@ -14,7 +14,7 @@ class InventoryHelperTest {
 
     private static ServerSideView.Snapshot snapshot(Material[] hotbar, int[] counts,
                                                     Material[] main) {
-        return new ServerSideView.Snapshot(null, hotbar, counts, main, null,
+        return new ServerSideView.Snapshot(null, hotbar, counts, main, null, null, null,
                 new Material[4], null, 0, 20, 20, 0, false, false, false, 1000, 0);
     }
 
@@ -67,5 +67,25 @@ class InventoryHelperTest {
                 snapshot(new Material[9], new int[9], new Material[27]),
                 m -> true));
         assertTrue(InventoryHelper.findBestInMain(null, m -> true) < 0);
+    }
+
+    @Test
+    void countEstimatePocitaHlavniInventarPresne() {
+        // Stack 14 obsidiánu v JEDNOM slotu hlavního inventáře musí dát 14 –
+        // paušál 4/slot by práh rámu portálu (14) učinil nedosažitelným.
+        Material[] main = new Material[27];
+        int[] mainCounts = new int[27];
+        main[5] = Material.OBSIDIAN;
+        mainCounts[5] = 14;
+        var withCounts = new ServerSideView.Snapshot(null, new Material[9], new int[9],
+                main, mainCounts, null, null, new Material[4], null,
+                0, 20, 20, 0, false, false, false, 1000, 0);
+        assertEquals(14, InventoryHelper.countEstimate(withCounts,
+                m -> m == Material.OBSIDIAN));
+
+        // Bez počtů (ručně sestavený snapshot) zůstává konzervativní odhad.
+        var withoutCounts = snapshot(new Material[9], new int[9], main);
+        assertEquals(4, InventoryHelper.countEstimate(withoutCounts,
+                m -> m == Material.OBSIDIAN));
     }
 }

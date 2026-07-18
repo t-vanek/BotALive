@@ -45,6 +45,10 @@ public final class GuardGoal extends AbstractGoal {
             cooldownTicks -= ctx.config().ai().decisionIntervalTicks();
             return 0;
         }
+        // Hlídá se vesnice v overworldu.
+        if (outsideOverworld(ctx)) {
+            return 0;
+        }
         if (bot.role() != BotRole.HUNTER || ctx.clientState().dead()) {
             return 0;
         }

@@ -50,6 +50,10 @@ public final class CompostGoal extends AbstractGoal {
             cooldownTicks -= ctx.config().ai().decisionIntervalTicks();
             return 0;
         }
+        // Composter je farmářský okruh – overworld.
+        if (outsideOverworld(ctx)) {
+            return 0;
+        }
         var snapshot = ctx.serverView().latest();
         if (snapshot == null) {
             return 0;

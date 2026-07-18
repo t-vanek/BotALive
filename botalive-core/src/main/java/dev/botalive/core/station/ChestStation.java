@@ -34,4 +34,17 @@ public interface ChestStation {
      */
     CompletableFuture<Integer> withdrawSupplies(BotContext ctx, String worldName,
                                                 BlockPos chestPos, boolean includeGear);
+
+    /**
+     * Vyloupí z kontejneru cennosti (kořist strukturálních truhel – kovářské
+     * šablony, zlato, diamanty, obsidián…). Používá výprava v Netheru na
+     * truhly pevností a bastionů; klasifikaci sdílí obě implementace
+     * ({@code ContainerService.isValuableLoot}). Bot musí stát u kontejneru.
+     *
+     * @param ctx       kontext bota (stojí u otevřené truhly)
+     * @param worldName svět kontejneru
+     * @param chestPos  pozice kontejneru
+     * @return future s počtem vzatých kusů (0 = nic/chyba)
+     */
+    CompletableFuture<Integer> lootValuables(BotContext ctx, String worldName, BlockPos chestPos);
 }

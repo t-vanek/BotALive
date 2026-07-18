@@ -259,9 +259,16 @@ public final class InventoryHelper {
                 count += counts != null && i < counts.length ? Math.max(counts[i], 1) : 1;
             }
         }
-        for (Material material : snapshot.mainInventory()) {
-            if (material != null && what.test(material)) {
-                count += 4;
+        // Hlavní inventář: skutečné počty, jsou-li ve snapshotu (jinak
+        // konzervativně 4/slot – jen ručně sestavené testovací snapshoty).
+        // Bez skutečných počtů by prahy typu „14 obsidiánu na rám" nebyly
+        // s naskládaným stackem v jednom slotu nikdy dosažitelné.
+        Material[] main = snapshot.mainInventory();
+        int[] mainCounts = snapshot.mainCounts();
+        for (int i = 0; i < main.length; i++) {
+            if (main[i] != null && what.test(main[i])) {
+                count += mainCounts != null && i < mainCounts.length
+                        ? Math.max(mainCounts[i], 1) : 4;
             }
         }
         return count;
@@ -437,12 +444,27 @@ public final class InventoryHelper {
      * @return {@code true} pokud se nasazoval nějaký kus
      */
     public boolean equipBetterArmor(ServerSideView.Snapshot snapshot, float yaw, float pitch) {
+        return equipBetterArmor(snapshot, yaw, pitch, false);
+    }
+
+    /**
+     * Varianta s ochranou zlatých bot: v Netheru je bot nosí schválně
+     * (piglini) a tier logika by je jinak „vylepšila" zpátky na železné.
+     *
+     * @param snapshot       server-side snapshot
+     * @param yaw            aktuální yaw pohledu
+     * @param pitch          aktuální pitch pohledu
+     * @param pinGoldenBoots nasazené zlaté boty nechat být (bot je v Netheru)
+     * @return {@code true} pokud se nasazoval nějaký kus
+     */
+    public boolean equipBetterArmor(ServerSideView.Snapshot snapshot, float yaw, float pitch,
+                                    boolean pinGoldenBoots) {
         if (snapshot == null || snapshot.armor() == null) {
             return false;
         }
         Material[] hotbar = snapshot.hotbar();
         for (int i = 0; i < hotbar.length; i++) {
-            if (isArmorUpgrade(snapshot, hotbar[i])) {
+            if (isArmorUpgrade(snapshot, hotbar[i], pinGoldenBoots)) {
                 actions.selectHotbar(i);
                 actions.useItem(yaw, pitch);
                 return true;
@@ -450,8 +472,8 @@ public final class InventoryHelper {
         }
         // Kus v hlavním inventáři? Přitáhnout klikem a rovnou nasadit.
         if (puller != null
-                && findBestInMain(snapshot, m -> isArmorUpgrade(snapshot, m)) >= 0) {
-            int pulled = puller.pullToHotbar(m -> isArmorUpgrade(snapshot, m));
+                && findBestInMain(snapshot, m -> isArmorUpgrade(snapshot, m, pinGoldenBoots)) >= 0) {
+            int pulled = puller.pullToHotbar(m -> isArmorUpgrade(snapshot, m, pinGoldenBoots));
             if (pulled >= 0) {
                 actions.selectHotbar(pulled);
                 actions.useItem(yaw, pitch);
@@ -462,7 +484,8 @@ public final class InventoryHelper {
     }
 
     /** Je item kus brnění lepší než právě nošený ve svém slotu? */
-    private static boolean isArmorUpgrade(ServerSideView.Snapshot snapshot, Material item) {
+    private static boolean isArmorUpgrade(ServerSideView.Snapshot snapshot, Material item,
+                                          boolean pinGoldenBoots) {
         if (item == null) {
             return false;
         }
@@ -472,6 +495,9 @@ public final class InventoryHelper {
         }
         Material worn = snapshot.armor() != null && slot < snapshot.armor().length
                 ? snapshot.armor()[slot] : null;
+        if (pinGoldenBoots && worn == Material.GOLDEN_BOOTS) {
+            return false; // zlaté boty drží piglinům respekt – nesundávat
+        }
         return armorTier(item) > (worn == null ? 0 : armorTier(worn));
     }
 

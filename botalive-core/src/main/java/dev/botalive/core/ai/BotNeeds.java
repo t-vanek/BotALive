@@ -26,10 +26,13 @@ import java.util.Locale;
  * @param hasIronMaterial  má železo (surové/ingoty) k dalšímu zpracování
  * @param buildingBlocks   odhad počtu stavebních bloků
  * @param hasFood          má něco k snědku
+ * @param hasFlintKit      má pazourek nebo hotové křesadlo (příprava na Nether)
+ * @param obsidian         odhad kusů obsidiánu (na rám portálu je třeba 14)
  */
 public record BotNeeds(int pickaxeTier, boolean hasAxe, boolean hasSword,
                        boolean hasTorches, boolean hasWood, boolean hasCobble,
-                       boolean hasIronMaterial, int buildingBlocks, boolean hasFood) {
+                       boolean hasIronMaterial, int buildingBlocks, boolean hasFood,
+                       boolean hasFlintKit, int obsidian) {
 
     /** Konzervativní odhad kusů v jednom slotu hlavního inventáře (bez počtů). */
     private static final int MAIN_SLOT_ESTIMATE = 16;
@@ -42,7 +45,7 @@ public record BotNeeds(int pickaxeTier, boolean hasAxe, boolean hasSword,
      */
     public static BotNeeds assess(ServerSideView.Snapshot snapshot) {
         if (snapshot == null) {
-            return new BotNeeds(0, false, false, false, false, false, false, 0, false);
+            return new BotNeeds(0, false, false, false, false, false, false, 0, false, false, 0);
         }
         int pickTier = 0;
         boolean axe = false;
@@ -69,7 +72,10 @@ public record BotNeeds(int pickaxeTier, boolean hasAxe, boolean hasSword,
                 snapshot.hasItem(m -> m == Material.RAW_IRON || m == Material.IRON_INGOT
                         || m == Material.IRON_ORE || m == Material.DEEPSLATE_IRON_ORE),
                 countBuildingBlocks(snapshot),
-                snapshot.hasItem(InventoryHelper::isFood));
+                snapshot.hasItem(InventoryHelper::isFood),
+                snapshot.hasItem(m -> m == Material.FLINT
+                        || m == Material.FLINT_AND_STEEL),
+                InventoryHelper.countEstimate(snapshot, m -> m == Material.OBSIDIAN));
     }
 
     /**
@@ -120,6 +126,14 @@ public record BotNeeds(int pickaxeTier, boolean hasAxe, boolean hasSword,
             wishlist.add(Material.DIAMOND_ORE);
             wishlist.add(Material.DEEPSLATE_DIAMOND_ORE);
         }
+        // Příprava na Nether: s diamantovým krumpáčem shánět pazourek
+        // (gravel) na křesadlo a obsidián na rám portálu.
+        if (pickaxeTier >= 5 && !hasFlintKit) {
+            wishlist.add(Material.GRAVEL);
+        }
+        if (pickaxeTier >= 5 && obsidian < dev.botalive.core.nether.PortalBlueprint.OBSIDIAN_NEEDED) {
+            wishlist.add(Material.OBSIDIAN);
+        }
         return wishlist;
     }
 
@@ -131,6 +145,13 @@ public record BotNeeds(int pickaxeTier, boolean hasAxe, boolean hasSword,
      */
     public static int requiredPickTier(Material block) {
         String name = block.name();
+        if (block == Material.ANCIENT_DEBRIS || block == Material.OBSIDIAN
+                || block == Material.CRYING_OBSIDIAN) {
+            return 5; // jen diamantový a lepší
+        }
+        if (block == Material.NETHER_GOLD_ORE || block == Material.NETHER_QUARTZ_ORE) {
+            return 1; // netherové rudy padají z libovolného krumpáče
+        }
         if (name.contains("DIAMOND_ORE") || name.contains("EMERALD_ORE")
                 || name.contains("GOLD_ORE") || name.contains("REDSTONE_ORE")) {
             return 4; // železný a lepší
@@ -166,6 +187,18 @@ public record BotNeeds(int pickaxeTier, boolean hasAxe, boolean hasSword,
         if (name.contains("DIAMOND")) {
             return "diamanty!";
         }
+        if (name.equals("GRAVEL")) {
+            return "sháním pazourek na křesadlo";
+        }
+        if (name.equals("OBSIDIAN")) {
+            return "obsidián na portál do Netheru";
+        }
+        if (name.equals("ANCIENT_DEBRIS")) {
+            return "starodávné trosky – netherit!";
+        }
+        if (name.contains("QUARTZ") || name.equals("GLOWSTONE")) {
+            return "netherová kořist";
+        }
         if (name.equals("STONE") || name.equals("DEEPSLATE")) {
             return "potřebuju kámen na nástroje";
         }
@@ -181,7 +214,7 @@ public record BotNeeds(int pickaxeTier, boolean hasAxe, boolean hasSword,
         return name.startsWith("DEEPSLATE_") ? name.substring("DEEPSLATE_".length()) : name;
     }
 
-    /** Odhad počtu stavebních bloků (hotbar přesně, hlavní inventář konzervativně). */
+    /** Počet stavebních bloků (skutečné počty; bez nich konzervativní odhad). */
     private static int countBuildingBlocks(ServerSideView.Snapshot snapshot) {
         int count = 0;
         Material[] hotbar = snapshot.hotbar();
@@ -191,9 +224,12 @@ public record BotNeeds(int pickaxeTier, boolean hasAxe, boolean hasSword,
                 count += counts != null && i < counts.length ? Math.max(counts[i], 1) : 1;
             }
         }
-        for (Material material : snapshot.mainInventory()) {
-            if (material != null && InventoryHelper.isBuildingBlock(material)) {
-                count += MAIN_SLOT_ESTIMATE;
+        Material[] main = snapshot.mainInventory();
+        int[] mainCounts = snapshot.mainCounts();
+        for (int i = 0; i < main.length; i++) {
+            if (main[i] != null && InventoryHelper.isBuildingBlock(main[i])) {
+                count += mainCounts != null && i < mainCounts.length
+                        ? Math.max(mainCounts[i], 1) : MAIN_SLOT_ESTIMATE;
             }
         }
         return count;

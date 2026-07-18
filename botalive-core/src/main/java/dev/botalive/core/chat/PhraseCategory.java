@@ -102,6 +102,14 @@ public enum PhraseCategory {
     RECONCILE_REJECT,
     /** Lovec nastupuje na noční hlídku vesnice. */
     GUARD_NIGHT,
+    /** Odchod na výpravu do Netheru (odhodlání i respekt). */
+    NETHER_DEPART,
+    /** První dojmy po průchodu portálem do Netheru. */
+    NETHER_ARRIVE,
+    /** Návrat z Netheru domů (úleva, chlubení kořistí). */
+    NETHER_RETURN,
+    /** Radost z netherové kořisti (trosky, šablona z truhly). */
+    NETHER_LOOT,
     /** Smajlíky přidávané podle stylu psaní. */
     EMOJIS;
 

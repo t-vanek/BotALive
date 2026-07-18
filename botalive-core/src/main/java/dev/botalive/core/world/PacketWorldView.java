@@ -202,4 +202,10 @@ public final class PacketWorldView implements WorldView {
     public String worldName() {
         return worldKey;
     }
+
+    @Override
+    public WorldDimension dimension() {
+        // Packet režim nemá Bukkit Environment – odhad z klíče světa.
+        return WorldDimension.fromWorldKey(worldKey);
+    }
 }

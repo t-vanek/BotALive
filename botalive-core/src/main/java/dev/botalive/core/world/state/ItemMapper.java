@@ -25,4 +25,17 @@ public interface ItemMapper {
      * @return síťové id itemu, nebo -1 pokud materiál není item
      */
     int idOf(Material material);
+
+    /**
+     * Klíč typu lektvaru pro síťové registry ID ({@code fire_resistance},
+     * {@code strong_healing}…). Registr lektvarů je statický (per verze
+     * protokolu), tabulka se sestavuje z registrů hostitele stejně jako
+     * itemy – bez ní se varianty lektvarů v packet režimu nečtou.
+     *
+     * @param potionId síťové ID typu lektvaru
+     * @return klíč typu, nebo {@code null} bez tabulky/mimo rozsah
+     */
+    default String potionKeyOf(int potionId) {
+        return null;
+    }
 }

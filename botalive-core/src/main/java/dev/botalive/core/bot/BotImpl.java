@@ -148,6 +148,14 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
     /** Čeká se na první teleport po loginu/respawnu (pošle se PlayerLoaded). */
     private volatile boolean awaitingFirstTeleport = true;
 
+    /**
+     * Název světa, ze kterého bot právě prošel portálem (nastavuje síťové
+     * vlákno při živém respawnu se změnou světa). První teleport v novém
+     * světě je pozice cílového portálu – zapíše se jako PORTAL vzpomínka,
+     * aby bot uměl najít cestu zpátky.
+     */
+    private volatile String portalArrivedFrom;
+
     /** Smrt už byla obsloužena na tick vlákně (halt mozku, stop navigace). */
     private boolean deathHandled;
 
@@ -777,6 +785,9 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
         state.set(BotLifecycleState.CONFIGURING);
         reconnectAttempts.set(0);
         awaitingFirstTeleport = true;
+        // Přerušený portálový přechod (kick/timeout mezi respawnem a prvním
+        // teleportem) nesmí po reconnectu zapsat falešný „přílet" na spawnu.
+        portalArrivedFrom = null;
     }
 
     @Override
@@ -819,16 +830,26 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
 
     @Override
     public void onRespawn(String worldKey, boolean afterDeath) {
-        // Respawn paket zaživa = změna dimenze (nether/end portál, plugin
-        // teleport mezi světy). Bot si portálový přechod zapamatuje.
+        // Respawn paket zaživa = změna dimenze. PORTAL vzpomínka (odchod hned,
+        // přílet při prvním teleportu v novém světě) se ale zapisuje jen při
+        // skutečném průchodu portálem – bot musí stát v portálových blocích.
+        // Plugin/admin teleporty mezi světy by jinak zakládaly fantomové
+        // portály, ke kterým by se boti marně vraceli.
         WorldView oldWorld = worldView;
         BotPhysics oldPhysics = physics;
+        portalArrivedFrom = null;
         if (!afterDeath && oldWorld != null && oldPhysics != null
                 && !oldWorld.worldName().equals(expectedWorldName(worldKey))) {
             Vec3 pos = oldPhysics.position();
-            memory.remember(MemoryKind.PORTAL, oldWorld.worldName(),
-                    (int) pos.x(), (int) pos.y(), (int) pos.z(), null,
-                    Map.of("to", worldKey), 0.7);
+            BlockPos feet = pos.toBlockPos();
+            boolean throughPortal = oldWorld.traitsAt(feet).portal()
+                    || oldWorld.traitsAt(feet.up()).portal();
+            if (throughPortal) {
+                memory.remember(MemoryKind.PORTAL, oldWorld.worldName(),
+                        feet.x(), feet.y(), feet.z(), null,
+                        Map.of("to", expectedWorldName(worldKey)), 0.7);
+                portalArrivedFrom = oldWorld.worldName();
+            }
         }
         awaitingFirstTeleport = true;
     }
@@ -933,7 +954,7 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
             ticksSinceSnapshot = 0;
             if (packetWorlds != null) {
                 serverView.offer(PacketPlayerView.capture(clientInventory, itemMapper,
-                        clientState, position(), worldView));
+                        clientState, position(), worldView, packetWorlds::enchantmentKey));
             } else {
                 serverView.refresh();
             }
@@ -1126,12 +1147,16 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
             refreshAmbition();
         }
 
-        // Periodicky: sebrané brnění nasadit + štít do druhé ruky.
+        // Periodicky: sebrané brnění nasadit + štít do druhé ruky. V Netheru
+        // se zlaté boty nechávají na nohou (piglini) – jinak by je tier
+        // logika hned přezula zpátky a rozbila neutralitu i barter.
         if (alive && !paused.get() && !combat.engaged() && --armorCheckTicks <= 0) {
             armorCheckTicks = 100 + rng.rangeInt(0, 60);
             var snapshot = serverView.latest();
+            boolean pinGold = worldView != null
+                    && worldView.dimension() == dev.botalive.core.world.WorldDimension.NETHER;
             if (!inventoryHelper.equipBetterArmor(snapshot,
-                    humanizer.yaw(), humanizer.pitch())
+                    humanizer.yaw(), humanizer.pitch(), pinGold)
                     && snapshot != null
                     && snapshot.offhand() != org.bukkit.Material.SHIELD
                     && inventoryHelper.equipItem(snapshot, org.bukkit.Material.SHIELD)) {
@@ -1462,6 +1487,17 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
         state.set(BotLifecycleState.SPAWNED);
         LOG.info("[{}] Naspawnován na {} v {}", name, position.toBlockPos(),
                 worldView != null ? worldView.worldName() : "?");
+
+        // Přílet portálem: první pozice v novém světě je cílový portál –
+        // vzpomínka na něj je cesta zpátky domů (i z Netheru).
+        String arrivedFrom = portalArrivedFrom;
+        portalArrivedFrom = null;
+        if (arrivedFrom != null && worldView != null) {
+            BlockPos arrival = position.toBlockPos();
+            memory.remember(MemoryKind.PORTAL, worldView.worldName(),
+                    arrival.x(), arrival.y(), arrival.z(), null,
+                    Map.of("to", arrivedFrom), 0.8);
+        }
 
         // Životní ambice: vybrat jednou podle povahy a zapamatovat.
         if (memory.recall(MemoryKind.AMBITION).isEmpty()) {

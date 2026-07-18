@@ -45,6 +45,9 @@ public final class DimensionRegistry {
     private final List<DimensionInfo> dimensions = new CopyOnWriteArrayList<>();
     private volatile int biomeCount = 64;
 
+    /** Klíče enchantů v pořadí registru (index = síťové ID) – dynamický registr. */
+    private final List<String> enchantments = new CopyOnWriteArrayList<>();
+
     /**
      * Zpracuje registry paket (volá se ze síťového vlákna v konfigurační fázi).
      *
@@ -60,10 +63,26 @@ public final class DimensionRegistry {
                 }
             }
             case "minecraft:worldgen/biome" -> biomeCount = Math.max(1, entries.size());
+            case "minecraft:enchantment" -> {
+                // Enchanty jsou data-driven registr – server posílá klíče
+                // v pořadí síťových ID; z nich se čtou enchanty knih.
+                enchantments.clear();
+                for (RegistryEntry entry : entries) {
+                    enchantments.add(entry.getId().value());
+                }
+            }
             default -> {
                 // ostatní registry (chat typy, trim materiály, ...) nepotřebujeme
             }
         }
+    }
+
+    /**
+     * @param id síťové ID enchantu
+     * @return klíč enchantu ({@code sharpness}…), nebo {@code null} mimo rozsah
+     */
+    public String enchantmentKey(int id) {
+        return id < 0 || id >= enchantments.size() ? null : enchantments.get(id);
     }
 
     private static DimensionInfo parseDimension(NbtMap data) {

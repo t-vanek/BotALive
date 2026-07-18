@@ -20,6 +20,8 @@ import java.util.Optional;
 public final class CombatGoal extends AbstractGoal {
 
     private int lostTargetTicks;
+    /** Útočný splash se hází nejvýš jednou za souboj. */
+    private boolean splashThrown;
 
     /** Vytvoří cíl. */
     public CombatGoal() {
@@ -50,6 +52,7 @@ public final class CombatGoal extends AbstractGoal {
     @Override
     public void start(Bot bot) {
         lostTargetTicks = 0;
+        splashThrown = false;
         equipShieldToOffhand(ctx(bot), bot);
     }
 
@@ -108,9 +111,49 @@ public final class CombatGoal extends AbstractGoal {
             }
         }
 
+        maybeThrowSplash(ctx);
+
         // Bojový pohyb (výběr zbraně – melee/luk/štít – řídí controller).
         ctx.requestMove(ctx.combat().tick(ctx.position(), ctx.clientState().health(),
                 ctx.onGround(), ctx.serverView().latest()));
+    }
+
+    /**
+     * Útočný splash (zranění/jed) na střední vzdálenost, jednou za souboj.
+     * Nemrtvé zranění LÉČÍ a jed na ně nefunguje – ti se vynechávají;
+     * balistika je hrubá (mírné nadhození dle vzdálenosti), AoE odpustí.
+     */
+    private void maybeThrowSplash(BotContext ctx) {
+        if (splashThrown) {
+            return;
+        }
+        TrackedEntity target = ctx.combat().target();
+        if (target == null || target.isUndead() || target.isPlayer()) {
+            return;
+        }
+        double dist = target.position().distance(ctx.position());
+        if (dist < 3 || dist > 7) {
+            return;
+        }
+        splashThrown = true; // i bez lektvaru – nescanovat každý tick
+        var snapshot = ctx.serverView().latest();
+        int slot = dev.botalive.core.inventory.ItemVariants.findSplashSlot(
+                snapshot, dev.botalive.core.inventory.ItemVariants.HARMING);
+        if (slot < 0) {
+            slot = dev.botalive.core.inventory.ItemVariants.findSplashSlot(
+                    snapshot, dev.botalive.core.inventory.ItemVariants.POISON);
+        }
+        if (slot < 0 || slot >= 9) {
+            return; // jen z hotbaru – přetahování uprostřed boje nemá čas
+        }
+        dev.botalive.core.util.Vec3 eye = ctx.position().add(0, 1.62, 0);
+        dev.botalive.core.util.Vec3 to = target.position().add(0, 1.0, 0).sub(eye);
+        double horizontal = Math.hypot(to.x(), to.z());
+        float yaw = (float) Math.toDegrees(Math.atan2(-to.x(), to.z()));
+        float pitch = (float) -Math.toDegrees(Math.atan2(to.y(), horizontal));
+        pitch -= (float) (dist * 1.5); // oblouk vrhu – kousek nad cíl
+        ctx.actions().selectHotbar(slot);
+        ctx.actions().useItem(yaw, pitch);
     }
 
     @Override

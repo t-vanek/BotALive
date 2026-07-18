@@ -22,7 +22,10 @@ public final class MarketPrices {
             Material.BAKED_POTATO, 1.5,
             Material.WHEAT, 0.8,
             Material.COAL, 1.5,
-            Material.IRON_INGOT, 6.0);
+            Material.IRON_INGOT, 6.0,
+            // Netherová kořist – čisté komodity bez craftovacího užití
+            // (zlato se neprodává: je potřeba na netheritový ingot a barter).
+            Material.QUARTZ, 1.0);
 
     private MarketPrices() {
     }
