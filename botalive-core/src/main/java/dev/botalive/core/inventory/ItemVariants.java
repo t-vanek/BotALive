@@ -26,6 +26,12 @@ public final class ItemVariants {
     /** Regenerace. */
     public static final String REGENERATION = "regeneration";
 
+    /** Okamžité zranění (útočný splash – nemrtvé LÉČÍ, na ty se nehází). */
+    public static final String HARMING = "harming";
+
+    /** Jed (útočný splash – na nemrtvé nefunguje). */
+    public static final String POISON = "poison";
+
     private ItemVariants() {
     }
 

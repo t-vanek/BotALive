@@ -133,6 +133,21 @@ public final class TrackedEntity {
         };
     }
 
+    /**
+     * Nemrtví: lektvar zranění je léčí a jed na ně nefunguje – útočné
+     * splash lektvary se na ně nikdy nehází.
+     *
+     * @return {@code true} pokud jde o nemrtvého moba
+     */
+    public boolean isUndead() {
+        return switch (type) {
+            case ZOMBIE, ZOMBIE_VILLAGER, HUSK, DROWNED, SKELETON, STRAY, BOGGED,
+                 WITHER_SKELETON, PHANTOM, ZOGLIN, ZOMBIFIED_PIGLIN, WITHER,
+                 SKELETON_HORSE, ZOMBIE_HORSE -> true;
+            default -> false;
+        };
+    }
+
     /** @return {@code true} pokud jde o upuštěný předmět */
     public boolean isItem() {
         return type == EntityType.ITEM;
