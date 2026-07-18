@@ -67,7 +67,13 @@ public final class FishGoal extends AbstractGoal {
         }
         double patience = bot.personality().trait(Trait.PATIENCE);
         double hungerPressure = Math.max(0, 15 - ctx.clientState().food());
-        return 4 + patience * 10 + hungerPressure;
+        double utility = 4 + patience * 10 + hungerPressure;
+        // Rybář ví, že v dešti ryby berou (rychlejší záběry) – ale v bouřce
+        // se u vody s prutem nestojí.
+        if (ctx.raining() && !ctx.thundering()) {
+            utility *= 1.35;
+        }
+        return utility;
     }
 
     @Override

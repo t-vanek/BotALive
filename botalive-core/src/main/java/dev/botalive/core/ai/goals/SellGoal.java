@@ -24,6 +24,12 @@ import java.util.Optional;
  * někdo zamluví, počká na něj, při předávce proběhnou peníze
  * ({@link MarketBoard#settle}) a zboží se hází kus po kuse jako u sdílení.
  * Kamarádi dostávají slevu; vydařený obchod obě strany sbližuje.</p>
+ *
+ * <p>Kupcem může být i skutečný hráč: na vyvolávanou nabídku odpoví
+ * „beru!", chat mu ji zamluví ({@code ChatContext.marketBuyRequest}) a bot
+ * si u pultu řekne o peníze přes {@code /pay}. Příchozí platbu ověří na
+ * vlastním účtu (Vault zrcadlo, porovnání zůstatku před/po s timeoutem) a
+ * teprve pak zboží vydá – bez peněz žádné zboží.</p>
  */
 public final class SellGoal extends AbstractGoal {
 
@@ -31,9 +37,15 @@ public final class SellGoal extends AbstractGoal {
     private record Sale(Material material, int count, double price) {
     }
 
+    /** Kolik ticků má bot-kupec na dojití a předávku. */
+    private static final int BOT_HANDOVER_TICKS = 700;
+    /** Hráč potřebuje čas dojít a napsat /pay (~90 s). */
+    private static final int PLAYER_HANDOVER_TICKS = 1800;
+
     private enum Phase { OFFER, WAIT, HANDOVER, DONE }
 
     private final MarketBoard market;
+    private final dev.botalive.core.social.SocialGraph graph;
 
     private Phase phase = Phase.OFFER;
     private Sale sale;
@@ -43,13 +55,22 @@ public final class SellGoal extends AbstractGoal {
     private int given;
     private int giveTicks;
     private int cooldownTicks;
+    /** Platba hráče: zůstatek před výzvou k /pay (NaN = výzva ještě nepadla). */
+    private double paymentBaseline = Double.NaN;
+    /** Nabídka, ke které se váže {@link #paymentBaseline} (přežije přerušení cíle). */
+    private long paymentOfferId = -1;
+    /** Už zaplacená nabídka – při návratu k přerušené předávce se neplatí znovu. */
+    private long paidOfferId = -1;
+    private boolean paid;
 
     /**
      * @param market tržiště
+     * @param graph  sociální adresář (rozlišení kupec-bot vs. kupec-hráč)
      */
-    public SellGoal(MarketBoard market) {
+    public SellGoal(MarketBoard market, dev.botalive.core.social.SocialGraph graph) {
         super("sell");
         this.market = market;
+        this.graph = graph;
     }
 
     @Override
@@ -87,6 +108,10 @@ public final class SellGoal extends AbstractGoal {
         given = 0;
         giveTicks = 0;
         handoverTicks = 0;
+        paid = false;
+        // paymentBaseline se neresetuje – váže se k nabídce (paymentOfferId),
+        // aby platba hráče přežila přerušení cíle (boj, útěk) mezi výzvou
+        // a příchodem peněz.
     }
 
     @Override
@@ -134,7 +159,7 @@ public final class SellGoal extends AbstractGoal {
             deal = pending.get();
             sale = new Sale(deal.offer().material(), deal.offer().count(),
                     deal.offer().price());
-            phase = Phase.HANDOVER;
+            enterHandover(ctx, bot);
             return;
         }
         sale = pickSale(ctx, bot);
@@ -155,8 +180,7 @@ public final class SellGoal extends AbstractGoal {
         var pending = market.pendingDeal(bot.id());
         if (pending.isPresent()) {
             deal = pending.get();
-            handoverTicks = 0;
-            phase = Phase.HANDOVER;
+            enterHandover(ctx, bot);
             return;
         }
         if (--waitTicks <= 0) {
@@ -167,32 +191,69 @@ public final class SellGoal extends AbstractGoal {
         // Stojí se na místě a vyhlíží zákazník – mikro-chování řeší humanizer.
     }
 
+    /**
+     * Vstup do předávky. Kupci-hráči se hned zapamatuje zůstatek (baseline)
+     * a řekne cena – hráč smí poslat {@code /pay} klidně cestou k pultu,
+     * platba se pozná porovnáním s baseline, ne okamžikem příchodu.
+     */
+    private void enterHandover(BotContext ctx, Bot bot) {
+        handoverTicks = 0;
+        phase = Phase.HANDOVER;
+        if (paidOfferId == deal.offer().id()) {
+            paid = true; // návrat k přerušené předávce – zaplaceno už bylo
+            return;
+        }
+        if (graph != null && !graph.isBot(deal.buyer())
+                && paymentOfferId != deal.offer().id()) {
+            paymentOfferId = deal.offer().id();
+            paymentBaseline = bot.wallet().balance();
+            ctx.chat().sayFrom(PhraseCategory.MARKET_PAY_REQUEST,
+                    priceLabel(priceFor(bot)));
+        }
+    }
+
     private void handover(BotContext ctx, Bot bot) {
+        boolean playerBuyer = graph != null && !graph.isBot(deal.buyer());
+        int limit = playerBuyer ? PLAYER_HANDOVER_TICKS : BOT_HANDOVER_TICKS;
         Optional<TrackedEntity> buyer = ctx.entities().byUuid(deal.buyer());
-        if (buyer.isEmpty() || ++handoverTicks > 700) {
+        handoverTicks++;
+        boolean gone = buyer.isEmpty() || handoverTicks > limit;
+        if (gone && !paid && playerBuyer && playerPaymentArrived(ctx, bot)) {
+            paid = true; // platba dorazila na poslední chvíli
+        }
+        if (gone && !paid) {
+            // Hráč, který slíbil koupi a nezaplatil, si vyslechne svoje.
+            if (playerBuyer) {
+                ctx.chat().sayFrom(PhraseCategory.MARKET_DECLINE, deal.buyerName());
+            }
             market.withdraw(bot.id());
             cooldownTicks = 2400;
             phase = Phase.DONE;
             return;
         }
-        var buyerPos = buyer.get().position();
-        if (buyerPos == null) {
-            return;
+        if (!gone) {
+            var buyerPos = buyer.get().position();
+            if (buyerPos == null) {
+                return;
+            }
+            ctx.humanizer().lookAt(ctx.position().add(0, 1.62, 0),
+                    buyerPos.add(0, 1.5, 0));
+            // Platba hráče se hlídá už během jeho cesty (mohl poslat /pay hned).
+            if (playerBuyer && !paid && playerPaymentArrived(ctx, bot)) {
+                paid = true;
+            }
+            if (ctx.position().distanceSquared(buyerPos) > 3.5 * 3.5) {
+                return; // kupec ještě dochází
+            }
         }
-        ctx.humanizer().lookAt(ctx.position().add(0, 1.62, 0),
-                buyerPos.add(0, 1.5, 0));
-        if (ctx.position().distanceSquared(buyerPos) > 3.5 * 3.5) {
-            return; // kupec ještě dochází
-        }
+        // Zaplaceno, ale kupec do limitu nedošel/zmizel („gone" a „paid"
+        // zároveň): zboží se vyloží u pultu – co je zaplacené, patří kupci.
         // Kupec u pultu: nejdřív peníze (kamarádská sleva), pak zboží.
-        if (given == 0) {
-            boolean friend = bot.memory().recallAbout(deal.buyer()).stream()
-                    .anyMatch(r -> r.kind() == MemoryKind.FRIEND
-                            && r.importance() >= PvpCoordinator.ALLY_THRESHOLD);
-            double price = friend
-                    ? MarketPrices.friendly(deal.offer().price())
-                    : deal.offer().price();
-            if (!market.settle(deal, price)) {
+        if (given == 0 && !paid) {
+            if (playerBuyer) {
+                return; // čeká se na /pay; timeout hlídá handoverTicks
+            }
+            if (!market.settle(deal, priceFor(bot))) {
                 // Kupec na to nemá – obchod zrušit.
                 ctx.chat().sayFrom(PhraseCategory.MARKET_DECLINE, deal.buyerName());
                 market.withdraw(bot.id());
@@ -200,6 +261,8 @@ public final class SellGoal extends AbstractGoal {
                 phase = Phase.DONE;
                 return;
             }
+            paid = true;
+            paidOfferId = deal.offer().id();
         }
         if (--giveTicks > 0) {
             return;
@@ -215,9 +278,41 @@ public final class SellGoal extends AbstractGoal {
         giveTicks = ctx.rng().rangeInt(6, 12);
     }
 
+    /** Cena pro aktuálního kupce (kamarádi – boti i hráči – mají slevu). */
+    private double priceFor(Bot bot) {
+        boolean friend = bot.memory().recallAbout(deal.buyer()).stream()
+                .anyMatch(r -> r.kind() == MemoryKind.FRIEND
+                        && r.importance() >= PvpCoordinator.ALLY_THRESHOLD);
+        return friend ? MarketPrices.friendly(deal.offer().price())
+                : deal.offer().price();
+    }
+
+    /**
+     * Dorazila platba hráče? Porovnává zůstatek s baseline z {@link #enterHandover}
+     * (Vault zrcadlo se periodicky srovnává se serverovou ekonomikou, protože
+     * {@code /pay} se na něm projeví až po resyncu).
+     */
+    private boolean playerPaymentArrived(BotContext ctx, Bot bot) {
+        if (Double.isNaN(paymentBaseline) || paymentOfferId != deal.offer().id()) {
+            return false;
+        }
+        if (handoverTicks % 40 == 0
+                && bot.wallet() instanceof dev.botalive.core.economy.VaultBotWallet vault) {
+            vault.refresh();
+        }
+        if (bot.wallet().balance() >= paymentBaseline + priceFor(bot) - 0.001) {
+            paymentBaseline = Double.NaN;
+            paymentOfferId = -1;
+            paidOfferId = deal.offer().id();
+            return true;
+        }
+        return false;
+    }
+
     /** Zboží předáno: uzavřít, sblížit se, hláška. */
     private void completeSale(BotContext ctx, Bot bot) {
         market.completeDeal(bot.id());
+        paidOfferId = -1;
         if (ctx.worldView() != null && deal != null) {
             var pos = ctx.position();
             bot.memory().remember(MemoryKind.FRIEND, ctx.worldView().worldName(),
@@ -260,11 +355,15 @@ public final class SellGoal extends AbstractGoal {
     }
 
     private static String describe(Sale sale) {
-        String price = sale.price() == Math.floor(sale.price())
-                ? String.valueOf((long) sale.price())
-                : String.valueOf(sale.price());
         return sale.count() + "x " + sale.material().name().toLowerCase(Locale.ROOT)
-                + " za " + price;
+                + " za " + priceLabel(sale.price());
+    }
+
+    /** Cena bez zbytečných desetinných míst („12", ne „12.0"). */
+    private static String priceLabel(double price) {
+        return price == Math.floor(price)
+                ? String.valueOf((long) price)
+                : String.valueOf(price);
     }
 
     private static boolean tradeEnabled(BotContext ctx) {

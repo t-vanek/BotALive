@@ -114,6 +114,15 @@ public interface BotContext {
     /** @return sdílená kniha zločinů (krádeže mají oběti a následky) */
     dev.botalive.core.social.CrimeLog crimeLog();
 
+    /** @return sociální adresář (bot vs. hráč, drby mezi boty) */
+    dev.botalive.core.social.SocialGraph socialGraph();
+
+    /** @return prší ve světě bota? (z game event paketů) */
+    boolean raining();
+
+    /** @return je ve světě bota bouřka? */
+    boolean thundering();
+
     /** @return sdílená služba vesnic (parcely, členství, sousedské vztahy) */
     dev.botalive.core.settlement.SettlementService settlements();
 

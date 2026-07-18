@@ -156,6 +156,15 @@ public final class MarketBoard {
         return Optional.ofNullable(dealsBySeller.get(seller));
     }
 
+    /** @return aktivní (dosud nezamluvená) nabídka prodejce */
+    public synchronized Optional<Offer> activeOffer(UUID seller) {
+        prune();
+        if (dealsBySeller.containsKey(seller)) {
+            return Optional.empty();
+        }
+        return Optional.ofNullable(offersBySeller.get(seller));
+    }
+
     /**
      * Zaplacení při předávce: kupec platí, prodejce inkasuje. Volá prodejce,
      * až kupec stojí vedle něj – při nedostatku peněz se nic nepřevede.

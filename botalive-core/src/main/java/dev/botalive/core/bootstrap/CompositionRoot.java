@@ -126,6 +126,9 @@ public final class CompositionRoot {
         dev.botalive.core.tame.TameService taming = container.register(
                 dev.botalive.core.tame.TameService.class,
                 new dev.botalive.core.tame.TameService(bridge));
+        dev.botalive.core.social.SocialGraph socialGraph = container.register(
+                dev.botalive.core.social.SocialGraph.class,
+                new dev.botalive.core.social.SocialGraph());
 
         // AI cíle.
         GoalRegistryImpl goalRegistry = container.register(GoalRegistryImpl.class,
@@ -134,7 +137,7 @@ public final class CompositionRoot {
                 dev.botalive.core.inventory.AnvilService.class,
                 new dev.botalive.core.inventory.AnvilService(bridge));
         registerBuiltInGoals(goalRegistry, crafting, containers, trades, furnaces,
-                enchanting, pvp, taming, anvils, market);
+                enchanting, pvp, taming, anvils, market, socialGraph);
 
         // Block-state a item mappery pro klientský world model (jen režim
         // packet): přesné tabulky z registrů hostitelského serveru jsou správné
@@ -168,12 +171,14 @@ public final class CompositionRoot {
         settlements.load();
         BotImpl.SharedServices services = new BotImpl.SharedServices(
                 config, worldViews, bridge, tickEngine, navigation, repository,
-                phrases, stateMapper, itemMapper, crimeLog, settlements);
+                phrases, stateMapper, itemMapper, crimeLog, settlements,
+                socialGraph, market);
         BotManagerImpl botManager = container.register(BotManagerImpl.class,
                 new BotManagerImpl(config, repository, goalRegistry, services));
         pvp.attach(botManager);
         settlements.attach(botManager);
         market.attach(botManager);
+        socialGraph.attach(botManager);
 
         // Veřejné API.
         BotAliveApi api = container.register(BotAliveApi.class, new BotAliveApiImpl(
@@ -197,7 +202,8 @@ public final class CompositionRoot {
                                              dev.botalive.core.pvp.PvpCoordinator pvp,
                                              dev.botalive.core.tame.TameService taming,
                                              dev.botalive.core.inventory.AnvilService anvils,
-                                             dev.botalive.core.economy.MarketBoard market) {
+                                             dev.botalive.core.economy.MarketBoard market,
+                                             dev.botalive.core.social.SocialGraph socialGraph) {
         registry.register("idle", bot -> new IdleGoal());
         registry.register("wander", bot -> new WanderGoal());
         registry.register("explore", bot -> new ExploreGoal());
@@ -232,8 +238,10 @@ public final class CompositionRoot {
         registry.register("tame", bot -> new dev.botalive.core.ai.goals.TameGoal(taming));
         registry.register("recover", bot -> new dev.botalive.core.ai.goals.RecoverItemsGoal());
         registry.register("maintain", bot -> new dev.botalive.core.ai.goals.MaintainHomeGoal());
-        registry.register("sell", bot -> new dev.botalive.core.ai.goals.SellGoal(market));
+        registry.register("sell", bot -> new dev.botalive.core.ai.goals.SellGoal(market, socialGraph));
         registry.register("buy", bot -> new dev.botalive.core.ai.goals.BuyGoal(market));
+        registry.register("reconcile", bot -> new dev.botalive.core.ai.goals.ReconcileGoal(socialGraph));
+        registry.register("guard", bot -> new dev.botalive.core.ai.goals.GuardGoal());
     }
 
     /**

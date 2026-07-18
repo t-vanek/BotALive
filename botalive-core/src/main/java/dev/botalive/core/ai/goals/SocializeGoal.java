@@ -86,6 +86,16 @@ public final class SocializeGoal extends AbstractGoal {
                         (int) player.position().x(), (int) player.position().y(),
                         (int) player.position().z(), player.uuid(), Map.of(), 0.3);
             }
+            // Drby: boti si při pokecu vymění, co kdo zažil (vesnice, doly,
+            // nebezpečí, pomluvy) – vědění přestává být ostrovní. Jen bot↔bot;
+            // hráči paměť nemají.
+            var graph = ctx.socialGraph();
+            String gossipName = resolveName(ctx, player);
+            if (graph != null && player.uuid() != null && gossipName != null
+                    && graph.exchangeGossip(bot, player.uuid(), ctx.rng())
+                    && ctx.rng().chance(0.35)) {
+                ctx.chat().sayFrom(PhraseCategory.GOSSIP, gossipName);
+            }
         }
         lingerTicks++;
     }

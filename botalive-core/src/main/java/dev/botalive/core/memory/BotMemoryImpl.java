@@ -21,6 +21,11 @@ import java.util.UUID;
  * vzpomínky stejného druhu se slučují („oživení" existující vzpomínky), aby
  * paměť nerostla donekonečna – např. opakovaná návštěva stejné truhly jen
  * zvyšuje důležitost záznamu.</p>
+ *
+ * <p>Vztahové vzpomínky (FRIEND/ENEMY) podléhají časovému rozpadu
+ * ({@link RelationDecay}): čtení vrací efektivní (rozpadlou) důležitost a
+ * oživení z ní vychází – uložená hodnota zůstává „platná k času oživení",
+ * takže se rozpad nikdy nesčítá dvakrát a nevyžaduje žádné průběžné zápisy.</p>
  */
 public final class BotMemoryImpl implements BotMemory {
 
@@ -29,23 +34,43 @@ public final class BotMemoryImpl implements BotMemory {
 
     private final UUID botId;
     private final BotRepository repository;
+    private final RelationDecay decay;
     private final List<MemoryRecord> records = new ArrayList<>();
+    /** Zdroj času (nahraditelný v testech – rozpad stojí na uplynulém čase). */
+    private java.util.function.LongSupplier clock = System::currentTimeMillis;
 
     /**
      * @param botId      UUID vlastníka
-     * @param repository repozitář pro persistenci
+     * @param repository repozitář pro persistenci ({@code null} = bez persistence, testy)
      * @param loaded     vzpomínky načtené z databáze při spawnu
      */
     public BotMemoryImpl(UUID botId, BotRepository repository, List<MemoryRecord> loaded) {
+        this(botId, repository, loaded, RelationDecay.OFF);
+    }
+
+    /**
+     * @param botId      UUID vlastníka
+     * @param repository repozitář pro persistenci ({@code null} = bez persistence, testy)
+     * @param loaded     vzpomínky načtené z databáze při spawnu
+     * @param decay      časový rozpad vztahových vzpomínek
+     */
+    public BotMemoryImpl(UUID botId, BotRepository repository, List<MemoryRecord> loaded,
+                         RelationDecay decay) {
         this.botId = botId;
         this.repository = repository;
+        this.decay = decay;
         this.records.addAll(loaded);
+    }
+
+    /** Nahradí zdroj času (jen testy). */
+    synchronized void clock(java.util.function.LongSupplier newClock) {
+        this.clock = newClock;
     }
 
     @Override
     public synchronized void remember(MemoryKind kind, String world, int x, int y, int z,
                                       UUID subject, Map<String, String> data, double importance) {
-        long now = System.currentTimeMillis();
+        long now = clock.getAsLong();
 
         // Sloučení s existující blízkou vzpomínkou stejného druhu a subjektu.
         for (int i = 0; i < records.size(); i++) {
@@ -56,13 +81,17 @@ public final class BotMemoryImpl implements BotMemory {
                 continue;
             }
             if (existing.distanceSquared(x, y, z) <= MERGE_DISTANCE_SQ) {
-                double boosted = Math.min(1.0, Math.max(existing.importance(), importance) + 0.05);
+                // Oživení vychází z rozpadlé hodnoty – neudržovaný vztah se
+                // nevrátí skokem na starou sílu, musí se vybudovat znovu.
+                double base = decay.effective(kind, existing.importance(),
+                        existing.updatedAt(), now);
+                double boosted = Math.min(1.0, Math.max(base, importance) + 0.05);
                 MemoryRecord updated = new MemoryRecord(existing.id(), botId, kind, world,
                         existing.x(), existing.y(), existing.z(), subject,
                         data.isEmpty() ? existing.data() : data,
                         boosted, existing.createdAt(), now);
                 records.set(i, updated);
-                if (existing.id() > 0) {
+                if (existing.id() > 0 && repository != null) {
                     repository.touchMemory(existing.id(), boosted, now);
                 }
                 return;
@@ -72,6 +101,9 @@ public final class BotMemoryImpl implements BotMemory {
         MemoryRecord record = new MemoryRecord(0, botId, kind, world, x, y, z, subject,
                 Map.copyOf(data), Math.min(1.0, importance), now, now);
         records.add(record);
+        if (repository == null) {
+            return;
+        }
         // Po INSERTu doplnit přidělené id (kvůli pozdějším touch/update operacím).
         repository.insertMemory(record).thenAccept(saved -> {
             synchronized (this) {
@@ -85,7 +117,9 @@ public final class BotMemoryImpl implements BotMemory {
 
     @Override
     public synchronized List<MemoryRecord> recall(MemoryKind kind) {
-        return records.stream().filter(r -> r.kind() == kind).toList();
+        long now = clock.getAsLong();
+        return records.stream().filter(r -> r.kind() == kind)
+                .map(r -> decayed(r, now)).toList();
     }
 
     @Override
@@ -93,18 +127,35 @@ public final class BotMemoryImpl implements BotMemory {
                                                              int x, int y, int z) {
         return records.stream()
                 .filter(r -> r.kind() == kind && Objects.equals(r.world(), world))
-                .min(Comparator.comparingDouble(r -> r.distanceSquared(x, y, z)));
+                .min(Comparator.comparingDouble(r -> r.distanceSquared(x, y, z)))
+                .map(r -> decayed(r, clock.getAsLong()));
     }
 
     @Override
     public synchronized List<MemoryRecord> recallAbout(UUID subject) {
-        return records.stream().filter(r -> Objects.equals(r.subject(), subject)).toList();
+        long now = clock.getAsLong();
+        return records.stream().filter(r -> Objects.equals(r.subject(), subject))
+                .map(r -> decayed(r, now)).toList();
+    }
+
+    /** Kopie záznamu s efektivní důležitostí (rozpad vztahů při čtení). */
+    private MemoryRecord decayed(MemoryRecord record, long now) {
+        double effective = decay.effective(record.kind(), record.importance(),
+                record.updatedAt(), now);
+        if (effective == record.importance()) {
+            return record;
+        }
+        return new MemoryRecord(record.id(), record.botId(), record.kind(), record.world(),
+                record.x(), record.y(), record.z(), record.subject(), record.data(),
+                effective, record.createdAt(), record.updatedAt());
     }
 
     @Override
     public synchronized void forget(MemoryKind kind) {
         records.removeIf(r -> r.kind() == kind);
-        repository.deleteMemories(botId, kind);
+        if (repository != null) {
+            repository.deleteMemories(botId, kind);
+        }
     }
 
     @Override

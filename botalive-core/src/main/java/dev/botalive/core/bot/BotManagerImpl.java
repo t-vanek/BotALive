@@ -153,7 +153,8 @@ public final class BotManagerImpl implements BotManager {
                         IdentityData::withBalance)
                 .thenCombine(repository.loadRole(botId), IdentityData::withRole)
                 .thenCompose(identity -> {
-                    BotMemoryImpl memory = new BotMemoryImpl(botId, repository, identity.memories());
+                    BotMemoryImpl memory = new BotMemoryImpl(botId, repository, identity.memories(),
+                            dev.botalive.core.memory.RelationDecay.fromConfig(config.memory()));
                     EconomyGateway gateway = config.economy().enabled() ? resolveEconomy() : null;
                     dev.botalive.api.economy.BotWallet wallet = gateway != null
                             ? new VaultBotWallet(botId, gateway, repository::saveWallet,

@@ -120,6 +120,30 @@ economy:
   # převedou peníze (kamarádi mají slevu). Peníze tak obíhají uvnitř
   # společenství a profese dostávají ekonomický smysl.
   bot-trade: true
+  # Prodej hráčům: když bot vyvolává nabídku, skutečný hráč odpoví „beru"
+  # nebo „koupím", bot mu nabídku zamluví, řekne si o peníze přes /pay
+  # (příchozí platbu ověří na svém účtu) a zboží mu předá. Kamarádi mají
+  # slevu jako boti. Vyžaduje Vault ekonomiku – bez ní se prodej hráčům
+  # sám vypne (interní peněženka neumí přijmout /pay).
+  player-trade: true
+
+memory:
+  # Časový rozpad vztahů: přátelství i zášť bez kontaktu slábnou. Bez
+  # rozpadu vztahy jen rostou (+0.05 za interakci) – po pár týdnech provozu
+  # by byl každý kamarádem každého (PvP asistence svolá půl serveru, trh
+  # dává slevu všem) a stará zášť by blokovala vstupy do vesnic navěky.
+  # Oživení vztahu (interakce) vychází z rozpadlé hodnoty – vztahy je
+  # potřeba udržovat.
+  relation-decay:
+    enabled: true
+    # O kolik denně klesá důležitost neoživovaného přátelství (FRIEND).
+    friend-per-day: 0.01
+    # Zášť se hojí rychleji – čas rány zaceluje (ENEMY). Krádež (0.8) tak
+    # přestane blokovat vstup do vesnice (práh 0.6) zhruba po týdnu.
+    enemy-per-day: 0.03
+    # Podlaha rozpadu: pod tuhle důležitost vztah nikdy neklesne
+    # (vzpomínka zůstává, jen už nic neovlivňuje).
+    floor: 0.1
 
 worlds:
   # Povolené světy pro boty (prázdné = všechny kromě blacklistu).

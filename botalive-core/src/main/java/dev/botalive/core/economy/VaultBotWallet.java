@@ -108,6 +108,16 @@ public final class VaultBotWallet implements BotWallet {
         return true;
     }
 
+    /**
+     * Vynutí okamžité (asynchronní) srovnání zrcadla se serverovou ekonomikou.
+     * Používá prodej hráčům – příchozí {@code /pay} se na zrcadle projeví až
+     * po resyncu a 30s líné okno je na hlídání platby moc dlouhé.
+     */
+    public void refresh() {
+        lastSyncMs = System.currentTimeMillis();
+        resync();
+    }
+
     /** Asynchronně srovná zrcadlo se skutečným zůstatkem v ekonomice. */
     private void resync() {
         gateway.balance(botId).whenComplete((balance, error) -> {

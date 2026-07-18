@@ -63,6 +63,10 @@ public final class BuildHouseGoal extends AbstractGoal {
     private static final int PLOT_SESSIONS_BEFORE_SOLO = 3;
     /** Pořadí zkoušených výškových posunů parcely (resume musí zkusit 0 první). */
     private static final int[] DY_ORDER = {0, -1, 1, -2, 2};
+    /** Bonus zakladatele za vodu do 24 bloků (jednotky ceny staveniště). */
+    private static final int WATER_BONUS = 3;
+    /** Bonus zakladatele za stromy do 32 bloků. */
+    private static final int WOOD_BONUS = 2;
 
     private enum Phase { FIND_SITE, RELOCATE, GOTO_SITE, TERRAFORM, BUILD, FURNISH,
         DECORATE, DONE }
@@ -329,7 +333,7 @@ public final class BuildHouseGoal extends AbstractGoal {
     private void findOpenSite(BotContext ctx, Bot bot, SettlementService settlements,
                               boolean founding) {
         WorldView world = ctx.worldView();
-        BlockPos best = localScan(ctx);
+        BlockPos best = localScan(ctx, founding);
         if (best == null) {
             cooldownTicks = 1200; // tady se stavět nedá – zkusit jinde/jindy
             phase = Phase.DONE;
@@ -363,27 +367,73 @@ public final class BuildHouseGoal extends AbstractGoal {
         phase = Phase.GOTO_SITE;
     }
 
-    /** Lokální sken rovného místa (nenačtené okraje se přeskočí). */
-    private BlockPos localScan(BotContext ctx) {
+    /**
+     * Lokální sken rovného místa (nenačtené okraje se přeskočí). Zakladatel
+     * vesnice navíc hodnotí bohatost okolí – voda a stromy na dosah dělají
+     * z místa vesnici, ne tábor v poušti.
+     */
+    private BlockPos localScan(BotContext ctx, boolean founding) {
         WorldView world = ctx.worldView();
         BlockPos feet = ctx.position().toBlockPos();
         boolean terraformingAllowed = ctx.config().ai().terraforming();
 
         BlockPos best = null;
-        int bestCost = Integer.MAX_VALUE;
+        int bestScore = Integer.MAX_VALUE;
         for (int dx = -8; dx <= 8; dx += 2) {
             for (int dz = -8; dz <= 8; dz += 2) {
                 for (int dy = -1; dy <= 1; dy++) {
                     BlockPos candidate = feet.offset(dx, dy, dz);
                     int cost = siteCost(world, candidate, Set.of(), terraformingAllowed);
-                    if (cost >= 0 && cost < bestCost) {
-                        bestCost = cost;
+                    if (cost < 0) {
+                        continue;
+                    }
+                    // Bonus za okolí jen při zakládání: u parcel rozhoduje
+                    // vesnice, samotáři je jedno, kde tábor stojí.
+                    int score = founding ? cost - environmentBonus(world, candidate) : cost;
+                    if (score < bestScore) {
+                        bestScore = score;
                         best = candidate;
                     }
                 }
             }
         }
         return best;
+    }
+
+    /**
+     * Bohatost okolí kandidáta: voda do 24 a stromy do 32 bloků. Levné sondy
+     * po osmi paprscích nad chunk snapshoty – nenačtené okraje prostě bonus
+     * nedají (nezakládá se naslepo daleko od těla).
+     */
+    private static int environmentBonus(WorldView world, BlockPos site) {
+        boolean water = false;
+        boolean wood = false;
+        for (int dir = 0; dir < 8 && !(water && wood); dir++) {
+            double angle = dir * Math.PI / 4;
+            double ux = Math.cos(angle);
+            double uz = Math.sin(angle);
+            for (int r = 8; r <= 32 && !(water && wood); r += 8) {
+                BlockPos base = site.offset((int) Math.round(ux * r), 0,
+                        (int) Math.round(uz * r));
+                // Svislý sloupek vyrovnává zvlnění terénu (svahy, břehy).
+                for (int dy = -3; dy <= 4; dy++) {
+                    BlockPos probe = base.offset(0, dy, 0);
+                    if (!water && r <= 24) {
+                        var traits = world.traitsAt(probe);
+                        if (traits.liquid() && !traits.hazard()) {
+                            water = true;
+                        }
+                    }
+                    if (!wood) {
+                        var material = world.materialAt(probe);
+                        if (material != null && material.name().endsWith("_LOG")) {
+                            wood = true;
+                        }
+                    }
+                }
+            }
+        }
+        return (water ? WATER_BONUS : 0) + (wood ? WOOD_BONUS : 0);
     }
 
     /**

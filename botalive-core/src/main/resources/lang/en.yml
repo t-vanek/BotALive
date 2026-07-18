@@ -25,6 +25,7 @@ patterns:
   give-food: 'give\s+me\s+(some\s+)?food|got\s+(any\s+)?food|feed\s+me|toss\s+me\s+food'
   help: '\b(help(\s+me)?|save\s+me|sos|assist)\b'
   give-item: '\b(give|toss|throw|lend|spare)\s+me\b|\bgot\s+(any|some|spare)\b|\bi\s+need\b|\bcan\s+i\s+(have|get)\b'
+  market-buy: '\b(i(''|’)?ll\s+take\s+(it|that)|i(''|’)?ll\s+buy|buying|sold|take\s+it|i\s+want\s+(it|that|to\s+buy))\b'
 
 # Item aliases for "give me ..." requests – key is a word from the message
 # (lowercase), value is the list of materials the bot may hand over.
@@ -298,6 +299,52 @@ phrases:
     - "no idea where a village would be"
     - "never came across one"
     - "none that I know of nearby"
+  market-pay-request:
+    - "send me {name} via /pay and it's yours"
+    - "that'll be {name}, /pay me"
+    - "{name} via /pay and we have a deal"
+    - "goods are ready, {name} via /pay"
+    - "payment first: {name} via /pay"
+  gossip:
+    - "thanks for the news, {name}"
+    - "didn't know that"
+    - "good to know what's going on"
+    - "word gets around, huh"
+    - "gossip travels fast around here"
+  village-welcome:
+    - "welcome to {name}, stranger"
+    - "greetings, this is {name}"
+    - "visitors! welcome to {name}"
+    - "you're in {name} now, behave :)"
+    - "welcome to {name}, traveler"
+  village-tour:
+    - "hey {name}! come on, market's by the square"
+    - "{name}, welcome back! let me show you what's new"
+    - "ah, {name}! want a tour to the market?"
+    - "welcome {name}, business is good these days"
+  reconcile-offer:
+    - "{name}, sorry about the chest... here's a repayment"
+    - "bringing you a peace offering, {name}"
+    - "I feel bad about it, {name}. here, take this"
+    - "here you go, {name}, no hard feelings"
+    - "I know I raided your chest. this makes up for it"
+  reconcile-accept:
+    - "alright, {name}, we're even"
+    - "fine, but don't let it happen again"
+    - "accepted. still locking my chest though"
+    - "forgiven, {name}. mostly"
+    - "oh alright, I felt sorry for you anyway"
+  reconcile-reject:
+    - "you can't buy me with gifts, {name}"
+    - "keep it, thief"
+    - "not taking that, {name}"
+    - "too late for apologies"
+    - "nice try, still don't trust you"
+  guard-night:
+    - "sleep tight, I'm on watch"
+    - "taking the night shift, holler if anything comes up"
+    - "patrolling the village, nothing gets in"
+    - "watch duty starts now, mobs don't stand a chance"
   emojis:
     - ":D"
     - ":)"

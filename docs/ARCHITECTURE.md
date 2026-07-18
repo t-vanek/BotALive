@@ -419,3 +419,35 @@ předávce (`BotWallet` je thread-safe), takže rozpadlý obchod nikoho
 neokrade; ceník `MarketPrices` je čistý a testovaný, chamtivost zdražuje,
 kamarádství (sdílený `PvpCoordinator.ALLY_THRESHOLD`) zlevňuje a vydařený
 obchod zapisuje oboustranné FRIEND vzpomínky – trh tká sociální síť.
+
+Hotovo ve fázi 15: sociální udržitelnost a hráč ve smyčce.
+(1) **Rozpad vztahů** (`RelationDecay` + `BotMemoryImpl`) – FRIEND/ENEMY
+důležitost bez oživení denně klesá (`memory.relation-decay`, zášť rychleji,
+podlaha drží stopu). Rozpad je derivovaná hodnota počítaná při čtení
+z `(importance, updatedAt)` – nikdy se nepersistuje, takže se nesčítá
+dvakrát ani přes restart; oživení staví na rozpadlé hodnotě (vztahy chtějí
+údržbu). (2) **Drby** (`SocialGraph.exchangeGossip` v `SocializeGoal`) –
+boti si při pokecu předají 1–2 vzpomínky (VILLAGE/MINE/DANGER volně,
+pomluvy ENEMY jen mezi kamarády) s poloviční důležitostí a značkou
+`via=gossip`; slabé drby se dál nešíří, řetěz vyhasíná, ale opakované drby
+se slučují – zloděj časem získá reputaci v celé vesnici bez centrální
+autority. (3) **Usmíření** (`ReconcileGoal` + `CrimeLog.pendingAmends`) –
+odhalené krádeže žijí déle (na pokání musí být čas) a ochotný zloděj nese
+oběti dar; přijetí (povaha oběti) srazí zášť pod práh roztržky – feud
+i vesnický blok mizí, jizva (ENEMY 0.25, `via=reconciled`) zůstává.
+Odmítnutý dar druhý pokus nedostane. (4) **Prodej hráčům** – hráč odpoví
+na vyvolávanou nabídku „beru" (pattern `market-buy`), chat mu ji zamluví
+mimo pravděpodobnostní brány (`ChatContext.marketBuyRequest`, boti se
+filtrují přes `SocialGraph`) a `SellGoal` si řekne o `/pay`: platba se
+ověřuje proti baseline zůstatku zachycené hned při zamluvení (hráč smí
+platit cestou), zaplacené zboží nikdy nepropadne (vyloží se u pultu)
+a bez Vaultu se prodej hráčům sám vypne. (5) **Vesnice vítají hráče**
+(`tickVillageWelcome`) – člen u návsi přivítá skutečného hráče jménem
+vesnice, kamarádovi nabídne doprovod k trhu; čistě chat s per-hráč
+cooldownem. (6) **Kvalita místa při zakládání** – `localScan` zakladatele
+boduje vodu do 24 a stromy do 32 bloků (levné sondy po paprscích).
+(7) **Noční hlídka** (`GuardGoal`) – lovec místo spánku obchází prstenec
+vesnice; boj řeší existující bojová AI s vyšší utilitou. (8) **Počasí
+v utility** – stav deště/bouřky drží `BotClientState` z GameEvent paketů
+(funguje i v packet režimu): bouřka boostuje návrat domů a povoluje denní
+úkryt, déšť bez bouřky zvedá rybaření.
