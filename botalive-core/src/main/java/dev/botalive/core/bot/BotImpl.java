@@ -161,8 +161,15 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
     private int ticksSinceSnapshot;
     private int ticksSinceFlush;
     private int ticksSinceCohesion;
+    private int ticksSinceWelcome;
     private long ambitionCompletedAt;
     private Vec3 lastDistancePos;
+
+    /** Kdy byl který hráč naposledy přivítán ve vesnici (per-bot paměť). */
+    private final Map<UUID, Long> welcomedPlayers =
+            new java.util.concurrent.ConcurrentHashMap<>();
+    /** Jak dlouho se stejný hráč znovu nevítá (ms). */
+    private static final long WELCOME_COOLDOWN_MS = 20 * 60_000L;
 
     /**
      * Sestaví bota. Volá {@code BotManagerImpl} po načtení identity z databáze.
@@ -240,6 +247,21 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
     }
 
     @Override
+    public dev.botalive.core.social.SocialGraph socialGraph() {
+        return services.socialGraph();
+    }
+
+    @Override
+    public boolean raining() {
+        return clientState.raining();
+    }
+
+    @Override
+    public boolean thundering() {
+        return clientState.thundering();
+    }
+
+    @Override
     public dev.botalive.core.settlement.SettlementService settlements() {
         return services.settlements();
     }
@@ -302,6 +324,67 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
             }
             dev.botalive.core.settlement.SettlementAnnouncer.say(chat, action);
         });
+    }
+
+    /**
+     * Vesnice vítá hráče: člen poblíž návsi přivítá procházejícího
+     * <b>skutečného</b> hráče jménem vesnice; kamarádovi-hráči nabídne,
+     * že ho provede k trhu. Čistě chat – guvernér (rozestupy, dav, sborový
+     * dedupe) drží hlasitost, per-hráč cooldown brání papouškování.
+     */
+    private void tickVillageWelcome() {
+        if (!config.settlement().enabled() || !config.chat().enabled()) {
+            return;
+        }
+        var settlements = services.settlements();
+        var graph = services.socialGraph();
+        if (settlements == null || graph == null || worldView == null || physics == null) {
+            return;
+        }
+        var own = settlements.settlementOf(id).orElse(null);
+        if (own == null || !own.world().equals(worldView.worldName())) {
+            return;
+        }
+        // Vítá se jen u návsi – bot na výpravě za rudou nezdraví jménem vesnice.
+        Vec3 pos = physics.position();
+        int villageRadius = config.settlement().plotSpacing() * 3;
+        BlockPos center = own.center();
+        double dx = pos.x() - center.x();
+        double dz = pos.z() - center.z();
+        if (dx * dx + dz * dz > (double) villageRadius * villageRadius) {
+            return;
+        }
+        long now = System.currentTimeMillis();
+        for (TrackedEntity entity : entities.nearby(pos, 12, TrackedEntity::isPlayer)) {
+            UUID uuid = entity.uuid();
+            if (uuid == null || graph.isBot(uuid)) {
+                continue; // sousedy z vesnice nikdo nevítá jak turisty
+            }
+            Long last = welcomedPlayers.get(uuid);
+            if (last != null && now - last < WELCOME_COOLDOWN_MS) {
+                continue;
+            }
+            welcomedPlayers.put(uuid, now);
+            if (welcomedPlayers.size() > 64) {
+                welcomedPlayers.values().removeIf(at -> now - at > WELCOME_COOLDOWN_MS);
+            }
+            var about = memory.recallAbout(uuid);
+            boolean enemy = about.stream().anyMatch(r -> r.kind() == MemoryKind.ENEMY
+                    && r.importance() >= config.settlement().grudgeThreshold());
+            if (enemy || !rng.chance(0.6)) {
+                continue; // nepřítele nevítáme; a nevítá každý bot pokaždé
+            }
+            boolean friend = about.stream().anyMatch(r -> r.kind() == MemoryKind.FRIEND
+                    && r.importance() >= dev.botalive.core.pvp.PvpCoordinator.ALLY_THRESHOLD);
+            org.bukkit.entity.Player bukkit = Bukkit.getPlayer(uuid);
+            String playerName = bukkit != null ? bukkit.getName() : null;
+            if (friend && playerName != null) {
+                chat.sayFrom(PhraseCategory.VILLAGE_TOUR, playerName);
+            } else {
+                chat.sayFrom(PhraseCategory.VILLAGE_WELCOME, own.name());
+            }
+            break; // jedno přivítání na průchod
+        }
     }
 
     /**
@@ -550,6 +633,27 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
     }
 
     @Override
+    public boolean marketBuyRequest(UUID sender, String senderName) {
+        if (!config.economy().enabled() || !config.economy().playerTrade()
+                || !config.economy().botTrade()) {
+            return false;
+        }
+        // Bez Vaultu nejde ověřit příchozí /pay – prodej hráčům je vypnutý.
+        if (!(wallet instanceof dev.botalive.core.economy.VaultBotWallet)) {
+            return false;
+        }
+        // Boti kupují přes MarketBoard (BuyGoal) – jejich „beru!" v chatu je
+        // jen řeč; tohle je vstup pro skutečné hráče.
+        var graph = services.socialGraph();
+        var market = services.market();
+        if (graph == null || market == null || graph.isBot(sender)) {
+            return false;
+        }
+        var offer = market.activeOffer(id);
+        return offer.isPresent() && market.claim(offer.get().id(), sender, senderName);
+    }
+
+    @Override
     public int nearbyPlayerCount() {
         if (physics == null) {
             return 0;
@@ -596,6 +700,8 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
      * @param itemMapper  překlad item ID (jen režim packet, jinak {@code null})
      * @param crimeLog    sdílená kniha zločinů
      * @param settlements sdílená služba vesnic
+     * @param socialGraph sociální adresář (bot vs. hráč, drby)
+     * @param market      tržiště botů (prodej hráčům přes chat)
      */
     public record SharedServices(
             BotAliveConfig config,
@@ -608,7 +714,9 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
             dev.botalive.core.world.state.BlockStateMapper stateMapper,
             dev.botalive.core.world.state.ItemMapper itemMapper,
             dev.botalive.core.social.CrimeLog crimeLog,
-            dev.botalive.core.settlement.SettlementService settlements
+            dev.botalive.core.settlement.SettlementService settlements,
+            dev.botalive.core.social.SocialGraph socialGraph,
+            dev.botalive.core.economy.MarketBoard market
     ) {
     }
 
@@ -842,6 +950,13 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
                 && state.get() == BotLifecycleState.SPAWNED) {
             ticksSinceCohesion = 0;
             tickSettlementCohesion();
+        }
+        // Vítání hráčů ve vesnici – rozfázovaně (jiný jitter než cohesion).
+        if (++ticksSinceWelcome >= 300 + (int) (Math.abs(id.getMostSignificantBits()) % 200)
+                && !clientState.dead() && !paused.get()
+                && state.get() == BotLifecycleState.SPAWNED) {
+            ticksSinceWelcome = 0;
+            tickVillageWelcome();
         }
 
         boolean alive = !clientState.dead();

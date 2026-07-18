@@ -84,7 +84,15 @@ public final class ConfigLoader {
                 c.getBoolean("economy.enabled", true),
                 c.getDouble("economy.starting-balance", 100.0),
                 c.getBoolean("economy.vault", true),
-                c.getBoolean("economy.bot-trade", true)
+                c.getBoolean("economy.bot-trade", true),
+                c.getBoolean("economy.player-trade", true)
+        );
+
+        var memory = new BotAliveConfig.Memory(
+                c.getBoolean("memory.relation-decay.enabled", true),
+                Math.max(0, c.getDouble("memory.relation-decay.friend-per-day", 0.01)),
+                Math.max(0, c.getDouble("memory.relation-decay.enemy-per-day", 0.03)),
+                Math.min(1, Math.max(0, c.getDouble("memory.relation-decay.floor", 0.1)))
         );
 
         var worlds = new BotAliveConfig.Worlds(
@@ -150,7 +158,7 @@ public final class ConfigLoader {
                 c.getInt("persistence.flush-seconds", 15)
         );
 
-        return new BotAliveConfig(network, bots, ai, chat, combat, economy,
+        return new BotAliveConfig(network, bots, ai, chat, combat, economy, memory,
                 worlds, spawn, teleport, pvp, settlement, performance, persistence);
     }
 }

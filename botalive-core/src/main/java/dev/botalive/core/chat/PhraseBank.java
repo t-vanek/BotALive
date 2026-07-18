@@ -33,7 +33,8 @@ public final class PhraseBank {
     /** Klíče rozpoznávacích vzorů (sekce {@code patterns} jazykového souboru). */
     static final List<String> PATTERN_KEYS = List.of(
             "greeting", "thanks", "what-doing", "where-are-you", "what-have",
-            "where-village", "come-here", "give-food", "help", "give-item");
+            "where-village", "come-here", "give-food", "help", "give-item",
+            "market-buy");
 
     /** Placeholder jména s volitelným pádem: {@code {name}} nebo {@code {name:5}}. */
     private static final Pattern NAME_PLACEHOLDER = Pattern.compile("\\{name(?::([1-7]))?\\}");

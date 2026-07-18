@@ -90,4 +90,14 @@ class MarketBoardTest {
         var found = board.findNearby(WORLD, SPOT, 48, buyer, o -> true).orElseThrow();
         assertEquals(Material.COAL, found.material());
     }
+
+    @Test
+    void aktivniNabidkaJenDokudNeniZamluvena() {
+        // Vstup pro hráčovo „beru!": prodejce má nabídku jen do zamluvení.
+        assertTrue(board.activeOffer(seller).isEmpty(), "bez nabídky nic");
+        var offer = board.post(seller, "Pepa", WORLD, SPOT, Material.BREAD, 5, 10);
+        assertEquals(offer.id(), board.activeOffer(seller).orElseThrow().id());
+        board.claim(offer.id(), buyer, "Lucka");
+        assertTrue(board.activeOffer(seller).isEmpty(), "zamluvené už není v nabídce");
+    }
 }

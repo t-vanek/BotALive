@@ -39,7 +39,9 @@ public final class BuildShelterGoal extends AbstractGoal {
             cooldownTicks -= ctx.config().ai().decisionIntervalTicks();
             return 0;
         }
-        if (!isNight(ctx.worldTime())) {
+        // Úkryt se staví na noc – a taky v bouřce (blesky zakládají požáry),
+        // když je domov z ruky.
+        if (!isNight(ctx.worldTime()) && !ctx.thundering()) {
             return 0;
         }
         // Úkryt nedává smysl, když je domov blízko.

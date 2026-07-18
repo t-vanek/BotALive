@@ -31,7 +31,7 @@ public final class DayRhythm {
                     "craft", 1.2, "smelt", 1.3, "mine", 0.8),
             Phase.NIGHT, Map.of(
                     "home", 1.6, "shelter", 1.3, "socialize", 0.7, "mine", 0.6,
-                    "explore", 0.6, "farm", 0.5, "trade", 0.6)
+                    "explore", 0.6, "farm", 0.5, "trade", 0.6, "guard", 1.2)
     );
 
     /** Maximální osobní posun rytmu (ticky) – sova vs. skřivan. */

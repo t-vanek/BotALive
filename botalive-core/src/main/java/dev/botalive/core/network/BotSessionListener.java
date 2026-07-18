@@ -161,6 +161,8 @@ public final class BotSessionListener extends SessionAdapter {
                         .ClientboundSetExperiencePacket p -> state.expLevel(p.getLevel());
                 case org.geysermc.mcprotocollib.protocol.packet.ingame.clientbound.level
                         .ClientboundSetTimePacket p -> handleTime(p);
+                case org.geysermc.mcprotocollib.protocol.packet.ingame.clientbound.level
+                        .ClientboundGameEventPacket p -> handleGameEvent(p);
                 case ClientboundPlayerChatPacket p -> handleChat(p);
                 // Klientský world model (jen v režimu packet).
                 case org.geysermc.mcprotocollib.protocol.packet.configuration.clientbound
@@ -200,6 +202,36 @@ public final class BotSessionListener extends SessionAdapter {
         } catch (Throwable t) {
             // Nikdy nenechat výjimku probublat do netty pipeline – zabila by spojení.
             LOG.error("[{}] Chyba při zpracování paketu {}", botName, packet.getClass().getSimpleName(), t);
+        }
+    }
+
+    /**
+     * Počasí ve světě bota – přesně to, co vidí vanilla klient (déšť začíná
+     * i po loginu do pršícího světa; síla hromu odlišuje bouřku od deště).
+     */
+    private void handleGameEvent(org.geysermc.mcprotocollib.protocol.packet.ingame
+                                         .clientbound.level.ClientboundGameEventPacket packet) {
+        switch (packet.getNotification()) {
+            case START_RAINING -> state.raining(true);
+            case STOP_RAINING -> {
+                state.raining(false);
+                state.thundering(false);
+            }
+            case RAIN_LEVEL_CHANGE -> {
+                if (packet.getValue() instanceof org.geysermc.mcprotocollib.protocol.data
+                        .game.level.notify.RainStrengthValue value) {
+                    state.raining(value.getStrength() > 0);
+                }
+            }
+            case THUNDER_LEVEL_CHANGE -> {
+                if (packet.getValue() instanceof org.geysermc.mcprotocollib.protocol.data
+                        .game.level.notify.ThunderStrengthValue value) {
+                    state.thundering(value.getStrength() > 0);
+                }
+            }
+            default -> {
+                // ostatní game eventy bot nepotřebuje
+            }
         }
     }
 

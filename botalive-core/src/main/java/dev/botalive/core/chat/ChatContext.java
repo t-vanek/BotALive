@@ -59,6 +59,18 @@ public interface ChatContext {
     boolean giveItemRequest(UUID sender, java.util.List<org.bukkit.Material> wanted);
 
     /**
+     * Hráč reaguje na vyvolávanou tržní nabídku („beru!") – bot mu ji zamluví.
+     *
+     * <p>Jen pro skutečné hráče (boti kupují přes {@code MarketBoard} sami) a
+     * jen s Vault ekonomikou – bez ní nejde ověřit příchozí platba.</p>
+     *
+     * @param sender     kdo kupuje
+     * @param senderName jméno kupce (pro chat a evidenci obchodu)
+     * @return {@code true} když nabídka platila a hráč ji získal
+     */
+    boolean marketBuyRequest(UUID sender, String senderName);
+
+    /**
      * @return počet hráčů/botů v doslechu (tlumení chatu v davu)
      */
     int nearbyPlayerCount();

@@ -46,6 +46,9 @@ public final class ReturnHomeGoal extends AbstractGoal {
         if (night && distance > 12) {
             return 15 + caution * 25; // na noc domů
         }
+        if (ctx.thundering() && distance > 12) {
+            return 13 + caution * 20; // bouřka – blesky, mokro, domů
+        }
         if (distance > 150 + (1.0 - caution) * 150) {
             return 8 + caution * 15;  // zabloudili jsme moc daleko
         }

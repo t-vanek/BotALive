@@ -86,6 +86,22 @@ public enum PhraseCategory {
     MARKET_DECLINE,
     /** Odpověď „o žádné vesnici nevím" (na dotaz, když bot žádnou nepamatuje). */
     NO_VILLAGE_KNOWN,
+    /** Výzva hráči k platbě přes /pay ({name} = cena). */
+    MARKET_PAY_REQUEST,
+    /** Komentář po výměně drbů při socializaci ({name} = protistrana). */
+    GOSSIP,
+    /** Přivítání hráče ve vesnici ({name} = jméno vesnice). */
+    VILLAGE_WELCOME,
+    /** Nabídka kamarádovi-hráči provést ho vesnicí ({name} = hráč). */
+    VILLAGE_TOUR,
+    /** Zloděj nese oběti dar na usmířenou ({name} = oběť). */
+    RECONCILE_OFFER,
+    /** Oběť dar přijímá – zášť opadá ({name} = zloděj). */
+    RECONCILE_ACCEPT,
+    /** Oběť dar odmítá ({name} = zloděj). */
+    RECONCILE_REJECT,
+    /** Lovec nastupuje na noční hlídku vesnice. */
+    GUARD_NIGHT,
     /** Smajlíky přidávané podle stylu psaní. */
     EMOJIS;
 

@@ -28,6 +28,7 @@ patterns:
   give-food: 'dej\s+mi\s+(něco\s+k\s+jídlu|neco\s+k\s+jidlu|jídlo|jidlo|najíst|najist)|hoď\s+mi\s+(jídlo|jidlo|žrádlo|zradlo)'
   help: '\b(pomoc|pomozte|pomoz\s+mi|pomůžeš|pomuzes|zachraň(te)?\s+mě|zachran(te)?\s+me|help(\s+me)?|sos)\b'
   give-item: '\b(dej|dáš|das|hoď|hod|hodíš|hodis|půjč|pujc)\s+(mi|mně|mne)\b|\bmáš\s+(nějak|prosím|náhradní)|\bmas\s+(nejak|prosim|nahradni)|\bpotřebuju\b|\bpotrebuju\b|\bnemáš\s+navíc\b|\bnemas\s+navic\b'
+  market-buy: '\b(beru|koupím|koupim|kupuju|kupuji|vezmu\s+(to|si\s+to)|chci\s+(to\s+)?koupit)\b'
 
 # Aliasy itemů pro prosby „dej mi …" – klíč je slovo ze zprávy (malými písmeny,
 # bez diakritiky), hodnota seznam materiálů, které bot smí darovat. Doplněním
@@ -313,6 +314,52 @@ phrases:
     - "netuším, kde by tu byla vesnice"
     - "žádnou jsem nepotkal"
     - "tady v okolí o žádné nevím"
+  market-pay-request:
+    - "pošli mi {name} přes /pay a je to tvoje"
+    - "dělá to {name}, hoď mi to přes /pay"
+    - "za {name} je to tvý – /pay a plácnem si"
+    - "{name} přes /pay, zboží mám nachystaný"
+    - "platí se předem: {name} přes /pay"
+  gossip:
+    - "díky za novinky, {name:5}"
+    - "tak to jsem nevěděl"
+    - "dobrý vědět, co se kde děje"
+    - "jo, svět je malej, všechno se rozkecá"
+    - "drby jsou drby, ale hodí se"
+  village-welcome:
+    - "vítej v {name}, cizinče"
+    - "zdravíčko, tohle je {name}"
+    - "koukám, návštěva! vítej v {name}"
+    - "jsi v {name}, chovej se slušně :)"
+    - "vítej u nás v {name}, poutníku"
+  village-tour:
+    - "čau {name:5}! pojď, provedu tě, trh je u návsi"
+    - "{name:5}, vítej zpátky! ukážu ti, co je nového"
+    - "á, {name}! jestli chceš, vezmu tě k trhu"
+    - "vítej {name:5}, zrovna se u nás dobře prodává"
+  reconcile-offer:
+    - "{name:5}, promiň za tu truhlu... tady máš splátku"
+    - "nesu ti něco na usmířenou, {name:5}"
+    - "mrzí mě to, {name:5}. na, vem si"
+    - "tu máš, {name:5}, a nezlob se už"
+    - "vím, že jsem ti sáhl do truhly. tohle je za to"
+  reconcile-accept:
+    - "no dobře, {name:5}, smazáno"
+    - "tak jo, ale ať se to neopakuje"
+    - "beru. ale truhlu si zamykám"
+    - "odpuštěno, {name:5}. skoro"
+    - "no tak jo, stejně mi tě bylo líto"
+  reconcile-reject:
+    - "dárkem si mě nekoupíš, {name:5}"
+    - "nech si to, zloději"
+    - "tohle ti nezobnu, {name:5}"
+    - "na usmiřování je pozdě"
+    - "hezký, ale pořád ti nevěřím"
+  guard-night:
+    - "spěte klidně, mám hlídku"
+    - "beru si noční, kdyby něco, křičte"
+    - "obejdu vesnici, ať sem nic neleze"
+    - "hlídka nastupuje, moby nemají šanci"
   emojis:
     - ":D"
     - ":)"

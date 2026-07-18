@@ -314,6 +314,17 @@ public final class ChatEngine {
         if (outbox.size() >= config.maxQueuedReplies()) {
             return;
         }
+        // Nákup hráče („beru!") na vyvolávanou nabídku: zamluvení je
+        // první-bere, takže se řeší hned a mimo pravděpodobnostní brány –
+        // trhovec na zákazníka reaguje vždy. Bez vlastní aktivní nabídky
+        // spadne zpráva do běžné konverzace.
+        if (botContext != null && phrases.matches("market-buy", inbound.content)
+                && botContext.marketBuyRequest(inbound.sender, inbound.senderName)) {
+            senderCooldowns.put(inbound.sender, now);
+            String confirmation = pickReply(PhraseCategory.MARKET_DEAL, inbound.senderName);
+            enqueue(confirmation, replyDelayTicks(confirmation));
+            return;
+        }
         boolean mentioned = isMentioned(inbound.content);
         double sociability = personality.trait(Trait.SOCIABILITY);
         boolean request = isRequest(inbound.content);
@@ -348,13 +359,16 @@ public final class ChatEngine {
         }
 
         String reply = composeReply(inbound);
-        // Reakční latence: přemýšlení (0.5–3 s) + psaní podle délky a WPM.
+        enqueue(reply, replyDelayTicks(reply));
+    }
+
+    /** Reakční latence: přemýšlení (0.5–3 s dle povahy) + psaní podle délky a WPM. */
+    private int replyDelayTicks(String reply) {
         double thinkMs = Math.abs(rng.gaussian(1200, 700))
                 * (1.0 + personality.trait(Trait.LAZINESS) * 0.5)
                 * (1.2 - personality.trait(Trait.INTELLIGENCE) * 0.4);
         double typingMs = reply.length() / (style.wpm() * 5.0 / 60_000.0);
-        int delayTicks = (int) Math.max(10, (thinkMs + typingMs) / 50);
-        enqueue(reply, delayTicks);
+        return (int) Math.max(10, (thinkMs + typingMs) / 50);
     }
 
     /** Sestaví odpověď podle jednoduché klasifikace zprávy (vzory z jazyka banky). */

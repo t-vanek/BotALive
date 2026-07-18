@@ -15,6 +15,7 @@ import java.util.List;
  * @param chat        nastavení chatu botů
  * @param combat      nastavení boje
  * @param economy     vnitřní ekonomika botů
+ * @param memory      paměť botů (rozpad vztahů)
  * @param worlds      whitelist/blacklist světů
  * @param spawn       kde se boti spawnují
  * @param teleport    teleportace hráčů k botům a botů k hráčům
@@ -30,6 +31,7 @@ public record BotAliveConfig(
         Chat chat,
         Combat combat,
         Economy economy,
+        Memory memory,
         Worlds worlds,
         Spawn spawn,
         Teleport teleport,
@@ -170,9 +172,30 @@ public record BotAliveConfig(
      * @param botTrade        trh mezi boty: přebytky se nabízejí okolí a boti
      *                        si je navzájem kupují (peníze obíhají uvnitř
      *                        společenství, profese dostávají ekonomický smysl)
+     * @param playerTrade     prodej hráčům: hráč si vyvolávanou nabídku vezme
+     *                        („beru!"), zaplatí přes {@code /pay} a bot mu
+     *                        předá zboží; funguje jen s Vault ekonomikou
+     *                        (bez ní nelze ověřit příchozí platbu)
      */
     public record Economy(boolean enabled, double startingBalance, boolean vault,
-                          boolean botTrade) {
+                          boolean botTrade, boolean playerTrade) {
+    }
+
+    /**
+     * Paměť botů.
+     *
+     * @param relationDecayEnabled časový rozpad vztahů (FRIEND/ENEMY): bez
+     *                             oživování vztahy slábnou – bez rozpadu by
+     *                             po týdnech provozu byl každý kamarádem
+     *                             každého a stará zášť blokovala navěky
+     * @param friendDecayPerDay    o kolik denně klesá neoživované přátelství
+     * @param enemyDecayPerDay     o kolik denně klesá neoživovaná zášť
+     *                             (čas rány hojí – rychleji než přátelství)
+     * @param relationFloor        podlaha rozpadu – vztah pod ni neklesne
+     *                             (vzpomínka zůstává, ale nic neovlivňuje)
+     */
+    public record Memory(boolean relationDecayEnabled, double friendDecayPerDay,
+                         double enemyDecayPerDay, double relationFloor) {
     }
 
     /**

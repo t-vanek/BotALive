@@ -44,6 +44,12 @@ public final class BotClientState {
     /** Denní čas světa 0–23999 (SetTime paket; -1 = ještě nedorazil). */
     private volatile long worldTime = -1;
 
+    /** Prší ve světě bota (GameEvent pakety – server posílá stav i po loginu). */
+    private volatile boolean raining;
+
+    /** Bouřka ve světě bota (síla hromu > 0). */
+    private volatile boolean thundering;
+
     /** XP level bota (SetExperience paket). */
     private volatile int expLevel;
 
@@ -163,6 +169,26 @@ public final class BotClientState {
         this.worldTime = time;
     }
 
+    /** @return prší ve světě bota? */
+    public boolean raining() {
+        return raining;
+    }
+
+    /** Nastaví stav deště (GameEvent paket). */
+    public void raining(boolean value) {
+        this.raining = value;
+    }
+
+    /** @return je ve světě bota bouřka? */
+    public boolean thundering() {
+        return thundering;
+    }
+
+    /** Nastaví stav bouřky (GameEvent paket). */
+    public void thundering(boolean value) {
+        this.thundering = value;
+    }
+
     /** @return XP level bota */
     public int expLevel() {
         return expLevel;
@@ -200,6 +226,8 @@ public final class BotClientState {
         entityId = -1;
         vehicleId = -1;
         openContainerId = 0;
+        raining = false;
+        thundering = false;
         pendingTeleports.clear();
         pendingImpulses.clear();
     }
