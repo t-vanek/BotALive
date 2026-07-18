@@ -912,6 +912,18 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
             return new dev.botalive.core.tasks.LadderTask(sx, sz);
         }
 
+        // Cíl výrazně výš a před nosem nic pevného (převis, útes, plošina) →
+        // vypilířovat se vzhůru: skok + blok pod nohy. Výš než MAX_HEIGHT se
+        // staví nadvakrát – po dosažení vršku si navigace cestu přepočítá.
+        if (dy > 1 && config.ai().pillaring()
+                && !worldView.traitsAt(front).solid()
+                && dev.botalive.core.tasks.PillarUpTask.columnClear(
+                        worldView, feet, Math.min(destination.y(),
+                                feet.y() + dev.botalive.core.tasks.PillarUpTask.MAX_HEIGHT))
+                && inventoryHelper.equipBuildingBlock(serverView.latest())) {
+            return new dev.botalive.core.tasks.PillarUpTask(destination.y());
+        }
+
         // Kandidáti na vylámání podle směru (v pořadí důležitosti).
         List<BlockPos> candidates = dy > 0
                 ? List.of(feet.up().up(), front.up().up(), front.up())
