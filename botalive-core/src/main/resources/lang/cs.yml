@@ -26,6 +26,43 @@ patterns:
   where-village: 'kde\s+je\s+(nejbližší\s+|nejblizsi\s+)?vesnice|nevíš\s+o\s+vesnici|nevis\s+o\s+vesnici'
   come-here: 'pojď\s+(sem|ke\s+mně|za\s+mnou)|pod\s+(sem|za\s+mnou|ke\s+mne)|následuj\s+mě|nasleduj\s+me'
   give-food: 'dej\s+mi\s+(něco\s+k\s+jídlu|neco\s+k\s+jidlu|jídlo|jidlo|najíst|najist)|hoď\s+mi\s+(jídlo|jidlo|žrádlo|zradlo)'
+  help: '\b(pomoc|pomozte|pomoz\s+mi|pomůžeš|pomuzes|zachraň(te)?\s+mě|zachran(te)?\s+me|help(\s+me)?|sos)\b'
+  give-item: '\b(dej|dáš|das|hoď|hod|hodíš|hodis|půjč|pujc)\s+(mi|mně|mne)\b|\bmáš\s+(nějak|prosím|náhradní)|\bmas\s+(nejak|prosim|nahradni)|\bpotřebuju\b|\bpotrebuju\b|\bnemáš\s+navíc\b|\bnemas\s+navic\b'
+
+# Aliasy itemů pro prosby „dej mi …" – klíč je slovo ze zprávy (malými písmeny,
+# bez diakritiky), hodnota seznam materiálů, které bot smí darovat. Doplněním
+# aliasu naučíte boty rozumět dalším věcem.
+items:
+  drevo: [OAK_LOG, BIRCH_LOG, SPRUCE_LOG, JUNGLE_LOG, ACACIA_LOG, DARK_OAK_LOG]
+  dřevo: [OAK_LOG, BIRCH_LOG, SPRUCE_LOG, JUNGLE_LOG, ACACIA_LOG, DARK_OAK_LOG]
+  prkna: [OAK_PLANKS, BIRCH_PLANKS, SPRUCE_PLANKS, JUNGLE_PLANKS, ACACIA_PLANKS, DARK_OAK_PLANKS]
+  kamen: [COBBLESTONE, STONE]
+  kámen: [COBBLESTONE, STONE]
+  uhli: [COAL, CHARCOAL]
+  uhlí: [COAL, CHARCOAL]
+  zelezo: [IRON_INGOT]
+  železo: [IRON_INGOT]
+  zlato: [GOLD_INGOT]
+  diamant: [DIAMOND]
+  diamanty: [DIAMOND]
+  pochodne: [TORCH]
+  pochodně: [TORCH]
+  pochoden: [TORCH]
+  klacky: [STICK]
+  hulky: [STICK]
+  hůlky: [STICK]
+  hlina: [DIRT]
+  hlína: [DIRT]
+  pisek: [SAND]
+  písek: [SAND]
+  chleba: [BREAD]
+  chléb: [BREAD]
+  maso: [COOKED_BEEF, COOKED_PORKCHOP, COOKED_CHICKEN, COOKED_MUTTON]
+  jablko: [APPLE]
+  seminka: [WHEAT_SEEDS]
+  semínka: [WHEAT_SEEDS]
+  psenice: [WHEAT]
+  pšenice: [WHEAT]
 
 phrases:
   greetings:
@@ -127,6 +164,81 @@ phrases:
     - "kdo dál?"
     - "a zůstaň ležet"
     - "příště si rozmysli"
+  attacked:
+    - "au! co blbneš?!"
+    - "hej! nech toho"
+    - "ty mě biješ?!"
+    - "co to děláš?!"
+    - "au, to bolelo"
+    - "tak to ne kámo"
+    - "zbláznil ses?"
+    - "přestaň!"
+  hurt-by-mob:
+    - "au, něco mě kouslo"
+    - "zombie! di ode mě"
+    - "au au, kde se to tu vzalo"
+    - "něco po mně jde!"
+    - "bacha, mobové"
+    - "to mě štíplo"
+  mob-warning:
+    - "creeper!!"
+    - "bacha, creeper!"
+    - "CREEPER, utíkejte!"
+    - "pozor, něco tu syčí"
+    - "moby! bacha"
+  weather-rain:
+    - "zase prší no"
+    - "a je tu déšť"
+    - "hnusný počasí"
+    - "leje jak z konve"
+    - "tak déšť, super"
+  weather-thunder:
+    - "bouřka, radši pod střechu"
+    - "to hřmění nemám rád"
+    - "blesky, bacha na sebe"
+    - "hrome to je rána"
+  nightfall:
+    - "stmívá se, bacha na moby"
+    - "jde noc, radši domů"
+    - "za chvíli vylezou zombie"
+    - "noc... nemám rád noc"
+    - "kdo nemá postel, má smůlu"
+  hungry:
+    - "mám hlad jak vlk"
+    - "kručí mi v břiše"
+    - "potřebuju něco sníst"
+    - "umírám hlady"
+    - "nemá někdo jídlo? fakt mám hlad"
+  low-health:
+    - "au, jsem skoro mrtvej"
+    - "potřebuju se doléčit"
+    - "moc životů mi nezbývá"
+    - "ještě jedna rána a je po mně"
+    - "tohle bolí, musím se schovat"
+  request-accept:
+    - "jasně, jdu za tebou"
+    - "ok, počkej tam"
+    - "dobře, jdu"
+    - "jo, za chvíli jsem tam"
+    - "tak jo"
+  request-decline:
+    - "teď fakt nemůžu"
+    - "sorry, mám práci"
+    - "teď ne"
+    - "nezlob se, nemám čas"
+    - "možná pozdějc"
+  give-accept:
+    - "na, chytej"
+    - "tady máš"
+    - "jasně, na"
+    - "něco ti hodím"
+    - "tu máš, ať ti slouží"
+  give-decline:
+    - "nemám nic navíc, sorry"
+    - "sám nemám dost"
+    - "teď ti nemám co dát"
+    - "došlo mi to"
+    - "sorry, potřebuju to sám"
   emojis:
     - ":D"
     - ":)"

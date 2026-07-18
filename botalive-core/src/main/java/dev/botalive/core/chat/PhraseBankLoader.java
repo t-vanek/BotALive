@@ -133,7 +133,7 @@ public final class PhraseBankLoader {
         for (String key : PhraseBank.PATTERN_KEYS) {
             patterns.put(key, requirePattern(root, key));
         }
-        return new PhraseBank(lists, patterns,
+        return new PhraseBank(lists, patterns, readItems(root, "vestavěný lang/cs.yml"),
                 NameInflector.forLanguage(BUILT_IN_LANGUAGE));
     }
 
@@ -151,8 +151,42 @@ public final class PhraseBankLoader {
         for (String key : PhraseBank.PATTERN_KEYS) {
             patterns.put(key, overlayPattern(root, key, fallback.pattern(key), sourceName));
         }
+        // Aliasy itemů: vrstva s vlastní sekcí items přepisuje celou mapu
+        // (jazyky se v aliasech nemíchají), jinak zůstává fallback.
+        java.util.Map<String, java.util.List<org.bukkit.Material>> items =
+                readItems(root, sourceName);
+        if (items.isEmpty()) {
+            items = fallback.itemAliases();
+        }
         // Skloňovač nastaví load() podle výsledného jazyka.
-        return new PhraseBank(lists, patterns, NameInflector.IDENTITY);
+        return new PhraseBank(lists, patterns, items, NameInflector.IDENTITY);
+    }
+
+    /** Načte sekci {@code items} (alias → seznam materiálů); neznámé materiály hlásí. */
+    private static java.util.Map<String, java.util.List<org.bukkit.Material>> readItems(
+            ConfigurationSection root, String sourceName) {
+        ConfigurationSection section = root.getConfigurationSection("items");
+        java.util.Map<String, java.util.List<org.bukkit.Material>> items =
+                new java.util.LinkedHashMap<>();
+        if (section == null) {
+            return items;
+        }
+        for (String alias : section.getKeys(false)) {
+            java.util.List<org.bukkit.Material> materials = new java.util.ArrayList<>();
+            for (String name : section.getStringList(alias)) {
+                try {
+                    materials.add(org.bukkit.Material.valueOf(
+                            name.trim().toUpperCase(Locale.ROOT)));
+                } catch (IllegalArgumentException e) {
+                    LOG.warn("Neznámý materiál '{}' u aliasu items.{} v {} – přeskočen.",
+                            name, alias, sourceName);
+                }
+            }
+            if (!materials.isEmpty()) {
+                items.put(alias.toLowerCase(Locale.ROOT), java.util.List.copyOf(materials));
+            }
+        }
+        return items;
     }
 
     /** Vzor z vrstvy, při absenci/chybě vzor z fallbacku. */

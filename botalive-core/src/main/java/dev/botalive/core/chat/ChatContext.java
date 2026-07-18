@@ -38,4 +38,28 @@ public interface ChatContext {
      * @return {@code true} pokud bot vyhoví (rozdá jídlo)
      */
     boolean giveFoodRequest(UUID sender);
+
+    /**
+     * Volání o pomoc – bot se rozhodne podle odvahy, ochoty a vztahu;
+     * vyhoví-li, vyrazí za volajícím (a boj u něj řeší bojová AI).
+     *
+     * @param sender kdo volá o pomoc
+     * @return {@code true} pokud bot vyráží na pomoc
+     */
+    boolean helpRequest(UUID sender);
+
+    /**
+     * Prosba o konkrétní itemy („dej mi dřevo") – bot se rozhodne podle
+     * zásob a ochoty; vyhoví-li, dojde k prosícímu a itemy mu upustí.
+     *
+     * @param sender kdo prosí
+     * @param wanted materiály, o které si říká (aliasy z jazyka banky)
+     * @return {@code true} pokud bot vyhoví
+     */
+    boolean giveItemRequest(UUID sender, java.util.List<org.bukkit.Material> wanted);
+
+    /**
+     * @return počet hráčů/botů v doslechu (tlumení chatu v davu)
+     */
+    int nearbyPlayerCount();
 }

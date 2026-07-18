@@ -115,6 +115,14 @@ public interface BotContext {
     dev.botalive.core.social.CrimeLog crimeLog();
 
     /**
+     * Vyzvedne čekající adresnou prosbu o sdílení (z chatu) – vyzvednutím
+     * se maže. Čte ji {@code ShareGoal} při startu.
+     *
+     * @return prosba, nebo {@code null} když žádná nečeká
+     */
+    ShareRequest takeShareRequest();
+
+    /**
      * Odhadne dobu těžby bloku v ticích – autoritativně přes server-side
      * {@code Block.getBreakSpeed(Player)} (zohledňuje nástroj, enchanty, efekty).
      *
