@@ -27,7 +27,6 @@ import org.geysermc.mcprotocollib.protocol.data.game.entity.type.EntityType;
 import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -116,6 +115,23 @@ public final class NetherGoal extends AbstractGoal {
     private int bootTries;
     private boolean structuresRemembered;
 
+    /** Odpočet do dalšího skenu okolí (rudy/truhly) – nescanovat každý tick. */
+    private int scanCooldownTicks;
+    /** Odpočet do dalšího hledání cesty domů (RETURN je drahý sken). */
+    private int returnScanTicks;
+    /** Rozpočet přiblížení k jednomu cíli těžby (nedosažitelné se vzdávají). */
+    private int targetTicks;
+    /** Rozpočet cesty k jedné truhle. */
+    private int lootTicks;
+    /** Truhly, ze kterých loot jednou nic nedal – druhý neúspěch = konec. */
+    private final Set<Long> lootMisses = new HashSet<>();
+    /** Opakované pokusy o jeden blok rámu (pokládka se ověřuje světem). */
+    private int buildRetries;
+
+    /** Cache připravenosti – utility běží každý rozhodovací tick fleet-wide. */
+    private NetherReadiness cachedReadiness;
+    private long readinessAtMs;
+
     private int cooldownTicks;
 
     /**
@@ -130,9 +146,10 @@ public final class NetherGoal extends AbstractGoal {
     public double utility(Bot bot) {
         BotContext ctx = ctx(bot);
         WorldDimension dimension = ctx.dimension();
-        // V Netheru se výprava nikdy nepouští – i s vypnutým configem se
-        // musí bot umět vrátit domů.
-        if (dimension == WorldDimension.NETHER) {
+        // Mimo overworld se výprava nikdy nepouští – i s vypnutým configem
+        // se musí bot umět vrátit domů (z Netheru i z Endu, kam ho mohl
+        // shodit hráč nebo cizí portál).
+        if (dimension == WorldDimension.NETHER || dimension == WorldDimension.END) {
             return IN_NETHER_UTILITY;
         }
         if (!ctx.config().nether().enabled() || dimension != WorldDimension.OVERWORLD) {
@@ -147,7 +164,7 @@ public final class NetherGoal extends AbstractGoal {
             return 0;
         }
         int minTier = ctx.config().nether().minGearTier();
-        NetherReadiness readiness = NetherReadiness.assess(snapshot, minTier);
+        NetherReadiness readiness = readiness(ctx);
         if (!readiness.gearReady(minTier)) {
             return 0;
         }
@@ -171,6 +188,11 @@ public final class NetherGoal extends AbstractGoal {
                     + ctx.config().nether().maxTripMinutes() * 60_000L / 2;
             digBudget = DIG_BUDGET / 2;
             phase = Phase.WORK;
+            return;
+        }
+        if (ctx.dimension() == WorldDimension.END) {
+            // V Endu se nepracuje – jen najít návratový portál a domů.
+            phase = Phase.RETURN;
             return;
         }
         phase = Phase.PREPARE;
@@ -212,9 +234,9 @@ public final class NetherGoal extends AbstractGoal {
         WorldView world = ctx.worldView();
         BlockPos feet = ctx.position().toBlockPos();
 
-        // 1) Zapamatovaný portál v tomto světě.
-        Optional<MemoryRecord> remembered = bot.memory().recallNearest(
-                MemoryKind.PORTAL, world.worldName(), feet.x(), feet.y(), feet.z());
+        // 1) Zapamatovaný portál v tomto světě – jen takový, který vede do
+        // Netheru („to" z průchodu). End portál by bota poslal do Endu.
+        Optional<MemoryRecord> remembered = nearestNetherPortalMemory(bot, world, feet);
         if (remembered.isPresent()
                 && remembered.get().distanceSquared(feet.x(), feet.y(), feet.z()) < 300 * 300) {
             MemoryRecord r = remembered.get();
@@ -246,9 +268,7 @@ public final class NetherGoal extends AbstractGoal {
         }
 
         // 4) Stavba vlastního portálu.
-        NetherReadiness readiness = NetherReadiness.assess(ctx.serverView().latest(),
-                ctx.config().nether().minGearTier());
-        if (ctx.config().nether().buildPortals() && readiness.canBuildPortal()) {
+        if (ctx.config().nether().buildPortals() && readiness(ctx).canBuildPortal()) {
             BlockPos site = PortalBlueprint.findBuildSite(world, feet, 24);
             if (site != null) {
                 frameBase = site;
@@ -293,8 +313,9 @@ public final class NetherGoal extends AbstractGoal {
         }
         ctx.navigator().navigateTo(ctx.position(), goTarget);
         // Dlouhé cesty (vzpomínka na portál přes půl mapy) potřebují čas –
-        // limit je štědrý, ale konečný; segmentové plánování řeší navigátor.
-        if (++goTicks > 3600 || (!ctx.navigator().navigating() && goTicks > 100)) {
+        // limit je štědrý, ale konečný; selhání pathfindingu hlásí navigátor
+        // asynchronně, proto nedojití hlídá jen časový rozpočet.
+        if (++goTicks > 3600) {
             ctx.navigator().stop();
             if (ctx.dimension() == WorldDimension.NETHER) {
                 phase = Phase.RETURN; // v Netheru se nevzdává, zkusí to jinak
@@ -316,6 +337,14 @@ public final class NetherGoal extends AbstractGoal {
         if (placeTask != null) {
             if (placeTask.tick(ctx)) {
                 placeTask = null;
+                // Blok zůstává ve frontě, dokud world view nepotvrdí obsidián
+                // (stejný vzor jako výkop v MineGoal) – PlaceBlockTask hlásí
+                // dokončení i při tichém neúspěchu a jeden ztracený blok by
+                // jinak nechal rám nedostavěný a obsidián utopený.
+                if (world.materialAt(buildQueue.peek()) != Material.OBSIDIAN
+                        && ++buildRetries > 2) {
+                    finish(ctx, 2400);
+                }
             }
             return;
         }
@@ -323,6 +352,7 @@ public final class NetherGoal extends AbstractGoal {
         while (!buildQueue.isEmpty()
                 && world.materialAt(buildQueue.peek()) == Material.OBSIDIAN) {
             buildQueue.poll();
+            buildRetries = 0;
         }
         BlockPos next = buildQueue.peek();
         if (next == null) {
@@ -340,7 +370,7 @@ public final class NetherGoal extends AbstractGoal {
             finish(ctx, 2400); // bez obsidiánu nemá cenu pokračovat
             return;
         }
-        placeTask = new PlaceBlockTask(buildQueue.poll());
+        placeTask = new PlaceBlockTask(next);
     }
 
     private void tickLight(BotContext ctx, Bot bot) {
@@ -380,9 +410,10 @@ public final class NetherGoal extends AbstractGoal {
 
     private void tickEnter(BotContext ctx, Bot bot) {
         if (enterTask == null) {
-            // Vstup mohl být z paměti – ověřit, že tam portál skutečně je.
+            // Vstup mohl být z paměti – ověřit, že tam portál skutečně je
+            // (trait pokrývá nether i end portály – návrat z Endu).
             WorldView world = ctx.worldView();
-            if (world.materialAt(portalEntry) != Material.NETHER_PORTAL) {
+            if (!world.traitsAt(portalEntry).portal()) {
                 Optional<BlockPos> near = PortalScanner.findActivePortal(world, portalEntry, 6, 4);
                 if (near.isPresent()) {
                     portalEntry = near.get();
@@ -431,11 +462,18 @@ public final class NetherGoal extends AbstractGoal {
             barterCount = 0;
             bootTries = 0;
             lootedChests.clear();
+            lootMisses.clear();
             structuresRemembered = false;
             if (ctx.rng().chance(0.7)) {
                 ctx.chat().sayFrom(PhraseCategory.NETHER_ARRIVE, null);
             }
             phase = Phase.WORK;
+            return;
+        }
+        if (ctx.dimension() == WorldDimension.END) {
+            // Cizí portál vedl do Endu – nepracovat, najít cestu domů.
+            phase = Phase.RETURN;
+            returnScanTicks = 0;
             return;
         }
         // Zpátky v overworldu – výprava končí.
@@ -450,6 +488,10 @@ public final class NetherGoal extends AbstractGoal {
     // ==================================================================
 
     private void tickWork(BotContext ctx, Bot bot) {
+        if (ctx.dimension() == WorldDimension.END) {
+            phase = Phase.RETURN; // pracuje se jen v Netheru
+            return;
+        }
         if (ctx.dimension() != WorldDimension.NETHER) {
             // Někdo bota přenesl domů (teleport, smrt řeší respawn) – konec.
             finish(ctx, 6000);
@@ -491,6 +533,16 @@ public final class NetherGoal extends AbstractGoal {
             tickBarterWait(ctx);
             return;
         }
+        // Toulání dokončit dřív, než se znovu skenuje – a mezi skeny držet
+        // rozestup (plný sken rud a truhel každý tick by žral tick rozpočet).
+        if (wanderTarget != null) {
+            tickWander(ctx);
+            return;
+        }
+        if (scanCooldownTicks > 0) {
+            scanCooldownTicks--;
+            return;
+        }
         acquireWork(ctx, bot);
     }
 
@@ -510,7 +562,7 @@ public final class NetherGoal extends AbstractGoal {
                 m -> m == Material.ANCIENT_DEBRIS);
         int quartz = dev.botalive.core.inventory.InventoryHelper.countEstimate(snapshot,
                 m -> m == Material.QUARTZ);
-        return debris >= 4 || quartz >= 48;
+        return debris >= 4 || quartz >= 32;
     }
 
     /** Zlaté boty v Netheru: piglini nechají bota na pokoji. */
@@ -545,6 +597,7 @@ public final class NetherGoal extends AbstractGoal {
         if (ore != null) {
             targetBlock = ore;
             targetMaterial = world.materialAt(ore);
+            targetTicks = 0;
             approachAndMine(ctx);
             return;
         }
@@ -555,6 +608,7 @@ public final class NetherGoal extends AbstractGoal {
             rememberStructure(ctx, bot, chest);
             lootChest = chest;
             lootFuture = null;
+            lootTicks = 0;
             return;
         }
 
@@ -571,7 +625,8 @@ public final class NetherGoal extends AbstractGoal {
             return;
         }
 
-        // 5) Toulání – nová krajina, nové žíly.
+        // 5) Toulání – nová krajina, nové žíly; další sken až po přesunu.
+        scanCooldownTicks = 30;
         tickWander(ctx);
     }
 
@@ -585,7 +640,8 @@ public final class NetherGoal extends AbstractGoal {
                     BlockPos pos = center.offset(dx, dy, dz);
                     Material material = world.materialAt(pos);
                     Double value = material == null ? null : NETHER_ORES.get(material);
-                    if (value == null || !needs.canHarvest(material) || !isExposed(world, pos)) {
+                    if (value == null || !needs.canHarvest(material)
+                            || !DigPlanner.isExposed(world, pos)) {
                         continue;
                     }
                     double score = value / (1 + Math.sqrt(center.distanceSquared(pos)));
@@ -599,28 +655,27 @@ public final class NetherGoal extends AbstractGoal {
         return best;
     }
 
-    private static boolean isExposed(WorldView world, BlockPos pos) {
-        return world.traitsAt(pos.up()).passable() || world.traitsAt(pos.down()).passable()
-                || world.traitsAt(pos.offset(1, 0, 0)).passable()
-                || world.traitsAt(pos.offset(-1, 0, 0)).passable()
-                || world.traitsAt(pos.offset(0, 0, 1)).passable()
-                || world.traitsAt(pos.offset(0, 0, -1)).passable();
-    }
-
-    /** Nevyloupená truhla v okolí (struktury: pevnosti, bastiony). */
+    /** Nejbližší nevyloupená truhla v okolí (struktury: pevnosti, bastiony). */
     private BlockPos scanChest(WorldView world, BlockPos center) {
+        BlockPos best = null;
+        double bestDist = Double.MAX_VALUE;
         for (int dx = -12; dx <= 12; dx++) {
             for (int dy = -4; dy <= 4; dy++) {
                 for (int dz = -12; dz <= 12; dz++) {
                     BlockPos pos = center.offset(dx, dy, dz);
-                    if (world.materialAt(pos) == Material.CHEST
-                            && !lootedChests.contains(pos.asLong())) {
-                        return pos;
+                    if (world.materialAt(pos) != Material.CHEST
+                            || lootedChests.contains(pos.asLong())) {
+                        continue;
+                    }
+                    double dist = center.distanceSquared(pos);
+                    if (dist < bestDist) {
+                        bestDist = dist;
+                        best = pos;
                     }
                 }
             }
         }
-        return null;
+        return best;
     }
 
     /** Nether brick/blackstone kolem truhly → FORTRESS/BASTION vzpomínka. */
@@ -657,13 +712,15 @@ public final class NetherGoal extends AbstractGoal {
         double distSq = targetBlock.center().distanceSquared(ctx.position());
         if (distSq > 4.2 * 4.2) {
             ctx.navigator().navigateTo(ctx.position(), targetBlock);
-            if (!ctx.navigator().navigating() && !ctx.navigator().hasPath()) {
-                targetBlock = null; // nedosažitelné – příště jiný cíl
+            // Nedosažitelné cíle (ruda za lávovým jezerem) hlídá časový
+            // rozpočet – navigátor selhání hlásí asynchronně, ne stavem.
+            if (++targetTicks > 300) {
+                targetBlock = null;
             }
             return;
         }
         ctx.navigator().stop();
-        if (unsafeToBreak(ctx.worldView(), targetBlock)) {
+        if (DigPlanner.unsafeToBreak(ctx.worldView(), targetBlock)) {
             targetBlock = null;
             return;
         }
@@ -679,8 +736,14 @@ public final class NetherGoal extends AbstractGoal {
                 && ctx.rng().chance(0.8)) {
             ctx.chat().sayFrom(PhraseCategory.NETHER_LOOT, null);
         }
-        // Krátké sledování žíly (quartz bývá v hnízdech).
-        if (targetBlock != null && targetMaterial != null) {
+        // Bloky z plánu výkopu (schodiště) žílu nesledují – v Netheru je
+        // vedle VŽDY další netherrack a řetězení by obešlo digBudget
+        // (stejná pojistka „valuable" jako v MineGoal).
+        boolean plannedBlock = digTaskInPlan;
+        digTaskInPlan = false;
+        if (!plannedBlock && targetBlock != null && targetMaterial != null
+                && NETHER_ORES.containsKey(targetMaterial)) {
+            // Krátké sledování žíly (quartz bývá v hnízdech).
             WorldView world = ctx.worldView();
             for (int dx = -1; dx <= 1; dx++) {
                 for (int dy = -1; dy <= 1; dy++) {
@@ -688,6 +751,7 @@ public final class NetherGoal extends AbstractGoal {
                         BlockPos next = targetBlock.offset(dx, dy, dz);
                         if (world.materialAt(next) == targetMaterial) {
                             targetBlock = next;
+                            targetTicks = 0;
                             approachAndMine(ctx);
                             return;
                         }
@@ -696,9 +760,6 @@ public final class NetherGoal extends AbstractGoal {
             }
         }
         targetBlock = null;
-        if (digTaskInPlan) {
-            digTaskInPlan = false;
-        }
     }
 
     // ---- výkop (zrcadlí MineGoal, bez pochodní – Nether nespawnuje po tmě)
@@ -730,7 +791,7 @@ public final class NetherGoal extends AbstractGoal {
             }
             return;
         }
-        if (unsafeToBreak(world, block)) {
+        if (DigPlanner.unsafeToBreak(world, block)) {
             abortDig();
             if (ctx.rng().chance(0.4)) {
                 ctx.chat().say("lava hned vedle, tudy ne");
@@ -772,18 +833,6 @@ public final class NetherGoal extends AbstractGoal {
         pendingWalkAfterStep = null;
     }
 
-    private static boolean unsafeToBreak(WorldView world, BlockPos block) {
-        if (world.traitsAt(block).liquid()) {
-            return true;
-        }
-        return world.traitsAt(block.up()).liquid()
-                || world.traitsAt(block.down()).liquid()
-                || world.traitsAt(block.offset(1, 0, 0)).liquid()
-                || world.traitsAt(block.offset(-1, 0, 0)).liquid()
-                || world.traitsAt(block.offset(0, 0, 1)).liquid()
-                || world.traitsAt(block.offset(0, 0, -1)).liquid();
-    }
-
     // ---- loot truhel
 
     private void tickLoot(BotContext ctx, Bot bot) {
@@ -793,21 +842,29 @@ public final class NetherGoal extends AbstractGoal {
             }
             Integer taken = lootFuture.getNow(0);
             lootFuture = null;
+            ctx.actions().closeContainer();
+            // Úspěch (nebo druhý prázdný pokus) truhlu uzavírá; jeden prázdný
+            // výsledek může být i timeout/plný batoh – dostane druhou šanci.
+            if (taken != null && taken > 0) {
+                lootedChests.add(lootChest.asLong());
+                if (ctx.rng().chance(0.6)) {
+                    ctx.chat().sayFrom(PhraseCategory.NETHER_LOOT, null);
+                }
+            } else if (!lootMisses.add(lootChest.asLong())) {
+                lootedChests.add(lootChest.asLong());
+            }
+            lootChest = null;
+            return;
+        }
+        // Nedosažitelnou truhlu (za lávou) hlídá časový rozpočet.
+        if (++lootTicks > 300) {
             lootedChests.add(lootChest.asLong());
             lootChest = null;
-            ctx.actions().closeContainer();
-            if (taken != null && taken > 0 && ctx.rng().chance(0.6)) {
-                ctx.chat().sayFrom(PhraseCategory.NETHER_LOOT, null);
-            }
             return;
         }
         double distSq = lootChest.center().distanceSquared(ctx.position());
         if (distSq > 3.0 * 3.0) {
             ctx.navigator().navigateTo(ctx.position(), lootChest);
-            if (!ctx.navigator().navigating() && !ctx.navigator().hasPath()) {
-                lootedChests.add(lootChest.asLong()); // nedosažitelná
-                lootChest = null;
-            }
             return;
         }
         ctx.navigator().stop();
@@ -892,8 +949,15 @@ public final class NetherGoal extends AbstractGoal {
     // ==================================================================
 
     private void tickReturn(BotContext ctx, Bot bot) {
-        if (ctx.dimension() != WorldDimension.NETHER) {
+        if (ctx.dimension() == WorldDimension.OVERWORLD) {
             finish(ctx, 6000);
+            return;
+        }
+        // Hledání cesty domů je drahé (velký sken) – mezi pokusy se bot
+        // toulá a rozhlíží; sken se opakuje až po rozestupu.
+        if (returnScanTicks > 0) {
+            returnScanTicks--;
+            tickWander(ctx);
             return;
         }
         WorldView world = ctx.worldView();
@@ -906,23 +970,31 @@ public final class NetherGoal extends AbstractGoal {
             MemoryRecord r = remembered.get();
             portalEntry = new BlockPos(r.x(), r.y(), r.z());
             enterAttempts = 0;
+            returnScanTicks = 100;
             goTo(portalEntry, Phase.ENTER);
             return;
         }
 
-        // 2) Aktivní portál v okolí.
+        // 2) Aktivní portál v okolí (trait pokrývá i end portály).
         Optional<BlockPos> active = PortalScanner.findActivePortal(world, feet, 16, 8);
         if (active.isPresent()) {
             portalEntry = active.get();
             enterAttempts = 0;
+            returnScanTicks = 100;
             goTo(portalEntry, Phase.ENTER);
             return;
         }
 
+        // V Endu nezbývá než hledat návratový portál – rám se tam nestaví
+        // a kotva overworld/8 nedává smysl.
+        if (ctx.dimension() == WorldDimension.END) {
+            returnScanTicks = 80;
+            tickWander(ctx);
+            return;
+        }
+
         // 3) Vlastní portál z kořisti (obsidián z bastionů/barteru).
-        NetherReadiness readiness = NetherReadiness.assess(ctx.serverView().latest(),
-                ctx.config().nether().minGearTier());
-        if (readiness.canBuildPortal()) {
+        if (readiness(ctx).canBuildPortal()) {
             BlockPos site = PortalBlueprint.findBuildSite(world, feet, 16);
             if (site != null) {
                 frameBase = site;
@@ -935,6 +1007,7 @@ public final class NetherGoal extends AbstractGoal {
         }
 
         // 4) K bodu odpovídajícímu domovu (overworld/8) a hledat cestou.
+        returnScanTicks = 80;
         BlockPos anchor = overworldAnchor(bot, world.worldName());
         if (anchor != null && feet.distanceSquared(anchor) > 12 * 12) {
             goTo(anchor, Phase.RETURN);
@@ -980,9 +1053,16 @@ public final class NetherGoal extends AbstractGoal {
         digSteps.clear();
         stepBlocks.clear();
         lootedChests.clear();
+        lootMisses.clear();
         lightAttempts = 0;
         enterAttempts = 0;
         bootTries = 0;
+        buildRetries = 0;
+        scanCooldownTicks = 0;
+        returnScanTicks = 0;
+        targetTicks = 0;
+        lootTicks = 0;
+        digTaskInPlan = false;
     }
 
     @Override
@@ -1015,17 +1095,56 @@ public final class NetherGoal extends AbstractGoal {
         return true; // uprostřed výpravy se nerozhoduje o stěhování vesnice
     }
 
-    /** Zná bot použitelný portál v tomto světě? (levný dotaz do paměti) */
+    /** Zná bot použitelný nether portál v tomto světě? (dotaz do paměti) */
     private boolean knownPortalNearby(BotContext ctx, Bot bot) {
         WorldView world = ctx.worldView();
         if (world == null) {
             return false;
         }
         BlockPos feet = ctx.position().toBlockPos();
-        return bot.memory().recallNearest(MemoryKind.PORTAL, world.worldName(),
-                        feet.x(), feet.y(), feet.z())
+        return nearestNetherPortalMemory(bot, world, feet)
                 .filter(r -> r.distanceSquared(feet.x(), feet.y(), feet.z()) < 300 * 300)
                 .isPresent();
+    }
+
+    /**
+     * Nejbližší PORTAL vzpomínka v daném světě, která vede do Netheru –
+     * end portál nebo neoznačený záznam by výpravu poslal jinam.
+     */
+    private Optional<MemoryRecord> nearestNetherPortalMemory(Bot bot, WorldView world,
+                                                             BlockPos feet) {
+        MemoryRecord best = null;
+        double bestDist = Double.MAX_VALUE;
+        for (MemoryRecord r : bot.memory().recall(MemoryKind.PORTAL)) {
+            if (!world.worldName().equals(r.world())) {
+                continue;
+            }
+            String to = r.data() == null ? null : r.data().get("to");
+            // Vlastnoručně postavené portály ("built") vedou do Netheru vždy;
+            // u průchodů rozhoduje dimenze cílového světa.
+            boolean leadsToNether = (r.data() != null && r.data().containsKey("built"))
+                    || (to != null && WorldDimension.fromWorldKey(to) == WorldDimension.NETHER);
+            if (!leadsToNether) {
+                continue;
+            }
+            double dist = r.distanceSquared(feet.x(), feet.y(), feet.z());
+            if (dist < bestDist) {
+                bestDist = dist;
+                best = r;
+            }
+        }
+        return Optional.ofNullable(best);
+    }
+
+    /** Připravenost s krátkou cache – utility ji čte každý rozhodovací tick. */
+    private NetherReadiness readiness(BotContext ctx) {
+        long now = System.currentTimeMillis();
+        if (cachedReadiness == null || now - readinessAtMs > 2_000) {
+            cachedReadiness = NetherReadiness.assess(ctx.serverView().latest(),
+                    ctx.config().nether().minGearTier());
+            readinessAtMs = now;
+        }
+        return cachedReadiness;
     }
 
     @Override

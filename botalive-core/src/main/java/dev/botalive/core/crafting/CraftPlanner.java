@@ -287,6 +287,15 @@ public final class CraftPlanner {
             return diamondArmor;
         }
 
+        // ---- křesadlo (klíč do Netheru; PŘED šípy – jinak by opakovaná
+        // výroba šípů spolykala každý pazourek a křesadlo by nikdy nevzniklo)
+        boolean netherPrep = s.hasToolAtLeast("_PICKAXE", 5);
+        if (netherPrep && iron >= 1 && s.has(Material.FLINT)
+                && !s.has(Material.FLINT_AND_STEEL)) {
+            return new Plan("křesadlo", matrix(
+                    Material.IRON_INGOT, 0, Material.FLINT, 1), false);
+        }
+
         // ---- luk a šípy (dálkový boj)
         if (s.hasTable() && s.count(Material.STRING) >= 3 && s.sticks() >= 3
                 && !s.has(Material.BOW) && !s.has(Material.CROSSBOW)) {
@@ -303,13 +312,7 @@ public final class CraftPlanner {
         }
 
         // ---- výbava do Netheru (má smysl až s diamantovým krumpáčem –
-        // obsidián se jiným nevytěží)
-        boolean netherPrep = s.hasToolAtLeast("_PICKAXE", 5);
-        if (netherPrep && iron >= 1 && s.has(Material.FLINT)
-                && !s.has(Material.FLINT_AND_STEEL)) {
-            return new Plan("křesadlo", matrix(
-                    Material.IRON_INGOT, 0, Material.FLINT, 1), false);
-        }
+        // obsidián se jiným nevytěží; křesadlo viz výše před šípy)
         if (netherPrep && s.hasTable() && s.count(Material.GOLD_INGOT) >= 6
                 && !s.has(Material.GOLDEN_BOOTS)) {
             // Zlaté boty piglini respektují; 2 ingoty navíc zůstávají na barter.

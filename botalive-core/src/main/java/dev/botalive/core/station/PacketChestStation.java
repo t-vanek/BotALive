@@ -61,9 +61,8 @@ public final class PacketChestStation implements ChestStation {
                 StationFlow.await(() -> Windows.amountAt(view, slotIndex) != before, 600);
                 int after = Windows.amountAt(view, slot);
                 moved += Math.max(0, before - after);
-                if (after == before) {
-                    break; // plný inventář – server klik nepřijal
-                }
+                // Nezměněný slot = stack se nevešel; menší stack (šablona!)
+                // se ještě vejít může – pokračovat, smyčka je konečná.
             }
             return moved;
         });

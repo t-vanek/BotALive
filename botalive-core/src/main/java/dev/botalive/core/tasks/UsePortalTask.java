@@ -4,7 +4,6 @@ import dev.botalive.core.ai.BotContext;
 import dev.botalive.core.physics.MoveInput;
 import dev.botalive.core.util.BlockPos;
 import dev.botalive.core.util.Vec3;
-import org.bukkit.Material;
 
 /**
  * Průchod nether portálem: bot dojde do vstupní buňky, zůstane stát
@@ -76,8 +75,8 @@ public final class UsePortalTask implements BotTask {
         double distSq = position.distanceSquared(target);
         BlockPos feet = position.toBlockPos();
 
-        // Uvnitř portálu: stát a čekat (server přenáší po ~4 s nehybnosti).
-        if (feet.equals(entry) || ctx.worldView().materialAt(feet) == Material.NETHER_PORTAL) {
+        // Uvnitř portálu: stát a čekat (nether ~4 s nehybnosti, end hned).
+        if (feet.equals(entry) || ctx.worldView().traitsAt(feet).portal()) {
             return false;
         }
 

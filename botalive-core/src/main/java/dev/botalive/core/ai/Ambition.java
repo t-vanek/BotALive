@@ -148,7 +148,9 @@ public enum Ambition {
                 if (needs.pickaxeTier() >= 6) {
                     yield new Progress(3, 3, "splněno – netherit!");
                 }
-                if (needs.hasFlintKit()) {
+                // Kroky jsou kumulativní: pazourek bez diamantového krumpáče
+                // ještě není „portál na dosah" (obsidián by nevytěžil).
+                if (needs.pickaxeTier() >= 5 && needs.hasFlintKit()) {
                     yield new Progress(2, 3,
                             "postavit portál a přinést starodávné trosky");
                 }

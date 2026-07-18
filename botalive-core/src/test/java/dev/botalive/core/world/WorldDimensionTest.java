@@ -34,6 +34,10 @@ class WorldDimensionTest {
         assertEquals(WorldDimension.OVERWORLD, WorldDimension.fromWorldKey("skyblock"));
         // „nether" uprostřed slova bez oddělovače nestačí.
         assertEquals(WorldDimension.OVERWORLD, WorldDimension.fromWorldKey("netherlands_city"));
+        // Overworld mapy s „end" v názvu nesmí boty vypnout (Bukkit end
+        // světy končí na „_the_end", bare „_end" je běžné jméno mapy).
+        assertEquals(WorldDimension.OVERWORLD, WorldDimension.fromWorldKey("west_end"));
+        assertEquals(WorldDimension.OVERWORLD, WorldDimension.fromWorldKey("deep_end"));
     }
 
     @Test

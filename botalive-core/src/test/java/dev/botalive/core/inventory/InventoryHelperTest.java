@@ -14,7 +14,7 @@ class InventoryHelperTest {
 
     private static ServerSideView.Snapshot snapshot(Material[] hotbar, int[] counts,
                                                     Material[] main) {
-        return new ServerSideView.Snapshot(null, hotbar, counts, main, null,
+        return new ServerSideView.Snapshot(null, hotbar, counts, main, null, null,
                 new Material[4], null, 0, 20, 20, 0, false, false, false, 1000, 0);
     }
 

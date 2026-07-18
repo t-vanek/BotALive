@@ -30,6 +30,7 @@ public final class SmithGoal extends AbstractGoal {
     private BlockPos table;
     private StationPlacement placement;
     private int waitTicks;
+    private int goTicks;
     private CompletableFuture<SmithingStation.UpgradeReport> pending;
     private int cooldownTicks;
 
@@ -46,6 +47,12 @@ public final class SmithGoal extends AbstractGoal {
         BotContext ctx = ctx(bot);
         if (cooldownTicks > 0) {
             cooldownTicks -= ctx.config().ai().decisionIntervalTicks();
+            return 0;
+        }
+        // Kove se doma – uprostřed výpravy v Netheru by vysoká utilita
+        // přebila návrat domů (NetherGoal drží 30) a bot by stavěl kovářský
+        // stůl vedle lávového jezera.
+        if (outsideOverworld(ctx)) {
             return 0;
         }
         var snapshot = ctx.serverView().latest();
@@ -65,6 +72,7 @@ public final class SmithGoal extends AbstractGoal {
         phase = Phase.FIND;
         pending = null;
         placement = null;
+        goTicks = 0;
     }
 
     @Override
@@ -90,7 +98,9 @@ public final class SmithGoal extends AbstractGoal {
             case GO -> {
                 if (table.center().distanceSquared(ctx.position()) > 3.0 * 3.0) {
                     ctx.navigator().navigateTo(ctx.position(), table);
-                    if (!ctx.navigator().navigating()) {
+                    // navigating() je po navigateTo vždy true – nedojití
+                    // hlídá časový rozpočet, ne stav navigátoru.
+                    if (++goTicks > 600) {
                         finish(1800);
                     }
                     return;

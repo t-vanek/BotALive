@@ -250,7 +250,7 @@ public final class ContainerService implements dev.botalive.core.station.ChestSt
                 int moved = stack.getAmount() - leftover.values().stream()
                         .mapToInt(ItemStack::getAmount).sum();
                 if (moved <= 0) {
-                    break; // plný inventář bota
+                    continue; // tenhle stack se nevešel – menší (šablona!) může
                 }
                 if (moved >= stack.getAmount()) {
                     chest.setItem(slot, null);

@@ -28,7 +28,9 @@ public final class PortalScanner {
 
     /**
      * Najde nejbližší aktivní portál: portálový blok, ve kterém se dá stát
-     * (pevné dno pod ním).
+     * (pevné dno pod ním). Přes trait {@code portal} pokrývá nether i end
+     * portály – záchrana z Endu vede skrz návratový portál na hlavním
+     * ostrově.
      *
      * @param world  pohled na svět
      * @param around střed hledání
@@ -44,12 +46,12 @@ public final class PortalScanner {
             for (int dz = -radius; dz <= radius; dz++) {
                 for (int dy = -depth; dy <= depth; dy++) {
                     BlockPos pos = around.offset(dx, dy, dz);
-                    if (world.materialAt(pos) != Material.NETHER_PORTAL) {
+                    if (!world.traitsAt(pos).portal()) {
                         continue;
                     }
                     // Vstupní buňka: portálový blok s oporou pod nohama
                     // (spodní patro vnitřku).
-                    if (world.materialAt(pos.down()) == Material.NETHER_PORTAL) {
+                    if (world.traitsAt(pos.down()).portal()) {
                         continue;
                     }
                     double dist = around.distanceSquared(pos);

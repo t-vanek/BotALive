@@ -57,7 +57,9 @@ public enum WorldDimension {
         if (key.contains("the_nether") || key.endsWith("_nether") || key.equals("nether")) {
             return NETHER;
         }
-        if (key.contains("the_end") || key.endsWith("_end") || key.equals("end")) {
+        // Pozor na falešné shody: „west_end" je běžný název overworld mapy,
+        // Bukkit end světy končí na „_the_end" – bare „_end" se neuznává.
+        if (key.contains("the_end") || key.equals("end")) {
             return END;
         }
         return OVERWORLD;

@@ -32,6 +32,9 @@ public final class ServerSideView {
      * @param hotbar      materiály v hotbaru (9 slotů; null = prázdný)
      * @param hotbarCounts počty kusů v hotbaru
      * @param mainInventory materiály hlavního inventáře (sloty 9–35)
+     * @param mainCounts  počty kusů hlavního inventáře (index odpovídá
+     *                    {@code mainInventory}; null u ručně sestavených
+     *                    snapshotů = konzervativní odhad)
      * @param offhand     materiál v druhé ruce (null = prázdná)
      * @param health      zdraví
      * @param foodLevel   najedenost
@@ -47,6 +50,7 @@ public final class ServerSideView {
             Material[] hotbar,
             int[] hotbarCounts,
             Material[] mainInventory,
+            int[] mainCounts,
             Material offhand,
             Material[] armor,
             Material damagedTool,
@@ -161,10 +165,12 @@ public final class ServerSideView {
             }
         }
         Material[] main = new Material[27];
+        int[] mainCounts = new int[27];
         for (int i = 0; i < 27; i++) {
             ItemStack item = inventory.getItem(9 + i);
             if (item != null && !item.getType().isAir()) {
                 main[i] = item.getType();
+                mainCounts[i] = item.getAmount();
             }
         }
         Material[] armor = new Material[4];
@@ -197,7 +203,7 @@ public final class ServerSideView {
         Material offhand = offhandItem.getType().isAir() ? null : offhandItem.getType();
         return new Snapshot(
                 player.getLocation().clone(),
-                hotbar, hotbarCounts, main, offhand, armor,
+                hotbar, hotbarCounts, main, mainCounts, offhand, armor,
                 damagedTool, damagedPercent,
                 player.getHealth(),
                 player.getFoodLevel(),

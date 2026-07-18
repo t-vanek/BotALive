@@ -214,7 +214,7 @@ public record BotNeeds(int pickaxeTier, boolean hasAxe, boolean hasSword,
         return name.startsWith("DEEPSLATE_") ? name.substring("DEEPSLATE_".length()) : name;
     }
 
-    /** Odhad počtu stavebních bloků (hotbar přesně, hlavní inventář konzervativně). */
+    /** Počet stavebních bloků (skutečné počty; bez nich konzervativní odhad). */
     private static int countBuildingBlocks(ServerSideView.Snapshot snapshot) {
         int count = 0;
         Material[] hotbar = snapshot.hotbar();
@@ -224,9 +224,12 @@ public record BotNeeds(int pickaxeTier, boolean hasAxe, boolean hasSword,
                 count += counts != null && i < counts.length ? Math.max(counts[i], 1) : 1;
             }
         }
-        for (Material material : snapshot.mainInventory()) {
-            if (material != null && InventoryHelper.isBuildingBlock(material)) {
-                count += MAIN_SLOT_ESTIMATE;
+        Material[] main = snapshot.mainInventory();
+        int[] mainCounts = snapshot.mainCounts();
+        for (int i = 0; i < main.length; i++) {
+            if (main[i] != null && InventoryHelper.isBuildingBlock(main[i])) {
+                count += mainCounts != null && i < mainCounts.length
+                        ? Math.max(mainCounts[i], 1) : MAIN_SLOT_ESTIMATE;
             }
         }
         return count;

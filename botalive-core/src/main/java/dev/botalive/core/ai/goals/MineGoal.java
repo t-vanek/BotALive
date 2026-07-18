@@ -394,7 +394,7 @@ public final class MineGoal extends AbstractGoal {
             return;
         }
         // Bezpečnost: láva/voda v sousedství bloku → výkop vzdát.
-        if (unsafeToBreak(world, block)) {
+        if (DigPlanner.unsafeToBreak(world, block)) {
             abortDig();
             cooldownTicks = 600;
             if (ctx.rng().chance(0.4)) {
@@ -455,19 +455,6 @@ public final class MineGoal extends AbstractGoal {
         stepBlocks.clear();
         pendingWalkAfterStep = null;
         mode = Mode.SURFACE;
-    }
-
-    /** Láva/voda v bloku nebo jeho okolí → nekopat. */
-    private boolean unsafeToBreak(WorldView world, BlockPos block) {
-        if (world.traitsAt(block).liquid()) {
-            return true;
-        }
-        return world.traitsAt(block.up()).liquid()
-                || world.traitsAt(block.down()).liquid()
-                || world.traitsAt(block.offset(1, 0, 0)).liquid()
-                || world.traitsAt(block.offset(-1, 0, 0)).liquid()
-                || world.traitsAt(block.offset(0, 0, 1)).liquid()
-                || world.traitsAt(block.offset(0, 0, -1)).liquid();
     }
 
     // ==================================================================
@@ -532,7 +519,7 @@ public final class MineGoal extends AbstractGoal {
                     Material material = world.materialAt(next);
                     if (material != null && ORE_VALUES.containsKey(material)
                             && BotNeeds.oreFamily(material).equals(family)
-                            && !unsafeToBreak(world, next)) {
+                            && !DigPlanner.unsafeToBreak(world, next)) {
                         targetBlock = next;
                         targetMaterial = material;
                         return true;
@@ -574,7 +561,7 @@ public final class MineGoal extends AbstractGoal {
                     if (material == null || !filter.test(material)) {
                         continue;
                     }
-                    if (requireExposed && !isExposed(world, pos)) {
+                    if (requireExposed && !DigPlanner.isExposed(world, pos)) {
                         continue;
                     }
                     double dist = pos.distanceSquared(center);
@@ -586,16 +573,6 @@ public final class MineGoal extends AbstractGoal {
             }
         }
         return best;
-    }
-
-    /** Blok je odkrytý, když sousedí s průchozím prostorem. */
-    private boolean isExposed(WorldView world, BlockPos pos) {
-        return world.traitsAt(pos.up()).passable()
-                || world.traitsAt(pos.down()).passable()
-                || world.traitsAt(pos.offset(1, 0, 0)).passable()
-                || world.traitsAt(pos.offset(-1, 0, 0)).passable()
-                || world.traitsAt(pos.offset(0, 0, 1)).passable()
-                || world.traitsAt(pos.offset(0, 0, -1)).passable();
     }
 
     /** Občas nahlas oznámit záměr (podle společenskosti). */

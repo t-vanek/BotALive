@@ -253,6 +253,18 @@ class CraftPlannerTest {
         assertEquals("křesadlo", flintSteel.id());
         assertFalse(flintSteel.needsTable());
 
+        // Křesadlo předbíhá šípy – jinak by opakovaná výroba šípů spolykala
+        // každý pazourek a bot s lukem by křesadlo nikdy nevyrobil.
+        Object[] lowArrows = geared.clone();
+        for (int i = 0; i < lowArrows.length; i++) {
+            if (Integer.valueOf(16).equals(lowArrows[i])) {
+                lowArrows[i] = 2; // ARROW klesly pod 16 → šípy by se plánovaly
+            }
+        }
+        CraftPlanner.Plan beforeArrows = CraftPlanner.next(state(concat(lowArrows,
+                Material.IRON_INGOT, 1, Material.FLINT, 1, Material.FEATHER, 3)));
+        assertEquals("křesadlo", beforeArrows.id());
+
         // Se železným krumpáčem se křesadlo neplánuje (obsidián by nevytěžil).
         Object[] ironTier = geared.clone();
         for (int i = 0; i < ironTier.length; i++) {

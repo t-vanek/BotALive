@@ -52,10 +52,12 @@ final class PacketPlayerView {
             }
         }
         Material[] main = new Material[27];
+        int[] mainCounts = new int[27];
         for (int i = 0; i < 27; i++) {
             ItemStack item = inventory.slot(9 + i);
             if (item != null && mapper != null) {
                 main[i] = mapper.materialOf(item.getId());
+                mainCounts[i] = item.getAmount();
             }
         }
         ItemStack offhandItem = inventory.slot(45);
@@ -79,7 +81,7 @@ final class PacketPlayerView {
         }
         return new ServerSideView.Snapshot(
                 new Location(null, position.x(), position.y(), position.z()),
-                hotbar, hotbarCounts, main, offhand, armor,
+                hotbar, hotbarCounts, main, mainCounts, offhand, armor,
                 null, 0, // opotřebení jen v server režimu (klientský model ho nečte)
                 state.health(),
                 state.food(),
