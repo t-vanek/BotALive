@@ -61,9 +61,14 @@ class ItemVariantsTest {
     }
 
     @Test
-    void splashLektvarSeNepije() {
+    void splashLektvarSeHaziNePije() {
         var splash = snapshot(Map.of(1, "healing"), 1, Material.SPLASH_POTION);
         assertEquals(-1, ItemVariants.findPotionSlot(splash, ItemVariants.HEALING),
-                "splash lektvar se hází, ne pije – bot ho nechává být");
+                "pitelné hledání splash nevrací");
+        assertEquals(1, ItemVariants.findSplashSlot(splash, ItemVariants.HEALING),
+                "vrhací hledání ho najde – hází se pod nohy");
+        // A naopak: pitelná láhev není na házení.
+        var drinkable = snapshot(Map.of(2, "healing"), 2, Material.POTION);
+        assertEquals(-1, ItemVariants.findSplashSlot(drinkable, ItemVariants.HEALING));
     }
 }

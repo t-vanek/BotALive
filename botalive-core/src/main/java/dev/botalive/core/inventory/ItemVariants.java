@@ -38,6 +38,14 @@ public final class ItemVariants {
     }
 
     /**
+     * @param material materiál
+     * @return {@code true} pokud jde o vrhací lektvar (hází se pod nohy)
+     */
+    public static boolean isSplashPotion(Material material) {
+        return material == Material.SPLASH_POTION;
+    }
+
+    /**
      * Odpovídá varianta danému efektu? Prefixy long_/strong_ (delší/silnější
      * podoba téhož lektvaru) se ignorují.
      *
@@ -62,19 +70,35 @@ public final class ItemVariants {
      * @return slot 0–8 (hotbar) / 9–35 (hlavní inventář), nebo -1
      */
     public static int findPotionSlot(ServerSideView.Snapshot snapshot, String effect) {
+        return findSlot(snapshot, effect, ItemVariants::isDrinkablePotion);
+    }
+
+    /**
+     * Najde slot (0–35) s vrhacím (splash) lektvarem daného efektu.
+     *
+     * @param snapshot snapshot inventáře
+     * @param effect   hledaný efekt
+     * @return slot 0–8 / 9–35, nebo -1
+     */
+    public static int findSplashSlot(ServerSideView.Snapshot snapshot, String effect) {
+        return findSlot(snapshot, effect, ItemVariants::isSplashPotion);
+    }
+
+    private static int findSlot(ServerSideView.Snapshot snapshot, String effect,
+                                java.util.function.Predicate<Material> kind) {
         if (snapshot == null || snapshot.itemVariants() == null) {
             return -1;
         }
         Material[] hotbar = snapshot.hotbar();
         for (int i = 0; i < hotbar.length; i++) {
-            if (isDrinkablePotion(hotbar[i])
+            if (hotbar[i] != null && kind.test(hotbar[i])
                     && effectIs(snapshot.itemVariants().get(i), effect)) {
                 return i;
             }
         }
         Material[] main = snapshot.mainInventory();
         for (int i = 0; i < main.length; i++) {
-            if (isDrinkablePotion(main[i])
+            if (main[i] != null && kind.test(main[i])
                     && effectIs(snapshot.itemVariants().get(9 + i), effect)) {
                 return 9 + i;
             }

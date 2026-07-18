@@ -51,15 +51,15 @@ public final class DrinkPotionGoal extends AbstractGoal {
         // priorita nad bojem i většinou přežívání (1,6 s pití se vyplatí).
         if ((snapshot.onFire() || snapshot.inLava())
                 && !ctx.clientState().effectActive(Effect.FIRE_RESISTANCE)
-                && ItemVariants.hasPotion(snapshot, ItemVariants.FIRE_RESISTANCE)) {
+                && carries(snapshot, ItemVariants.FIRE_RESISTANCE)) {
             return 95;
         }
         float health = ctx.clientState().health();
-        if (health <= 10 && ItemVariants.hasPotion(snapshot, ItemVariants.HEALING)) {
+        if (health <= 10 && carries(snapshot, ItemVariants.HEALING)) {
             return 80;
         }
         if (health <= 10 && !ctx.clientState().effectActive(Effect.REGENERATION)
-                && ItemVariants.hasPotion(snapshot, ItemVariants.REGENERATION)) {
+                && carries(snapshot, ItemVariants.REGENERATION)) {
             return 70;
         }
         return 0;
@@ -74,10 +74,10 @@ public final class DrinkPotionGoal extends AbstractGoal {
         var snapshot = ctx.serverView().latest();
         // Pořadí odpovídá utility – pije se to, kvůli čemu se cíl probral.
         if (snapshot != null && (snapshot.onFire() || snapshot.inLava())
-                && ItemVariants.hasPotion(snapshot, ItemVariants.FIRE_RESISTANCE)) {
+                && carries(snapshot, ItemVariants.FIRE_RESISTANCE)) {
             effect = ItemVariants.FIRE_RESISTANCE;
             trackedEffect = Effect.FIRE_RESISTANCE;
-        } else if (ItemVariants.hasPotion(snapshot, ItemVariants.HEALING)) {
+        } else if (carries(snapshot, ItemVariants.HEALING)) {
             effect = ItemVariants.HEALING;
             trackedEffect = null; // okamžité léčení – pozná se z nárůstu zdraví
         } else {
@@ -86,13 +86,26 @@ public final class DrinkPotionGoal extends AbstractGoal {
         }
     }
 
+    /** Nese bot efekt v pitelné, nebo vrhací podobě? */
+    private static boolean carries(dev.botalive.core.bot.ServerSideView.Snapshot snapshot,
+                                   String effect) {
+        return ItemVariants.findPotionSlot(snapshot, effect) >= 0
+                || ItemVariants.findSplashSlot(snapshot, effect) >= 0;
+    }
+
     @Override
     public void tick(Bot bot) {
         BotContext ctx = ctx(bot);
         var snapshot = ctx.serverView().latest();
         switch (phase) {
             case EQUIP -> {
-                int slot = ItemVariants.findPotionSlot(snapshot, effect);
+                // Hoří-li bot, je rychlejší splash pod nohy (okamžitý) než
+                // 1,6 s pití; jinak se preferuje pitelná láhev (nic nevyprchá).
+                boolean emergency = ItemVariants.FIRE_RESISTANCE.equals(effect);
+                int drink = ItemVariants.findPotionSlot(snapshot, effect);
+                int splash = ItemVariants.findSplashSlot(snapshot, effect);
+                boolean throwIt = emergency ? splash >= 0 : drink < 0;
+                int slot = throwIt ? splash : drink;
                 if (slot < 0) {
                     finish(200);
                     return;
@@ -109,8 +122,10 @@ public final class DrinkPotionGoal extends AbstractGoal {
                 }
                 ctx.navigator().stop();
                 ctx.actions().selectHotbar(slot);
-                ctx.actions().useItem(ctx.humanizer().yaw(), ctx.humanizer().pitch());
-                ticks = 0;
+                // Splash se hází kolmo pod nohy (pitch 90°), pití drží use.
+                ctx.actions().useItem(ctx.humanizer().yaw(),
+                        throwIt ? 90f : ctx.humanizer().pitch());
+                ticks = throwIt ? 30 : 0; // vrh je okamžitý – kratší ověření
                 phase = Phase.DRINK;
             }
             case DRINK -> {

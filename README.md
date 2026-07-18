@@ -87,7 +87,9 @@ inventář a historii; po restartu serveru pokračuje tam, kde skončil.
   enchant knihy) a klient sleduje aktivní efekty z paketů. Lektvary
   z barteru a truhel se pijí v nouzi: **odolnost ohni**, když bot hoří
   nebo stojí v lávě (a efekt ještě neběží), **léčení/regenerace** při
-  nízkém zdraví – láhev vody si s medicínou nikdy nesplete. Obalené
+  nízkém zdraví – láhev vody si s medicínou nikdy nesplete. Když bot
+  hoří, sáhne přednostně po **splash variantě** a rozbije si ji pod
+  nohama (okamžitá záchrana, žádných 1,6 s pití). Obalené
   a svítící šípy se počítají jako střelivo (server je z inventáře střílí
   sám) a **enchantované knihy** z kořisti bot nosí ke kovadlině
   a aplikuje na nejlepší kompatibilní kus (Bukkit hlídá kompatibilitu
@@ -356,8 +358,10 @@ Placeholder `{name}` se nahrazuje jménem protistrany. Kategorie: `greetings`,
 - Nether má vědomé hranice: boti nejezdí na striderech a přes velké lávové
   oceány nestaví dlouhé mosty (BridgeTask má strop 12 bloků – cesta se
   hledá jinudy). Brewing, respawn anchor a boj s witherem nejsou v plánu;
-  nether wart se sbírá jen jako kořist z truhel. Lektvary se pijí jen
-  v server režimu – klientské čtení typu lektvaru z data komponent
-  (packet režim) zatím chybí; splash lektvary se nehází.
+  nether wart se sbírá jen jako kořist z truhel. Varianty lektvarů se čtou
+  jen v server režimu – protokolová knihovna dává v packet režimu jen
+  číselné registry ID typu lektvaru a zadrátovaná tabulka by byla křehká
+  (stejný důvod jako u hashed stacků, §13). Splash lektvary bot hází jen
+  sám pod sebe (nouzová záchrana); útočné házení po nepřátelích chybí.
 - Boti nevylézají na strom techniky v Endu – tam se jen umí neztratit:
   zavlečený bot najde návratový portál a vrátí se domů.
