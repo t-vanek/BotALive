@@ -516,8 +516,10 @@ Hotovo ve fázi 17: lektvary a metadata itemy.
   statický (per verze protokolu), takže `ReflectionItemMapper` sestavuje
   tabulku id → klíč z `BuiltInRegistries.POTION` hostitele stejně jako
   u itemů (§11 – platí táž verzní podmínka a degradace). Enchanty knih
-  jsou naopak **dynamický** registr posílaný v konfigurační fázi – packet
-  režim je zatím nečte (kovadlina je beztak server-side, §9).
+  jsou naopak **dynamický** registr: `DimensionRegistry` si z konfigurační
+  fáze ukládá klíče v pořadí síťových ID (stejně jako dimenze a biomy)
+  a `PacketPlayerView` jimi překládá `STORED_ENCHANTMENTS` komponentu –
+  boti na cizích serverech tak znají i obsah enchantovaných knih.
 - **Aktivní efekty z paketů** (`BotClientState.effectActive`):
   UpdateMobEffect/RemoveMobEffect se sledují s časem vypršení (-1 =
   nekonečno), respawn efekty čistí. Funguje v obou režimech world modelu –

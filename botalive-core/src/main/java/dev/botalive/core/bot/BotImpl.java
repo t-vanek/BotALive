@@ -954,7 +954,7 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
             ticksSinceSnapshot = 0;
             if (packetWorlds != null) {
                 serverView.offer(PacketPlayerView.capture(clientInventory, itemMapper,
-                        clientState, position(), worldView));
+                        clientState, position(), worldView, packetWorlds::enchantmentKey));
             } else {
                 serverView.refresh();
             }

@@ -360,8 +360,8 @@ Placeholder `{name}` se nahrazuje jménem protistrany. Kategorie: `greetings`,
   hledá jinudy). Brewing, respawn anchor a boj s witherem nejsou v plánu;
   nether wart se sbírá jen jako kořist z truhel. Varianty lektvarů fungují
   i v packet režimu (POTION_CONTENTS komponenta + tabulka typů lektvarů
-  z registrů hostitele, stejný vzor jako itemy); enchanty knih jsou
-  dynamický registr a packet režim je zatím nečte. Splash lektvary bot
+  z registrů hostitele, stejný vzor jako itemy) a enchanty knih se čtou
+  z dynamického registru konfigurační fáze. Splash lektvary bot
   hází jen sám pod sebe (nouzová záchrana); útočné házení po nepřátelích
   chybí.
 - Boti nevylézají na strom techniky v Endu – tam se jen umí neztratit:

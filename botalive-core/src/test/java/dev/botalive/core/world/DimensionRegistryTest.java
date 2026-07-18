@@ -8,6 +8,7 @@ import org.junit.jupiter.api.Test;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 
 /**
  * Testy parsování registru dimenzí a biomů.
@@ -78,5 +79,18 @@ class DimensionRegistryTest {
         assertEquals(1, DimensionRegistry.ceilLog2(2));
         assertEquals(2, DimensionRegistry.ceilLog2(3));
         assertEquals(15, DimensionRegistry.ceilLog2(26_000));
+    }
+
+    @Test
+    void enchantovyRegistrMapujeIdNaKlice() {
+        DimensionRegistry registry = new DimensionRegistry();
+        assertNull(registry.enchantmentKey(0), "před registry daty nic");
+        registry.accept(Key.key("minecraft:enchantment"), List.of(
+                new RegistryEntry(Key.key("minecraft:protection"), null),
+                new RegistryEntry(Key.key("minecraft:sharpness"), null)));
+        assertEquals("protection", registry.enchantmentKey(0));
+        assertEquals("sharpness", registry.enchantmentKey(1));
+        assertNull(registry.enchantmentKey(2), "mimo rozsah");
+        assertNull(registry.enchantmentKey(-1));
     }
 }

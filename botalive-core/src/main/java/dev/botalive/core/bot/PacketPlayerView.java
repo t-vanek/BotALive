@@ -39,27 +39,44 @@ final class PacketPlayerView {
      * @param world     pohled na svět ({@code null} před spawnem)
      * @return snapshot kompatibilní se server-side pohledem
      */
-    /** Typ lektvaru z data komponent (POTION_CONTENTS → tabulka registrů). */
-    private static void putPotionVariant(java.util.Map<Integer, String> variants, int slot,
-                                         ItemStack item, ItemMapper mapper) {
+    /**
+     * Varianta z data komponent: typ lektvaru (POTION_CONTENTS → tabulka
+     * registrů hostitele) nebo první uložený enchant knihy
+     * (STORED_ENCHANTMENTS → dynamický registr z konfigurační fáze,
+     * formát {@code klíč:úroveň} jako v server režimu).
+     */
+    private static void putVariant(java.util.Map<Integer, String> variants, int slot,
+                                   ItemStack item, ItemMapper mapper,
+                                   java.util.function.IntFunction<String> enchantKey) {
         var components = item.getDataComponentsPatch();
         if (components == null) {
             return;
         }
         var contents = components.get(org.geysermc.mcprotocollib.protocol.data.game.item
                 .component.DataComponentTypes.POTION_CONTENTS);
-        if (contents == null) {
+        if (contents != null) {
+            String key = mapper.potionKeyOf(contents.getPotionId());
+            if (key != null) {
+                variants.put(slot, key);
+            }
             return;
         }
-        String key = mapper.potionKeyOf(contents.getPotionId());
+        var stored = components.get(org.geysermc.mcprotocollib.protocol.data.game.item
+                .component.DataComponentTypes.STORED_ENCHANTMENTS);
+        if (stored == null || enchantKey == null || stored.getEnchantments().isEmpty()) {
+            return;
+        }
+        var entry = stored.getEnchantments().entrySet().iterator().next();
+        String key = enchantKey.apply(entry.getKey());
         if (key != null) {
-            variants.put(slot, key);
+            variants.put(slot, key + ":" + entry.getValue());
         }
     }
 
     static ServerSideView.Snapshot capture(ClientInventory inventory, ItemMapper mapper,
                                            BotClientState state, Vec3 position,
-                                           WorldView world) {
+                                           WorldView world,
+                                           java.util.function.IntFunction<String> enchantKey) {
         java.util.Map<Integer, String> variants = new java.util.HashMap<>();
         Material[] hotbar = new Material[9];
         int[] hotbarCounts = new int[9];
@@ -68,7 +85,7 @@ final class PacketPlayerView {
             if (item != null && mapper != null) {
                 hotbar[i] = mapper.materialOf(item.getId());
                 hotbarCounts[i] = item.getAmount();
-                putPotionVariant(variants, i, item, mapper);
+                putVariant(variants, i, item, mapper, enchantKey);
             }
         }
         Material[] main = new Material[27];
@@ -78,7 +95,7 @@ final class PacketPlayerView {
             if (item != null && mapper != null) {
                 main[i] = mapper.materialOf(item.getId());
                 mainCounts[i] = item.getAmount();
-                putPotionVariant(variants, 9 + i, item, mapper);
+                putVariant(variants, 9 + i, item, mapper, enchantKey);
             }
         }
         ItemStack offhandItem = inventory.slot(45);
