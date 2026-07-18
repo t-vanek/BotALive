@@ -42,6 +42,8 @@ public final class AStarPathfinder {
     private static final int COST_JUMP = 8;
     private static final int COST_FALL_PER_BLOCK = 6;
     private static final int COST_WATER = 25;
+    /** Přirážka za buňku s hlavou pod hladinou – podvodní tunely stojí dech. */
+    private static final int COST_SUBMERGED = 30;
     private static final int COST_CLIMB = 12;
     private static final int COST_DOOR = 15;
     private static final int COST_NEAR_HAZARD = 60;
@@ -510,12 +512,17 @@ public final class AStarPathfinder {
         return t.door() || t.lowProfile();
     }
 
-    /** Penalizace terénu: voda, dveře, pomalý povrch, sousedství hazardu. */
+    /** Penalizace terénu: voda (potápění zvlášť), dveře, pomalý povrch, hazard v okolí. */
     private int terrainPenalty(BlockPos feet) {
         int penalty = 0;
         BlockTraits feetTraits = world.traitsAt(feet);
         if (feetTraits.liquid()) {
             penalty += COST_WATER;
+            // Hlava taky pod vodou → bot se tu nenadechne. Dlouhé podvodní
+            // úseky se prodraží a cesta drží hladinu, kde to jde.
+            if (world.traitsAt(feet.up()).liquid()) {
+                penalty += COST_SUBMERGED;
+            }
         }
         if (feetTraits.door()) {
             penalty += COST_DOOR;

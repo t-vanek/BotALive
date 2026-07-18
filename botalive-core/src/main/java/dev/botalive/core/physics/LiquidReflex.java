@@ -23,6 +23,10 @@ public final class LiquidReflex {
 
     /** Poloměr hledání bezpečného bloku při úniku z lávy. */
     private static final int ESCAPE_RADIUS = 5;
+    /** Poloměr hledání vzduchové kapsy při docházejícím dechu. */
+    private static final int AIR_RADIUS = 8;
+    /** Od kolika ticků pod hladinou se bot začne bát o dech (vanilla ~300). */
+    private static final int LOW_AIR_TICKS = 150;
     private static final double EPS = 1.0E-4;
 
     private LiquidReflex() {
@@ -31,13 +35,15 @@ public final class LiquidReflex {
     /**
      * Aplikuje reflexy na pohybový vstup.
      *
-     * @param input     vstup od navigace/cíle
-     * @param navDriven vstup pochází z navigace s aktivní cestou (voda se nechá být)
-     * @param position  pozice nohou bota
-     * @param world     pohled na svět
+     * @param input          vstup od navigace/cíle
+     * @param navDriven      vstup pochází z navigace s aktivní cestou (voda se nechá být)
+     * @param position       pozice nohou bota
+     * @param submergedTicks ticky v kuse s hlavou pod hladinou (dech)
+     * @param world          pohled na svět
      * @return upravený vstup (beze změny, když žádný reflex nezasahuje)
      */
-    public static MoveInput apply(MoveInput input, boolean navDriven, Vec3 position, WorldView world) {
+    public static MoveInput apply(MoveInput input, boolean navDriven, Vec3 position,
+                                  int submergedTicks, WorldView world) {
         if (world == null) {
             return input;
         }
@@ -52,14 +58,90 @@ public final class LiquidReflex {
             return new MoveInput(direction, false, true, false);
         }
 
+        boolean submerged = headTraits.liquid() && !headTraits.hazard();
+
+        // Dochází dech: přebíjí VŠECHNO včetně navigace (utopení je horší než
+        // rozbitá cesta). Plavat k nejbližší DOPLAVATELNÉ vzduchové kapse
+        // a držet skok – v zatopené jeskyni se stropem samotné stoupání nestačí.
+        if (submerged && submergedTicks >= LOW_AIR_TICKS) {
+            BlockPos air = nearestReachableAir(world, feet);
+            Vec3 direction;
+            if (air != null) {
+                // Kapsa přímo nad hlavou → jen stoupat (vodorovně stát).
+                direction = new Vec3(air.x() - feet.x(), 0, air.z() - feet.z())
+                        .horizontal().normalized();
+            } else {
+                direction = input.direction(); // nic v dosahu – aspoň stoupat
+            }
+            return new MoveInput(direction, false, true, false);
+        }
+
         // Voda: hlava pod hladinou → vyplavat. Aktivní navigace si plave sama;
         // stojící bot nebo cíl s ručním pohybem by se ale potopil a utopil.
-        boolean submerged = headTraits.liquid() && !headTraits.hazard();
         if (submerged && !input.jump()
                 && (!navDriven || input.direction().horizontalLength() < EPS)) {
             return new MoveInput(input.direction(), input.sprint(), true, input.sneak());
         }
         return input;
+    }
+
+    /**
+     * Najde nejbližší buňku, kde se dá nadechnout a KAM SE DÁ DOPLAVAT:
+     * BFS skrz vodní těleso (a vzduch nad hladinou) od pozice bota – kapsy
+     * za zdí nebo nad stropem jeskyně nejsou řešení, i když jsou blízko.
+     *
+     * @param world pohled na svět
+     * @param feet  pozice nohou bota (pod hladinou)
+     * @return pozice nohou u nejbližšího vzduchu, nebo {@code null}
+     */
+    static BlockPos nearestReachableAir(WorldView world, BlockPos feet) {
+        java.util.ArrayDeque<BlockPos> queue = new java.util.ArrayDeque<>();
+        java.util.HashSet<Long> visited = new java.util.HashSet<>();
+        queue.add(feet);
+        visited.add(feet.asLong());
+        while (!queue.isEmpty()) {
+            BlockPos cell = queue.poll();
+            if (breathable(world, cell) && !cell.equals(feet)) {
+                return cell;
+            }
+            for (BlockPos next : new BlockPos[]{cell.up(), cell.down(),
+                    cell.offset(1, 0, 0), cell.offset(-1, 0, 0),
+                    cell.offset(0, 0, 1), cell.offset(0, 0, -1)}) {
+                if (Math.abs(next.x() - feet.x()) > AIR_RADIUS
+                        || Math.abs(next.y() - feet.y()) > AIR_RADIUS
+                        || Math.abs(next.z() - feet.z()) > AIR_RADIUS
+                        || !visited.add(next.asLong())) {
+                    continue;
+                }
+                if (swimmable(world.traitsAt(next))) {
+                    queue.add(next);
+                }
+            }
+        }
+        return null;
+    }
+
+    /** Buňka, kterou lze proplavat/projít (voda nebo volný prostor, bez hazardu). */
+    private static boolean swimmable(BlockTraits traits) {
+        if (traits == BlockTraits.UNKNOWN || traits.hazard() || traits.web()) {
+            return false;
+        }
+        return traits.liquid() || traits.lowProfile();
+    }
+
+    /** V buňce se dá nadechnout: hlava mimo vodu, voda nebo opora pod nohama. */
+    private static boolean breathable(WorldView world, BlockPos cell) {
+        BlockTraits head = world.traitsAt(cell.up());
+        if (head == BlockTraits.UNKNOWN || head.liquid() || head.hazard()
+                || !head.lowProfile()) {
+            return false;
+        }
+        BlockTraits at = world.traitsAt(cell);
+        if (at.liquid()) {
+            return true; // hladina – šlapání vody s hlavou venku
+        }
+        BlockTraits below = world.traitsAt(cell.down());
+        return below.liquid() || below.floorHeight() > 0; // břeh/mělčina
     }
 
     /** Hořlavá tekutina (láva) – liquid s hazardem. */

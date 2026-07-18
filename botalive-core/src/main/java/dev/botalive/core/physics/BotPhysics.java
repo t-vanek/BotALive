@@ -63,6 +63,8 @@ public final class BotPhysics {
     private boolean inPowderSnow;
     private boolean inWeb;
     private boolean horizontalCollision;
+    /** Kolik ticků v kuse má bot hlavu pod hladinou (dochází mu dech). */
+    private int submergedTicks;
 
     /** Kumulovaná výška aktuálního pádu (bloky); nula, když bot nepadá. */
     private double fallDistance;
@@ -110,6 +112,11 @@ public final class BotPhysics {
     /** @return {@code true} pokud bot vázne v pavučině */
     public boolean inWeb() {
         return inWeb;
+    }
+
+    /** @return počet ticků v kuse s hlavou pod hladinou (0 = dýchá) */
+    public int submergedTicks() {
+        return submergedTicks;
     }
 
     /** @return {@code true} pokud tick skončil vodorovnou kolizí (naražení do zdi) */
@@ -336,6 +343,10 @@ public final class BotPhysics {
         onClimbable = feetTraits.climbable();
         inPowderSnow = feetTraits.powderSnow() || headTraits.powderSnow();
         inWeb = feetTraits.web() || headTraits.web();
+        // Dech: hlava pod hladinou (výška očí ~1,62 nad nohama).
+        boolean headUnder = world.traitsAt(
+                new Vec3(position.x(), position.y() + 1.62, position.z()).toBlockPos()).liquid();
+        submergedTicks = headUnder ? submergedTicks + 1 : 0;
     }
 
     /**
