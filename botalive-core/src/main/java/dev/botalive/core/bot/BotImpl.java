@@ -716,8 +716,8 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
                     && shouldBoardBoat()) {
                 // Široká voda ve směru cíle + dostupná loď → přeplout místo plavání.
                 // (Rekreační cíl „boat" si loď řídí sám – tomu do toho nesahat.)
-                obstacleTask = new dev.botalive.core.tasks.WaterCrossTask(navigator.destination());
-                LOG.debug("[{}] [nav] loď: přejezd vody k {}", name, navigator.destination());
+                obstacleTask = new dev.botalive.core.tasks.WaterCrossTask(navigator.currentObjective());
+                LOG.debug("[{}] [nav] loď: přejezd vody k {}", name, navigator.currentObjective());
             }
             // Pohyb: explicitní požadavek cíle > navigace > stání.
             if (requestedMove != null) {
@@ -838,7 +838,7 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
         if (worldView == null || physics == null || !navigator.navigating()) {
             return false;
         }
-        BlockPos dest = navigator.destination();
+        BlockPos dest = navigator.currentObjective();
         if (dest == null) {
             return false;
         }
@@ -875,7 +875,7 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
         if (!config.ai().terraforming() || worldView == null || physics == null) {
             return null;
         }
-        BlockPos destination = navigator.destination();
+        BlockPos destination = navigator.currentObjective();
         if (destination == null) {
             return null;
         }

@@ -25,7 +25,10 @@ import java.util.concurrent.CompletableFuture;
  *       širší mezera vynucuje sprint,</li>
  *   <li>zavřené dveře v cestě bot otevře interakcí,</li>
  *   <li>detekce zaseknutí: bez postupu několik desítek ticků → požádá o novou cestu,</li>
- *   <li>replanning je asynchronní – bot mezitím dojíždí starou cestu.</li>
+ *   <li>replanning je asynchronní – bot mezitím dojíždí starou cestu,</li>
+ *   <li>daleké cíle (za {@link #FAR_THRESHOLD}) se dělí na segmenty podél
+ *       vzdušné čáry ({@link SegmentPlanner}) s prefetchem chunků po trase;
+ *       neprůchodný segment zkouší laterální posuny, pak přímý částečný plán.</li>
  * </ul>
  */
 public final class Navigator {
@@ -35,6 +38,15 @@ public final class Navigator {
 
     /** Po kolika ticích bez postupu se považujeme za zaseknuté. */
     private static final int STUCK_TICKS = 50;
+
+    /** Od jaké vodorovné vzdálenosti se cíl dělí na segmenty (bloky). */
+    private static final int FAR_THRESHOLD = 96;
+    /** Délka jednoho segmentu po vzdušné čáře (bloky). */
+    private static final int SEGMENT_LENGTH = 64;
+    /** Dosažení mezicíle (bloky², vodorovně) – pak se plánuje další segment. */
+    private static final double SEGMENT_REACHED_SQ = 3 * 3;
+    /** Laterální posuny mezicíle při neprůchodnosti (obchůzka slepého ramene). */
+    private static final int[] SEGMENT_OFFSETS = {0, 24, -24};
 
     private final NavigationService service;
     private final BotActions actions;
@@ -47,6 +59,10 @@ public final class Navigator {
     private Path path;
     private int waypointIndex;
     private BlockPos destination;
+    /** Mezicíl na dlouhé trase; {@code null} = plánuje se rovnou k cíli. */
+    private BlockPos segmentGoal;
+    /** Index do {@link #SEGMENT_OFFSETS} při hledání průchodného segmentu. */
+    private int segmentAttempt;
     private CompletableFuture<Path> pendingPath;
 
     private Vec3 lastProgressPos = Vec3.ZERO;
@@ -113,6 +129,11 @@ public final class Navigator {
         repathAttempts = 0;
         assistNeeded = false;
         assistCycles = 0;
+        segmentGoal = null;
+        segmentAttempt = 0;
+        if (isFar(from.toBlockPos(), to)) {
+            advanceSegment(from.toBlockPos());
+        }
         requestPath(from);
     }
 
@@ -121,6 +142,8 @@ public final class Navigator {
         path = null;
         waypointIndex = 0;
         destination = null;
+        segmentGoal = null;
+        segmentAttempt = 0;
         pendingPath = null;
         ticksWithoutProgress = 0;
         assistNeeded = false;
@@ -170,6 +193,50 @@ public final class Navigator {
     }
 
     /**
+     * @return aktuální objekt zájmu navigace: mezicíl segmentu na dlouhé
+     *         trase, jinak konečný cíl (pro směr zásahů do terénu, lodě…)
+     */
+    public BlockPos currentObjective() {
+        return segmentGoal != null ? segmentGoal : destination;
+    }
+
+    /** Je cíl dál než {@link #FAR_THRESHOLD} (vodorovně)? */
+    private static boolean isFar(BlockPos from, BlockPos to) {
+        long dx = from.x() - to.x();
+        long dz = from.z() - to.z();
+        return dx * dx + dz * dz > (long) FAR_THRESHOLD * FAR_THRESHOLD;
+    }
+
+    /**
+     * Vybere další mezicíl (s aktuálním laterálním posunem) a přednačte
+     * koridor k němu.
+     *
+     * @param from odkud se plánuje
+     * @return {@code false} když segment nejde vybrat (blízko cíle, neznámá
+     *         oblast po všech posunech) – plánuje se rovnou k cíli
+     */
+    private boolean advanceSegment(BlockPos from) {
+        segmentGoal = null;
+        if (destination == null || !isFar(from, destination)) {
+            return false;
+        }
+        while (segmentAttempt < SEGMENT_OFFSETS.length) {
+            BlockPos segment = SegmentPlanner.nextSegment(world, from, destination,
+                    SEGMENT_LENGTH, SEGMENT_OFFSETS[segmentAttempt]);
+            if (segment != null) {
+                segmentGoal = segment;
+                // Prefetch koridoru: mezicíl a střed úseku k němu.
+                world.prefetch(segment, 2);
+                world.prefetch(new BlockPos((from.x() + segment.x()) / 2, from.y(),
+                        (from.z() + segment.z()) / 2), 2);
+                return true;
+            }
+            segmentAttempt++;
+        }
+        return false;
+    }
+
+    /**
      * Jeden tick navigace.
      *
      * @param position aktuální pozice bota (nohy)
@@ -187,12 +254,20 @@ public final class Navigator {
             Path computed = pendingPath.join();
             pendingPath = null;
             org.slf4j.LoggerFactory.getLogger(Navigator.class).debug(
-                    "[nav] cesta: {} waypointů, complete={}, cíl={}",
-                    computed.waypoints().size(), computed.complete(), destination);
+                    "[nav] cesta: {} waypointů, complete={}, cíl={}, segment={}",
+                    computed.waypoints().size(), computed.complete(), destination, segmentGoal);
             if (!computed.isEmpty()) {
                 path = computed;
                 waypointIndex = 0;
             } else if (destination != null) {
+                if (segmentGoal != null) {
+                    // Mezicíl nedosažitelný → laterální posun, nakonec přímý
+                    // (částečný) plán ke konečnému cíli.
+                    segmentAttempt++;
+                    advanceSegment(position.toBlockPos());
+                    requestPath(position);
+                    return MoveInput.IDLE;
+                }
                 // Cíl je pěšky nedosažitelný – šance na odblokování terénu.
                 if (assistCycles < MAX_ASSIST_CYCLES) {
                     assistNeeded = true;
@@ -217,9 +292,22 @@ public final class Navigator {
                 && Math.abs(delta.y()) < (inWater ? 1.6 : 1.2)) {
             waypointIndex++;
             if (waypointIndex >= path.waypoints().size()) {
-                if (!path.complete() && destination != null
-                        && position.toBlockPos().distanceSquared(destination) > 4) {
+                BlockPos feet = position.toBlockPos();
+                if (segmentGoal != null && feet.distanceSquared(segmentGoal) <= SEGMENT_REACHED_SQ) {
+                    // Mezicíl dosažen → naplánovat další segment trasy.
+                    segmentAttempt = 0;
+                    advanceSegment(feet);
+                    requestPath(position);
+                } else if (!path.complete() && destination != null
+                        && currentObjective() != null
+                        && feet.distanceSquared(currentObjective()) > 4) {
                     requestPath(position); // částečná cesta – doplánovat
+                } else if (segmentGoal != null && destination != null) {
+                    // Kompletní cesta skončila kus od mezicíle (normalizace
+                    // cíle nad deskou apod.) → pokračovat dalším segmentem.
+                    segmentAttempt = 0;
+                    advanceSegment(feet);
+                    requestPath(position);
                 } else {
                     stop();
                 }
@@ -343,11 +431,12 @@ public final class Navigator {
     }
 
     private void requestPath(Vec3 from) {
-        if (world == null || destination == null) {
+        BlockPos target = currentObjective();
+        if (world == null || target == null) {
             return;
         }
         java.util.List<BlockPos> dangers = dangerSupplier != null
                 ? dangerSupplier.get() : java.util.List.of();
-        pendingPath = service.findPath(world, from.toBlockPos(), destination, 0, dangers);
+        pendingPath = service.findPath(world, from.toBlockPos(), target, 0, dangers);
     }
 }
