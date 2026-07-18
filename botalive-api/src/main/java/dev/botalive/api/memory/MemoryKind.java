@@ -40,6 +40,9 @@ public enum MemoryKind {
     /** Bastion (blackstone) – truhly s kovářskými šablonami a zlatem. */
     BASTION,
 
+    /** Předsunutá základna v Netheru (truhla u portálu). */
+    OUTPOST,
+
     /** Místo úmrtí bota. */
     DEATH,
 

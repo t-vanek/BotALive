@@ -134,6 +134,13 @@ public final class NetherGoal extends AbstractGoal {
     /** Dopíjení lektvaru před sestupem (ticky). */
     private int drinkTicks;
 
+    // Kolonizace: předsunutá základna u netherské strany portálu.
+    private boolean outpostChecked;
+    private BlockPos outpost;
+    private StationPlacement outpostPlacement;
+    private boolean depositMode;
+    private boolean depositDone;
+
     /** Cache připravenosti – utility běží každý rozhodovací tick fleet-wide. */
     private NetherReadiness cachedReadiness;
     private long readinessAtMs;
@@ -544,6 +551,10 @@ public final class NetherGoal extends AbstractGoal {
             tickBarterWait(ctx);
             return;
         }
+        if (outpostPlacement != null) {
+            tickOutpostPlacement(ctx, bot);
+            return;
+        }
         // Toulání dokončit dřív, než se znovu skenuje – a mezi skeny držet
         // rozestup (plný sken rud a truhel každý tick by žral tick rozpočet).
         if (wanderTarget != null) {
@@ -598,6 +609,62 @@ public final class NetherGoal extends AbstractGoal {
     }
 
     /**
+     * Základna: existující OUTPOST vzpomínka v tomto světě, jinak položení
+     * vlastní truhly u příletového portálu (kolonizace – bot se sem vrací
+     * stejným portálem díky PORTAL paměti).
+     */
+    private void resolveOutpost(BotContext ctx, Bot bot) {
+        WorldView world = ctx.worldView();
+        BlockPos feet = ctx.position().toBlockPos();
+        var remembered = bot.memory().recallNearest(MemoryKind.OUTPOST,
+                world.worldName(), feet.x(), feet.y(), feet.z());
+        if (remembered.isPresent()
+                && remembered.get().distanceSquared(feet.x(), feet.y(), feet.z()) < 96 * 96) {
+            var r = remembered.get();
+            outpost = new BlockPos(r.x(), r.y(), r.z());
+            outpostChecked = true;
+            return;
+        }
+        var snapshot = ctx.serverView().latest();
+        if (snapshot == null || !snapshot.hasItem(m -> m == Material.CHEST)) {
+            outpostChecked = true; // bez truhly se kolonizuje až příště
+            return;
+        }
+        outpostPlacement = new StationPlacement(Material.CHEST);
+    }
+
+    /** Dotáhne položení truhly základny a zapamatuje ji. */
+    private void tickOutpostPlacement(BotContext ctx, Bot bot) {
+        if (outpostPlacement.tick(ctx)) {
+            return;
+        }
+        outpostPlacement = null;
+        outpostChecked = true;
+        WorldView world = ctx.worldView();
+        BlockPos feet = ctx.position().toBlockPos();
+        for (int dx = -3; dx <= 3 && outpost == null; dx++) {
+            for (int dy = -2; dy <= 2 && outpost == null; dy++) {
+                for (int dz = -3; dz <= 3; dz++) {
+                    BlockPos pos = feet.offset(dx, dy, dz);
+                    if (world.materialAt(pos) == Material.CHEST) {
+                        outpost = pos;
+                        break;
+                    }
+                }
+            }
+        }
+        if (outpost != null) {
+            bot.memory().remember(MemoryKind.OUTPOST, world.worldName(),
+                    outpost.x(), outpost.y(), outpost.z(), null,
+                    Map.of("type", "chest"), 0.8);
+            lootedChests.add(outpost.asLong()); // vlastní truhla se nevylupuje
+            if (ctx.rng().chance(0.7)) {
+                ctx.chat().say("zakladam si tu malou zakladnu, at se sem mam kam vracet");
+            }
+        }
+    }
+
+    /**
      * Preventivní odolnost ohni z hotbaru (splash hned, láhev ~1,6 s).
      * Lektvar zastrčený v batohu se neřeší – to umí nouzový cíl „drink".
      *
@@ -628,6 +695,25 @@ public final class NetherGoal extends AbstractGoal {
         WorldView world = ctx.worldView();
         BlockPos feet = ctx.position().toBlockPos();
         BotNeeds needs = BotNeeds.assess(ctx.serverView().latest());
+
+        // 0) Kolonizace: základna u portálu (jednou) + odkládání balastu.
+        if (!outpostChecked) {
+            resolveOutpost(ctx, bot);
+            if (outpostPlacement != null) {
+                return;
+            }
+        }
+        if (outpost != null && !depositDone
+                && dev.botalive.core.inventory.InventoryHelper.countEstimate(
+                        ctx.serverView().latest(),
+                        dev.botalive.core.inventory.ContainerService::isJunk) >= 48
+                && feet.distanceSquared(outpost) < 48 * 48) {
+            depositMode = true;
+            lootChest = outpost;
+            lootFuture = null;
+            lootTicks = 0;
+            return;
+        }
 
         // 1) Viditelná kořist (nejcennější, kterou aktuální krumpáč vytěží).
         BlockPos ore = scanBestOre(world, feet, needs);
@@ -898,6 +984,13 @@ public final class NetherGoal extends AbstractGoal {
             Integer taken = lootFuture.getNow(0);
             lootFuture = null;
             ctx.actions().closeContainer();
+            if (depositMode) {
+                // Odkládání balastu do vlastní základny – žádná černá listina.
+                depositMode = false;
+                depositDone = true;
+                lootChest = null;
+                return;
+            }
             // Úspěch (nebo druhý prázdný pokus) truhlu uzavírá; jeden prázdný
             // výsledek může být i timeout/plný batoh – dostane druhou šanci.
             if (taken != null && taken > 0) {
@@ -926,7 +1019,9 @@ public final class NetherGoal extends AbstractGoal {
         ctx.humanizer().lookAt(ctx.position().add(0, 1.62, 0),
                 lootChest.center().add(0, 0.5, 0));
         ctx.actions().useItemOn(lootChest, Direction.UP);
-        lootFuture = chests.lootValuables(ctx, ctx.worldView().worldName(), lootChest);
+        lootFuture = depositMode
+                ? chests.depositJunk(ctx, ctx.worldView().worldName(), lootChest)
+                : chests.lootValuables(ctx, ctx.worldView().worldName(), lootChest);
     }
 
     // ---- barter s pigliny
@@ -1120,6 +1215,11 @@ public final class NetherGoal extends AbstractGoal {
         lootTicks = 0;
         drinkTicks = 0;
         digTaskInPlan = false;
+        outpostChecked = false;
+        outpost = null;
+        outpostPlacement = null;
+        depositMode = false;
+        depositDone = false;
     }
 
     @Override

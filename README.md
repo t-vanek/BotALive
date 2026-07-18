@@ -81,7 +81,11 @@ inventář a historii; po restartu serveru pokračuje tam, kde skončil.
   společenství: quartz se prodává na trhu, blaze rody topí v peci, mince
   z těžby jdou do peněženky, portály si kamarádi předávají v drbech
   a kovářská šablona se dá zkopírovat (7 diamantů + netherrack), takže na
-  netherit dosáhne celá výbava. Vše laditelné sekcí `nether.*`.
+  netherit dosáhne celá výbava. Nether se postupně **kolonizuje**: u
+  netherské strany portálu si bot založí předsunutou základnu (truhla,
+  paměť `OUTPOST`), vrací se k ní stejným portálem, odkládá do ní balast
+  z těžby (delší výpravy s volným batohem) a před sestupem do hloubky se
+  napije odolnosti ohni. Vše laditelné sekcí `nether.*`.
 - **Lektvary a metadata itemy** – boti rozumí itemům, jejichž identita je
   až v metadatech: snapshot inventáře nese **varianty** (typ lektvaru,
   enchant knihy) a klient sleduje aktivní efekty z paketů. Lektvary
