@@ -1,5 +1,7 @@
 package dev.botalive.core.vehicle;
 
+import dev.botalive.core.util.Cardinal;
+
 /**
  * Popis jednoho kolejového bloku pro simulaci minecartu.
  *
@@ -37,55 +39,6 @@ public record RailInfo(Shape shape, boolean powered, boolean poweredRail) {
         NORTH_EAST
     }
 
-    /** Světové strany v rovině XZ. */
-    public enum Cardinal {
-        /** −Z. */
-        NORTH(0, -1),
-        /** +Z. */
-        SOUTH(0, 1),
-        /** +X. */
-        EAST(1, 0),
-        /** −X. */
-        WEST(-1, 0);
-
-        private final int dx;
-        private final int dz;
-
-        Cardinal(int dx, int dz) {
-            this.dx = dx;
-            this.dz = dz;
-        }
-
-        /** @return posun po ose X */
-        public int dx() {
-            return dx;
-        }
-
-        /** @return posun po ose Z */
-        public int dz() {
-            return dz;
-        }
-
-        /** @return opačný směr */
-        public Cardinal opposite() {
-            return switch (this) {
-                case NORTH -> SOUTH;
-                case SOUTH -> NORTH;
-                case EAST -> WEST;
-                case WEST -> EAST;
-            };
-        }
-
-        /** @return yaw odpovídající směru jízdy */
-        public float yaw() {
-            return switch (this) {
-                case SOUTH -> 0f;
-                case WEST -> 90f;
-                case NORTH -> 180f;
-                case EAST -> -90f;
-            };
-        }
-    }
 
     /**
      * @return dvojice stran, které tvar koleje propojuje

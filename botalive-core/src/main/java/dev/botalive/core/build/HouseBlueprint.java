@@ -1,6 +1,7 @@
 package dev.botalive.core.build;
 
 import dev.botalive.core.util.BlockPos;
+import dev.botalive.core.util.Cardinal;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -13,8 +14,8 @@ import java.util.List;
  * podlahy (nohou). Interiér 2×2 zůstává volný; bot celý domek postaví
  * z jednoho místa uvnitř a vyjde dveřmi.</p>
  *
- * <p>Domek se umí natočit ({@link HouseFacing}) – dveře vždy míří na stranu
- * dané orientace, takže domy ve vesnici koukají na náves. {@link HouseFacing#NORTH}
+ * <p>Domek se umí natočit ({@link Cardinal}) – dveře vždy míří na stranu
+ * dané orientace, takže domy ve vesnici koukají na náves. {@link Cardinal#NORTH}
  * odpovídá původní geometrii (dveřní otvor na hraně z = 0).</p>
  */
 public final class HouseBlueprint {
@@ -36,7 +37,7 @@ public final class HouseBlueprint {
      * @param facing orientace dveří
      * @return pozice bloků k položení
      */
-    public static List<BlockPos> placements(BlockPos origin, HouseFacing facing) {
+    public static List<BlockPos> placements(BlockPos origin, Cardinal facing) {
         List<BlockPos> result = new ArrayList<>();
         // Zdi po vrstvách.
         for (int y = 0; y < WALL_HEIGHT; y++) {
@@ -105,7 +106,7 @@ public final class HouseBlueprint {
      * @param facing orientace dveří
      * @return pozice, kde bot stojí při stavbě (vnitřek domku)
      */
-    public static BlockPos standPoint(BlockPos origin, HouseFacing facing) {
+    public static BlockPos standPoint(BlockPos origin, Cardinal facing) {
         return local(origin, 2, 0, 2, facing);
     }
 
@@ -114,7 +115,7 @@ public final class HouseBlueprint {
      * @param facing orientace dveří
      * @return spodní blok dveřního otvoru
      */
-    public static BlockPos doorBottom(BlockPos origin, HouseFacing facing) {
+    public static BlockPos doorBottom(BlockPos origin, Cardinal facing) {
         return local(origin, DOOR_X, 0, 0, facing);
     }
 
@@ -123,7 +124,7 @@ public final class HouseBlueprint {
      * @param facing orientace dveří
      * @return vnitřní pozice pro pochodeň
      */
-    public static BlockPos torchSpot(BlockPos origin, HouseFacing facing) {
+    public static BlockPos torchSpot(BlockPos origin, Cardinal facing) {
         return local(origin, 2, 0, 1, facing);
     }
 
@@ -132,13 +133,13 @@ public final class HouseBlueprint {
      * @param facing orientace dveří
      * @return vnitřní pozice pro postel
      */
-    public static BlockPos bedSpot(BlockPos origin, HouseFacing facing) {
+    public static BlockPos bedSpot(BlockPos origin, Cardinal facing) {
         return local(origin, 1, 0, 1, facing);
     }
 
     /** Počet bloků domku – konstanta, počítá se jednou (čte se v utility 4×/s). */
     private static final int BLOCKS_NEEDED =
-            placements(new BlockPos(0, 0, 0), HouseFacing.NORTH).size();
+            placements(new BlockPos(0, 0, 0), Cardinal.NORTH).size();
 
     /** @return počet bloků potřebných na celý domek */
     public static int blocksNeeded() {
@@ -150,7 +151,7 @@ public final class HouseBlueprint {
      * Půdorys je čtverec, takže natočení jen přemapuje (x, z) uvnitř
      * stejného objemu – {@code origin} zůstává minimálním rohem.
      */
-    private static BlockPos local(BlockPos origin, int x, int y, int z, HouseFacing facing) {
+    private static BlockPos local(BlockPos origin, int x, int y, int z, Cardinal facing) {
         int wx;
         int wz;
         switch (facing) {

@@ -3,8 +3,6 @@ package dev.botalive.core.chat;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 /**
  * Skloňování jmen a herních nicků v češtině.
@@ -30,9 +28,6 @@ import java.util.regex.Pattern;
  * tvar), vrací jméno beze změny – špatný pád je horší než žádný.</p>
  */
 public final class CzechNames {
-
-    /** Souvislé úseky písmen v nicku (jádro = nejdelší z nich). */
-    private static final Pattern LETTER_RUN = Pattern.compile("[A-Za-z]+");
 
     /** Minimální délka jádra, aby mělo skloňování smysl. */
     private static final int MIN_CORE = 3;
@@ -88,16 +83,10 @@ public final class CzechNames {
         return declined.equals(core) ? nick : declined;
     }
 
-    /** Nejdelší souvislý úsek písmen (při shodě první). */
+    /** Nejdelší souvislý úsek písmen (sdílené jádro nicku; ASCII – skloňovací
+     *  tabulky pracují bez diakritiky). */
     private static String core(String nick) {
-        Matcher m = LETTER_RUN.matcher(nick);
-        String best = "";
-        while (m.find()) {
-            if (m.group().length() > best.length()) {
-                best = m.group();
-            }
-        }
-        return best;
+        return dev.botalive.core.util.NickCore.core(nick, false);
     }
 
     /** Vyskloňuje čisté jméno (jen písmena). */

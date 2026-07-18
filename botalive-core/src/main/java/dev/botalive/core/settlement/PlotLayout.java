@@ -1,7 +1,7 @@
 package dev.botalive.core.settlement;
 
 import dev.botalive.core.build.HouseBlueprint;
-import dev.botalive.core.build.HouseFacing;
+import dev.botalive.core.util.Cardinal;
 import dev.botalive.core.util.BlockPos;
 
 /**
@@ -44,9 +44,9 @@ public final class PlotLayout {
      * @param center     střed vesnice
      * @return orientace dveří
      */
-    public static HouseFacing facingToward(BlockPos plotOrigin, BlockPos center) {
+    public static Cardinal facingToward(BlockPos plotOrigin, BlockPos center) {
         int half = HouseBlueprint.SIZE / 2;
-        return HouseFacing.toward(plotOrigin.x() + half, plotOrigin.z() + half,
+        return Cardinal.toward(plotOrigin.x() + half, plotOrigin.z() + half,
                 center.x(), center.z());
     }
 

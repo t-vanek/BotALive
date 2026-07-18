@@ -6,7 +6,7 @@ import dev.botalive.api.memory.MemoryRecord;
 import dev.botalive.api.personality.Trait;
 import dev.botalive.core.ai.BotContext;
 import dev.botalive.core.build.HouseBlueprint;
-import dev.botalive.core.build.HouseFacing;
+import dev.botalive.core.util.Cardinal;
 import dev.botalive.core.chat.PhraseCategory;
 import dev.botalive.core.settlement.SettlementService;
 import dev.botalive.core.tasks.BotTask;
@@ -43,16 +43,22 @@ public final class MaintainHomeGoal extends AbstractGoal {
     /** Pauza po opravě (a mezi neúspěchy). */
     private static final int BUSY_COOLDOWN = 4000;
 
-    private enum Phase { GOTO, REPAIR, DOOR, DONE }
+    private enum Phase { GOTO, REPAIR, FURNISH, DECOR, DONE }
+
+    /** Krok vybavení: co vzít do ruky a kam to položit. */
+    private record FurnishStep(java.util.function.Predicate<org.bukkit.Material> item,
+                               BlockPos target) {
+    }
 
     private Phase phase = Phase.GOTO;
     private BlockPos origin;
-    private HouseFacing facing = HouseFacing.NORTH;
+    private Cardinal facing = Cardinal.NORTH;
     private final Deque<BotTask> repairs = new ArrayDeque<>();
+    private final Deque<FurnishStep> furnish = new ArrayDeque<>();
+    private DecorWorker decor;
     private BotTask current;
     private int cooldownTicks;
     private int repairedCount;
-    private boolean needsDoor;
 
     /** Vytvoří cíl. */
     public MaintainHomeGoal() {
@@ -90,9 +96,10 @@ public final class MaintainHomeGoal extends AbstractGoal {
     public void start(Bot bot) {
         phase = Phase.GOTO;
         repairs.clear();
+        furnish.clear();
+        decor = null;
         current = null;
         repairedCount = 0;
-        needsDoor = false;
         resolveOriginAndFacing(bot);
     }
 
@@ -107,7 +114,8 @@ public final class MaintainHomeGoal extends AbstractGoal {
         switch (phase) {
             case GOTO -> gotoHome(ctx, bot);
             case REPAIR -> tickRepair(ctx);
-            case DOOR -> tickDoor(ctx, bot);
+            case FURNISH -> tickFurnish(ctx);
+            case DECOR -> tickDecor(ctx);
             case DONE -> {
             }
         }
@@ -119,7 +127,12 @@ public final class MaintainHomeGoal extends AbstractGoal {
             current.cancel(ctx(bot));
             current = null;
         }
+        if (decor != null) {
+            decor.cancel(ctx(bot));
+            decor = null;
+        }
         repairs.clear();
+        furnish.clear();
         super.stop(bot);
     }
 
@@ -134,7 +147,8 @@ public final class MaintainHomeGoal extends AbstractGoal {
             case GOTO -> "jdu zkontrolovat dům";
             case REPAIR -> "opravuju dům (zbývá " + (repairs.size()
                     + (current != null ? 1 : 0)) + " bloků)";
-            case DOOR -> "věším nové dveře";
+            case FURNISH -> "doplňuju vybavení – dveře, postel, světlo";
+            case DECOR -> "obnovuju cestičku a pochodně před domem";
             case DONE -> null;
         };
     }
@@ -145,7 +159,7 @@ public final class MaintainHomeGoal extends AbstractGoal {
     private void resolveOriginAndFacing(Bot bot) {
         BotContext ctx = ctx(bot);
         origin = null;
-        facing = HouseFacing.NORTH;
+        facing = Cardinal.NORTH;
         SettlementService settlements = ctx.settlements();
         if (settlements != null) {
             var plot = settlements.claimedPlot(bot.id());
@@ -167,7 +181,7 @@ public final class MaintainHomeGoal extends AbstractGoal {
                         Integer.parseInt(home.data().get("oz")));
                 String storedFacing = home.data().get("facing");
                 if (storedFacing != null) {
-                    facing = HouseFacing.valueOf(storedFacing);
+                    facing = Cardinal.valueOf(storedFacing);
                 }
                 return;
             } catch (RuntimeException e) {
@@ -193,7 +207,11 @@ public final class MaintainHomeGoal extends AbstractGoal {
         planRepairs(ctx, bot);
     }
 
-    /** Diff domu proti plánu: díry ve zdech, ucpaný vchod, chybějící dveře. */
+    /**
+     * Diff domu proti plánu: díry ve zdech, ucpaný vchod, chybějící vybavení
+     * (dveře, postel, vnitřní pochodeň) a u členů vesnice zhaslé pochodně
+     * podél cestičky k návsi.
+     */
     private void planRepairs(BotContext ctx, Bot bot) {
         WorldView world = ctx.worldView();
         BlockPos doorBottom = HouseBlueprint.doorBottom(origin, facing);
@@ -214,27 +232,67 @@ public final class MaintainHomeGoal extends AbstractGoal {
                 missing++;
             }
         }
+        var snapshot = ctx.serverView().latest();
         // Vchod: co tam nepatří, vykopat; dveře osadit, pokud chybí a jsou.
         for (BlockPos pos : doorway) {
             var material = world.materialAt(pos);
             if (world.traitsAt(pos).solid()) {
                 repairs.add(new MineBlockTask(pos));
             } else if (pos.equals(doorBottom)
-                    && (material == null || !material.name().endsWith("_DOOR"))) {
-                var snapshot = ctx.serverView().latest();
-                needsDoor = snapshot != null
-                        && snapshot.hasItem(m -> m.name().endsWith("_DOOR"));
+                    && (material == null || !material.name().endsWith("_DOOR"))
+                    && snapshot != null
+                    && snapshot.hasItem(m -> m.name().endsWith("_DOOR"))) {
+                furnish.add(new FurnishStep(m -> m.name().endsWith("_DOOR"), doorBottom));
             }
         }
-        if (repairs.isEmpty() && !needsDoor) {
+        // Vybavení uvnitř: ukradená/zničená postel = ztracený spawn point,
+        // zhaslá pochodeň = mobové v obýváku.
+        BlockPos bedSpot = HouseBlueprint.bedSpot(origin, facing);
+        var bedMaterial = world.materialAt(bedSpot);
+        if ((bedMaterial == null || !bedMaterial.name().endsWith("_BED"))
+                && !world.traitsAt(bedSpot).solid()
+                && snapshot != null && snapshot.hasItem(m -> m.name().endsWith("_BED"))) {
+            furnish.add(new FurnishStep(m -> m.name().endsWith("_BED"), bedSpot));
+        }
+        BlockPos torchSpot = HouseBlueprint.torchSpot(origin, facing);
+        if (world.materialAt(torchSpot) != org.bukkit.Material.TORCH
+                && !world.traitsAt(torchSpot).solid()
+                && snapshot != null
+                && snapshot.hasItem(m -> m == org.bukkit.Material.TORCH)) {
+            furnish.add(new FurnishStep(m -> m == org.bukkit.Material.TORCH, torchSpot));
+        }
+        // Cestička a veřejné osvětlení (jen členové vesnice, plán je idempotentní).
+        planDecor(ctx, bot);
+
+        if (repairs.isEmpty() && furnish.isEmpty() && (decor == null || !decor.hasWork())) {
             cooldownTicks = CALM_COOLDOWN; // všechno drží pohromadě
             phase = Phase.DONE;
             return;
         }
-        if (ctx.rng().chance(0.5)) {
+        if (!repairs.isEmpty() && ctx.rng().chance(0.5)) {
             ctx.chat().sayFrom(PhraseCategory.HOME_REPAIR, null);
         }
         phase = Phase.REPAIR;
+    }
+
+    /** U členů vesnice naplánuje obnovu cestičky a pochodní k návsi. */
+    private void planDecor(BotContext ctx, Bot bot) {
+        var cfg = ctx.config().settlement();
+        SettlementService settlements = ctx.settlements();
+        if (settlements == null || !cfg.enabled() || (!cfg.lighting() && !cfg.paths())) {
+            return;
+        }
+        var plot = settlements.claimedPlot(bot.id());
+        if (plot.isEmpty() || plot.get().origin() == null) {
+            return;
+        }
+        BlockPos center = settlements.settlementOf(bot.id())
+                .map(SettlementService.SettlementInfo::center).orElse(null);
+        var steps = dev.botalive.core.build.VillageDecor.plan(ctx.worldView(), origin,
+                facing, center, cfg.plotSpacing(), cfg.lighting(), cfg.paths());
+        if (!steps.isEmpty()) {
+            decor = new DecorWorker(steps);
+        }
     }
 
     /** Opravuje frontu: kopání ucpávek a doplňování bloků. */
@@ -242,19 +300,15 @@ public final class MaintainHomeGoal extends AbstractGoal {
         if (current == null) {
             current = repairs.poll();
             if (current == null) {
-                phase = needsDoor ? Phase.DOOR : Phase.DONE;
-                if (phase == Phase.DONE) {
-                    cooldownTicks = BUSY_COOLDOWN;
-                }
+                phase = Phase.FURNISH;
                 return;
             }
             if (current instanceof PlaceBlockTask
                     && !ctx.inventory().equipBuildingBlock(ctx.serverView().latest())) {
-                // Došly bloky – zbytek oprav příště.
+                // Došly bloky – zbytek oprav příště, vybavení se zkusí i tak.
                 current = null;
                 repairs.clear();
-                phase = needsDoor ? Phase.DOOR : Phase.DONE;
-                cooldownTicks = BUSY_COOLDOWN;
+                phase = Phase.FURNISH;
                 return;
             }
         }
@@ -267,20 +321,28 @@ public final class MaintainHomeGoal extends AbstractGoal {
         }
     }
 
-    /** Osadí nové dveře do prázdného otvoru. */
-    private void tickDoor(BotContext ctx, Bot bot) {
+    /** Doplní vybavení (dveře, postel, pochodeň); co chybí v batohu, přeskočí. */
+    private void tickFurnish(BotContext ctx) {
         if (current == null) {
-            if (!ctx.inventory().equipMatching(ctx.serverView().latest(),
-                    m -> m.name().endsWith("_DOOR"))) {
-                cooldownTicks = BUSY_COOLDOWN;
-                phase = Phase.DONE;
+            FurnishStep step = furnish.poll();
+            if (step == null) {
+                phase = Phase.DECOR;
                 return;
             }
-            current = new PlaceBlockTask(HouseBlueprint.doorBottom(origin, facing));
+            if (!ctx.inventory().equipMatching(ctx.serverView().latest(), step.item())) {
+                return; // item mezitím zmizel – další krok příští tick
+            }
+            current = new PlaceBlockTask(step.target());
         }
         if (current.tick(ctx)) {
             current = null;
-            cooldownTicks = BUSY_COOLDOWN;
+        }
+    }
+
+    /** Obnoví cestičku a pochodně (sdílený vykonavatel se stavbou). */
+    private void tickDecor(BotContext ctx) {
+        if (decor == null || decor.tick(ctx)) {
+            cooldownTicks = repairedCount > 0 ? BUSY_COOLDOWN : CALM_COOLDOWN;
             phase = Phase.DONE;
         }
     }

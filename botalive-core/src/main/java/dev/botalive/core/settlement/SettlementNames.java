@@ -45,22 +45,9 @@ public final class SettlementNames {
         return PREFIXES[rng.nextInt(PREFIXES.length)] + " " + ROOTS[rng.nextInt(ROOTS.length)];
     }
 
-    /** Nejdelší souvislý úsek písmen ve jménu (jádro herního nicku). */
+    /** Nejdelší souvislý úsek písmen ve jménu (sdílené jádro nicku, s diakritikou). */
     static String readableCore(String name) {
-        String best = "";
-        StringBuilder run = new StringBuilder();
-        for (int i = 0; i <= name.length(); i++) {
-            char c = i < name.length() ? name.charAt(i) : ' ';
-            if (Character.isLetter(c)) {
-                run.append(c);
-            } else {
-                if (run.length() > best.length()) {
-                    best = run.toString();
-                }
-                run.setLength(0);
-            }
-        }
-        return best;
+        return dev.botalive.core.util.NickCore.core(name, true);
     }
 
     /** Odstřihne koncové samohlásky, aby přípona zněla česky („Pepa" → „Pep"). */

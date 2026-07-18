@@ -57,4 +57,15 @@ public interface Goal {
      * @return {@code true} pokud cíl svou práci dokončil a má být vystřídán
      */
     boolean finished(Bot bot);
+
+    /**
+     * Blokuje běžící cíl rozhodnutí o stěhování (změně vesnice a domova)?
+     * Například rozestavěný dům se nejdřív dostaví – parcela se nesmí
+     * uvolnit pod rukama. Výchozí {@code false}.
+     *
+     * @return {@code true} pokud se má sousedská úvaha odložit
+     */
+    default boolean blocksRelocation() {
+        return false;
+    }
 }

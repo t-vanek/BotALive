@@ -76,26 +76,45 @@ public final class BotAlivePlugin extends JavaPlugin {
         }
     }
 
-    /** Rozfázovaný auto-spawn – boti nenaskakují v jedné vlně. */
+    /**
+     * Rozfázovaný auto-spawn – boti nenaskakují v jedné vlně.
+     *
+     * <p>Nejdřív se oživují <b>známí</b> boti z databáze (od naposledy
+     * viděných) a teprve zbytek do počtu se generuje nový. Roster je tak
+     * stabilní napříč restarty – vesnice, přátelství a majetek patří pořád
+     * týmž botům; losování nových jmen dřív každý restart oživilo jinou
+     * náhodnou podmnožinu a vymetání duchů pak vesnice rozpouštělo.</p>
+     */
     private void scheduleAutoSpawn(BotAliveConfig config) {
         BotManagerImpl manager = root.get(BotManagerImpl.class);
         int count = Math.min(config.bots().autoSpawnCount(), config.bots().maxCount());
         long baseDelayTicks = config.bots().autoSpawnDelayS() * 20L;
 
-        for (int i = 0; i < count; i++) {
-            // Každý bot s náhradním rozestupem 2–8 s, ať připojení nepůsobí uměle.
-            long delayTicks = baseDelayTicks + i * (40L + (long) (Math.random() * 120));
-            Bukkit.getGlobalRegionScheduler().runDelayed(this, task -> {
-                String name = manager.generateName();
-                manager.create(BotSpawnSpec.named(name)).whenComplete((bot, error) -> {
-                    if (error != null) {
-                        getLogger().warning("Auto-spawn bota '" + name + "' selhal: "
-                                + error.getMessage());
+        root.get(dev.botalive.core.persistence.BotRepository.class)
+                .listKnownBotNames(count)
+                .exceptionally(error -> {
+                    getLogger().warning("Načtení známých botů selhalo ("
+                            + error.getMessage() + ") – auto-spawn pojede s novými jmény.");
+                    return java.util.List.of();
+                })
+                .thenAccept(known -> {
+                    for (int i = 0; i < count; i++) {
+                        String resurrect = i < known.size() ? known.get(i) : null;
+                        // Každý bot s náhodným rozestupem 2–8 s, ať připojení nepůsobí uměle.
+                        long delayTicks = baseDelayTicks + i * (40L + (long) (Math.random() * 120));
+                        Bukkit.getGlobalRegionScheduler().runDelayed(this, task -> {
+                            String name = resurrect != null ? resurrect : manager.generateName();
+                            manager.create(BotSpawnSpec.named(name)).whenComplete((bot, error) -> {
+                                if (error != null) {
+                                    getLogger().warning("Auto-spawn bota '" + name + "' selhal: "
+                                            + error.getMessage());
+                                }
+                            });
+                        }, delayTicks);
                     }
+                    getLogger().info("Naplánován auto-spawn " + count + " botů ("
+                            + Math.min(known.size(), count) + " známých z databáze)");
                 });
-            }, delayTicks);
-        }
-        getLogger().info("Naplánován auto-spawn " + count + " botů");
     }
 
     @Override

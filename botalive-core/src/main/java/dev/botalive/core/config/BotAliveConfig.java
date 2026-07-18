@@ -257,12 +257,15 @@ public record BotAliveConfig(
      * @param ghostDays             po kolika dnech bez připojení se člen
      *                              vesnice při startu serveru vyřadí
      *                              (0 = nikdy; dům mu ve vesnici zůstává)
+     * @param grudgeWindowHours     jak čerstvá (hodiny) musí být zášť, aby
+     *                              kvůli ní bot opustil vesnici – druhá
+     *                              polovina knobu {@code grudgeThreshold}
      */
     public record Settlement(boolean enabled, int plotSpacing, int maxMembers,
                              int joinRadius, int minVillageDistance,
                              double lonerSociability, double grudgeThreshold,
                              int changeCooldownMinutes, boolean lighting,
-                             boolean paths, int ghostDays) {
+                             boolean paths, int ghostDays, int grudgeWindowHours) {
     }
 
     /**
