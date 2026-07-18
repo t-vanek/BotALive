@@ -66,4 +66,9 @@ public interface WorldView {
      *         cílů (spánek, farmaření…) a chování specifickém pro End
      */
     Dimension dimension();
+
+    /**
+     * @return spodní hrana světa (min Y) – pod ní už je jen void
+     */
+    int minY();
 }

@@ -1,6 +1,5 @@
-package dev.botalive.core.ai.goals;
+package dev.botalive.core.physics;
 
-import dev.botalive.core.physics.MoveInput;
 import dev.botalive.core.testutil.FakeWorldView;
 import dev.botalive.core.util.Vec3;
 import org.junit.jupiter.api.Test;
@@ -76,6 +75,33 @@ class EdgeGuardTest {
         MoveInput input = MoveInput.of(new Vec3(1, 0, 0), false, false);
         MoveInput guarded = EdgeGuard.apply(world, FEET, input);
         assertNotEquals(input.direction(), guarded.direction());
+    }
+
+    @Test
+    void melkaLavaNadDnemNejisti() {
+        // Láva v úrovni nohou nad pevným dnem: dno je „podlaha", ale krok
+        // do lávy je rozsudek – sloupec s lávou nesmí projít jako bezpečný.
+        FakeWorldView world = new FakeWorldView(63);
+        world.set(1, 64, 0, FakeWorldView.HAZARD); // láva v cílové buňce
+        MoveInput input = MoveInput.of(new Vec3(1, 0, 0), false, false);
+        MoveInput guarded = EdgeGuard.apply(world, FEET, input);
+        assertNotEquals(input.direction(), guarded.direction(),
+                "do lávy se nekráčí, i když je pod ní dno");
+    }
+
+    @Test
+    void lavaVUhybovemSmeruSeVynechava() {
+        // Přímý směr vede do voidu, první úhyb (45°) do lávy nad dnem –
+        // guard musí lávový úhyb přeskočit a najít další bezpečný.
+        FakeWorldView world = new FakeWorldView(63);
+        voidColumn(world, 1, 0);
+        world.set(1, 63, 1, FakeWorldView.HAZARD); // 45° kandidát: mělká láva
+        MoveInput input = MoveInput.of(new Vec3(1, 0, 0), true, false);
+        MoveInput guarded = EdgeGuard.apply(world, FEET, input);
+        assertTrue(guarded.direction().horizontalLength() > 0.5, "jde se dál, jinudy");
+        // Ani do voidu, ani do lávy: výsledný směr musí být bezpečný.
+        assertTrue(EdgeGuard.safeAhead(world, FEET,
+                guarded.direction().normalized(), EdgeGuard.SCAN_DEPTH));
     }
 
     @Test

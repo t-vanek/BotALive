@@ -575,21 +575,26 @@ public final class BotAliveCommand implements TabExecutor {
             error(sender, "Souřadnice musí být celá čísla");
             return;
         }
-        String world;
+        org.bukkit.World bukkitWorld;
         if (args.length >= 6) {
-            if (Bukkit.getWorld(args[5]) == null) {
+            bukkitWorld = Bukkit.getWorld(args[5]);
+            if (bukkitWorld == null) {
                 error(sender, "Svět '" + args[5] + "' neexistuje");
                 return;
             }
-            world = args[5];
         } else if (sender instanceof Player player) {
-            world = player.getWorld().getName();
+            bukkitWorld = player.getWorld();
         } else if (!Bukkit.getWorlds().isEmpty()) {
-            world = Bukkit.getWorlds().getFirst().getName();
+            bukkitWorld = Bukkit.getWorlds().getFirst();
         } else {
             error(sender, "Není z čeho odvodit svět – zadej ho parametrem");
             return;
         }
+        // Paměť se páruje na worldName() pohledu bota: v packet režimu je to
+        // protokolový klíč světa, jinak Bukkit název.
+        String world = config.network().packetWorldModel()
+                ? bukkitWorld.getKey().asString()
+                : bukkitWorld.getName();
         var bots = botManager.all();
         if (bots.isEmpty()) {
             error(sender, "Žádní boti nejsou připojení");

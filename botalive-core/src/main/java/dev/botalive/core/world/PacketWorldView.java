@@ -207,4 +207,9 @@ public final class PacketWorldView implements WorldView {
     public Dimension dimension() {
         return Dimension.fromWorldKey(worldKey);
     }
+
+    @Override
+    public int minY() {
+        return minY;
+    }
 }

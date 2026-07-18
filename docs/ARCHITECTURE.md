@@ -463,15 +463,21 @@ tenhle invariant dřív nebo později prolomily. (2) **Znalost portálů** –
 PORTAL paměť dostala konzumenty: zapisuje ji průchod (`onRespawn`,
 `data.to`), pasivní všímání si portálových bloků (pomalý sken v tick
 smyčce, jen dokud bot žádný nezná), admin (`/botalive end portal`), a
-šíří ji gossip (PORTAL přidán mezi místní drby; kopie si **musí** nechat
-`to`/`type` data, jinak by drb přestal být portálem do Endu). Rozestup
-výprav se měří z `updatedAt` průchodové vzpomínky – přežije restart bez
-nového stavu. (3) **Bezpečnost Endu** – `EdgeGuard` (čistá třída) chrání
+šíří ji gossip (PORTAL přidán mezi místní drby). Dvě pojistky drží drby
+oddělené od vlastních zážitků: kopie nese jen `type=end` (nikdy `to` –
+z doslechu se nestává „vlastní průchod"), a portál, který posluchač už
+zná, se znovu nevypráví – opakovaný remember by se slil do jeho záznamu
+a bumpl `updatedAt`. Rozestup výprav se totiž měří z `updatedAt`
+průchodové vzpomínky (bez gossip značky) – přežije restart bez nového
+stavu. (3) **Bezpečnost Endu** – `EdgeGuard` (čistá třída) chrání
 přímý, nenaplánovaný pohyb (panický útěk, strafing, úhyby) před hranami:
-otáčí směr podél hrany, láva pod hranou nejistí (liquid && !hazard),
-osamělý pilíř = stát. Zapojen do SurviveGoal, CombatGoal, PvpGoal a End
-cílů; pathfinding sám je vůči voidu bezpečný odjakživa (drop scan +
-UNKNOWN pod minY). Obstacle pipeline se naučila **mostit propasti**
+otáčí směr podél hrany, láva v cílové buňce i pod hranou nejistí nikdy,
+osamělý pilíř = stát. V SurviveGoal/CombatGoal/PvpGoal se zapíná jen
+v Endu (v overworldu by měnil zavedené chování – přiblížení k cíli přes
+seskok, přímočarý útěk), End cíle ho mají vždy; sondu podlahy sdílí
+i brzda navigátoru u hran (`cliffAhead`), takže bot nově brzdí i před
+hranou lávového jezera. Pathfinding sám je vůči voidu bezpečný odjakživa
+(drop scan + UNKNOWN pod minY). Obstacle pipeline se naučila **mostit propasti**
 (dřív jen tekutiny) – `BridgeTask` deck nad prázdnem, směr k cíli.
 Endermani jsou nově korektně **neutrální** (`isHostile` je nezahrnuje;
 rozzuřené řeší ENEMY paměť z damage eventů) a humanizer má „end gaze" –
@@ -481,8 +487,9 @@ kliky) nedotčené. (4) **Výprava jako řetěz cílů** – `end-travel`
 rám – A* na portálový blok cíleně nevede, vkročení je řízený krok),
 `dragon-fight` (krystaly `RangedAttack` zezdola s bezpečným odstupem,
 drak přes standardní `CombatController`, úhyby před dechem; vítězství =
-zmizení draka poblíž středu → `TROPHY type=dragon`, oslava, odvaha
-roste), `end-harvest` (osamocení endermani na perly, end stone na mosty,
+zmizení draka poblíž středu **potvrzené výstupním portálem** na fontáně –
+pouhý výpadek z trackeru umí i drak kroužící mimo dosah sledování entit
+→ `TROPHY type=dragon`, oslava, odvaha roste), `end-harvest` (osamocení endermani na perly, end stone na mosty,
 chorus když je) a `end-return` (výstupní portál na fontáně existuje jen
 po drakovi – „nenašel jsem portál" znamená „drak žije, zpátky do
 práce"). (5) **Ambice `DRAGON_SLAYER`** – skóre COURAGE ×0.95: odvážlivec

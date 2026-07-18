@@ -161,8 +161,17 @@ public final class Brain {
 
     /** Výběr nejlepšího cíle. */
     private void decide() {
-        // Vynucený cíl má absolutní přednost.
+        // Vynucený cíl má absolutní přednost – ale ani vynucení neobchází
+        // tvrdé zákazy dimenze (spánek v Endu/Netheru = exploze postele).
         if (forcedGoalId != null) {
+            if (DimensionPolicy.weight(forcedGoalId,
+                    BotContext.of(bot).dimension()) <= 0) {
+                LOG.warn("[{}] Vynucený cíl '{}' je v této dimenzi zakázán – ruším vynucení",
+                        bot.name(), forcedGoalId);
+                forcedGoalId = null;
+                switchTo(null);
+                return;
+            }
             if (current == null || !current.id().equals(forcedGoalId)) {
                 goals.stream()
                         .filter(g -> g.id().equals(forcedGoalId))

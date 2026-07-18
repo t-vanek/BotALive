@@ -2,7 +2,9 @@ package dev.botalive.core.ai.goals;
 
 import dev.botalive.api.ai.Goal;
 import dev.botalive.api.bot.Bot;
+import dev.botalive.api.memory.MemoryKind;
 import dev.botalive.core.ai.BotContext;
+import dev.botalive.core.entity.TrackedEntity;
 
 /**
  * Společný základ vestavěných cílů.
@@ -180,6 +182,29 @@ public abstract class AbstractGoal implements Goal {
             }
             return true;
         }
+    }
+
+    /**
+     * Nedávný útočník z paměti – neutrální mob (rozzuřený enderman, vlk…),
+     * který botovi ublížil ({@code ServerEventListener} zapisuje ENEMY) nebo
+     * kterého bot sám vyprovokoval. Enderman zuří prakticky trvale, ostatním
+     * hněv vyprchá za minutu; vlastní mazlíček se za útočníka nepovažuje
+     * nikdy. Sdílí {@code SurviveGoal} (útěk) a {@code CombatGoal} (oplácení).
+     *
+     * @param bot    bot
+     * @param entity podezřelá entita
+     * @return {@code true} pokud je entita čerstvým nepřítelem z paměti
+     */
+    protected static boolean recentAggressor(Bot bot, TrackedEntity entity) {
+        if (entity.uuid() == null || entity.isPlayer()) {
+            return false;
+        }
+        long window = entity.isEnderman() ? 600_000 : 60_000;
+        long now = System.currentTimeMillis();
+        var about = bot.memory().recallAbout(entity.uuid());
+        boolean enemy = about.stream().anyMatch(r -> r.kind() == MemoryKind.ENEMY
+                && now - r.updatedAt() < window);
+        return enemy && about.stream().noneMatch(r -> r.kind() == MemoryKind.PET);
     }
 
     /**

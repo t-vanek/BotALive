@@ -1,10 +1,12 @@
 package dev.botalive.core.ai.goals;
 
 import dev.botalive.api.bot.Bot;
+import dev.botalive.api.memory.MemoryKind;
 import dev.botalive.api.personality.Trait;
 import dev.botalive.core.ai.BotContext;
 import dev.botalive.core.entity.TrackedEntity;
 import dev.botalive.core.inventory.InventoryHelper;
+import dev.botalive.core.physics.EdgeGuard;
 import dev.botalive.core.tasks.MineBlockTask;
 import dev.botalive.core.util.BlockPos;
 import dev.botalive.core.util.Vec3;
@@ -12,6 +14,7 @@ import dev.botalive.core.world.Dimension;
 import dev.botalive.core.world.WorldView;
 import org.bukkit.Material;
 
+import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -34,7 +37,6 @@ public final class EndHarvestGoal extends AbstractGoal {
     private static final int BLOCKS_TARGET = 48;
 
     private MineBlockTask task;
-    private BlockPos targetBlock;
     private int cooldownTicks;
     private int huntedId = -1;
     private String activity;
@@ -61,8 +63,11 @@ public final class EndHarvestGoal extends AbstractGoal {
             return 0;
         }
         var snapshot = ctx.serverView().latest();
+        // Levná existenční otázka – drahý výběr osamocené kořisti (kontrola
+        // hloučku na endermana) patří až do ticku, ne do každé utility.
         boolean wantsPearls = canHuntPearls(ctx, bot)
-                && findLoneEnderman(ctx).isPresent();
+                && ctx.entities().nearest(ctx.position(), 24,
+                        TrackedEntity::isEnderman).isPresent();
         boolean wantsStone = wantsEndStone(ctx, snapshot);
         if (!wantsPearls && !wantsStone && !chorusSeen(ctx)) {
             return 0;
@@ -84,7 +89,6 @@ public final class EndHarvestGoal extends AbstractGoal {
     @Override
     public void start(Bot bot) {
         task = null;
-        targetBlock = null;
         huntedId = -1;
         activity = null;
         approachTicks = 0;
@@ -98,7 +102,6 @@ public final class EndHarvestGoal extends AbstractGoal {
         if (task != null) {
             if (task.tick(ctx)) {
                 task = null;
-                targetBlock = null;
             }
             return;
         }
@@ -119,6 +122,15 @@ public final class EndHarvestGoal extends AbstractGoal {
             if (prey.isPresent()) {
                 huntedId = prey.get().entityId();
                 activity = "lovím endermana kvůli perle";
+                // Vyprovokovaný enderman je nepřítel od prvního máchnutí –
+                // ne až od první inkasované rány. Bez záznamu by po teleportu
+                // kořisti byl pro SurviveGoal/CombatGoal neviditelný.
+                if (prey.get().uuid() != null && ctx.worldView() != null) {
+                    Vec3 at = prey.get().position();
+                    bot.memory().remember(MemoryKind.ENEMY, ctx.worldView().worldName(),
+                            (int) at.x(), (int) at.y(), (int) at.z(), prey.get().uuid(),
+                            Map.of("type", "ENDERMAN", "via", "provoked"), 0.6);
+                }
                 ctx.combat().engage(prey.get());
                 return;
             }
@@ -174,7 +186,6 @@ public final class EndHarvestGoal extends AbstractGoal {
         ctx.inventory().equipBestTool(ctx.serverView().latest(),
                 material != null ? material : Material.STONE);
         task = new MineBlockTask(block);
-        targetBlock = block;
         activity = why;
         return true;
     }
@@ -237,7 +248,8 @@ public final class EndHarvestGoal extends AbstractGoal {
                 for (int dz = -radius; dz <= radius; dz++) {
                     BlockPos pos = center.offset(dx, dy, dz);
                     Material material = world.materialAt(pos);
-                    if (material == null || !filter.test(material)) {
+                    if (material == null || !filter.test(material)
+                            || !exposed(world, pos)) {
                         continue;
                     }
                     double dist = pos.distanceSquared(center);
@@ -249,6 +261,16 @@ public final class EndHarvestGoal extends AbstractGoal {
             }
         }
         return best;
+    }
+
+    /** Zasypaný blok nemá smysl – kope se jen to, k čemu se dá došlápnout. */
+    private static boolean exposed(WorldView world, BlockPos pos) {
+        return world.traitsAt(pos.up()).passable()
+                || world.traitsAt(pos.down()).passable()
+                || world.traitsAt(pos.offset(1, 0, 0)).passable()
+                || world.traitsAt(pos.offset(-1, 0, 0)).passable()
+                || world.traitsAt(pos.offset(0, 0, 1)).passable()
+                || world.traitsAt(pos.offset(0, 0, -1)).passable();
     }
 
     @Override

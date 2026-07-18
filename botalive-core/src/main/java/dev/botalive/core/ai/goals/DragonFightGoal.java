@@ -8,6 +8,7 @@ import dev.botalive.core.chat.PhraseCategory;
 import dev.botalive.core.combat.RangedAttack;
 import dev.botalive.core.entity.TrackedEntity;
 import dev.botalive.core.personality.PersonalityEvolution;
+import dev.botalive.core.physics.EdgeGuard;
 import dev.botalive.core.physics.MoveInput;
 import dev.botalive.core.util.BlockPos;
 import dev.botalive.core.util.Vec3;
@@ -84,6 +85,9 @@ public final class DragonFightGoal extends AbstractGoal {
         centerTarget = null;
         crystalApproach = null;
         crystalApproachId = -1;
+        // Instance cíle žije přes výpravy i smrti – bez resetu by starý boj
+        // „strašil" a zmizení draka z trackeru by vyrobilo falešné vítězství.
+        fightStarted = false;
     }
 
     /** Navigace ke středu ostrova se stabilním cílem (mosty přes void). */
@@ -110,12 +114,18 @@ public final class DragonFightGoal extends AbstractGoal {
         if (dragon.isPresent()) {
             fightStarted = true;
             dragonGoneTicks = 0;
-        } else if (fightStarted) {
-            // Drak zmizel z trackeru: buď je mrtvý, nebo jsme moc daleko.
-            if (pos.horizontal().distance(Vec3.ZERO) < 80 && ++dragonGoneTicks > DRAGON_GONE_TICKS) {
+        } else if (fightStarted
+                && pos.horizontal().distance(Vec3.ZERO) < 80
+                && ++dragonGoneTicks > DRAGON_GONE_TICKS) {
+            // Drak zmizel z trackeru: mrtvý, nebo jen krouží mimo dosah
+            // sledování entit. Rozhoduje výstupní portál – ten se objeví
+            // pouze po jeho smrti.
+            if (PortalEntry.findExitPortal(ctx.worldView(),
+                    new BlockPos(0, (int) pos.y(), 0)) != null) {
                 celebrate(ctx, bot);
                 return;
             }
+            dragonGoneTicks = 0; // portál nikde → drak žije, jen je daleko
         }
 
         // Z obsidiánové plošiny (a okrajů) na hlavní ostrov – mosty přes void
@@ -188,10 +198,7 @@ public final class DragonFightGoal extends AbstractGoal {
         if (distance > 40) {
             // Drak krouží daleko – čekat u fontány, tam se usazuje.
             ctx.combat().disengage();
-            Vec3 pos = ctx.position();
-            if (pos.horizontal().distance(Vec3.ZERO) > 12) {
-                ctx.navigator().navigateTo(pos, new BlockPos(0, (int) pos.y(), 0));
-            }
+            navigateCenter(ctx, ctx.position());
             return;
         }
         ctx.navigator().stop();

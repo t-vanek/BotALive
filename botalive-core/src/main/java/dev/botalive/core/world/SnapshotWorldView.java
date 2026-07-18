@@ -134,6 +134,11 @@ public final class SnapshotWorldView implements WorldView {
         return dimension;
     }
 
+    @Override
+    public int minY() {
+        return world.getMinHeight();
+    }
+
     /**
      * Bodová invalidace po změně bloku (volá {@code BlockChangeListener}).
      *

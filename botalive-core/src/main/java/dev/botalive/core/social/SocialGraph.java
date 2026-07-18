@@ -94,6 +94,11 @@ public final class SocialGraph {
         places.addAll(teller.memory().recall(MemoryKind.MINE));
         places.addAll(teller.memory().recall(MemoryKind.DANGER));
         places.addAll(teller.memory().recall(MemoryKind.PORTAL));
+        // Portál, o kterém posluchač už ví, se znovu nevypráví: opakovaný
+        // remember by se slil do jeho záznamu, přepsal data drbem a bumpl
+        // updatedAt – u vlastního průchodu by to resetovalo cooldown výprav.
+        places.removeIf(record -> record.kind() == MemoryKind.PORTAL
+                && knowsPlace(listener, record));
         List<MemoryRecord> shareable = shareable(places,
                 teller.memory().recall(MemoryKind.ENEMY), trust, listener.id());
         int told = 0;
@@ -107,20 +112,29 @@ public final class SocialGraph {
         return told;
     }
 
+    /** Zná posluchač místo záznamu? (stejný druh a svět do slučovací dálky) */
+    private static boolean knowsPlace(Bot listener, MemoryRecord record) {
+        return listener.memory().recall(record.kind()).stream()
+                .anyMatch(own -> java.util.Objects.equals(own.world(), record.world())
+                        && own.distanceSquared(record.x(), record.y(), record.z()) <= 8 * 8);
+    }
+
     /**
-     * Data předávané kopie drbu: značka gossip + klíče, které nesou význam
-     * vzpomínky (portál by bez {@code to}/{@code type} přestal být portálem
-     * do Endu).
+     * Data předávané kopie drbu: značka gossip + {@code type}, který nese
+     * význam vzpomínky. Klíč {@code to} (vlastní průchod portálem) se
+     * <b>nikdy</b> nekopíruje – z doslechu se nestává cesta, kterou posluchač
+     * sám prošel (měřil by se z ní rozestup výprav do Endu). Průchod se
+     * posluchači předá jako spatřený portál ({@code type=end}).
      */
     private static Map<String, String> gossipData(MemoryRecord record, Bot teller) {
         Map<String, String> data = new java.util.HashMap<>();
         data.put("via", "gossip");
         data.put("from", teller.name());
-        String to = record.data().get("to");
-        if (to != null) {
-            data.put("to", to);
-        }
         String type = record.data().get("type");
+        if (type == null && dev.botalive.core.world.Dimension.fromWorldKey(
+                record.data().get("to")) == dev.botalive.core.world.Dimension.THE_END) {
+            type = dev.botalive.core.ai.EndKnowledge.TYPE_END;
+        }
         if (type != null) {
             data.put("type", type);
         }

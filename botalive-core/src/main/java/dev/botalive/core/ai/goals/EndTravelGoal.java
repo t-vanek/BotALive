@@ -7,7 +7,6 @@ import dev.botalive.core.ai.BotContext;
 import dev.botalive.core.ai.EndKnowledge;
 import dev.botalive.core.ai.EndReadiness;
 import dev.botalive.core.chat.PhraseCategory;
-import dev.botalive.core.physics.MoveInput;
 import dev.botalive.core.util.BlockPos;
 import dev.botalive.core.util.Vec3;
 import dev.botalive.core.world.Dimension;
@@ -35,16 +34,14 @@ public final class EndTravelGoal extends AbstractGoal {
     /** Jak dlouho se u portálu hledají portálové bloky, než to bot vzdá (ticky). */
     private static final int SEARCH_BUDGET_TICKS = 300;
 
-    /** Jak dlouho smí trvat samotné vkročení do portálu (ticky). */
-    private static final int ENTER_BUDGET_TICKS = 200;
+    /** Sken je drahý (13×9×13 bloků) – hledá se jen jednou za tolik ticků. */
+    private static final int SEARCH_INTERVAL_TICKS = 20;
 
     private Phase phase = Phase.GO;
     private BlockPos rememberedPortal;
-    private BlockPos portalBlock;
-    private BlockPos standPoint;
+    private PortalEntry entry;
     private int cooldownTicks;
     private int searchTicks;
-    private int enterTicks;
     private int travelTicks;
 
     /** Vytvoří cíl. */
@@ -73,14 +70,13 @@ public final class EndTravelGoal extends AbstractGoal {
             return 0;
         }
         Vec3 pos = ctx.position();
-        var portal = EndKnowledge.nearestEndPortal(bot.memory(), world.worldName(),
-                (int) pos.x(), (int) pos.z());
-        if (portal.isEmpty()) {
+        var portals = bot.memory().recall(MemoryKind.PORTAL);
+        if (EndKnowledge.nearestEndPortal(portals, world.worldName(),
+                (int) pos.x(), (int) pos.z()).isEmpty()) {
             return 0; // o žádném portálu neví
         }
         long cooldownMs = cfg.expeditionCooldownMinutes() * 60_000L;
-        if (EndKnowledge.recentEndVisit(bot.memory().recall(MemoryKind.PORTAL),
-                System.currentTimeMillis(), cooldownMs)) {
+        if (EndKnowledge.recentEndVisit(portals, System.currentTimeMillis(), cooldownMs)) {
             return 0; // z Endu se vrátil nedávno
         }
         EndReadiness readiness = EndReadiness.assess(ctx.serverView().latest());
@@ -95,10 +91,8 @@ public final class EndTravelGoal extends AbstractGoal {
     public void start(Bot bot) {
         BotContext ctx = ctx(bot);
         phase = Phase.GO;
-        portalBlock = null;
-        standPoint = null;
+        entry = null;
         searchTicks = 0;
-        enterTicks = 0;
         travelTicks = 0;
         Vec3 pos = ctx.position();
         rememberedPortal = EndKnowledge.nearestEndPortal(bot.memory(),
@@ -139,47 +133,39 @@ public final class EndTravelGoal extends AbstractGoal {
                     ctx.navigator().navigateTo(pos, rememberedPortal);
                     return;
                 }
-                // U portálu: najít skutečné portálové bloky (paměť je ±pár bloků).
-                portalBlock = findPortalBlock(world, rememberedPortal, pos.toBlockPos());
-                if (portalBlock != null) {
-                    standPoint = findStandPoint(world, portalBlock);
-                    ctx.navigator().stop();
-                    phase = Phase.ENTER;
-                    return;
+                // U portálu: najít skutečné portálové bloky (paměť je ±pár
+                // bloků). Sken jde po intervalech – bloky se samy neobjeví,
+                // jen se čeká na dohřátí chunk cache.
+                if (searchTicks % SEARCH_INTERVAL_TICKS == 0) {
+                    world.prefetch(rememberedPortal, 1);
+                    BlockPos portalBlock = findPortalBlock(world, rememberedPortal,
+                            pos.toBlockPos());
+                    if (portalBlock != null) {
+                        entry = new PortalEntry(world, portalBlock);
+                        ctx.navigator().stop();
+                        phase = Phase.ENTER;
+                        return;
+                    }
                 }
                 if (++searchTicks > SEARCH_BUDGET_TICKS) {
-                    // Portál tu (už) není – vzpomínku smazat, ať se nechodí dokola.
-                    BlockPos remembered = rememberedPortal;
-                    bot.memory().forgetIf(MemoryKind.PORTAL, r ->
-                            EndKnowledge.isEndPortal(r)
-                                    && r.distanceSquared(remembered.x(), remembered.y(),
-                                    remembered.z()) < 12 * 12);
+                    // Portál tu není. Zapomenout jen s načtenou oblastí –
+                    // studená cache nesmí smazat skutečný portál z paměti.
+                    if (world.isAvailable(rememberedPortal)) {
+                        BlockPos remembered = rememberedPortal;
+                        bot.memory().forgetIf(MemoryKind.PORTAL, r ->
+                                EndKnowledge.isEndPortal(r)
+                                        && r.distanceSquared(remembered.x(), remembered.y(),
+                                        remembered.z()) < 12 * 12);
+                    }
                     giveUp(1200);
                 }
             }
             case ENTER -> {
-                if (++enterTicks > ENTER_BUDGET_TICKS) {
-                    giveUp(600);
-                    return;
-                }
-                Vec3 target = portalBlock.center();
-                // Nejdřív na nástupní bod (rám portálu), pak krok do portálu.
-                if (standPoint != null
-                        && standPoint.center().sub(pos).horizontalLength() > 1.1
-                        && target.sub(pos).horizontalLength() > 1.6) {
-                    ctx.navigator().navigateTo(pos, standPoint);
-                    if (!ctx.navigator().navigating() && !ctx.navigator().hasPath()) {
-                        standPoint = null; // nástupní bod nedostupný – jít napřímo
-                    }
-                    return;
-                }
-                ctx.navigator().stop();
-                Vec3 step = target.sub(pos).horizontal();
-                ctx.humanizer().lookAt(pos.add(0, 1.62, 0), target);
-                if (step.horizontalLength() > 1.0E-3) {
-                    ctx.requestMove(MoveInput.walk(step));
-                }
                 // Průchod pozná finished() podle změny dimenze.
+                if (entry.tick(ctx, PortalEntry.DEFAULT_BUDGET_TICKS)
+                        == PortalEntry.Result.GAVE_UP) {
+                    giveUp(600);
+                }
             }
             case DONE -> {
                 // nic
@@ -219,30 +205,6 @@ public final class EndTravelGoal extends AbstractGoal {
             }
         }
         // Jen rám bez portálu (chybí oči) – vkročit není kam.
-        return null;
-    }
-
-    /**
-     * Nástupní bod u portálu: sousední buňka, na které se dá stát – typicky
-     * rám portálu (částečná podlaha 13/16), u portálů v podlaze obyčejný
-     * okraj. Z ní se do portálu vchází jedním krokem. Sdílené s návratem
-     * ({@link EndReturnGoal}).
-     */
-    static BlockPos findStandPoint(WorldView world, BlockPos portal) {
-        int[][] dirs = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}, {1, 1}, {1, -1}, {-1, 1}, {-1, -1}};
-        for (int[] d : dirs) {
-            BlockPos cell = portal.offset(d[0], 0, d[1]);
-            var traits = world.traitsAt(cell);
-            // Rám portálu: buňka s částečnou podlahou, nad ní volno.
-            if (traits.floorHeight() > 0 && traits.floorHeight() <= 1.01
-                    && world.traitsAt(cell.up()).passable()) {
-                return cell;
-            }
-            // Portál zapuštěný v podlaze: volná buňka s pevným podkladem.
-            if (traits.passable() && world.traitsAt(cell.down()).solid()) {
-                return cell;
-            }
-        }
         return null;
     }
 

@@ -1,6 +1,5 @@
-package dev.botalive.core.ai.goals;
+package dev.botalive.core.physics;
 
-import dev.botalive.core.physics.MoveInput;
 import dev.botalive.core.util.BlockPos;
 import dev.botalive.core.util.Vec3;
 import dev.botalive.core.world.BlockTraits;
@@ -15,16 +14,17 @@ import dev.botalive.core.world.WorldView;
  * prověří: chybí-li kousek před botem do {@link #SCAN_DEPTH} bloků pod nohama
  * pevná podlaha (nebo bezpečná voda), otočí pohyb do nejbližšího bezpečného
  * směru; když bezpečný směr není (osamělý pilíř), bot se zastaví. Otočený
- * pohyb je opatrný – bez sprintu a skoku.</p>
+ * pohyb je opatrný – bez sprintu a skoku. Buňka ani přistání s lávou/ohněm
+ * se za bezpečné nepovažují nikdy.</p>
  *
- * <p>Čistá třída bez stavů – jednotkově testovatelná nad {@code FakeWorldView}.
- * Užitečná ve všech dimenzích (útesy zabíjejí i v overworldu), kritická
- * v Endu.</p>
+ * <p>Sdílená sonda podlahy ({@link #safeAhead}) slouží i navigátoru
+ * (brzdění u hran při následování cesty). Čistá třída bez stavů –
+ * jednotkově testovatelná nad {@code FakeWorldView}.</p>
  */
 public final class EdgeGuard {
 
     /** Do jaké hloubky pod hranou se hledá podlaha, než je krok „přes okraj". */
-    static final int SCAN_DEPTH = 5;
+    public static final int SCAN_DEPTH = 5;
 
     /** Jak daleko před botem se sloupec prověřuje (bloky). */
     private static final double LOOKAHEAD = 0.9;
@@ -48,12 +48,12 @@ public final class EdgeGuard {
             return input;
         }
         Vec3 direction = input.direction().horizontal().normalized();
-        if (safeAhead(world, position, direction)) {
+        if (safeAhead(world, position, direction, SCAN_DEPTH)) {
             return input;
         }
         for (double degrees : TURNS) {
             Vec3 turned = rotate(direction, Math.toRadians(degrees));
-            if (safeAhead(world, position, turned)) {
+            if (safeAhead(world, position, turned, SCAN_DEPTH)) {
                 // Odklon je opatrný krok podél hrany – bez sprintu a skoku.
                 return new MoveInput(turned, false, false, input.sneak());
             }
@@ -62,27 +62,33 @@ public final class EdgeGuard {
     }
 
     /**
-     * Má sloupec kousek před botem v daném směru dohlednou podlahu?
+     * Má sloupec kousek před botem v daném směru dohlednou bezpečnou podlahu?
+     * Láva/oheň kdekoli ve sloupci znamená „ne" – i mělká láva nad pevným
+     * dnem je rozsudek, žádné přistání.
      *
      * @param world     svět
      * @param position  pozice bota (nohy)
      * @param direction jednotkový vodorovný směr
-     * @return {@code true} pokud tam lze šlápnout bez pádu přes {@link #SCAN_DEPTH}
+     * @param scanDepth do jaké hloubky pod hranou se hledá podlaha
+     * @return {@code true} pokud tam lze šlápnout bez pádu přes {@code scanDepth}
      */
-    static boolean safeAhead(WorldView world, Vec3 position, Vec3 direction) {
+    public static boolean safeAhead(WorldView world, Vec3 position, Vec3 direction,
+                                    int scanDepth) {
         BlockPos ahead = position.add(direction.mul(LOOKAHEAD)).toBlockPos();
         BlockTraits cell = world.traitsAt(ahead);
+        if (cell.hazard()) {
+            return false; // krok rovnou do lávy/ohně
+        }
         if (cell.solid()) {
             return true; // stěna/schod – krok skončí step-upem, ne pádem
         }
-        for (int depth = 1; depth <= SCAN_DEPTH; depth++) {
+        for (int depth = 1; depth <= scanDepth; depth++) {
             BlockTraits below = world.traitsAt(ahead.offset(0, -depth, 0));
-            if (below.solid()) {
-                return true;
+            if (below.hazard()) {
+                return false; // láva (i mělká nad dnem) – tudy ne
             }
-            // Voda pád jistí; láva je liquid i hazard – ta nejistí nic.
-            if (below.liquid() && !below.hazard()) {
-                return true;
+            if (below.solid() || below.liquid()) {
+                return true; // pevná podlaha nebo voda jistí pád
             }
         }
         return false;

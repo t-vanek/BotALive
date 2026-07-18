@@ -23,6 +23,13 @@ public enum Dimension {
     /**
      * Odvodí dimenzi z protokolového klíče světa (packet mode).
      *
+     * <p>Vanilla dimenze mají cestu {@code the_end}/{@code the_nether}.
+     * Světy vytvořené pluginy (Multiverse…) ale CraftBukkit klíčuje jako
+     * {@code minecraft:<jméno_světa>} – proto se uznávají i konvenční
+     * přípony jmen ({@code world_the_end}, {@code mv_end}). Server mode
+     * tuhle heuristiku nepotřebuje (čte Bukkit {@code World.Environment});
+     * v packet modu je to nejlepší dostupný odhad.</p>
+     *
      * @param worldKey klíč světa (např. {@code minecraft:the_end}), {@code null} toleruje
      * @return dimenze ({@link #OVERWORLD} pro neznámé klíče)
      */
@@ -30,13 +37,15 @@ public enum Dimension {
         if (worldKey == null) {
             return OVERWORLD;
         }
-        // Klíč může nést vlastní namespace (multiverse pluginy) – rozhoduje cesta.
         String path = worldKey.substring(worldKey.indexOf(':') + 1);
-        return switch (path) {
-            case "the_end" -> THE_END;
-            case "the_nether" -> NETHER;
-            default -> OVERWORLD;
-        };
+        if (path.equals("the_end") || path.endsWith("_the_end") || path.endsWith("_end")) {
+            return THE_END;
+        }
+        if (path.equals("the_nether") || path.endsWith("_the_nether")
+                || path.endsWith("_nether")) {
+            return NETHER;
+        }
+        return OVERWORLD;
     }
 
     /**

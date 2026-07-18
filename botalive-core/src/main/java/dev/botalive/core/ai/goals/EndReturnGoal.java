@@ -6,7 +6,6 @@ import dev.botalive.core.ai.BotContext;
 import dev.botalive.core.ai.EndKnowledge;
 import dev.botalive.core.chat.PhraseCategory;
 import dev.botalive.core.inventory.InventoryHelper;
-import dev.botalive.core.physics.MoveInput;
 import dev.botalive.core.util.BlockPos;
 import dev.botalive.core.util.Vec3;
 import dev.botalive.core.world.Dimension;
@@ -27,16 +26,13 @@ public final class EndReturnGoal extends AbstractGoal {
 
     private enum Phase { GO_CENTER, ENTER, DONE }
 
-    /** Jak dlouho smí trvat vkročení do portálu (ticky). */
-    private static final int ENTER_BUDGET_TICKS = 300;
-
     private Phase phase = Phase.GO_CENTER;
-    private BlockPos portalBlock;
-    private BlockPos standPoint;
+    private PortalEntry entry;
     private BlockPos centerTarget;
     private int cooldownTicks;
-    private int enterTicks;
     private int travelTicks;
+    /** Sken výstupního portálu přes studenou chunk cache chce pár pokusů. */
+    private final ScanRetry portalScan = new ScanRetry(4, 30);
 
     /** Vytvoří cíl. */
     public EndReturnGoal() {
@@ -75,9 +71,10 @@ public final class EndReturnGoal extends AbstractGoal {
         return urge;
     }
 
-    /** Délka aktuální výpravy (minuty) – od posledního průchodu do Endu. */
+    /** Délka aktuální výpravy (minuty) – od posledního vlastního průchodu do Endu. */
     private static long expeditionMinutes(Bot bot) {
         long entered = bot.memory().recall(MemoryKind.PORTAL).stream()
+                .filter(r -> !"gossip".equals(r.data().get("via")))
                 .filter(r -> {
                     String to = r.data().get("to");
                     return to != null && Dimension.fromWorldKey(to) == Dimension.THE_END;
@@ -91,11 +88,10 @@ public final class EndReturnGoal extends AbstractGoal {
     public void start(Bot bot) {
         BotContext ctx = ctx(bot);
         phase = Phase.GO_CENTER;
-        portalBlock = null;
-        standPoint = null;
+        entry = null;
         centerTarget = null;
-        enterTicks = 0;
         travelTicks = 0;
+        portalScan.reset();
         if (ctx.rng().chance(0.6)) {
             ctx.chat().sayFrom(PhraseCategory.END_RETURN, null);
         }
@@ -125,35 +121,31 @@ public final class EndReturnGoal extends AbstractGoal {
                     return;
                 }
                 // U fontány: existuje výstupní portál? (jen po smrti draka)
-                portalBlock = scanExitPortal(world, pos.toBlockPos());
-                if (portalBlock == null) {
-                    giveUp(2400); // drak žije – domů se zatím nedá
+                // Sken se středí na fontánu, ne na bota – při náběhu po ose
+                // by portál ležel mimo dosah skenu. Studená chunk cache chce
+                // pár pokusů s prefetch, jinak by „nenašel" znamenalo omyl.
+                if (portalScan.waiting()) {
                     return;
                 }
-                standPoint = EndTravelGoal.findStandPoint(world, portalBlock);
+                BlockPos fountain = new BlockPos(0, pos.toBlockPos().y(), 0);
+                BlockPos portalBlock = PortalEntry.findExitPortal(world, fountain);
+                if (portalBlock == null) {
+                    if (!portalScan.shouldRetry()) {
+                        giveUp(2400); // drak žije – domů se zatím nedá
+                    } else if (portalScan.firstFailure()) {
+                        world.prefetch(fountain, 1);
+                    }
+                    return;
+                }
+                entry = new PortalEntry(world, portalBlock);
                 ctx.navigator().stop();
                 phase = Phase.ENTER;
             }
             case ENTER -> {
-                if (++enterTicks > ENTER_BUDGET_TICKS) {
+                // Průchod pozná finished() podle změny dimenze.
+                if (entry.tick(ctx, PortalEntry.DEFAULT_BUDGET_TICKS)
+                        == PortalEntry.Result.GAVE_UP) {
                     giveUp(600);
-                    return;
-                }
-                Vec3 target = portalBlock.center();
-                if (standPoint != null
-                        && standPoint.center().sub(pos).horizontalLength() > 1.1
-                        && target.sub(pos).horizontalLength() > 1.6) {
-                    ctx.navigator().navigateTo(pos, standPoint);
-                    if (!ctx.navigator().navigating() && !ctx.navigator().hasPath()) {
-                        standPoint = null;
-                    }
-                    return;
-                }
-                ctx.navigator().stop();
-                Vec3 step = target.sub(pos).horizontal();
-                ctx.humanizer().lookAt(pos.add(0, 1.62, 0), target);
-                if (step.horizontalLength() > 1.0E-3) {
-                    ctx.requestMove(MoveInput.walk(step));
                 }
             }
             case DONE -> {
@@ -170,21 +162,6 @@ public final class EndReturnGoal extends AbstractGoal {
     @Override
     public boolean finished(Bot bot) {
         return phase == Phase.DONE || ctx(bot).dimension() != Dimension.THE_END;
-    }
-
-    /** Najde blok výstupního portálu v okolí fontány (aktivní až po drakovi). */
-    private static BlockPos scanExitPortal(WorldView world, BlockPos around) {
-        for (int dx = -8; dx <= 8; dx++) {
-            for (int dy = -6; dy <= 6; dy++) {
-                for (int dz = -8; dz <= 8; dz++) {
-                    BlockPos p = around.offset(dx, dy, dz);
-                    if (world.materialAt(p) == Material.END_PORTAL) {
-                        return p;
-                    }
-                }
-            }
-        }
-        return null;
     }
 
     @Override

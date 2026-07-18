@@ -152,6 +152,11 @@ public final class FakeWorldView implements WorldView {
         return dimension;
     }
 
+    @Override
+    public int minY() {
+        return -64;
+    }
+
     /**
      * Přepne dimenzi syntetického světa (testy End chování).
      *

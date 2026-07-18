@@ -7,15 +7,18 @@ import java.util.Map;
 /**
  * Gating cílů podle dimenze – co v Endu (a Netheru) nedává smysl nebo zabíjí.
  *
- * <p>Jediný zdroj pravdy aplikovaný centrálně v {@link Brain}: násobič 0 cíl
- * vypíná, hodnoty pod 1 tlumí. Kriticky: <b>postel v Endu i Netheru
- * exploduje</b> – spánek tam musí být vypnutý vždy. Dál se v Endu nestaví
- * domy ani vesnice (End je výprava, ne domov), nefarmaří, neloví zvěř ani
- * neryba­ří (není kde) a vypnuté jsou i cíle navigující na vzpomínky
+ * <p>Aplikuje se centrálně v {@link Brain} (běžný výběr i vynucené cíle):
+ * násobič 0 cíl vypíná, hodnoty pod 1 tlumí. Kriticky: <b>postel v Endu
+ * i Netheru exploduje</b> – spánek tam musí být vypnutý vždy. Dál se v Endu
+ * nestaví domy ani vesnice (End je výprava, ne domov), nefarmaří, neloví
+ * zvěř ani nerybaří (není kde) a vypnuté jsou i cíle navigující na vzpomínky
  * z jiného světa (truhly, domov). Denní rytmus mimo overworld neplatí –
  * v Endu není den a noc.</p>
  *
- * <p>Čistá tabulka bez závislostí – jednotkově testovatelná.</p>
+ * <p>End cíle si dimenzi hlídají i samy v utility (levný early-return);
+ * tabulka je drží vypnuté i kdyby se jejich gating v budoucnu změnil –
+ * záměrná pojistka, ne omyl. Čistá tabulka bez závislostí – jednotkově
+ * testovatelná.</p>
  */
 public final class DimensionPolicy {
 

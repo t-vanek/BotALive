@@ -167,10 +167,16 @@ public final class PvpGoal extends AbstractGoal {
                 || ctx.combat().target().entityId() != entity.entityId()) {
             ctx.combat().engage(entity);
         }
-        // Bojový pohyb s ochranou hran – strafing nesmí bota poslat ze srázu.
-        ctx.requestMove(EdgeGuard.apply(ctx.worldView(), ctx.position(),
-                ctx.combat().tick(ctx.position(), ctx.clientState().health(),
-                        ctx.onGround(), ctx.serverView().latest())));
+        // Bojový pohyb; v Endu s ochranou hran (strafing nesmí do voidu),
+        // v overworldu volný – guard by blokoval přiblížení přes seskok.
+        dev.botalive.core.physics.MoveInput pvpMove = ctx.combat().tick(
+                ctx.position(), ctx.clientState().health(),
+                ctx.onGround(), ctx.serverView().latest());
+        if (ctx.dimension() == dev.botalive.core.world.Dimension.THE_END) {
+            pvpMove = dev.botalive.core.physics.EdgeGuard.apply(
+                    ctx.worldView(), ctx.position(), pvpMove);
+        }
+        ctx.requestMove(pvpMove);
     }
 
     @Override

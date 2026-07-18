@@ -92,6 +92,9 @@ public final class EndKnowledge {
     /**
      * Byl bot v Endu v posledních {@code windowMs}? (rozestup výprav)
      *
+     * <p>Počítá se jen vlastní průchod ({@code to} bez gossip značky) –
+     * z doslechu se rozestup výprav neměří.</p>
+     *
      * @param records  PORTAL záznamy paměti
      * @param nowMs    aktuální čas (epoch ms)
      * @param windowMs okno (ms)
@@ -100,6 +103,7 @@ public final class EndKnowledge {
     public static boolean recentEndVisit(List<MemoryRecord> records, long nowMs, long windowMs) {
         return records.stream()
                 .filter(r -> r.kind() == MemoryKind.PORTAL)
+                .filter(r -> !"gossip".equals(r.data().get("via")))
                 .filter(r -> {
                     String to = r.data().get("to");
                     return to != null && dev.botalive.core.world.Dimension.fromWorldKey(to)
