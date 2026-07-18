@@ -1,8 +1,8 @@
 package dev.botalive.core.vehicle;
 
+import dev.botalive.core.util.Cardinal;
 import dev.botalive.core.util.BlockPos;
 import dev.botalive.core.util.Vec3;
-import dev.botalive.core.vehicle.RailInfo.Cardinal;
 import dev.botalive.core.vehicle.RailInfo.Shape;
 import org.junit.jupiter.api.Test;
 

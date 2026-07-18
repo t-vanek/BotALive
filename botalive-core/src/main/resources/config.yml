@@ -188,6 +188,9 @@ settlement:
   # a uvolní parcelu (bot odstraněný bez purge; jeho dům ve vesnici zůstává).
   # 0 = duchové se nevymetají nikdy.
   ghost-days: 7
+  # Jak čerstvá (hodiny) musí být zášť vůči sousedovi, aby kvůli ní bot
+  # opustil vesnici. Starší křivdy doutnají v PvP paměti, ale nestěhuje se.
+  grudge-window-hours: 2
 
 performance:
   # 0 = automaticky podle počtu jader.

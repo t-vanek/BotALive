@@ -7,7 +7,8 @@ import dev.botalive.api.personality.Trait;
 import dev.botalive.core.ai.BotContext;
 import dev.botalive.core.ai.BotNeeds;
 import dev.botalive.core.build.HouseBlueprint;
-import dev.botalive.core.build.HouseFacing;
+import dev.botalive.core.build.VillageDecor;
+import dev.botalive.core.util.Cardinal;
 import dev.botalive.core.chat.PhraseCategory;
 import dev.botalive.core.settlement.SettlementService;
 import dev.botalive.core.settlement.SocialView;
@@ -71,18 +72,13 @@ public final class BuildHouseGoal extends AbstractGoal {
                                dev.botalive.core.util.BlockPos target) {
     }
 
-    /** Krok zvelebování okolí: {@code path} = udusaná cestička, jinak pochodeň. */
-    private record DecorStep(boolean path, BlockPos target) {
-    }
-
     private Phase phase = Phase.FIND_SITE;
     private BlockPos origin;
-    private HouseFacing facing = HouseFacing.NORTH;
+    private Cardinal facing = Cardinal.NORTH;
     private final Deque<BotTask> terraform = new ArrayDeque<>();
     private final Deque<BlockPos> placements = new ArrayDeque<>();
     private final Deque<FurnishStep> furnish = new ArrayDeque<>();
-    private final Deque<DecorStep> decor = new ArrayDeque<>();
-    private int decorWaitTicks;
+    private DecorWorker decor;
     private BotTask current;
     private int cooldownTicks;
     private int placedCount;
@@ -148,12 +144,11 @@ public final class BuildHouseGoal extends AbstractGoal {
     public void start(Bot bot) {
         phase = Phase.FIND_SITE;
         origin = null;
-        facing = HouseFacing.NORTH;
+        facing = Cardinal.NORTH;
         terraform.clear();
         placements.clear();
         furnish.clear();
-        decor.clear();
-        decorWaitTicks = 0;
+        decor = null;
         current = null;
         placedCount = 0;
         announcedOutOfBlocks = false;
@@ -194,6 +189,10 @@ public final class BuildHouseGoal extends AbstractGoal {
             current.cancel(ctx(bot));
             current = null;
         }
+        if (decor != null) {
+            decor.cancel(ctx(bot));
+            decor = null;
+        }
         terraform.clear();
         placements.clear();
         super.stop(bot);
@@ -202,6 +201,11 @@ public final class BuildHouseGoal extends AbstractGoal {
     @Override
     public boolean finished(Bot bot) {
         return phase == Phase.DONE;
+    }
+
+    @Override
+    public boolean blocksRelocation() {
+        return true; // uprostřed stavby se nestěhuje – parcela by se uvolnila pod rukama
     }
 
     @Override
@@ -278,7 +282,8 @@ public final class BuildHouseGoal extends AbstractGoal {
                 plan = SettlementService.HomePlan.found();
                 return;
             }
-            ctx.chat().sayFrom(PhraseCategory.SETTLEMENT_JOINED, plan.settlementName());
+            dev.botalive.core.settlement.SettlementAnnouncer.sayJoined(ctx.chat(),
+                    plan.settlementName());
             plan = new SettlementService.HomePlan(SettlementService.HomePlan.Kind.MEMBER,
                     settlementId, plan.settlementName(), null);
         }
@@ -347,11 +352,11 @@ public final class BuildHouseGoal extends AbstractGoal {
         }
         // Vesnice vznikne až s hotovým domem (finishHouse) – žádný fantom.
         pendingFound = founding && settlements != null;
-        target(best, HouseFacing.NORTH, null);
+        target(best, Cardinal.NORTH, null);
     }
 
     /** Přijme cíl stavby; úpravy terénu se plánují až po příchodu na místo. */
-    private void target(BlockPos site, HouseFacing siteFacing, Integer plotIndex) {
+    private void target(BlockPos site, Cardinal siteFacing, Integer plotIndex) {
         origin = site;
         facing = siteFacing;
         claimedIndex = plotIndex;
@@ -408,7 +413,7 @@ public final class BuildHouseGoal extends AbstractGoal {
         double len = Math.hypot(dx, dz);
         if (len < 1) {
             // Stojí přímo na návsi – náhodná světová strana.
-            HouseFacing direction = HouseFacing.values()[ctx.rng().rangeInt(0, 3)];
+            Cardinal direction = Cardinal.values()[ctx.rng().rangeInt(0, 3)];
             dx = direction.dx();
             dz = direction.dz();
             len = 1;
@@ -447,7 +452,7 @@ public final class BuildHouseGoal extends AbstractGoal {
     }
 
     /** Bloky domu samotného (zdi + střecha) – při kontrolách se přeskakují. */
-    private static Set<BlockPos> structureOf(BlockPos origin, HouseFacing facing) {
+    private static Set<BlockPos> structureOf(BlockPos origin, Cardinal facing) {
         return new HashSet<>(HouseBlueprint.placements(origin, facing));
     }
 
@@ -685,10 +690,9 @@ public final class BuildHouseGoal extends AbstractGoal {
     }
 
     /**
-     * Naplánuje zvelebení okolí domu ve vesnici: udusanou cestičku od dveří
-     * směrem k návsi (lopatou, jako hráč) a pár pochodní podél ní – vesnice
-     * v noci nespawnuje moby mezi domy a začne i vypadat jako vesnice.
-     * Mimo vesnici (samotáři) se nezvelebuje.
+     * Naplánuje zvelebení okolí domu ve vesnici (cestička k návsi, pochodně).
+     * Mimo vesnici (samotáři) se nezvelebuje; plán i vykonavatel jsou sdílené
+     * s údržbou ({@link VillageDecor}, {@link DecorWorker}).
      */
     private void planDecor(BotContext ctx, Bot bot) {
         var cfg = ctx.config().settlement();
@@ -697,107 +701,18 @@ public final class BuildHouseGoal extends AbstractGoal {
         if (!inVillage || (!cfg.lighting() && !cfg.paths())) {
             return;
         }
-        var snapshot = ctx.serverView().latest();
-        boolean torches = cfg.lighting() && snapshot != null
-                && snapshot.hasItem(m -> m == org.bukkit.Material.TORCH);
-        boolean shovel = cfg.paths() && snapshot != null
-                && snapshot.hasItem(m -> m.name().endsWith("_SHOVEL"));
-        if (!torches && !shovel) {
-            return;
-        }
-        WorldView world = ctx.worldView();
-        BlockPos door = HouseBlueprint.doorBottom(origin, facing);
-        // Délka linie: člen až k návsi, zakladatel pár kroků od vlastních dveří.
-        int length = 6;
-        if (claimedIndex != null) {
-            var own = settlements.settlementOf(bot.id());
-            if (own.isPresent()) {
-                var center = own.get().center();
-                int distance = (int) Math.round(Math.hypot(
-                        center.x() - door.x(), center.z() - door.z()));
-                length = Math.max(3, Math.min(distance - 2, cfg.plotSpacing() + 4));
-            }
-        }
-        // Kolmý směr pro pochodně vedle cestičky (ne v chůzi).
-        int perpX = facing.dz();
-        int perpZ = -facing.dx();
-        for (int d = 1; d <= length; d++) {
-            int x = door.x() + facing.dx() * d;
-            int z = door.z() + facing.dz() * d;
-            BlockPos ground = groundAt(world, x, origin.y(), z);
-            if (ground == null) {
-                continue;
-            }
-            if (shovel && world.materialAt(ground) == org.bukkit.Material.GRASS_BLOCK) {
-                decor.add(new DecorStep(true, ground));
-            }
-            if (torches && d % 4 == 2) {
-                BlockPos torchGround = groundAt(world, x + perpX, origin.y(), z + perpZ);
-                if (torchGround != null) {
-                    decor.add(new DecorStep(false, torchGround.up()));
-                }
-            }
-        }
+        BlockPos center = claimedIndex != null
+                ? settlements.settlementOf(bot.id())
+                        .map(SettlementService.SettlementInfo::center).orElse(null)
+                : null;
+        decor = new DecorWorker(VillageDecor.plan(ctx.worldView(), origin, facing,
+                center, cfg.plotSpacing(), cfg.lighting(), cfg.paths()));
     }
 
-    /** První pevný blok s volnem nad sebou v okolí výšky staveniště. */
-    private static BlockPos groundAt(WorldView world, int x, int yHint, int z) {
-        for (int dy = 2; dy >= -3; dy--) {
-            BlockPos pos = new BlockPos(x, yHint + dy, z);
-            if (world.traitsAt(pos).solid() && !world.traitsAt(pos.up()).solid()) {
-                return pos;
-            }
-        }
-        return null;
-    }
-
-    /** Zvelebuje okolí: dojde ke kroku, udusá cestičku / zapíchne pochodeň. */
+    /** Zvelebuje okolí; po dokončení se dům uzavírá. */
     private void tickDecor(BotContext ctx, Bot bot) {
-        if (decorWaitTicks > 0) {
-            decorWaitTicks--;
-            return;
-        }
-        if (current != null) {
-            if (current.tick(ctx)) {
-                current = null;
-            }
-            return;
-        }
-        DecorStep step = decor.peek();
-        if (step == null) {
+        if (decor == null || decor.tick(ctx)) {
             finishHouse(ctx, bot);
-            return;
-        }
-        // Kroky jsou podél linie – dojít na dosah ruky.
-        double distSq = ctx.position().toBlockPos().distanceSquared(step.target());
-        if (distSq > 12) {
-            ctx.navigator().navigateTo(ctx.position(), step.target());
-            if (!ctx.navigator().navigating()) {
-                decor.poll(); // nedostupný krok přeskočit
-            }
-            return;
-        }
-        ctx.navigator().stop();
-        decor.poll();
-        var snapshot = ctx.serverView().latest();
-        if (step.path()) {
-            if (!ctx.inventory().equipMatching(snapshot,
-                    m -> m.name().endsWith("_SHOVEL"))) {
-                decor.removeIf(DecorStep::path); // bez lopaty už jen pochodně
-                return;
-            }
-            ctx.humanizer().lookAt(ctx.position().add(0, 1.62, 0),
-                    step.target().center().add(0, 1, 0));
-            ctx.actions().useItemOn(step.target(),
-                    org.geysermc.mcprotocollib.protocol.data.game.entity.object.Direction.UP);
-            decorWaitTicks = ctx.rng().rangeInt(8, 14);
-        } else {
-            if (!ctx.inventory().equipMatching(snapshot,
-                    m -> m == org.bukkit.Material.TORCH)) {
-                decor.removeIf(s -> !s.path()); // bez pochodní už jen cestička
-                return;
-            }
-            current = new PlaceBlockTask(step.target());
         }
     }
 
@@ -812,7 +727,8 @@ public final class BuildHouseGoal extends AbstractGoal {
                     origin, facing, bot.personality().seed());
             if (founded.isPresent()) {
                 settlementName = founded.get().name();
-                ctx.chat().sayFrom(PhraseCategory.SETTLEMENT_FOUNDED, settlementName);
+                dev.botalive.core.settlement.SettlementAnnouncer.sayFounded(ctx.chat(),
+                        settlementName);
             }
             // Když založení nevyšlo (vesnice mezitím vyrostla vedle),
             // dům stojí a bot prostě bydlí po svém.

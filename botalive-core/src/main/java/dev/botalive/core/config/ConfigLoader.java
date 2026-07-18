@@ -126,7 +126,8 @@ public final class ConfigLoader {
                 Math.max(1, c.getInt("settlement.change-cooldown-minutes", 30)),
                 c.getBoolean("settlement.lighting", true),
                 c.getBoolean("settlement.paths", true),
-                Math.max(0, c.getInt("settlement.ghost-days", 7))
+                Math.max(0, c.getInt("settlement.ghost-days", 7)),
+                Math.max(1, c.getInt("settlement.grudge-window-hours", 2))
         );
 
         var performance = new BotAliveConfig.Performance(

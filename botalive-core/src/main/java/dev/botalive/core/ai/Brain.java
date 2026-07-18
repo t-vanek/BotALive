@@ -69,6 +69,12 @@ public final class Brain {
         return goal == null ? null : goal.id();
     }
 
+    /** @return blokuje aktivní cíl stěhování? (schopnost cíle, ne porovnání id) */
+    public boolean currentGoalBlocksRelocation() {
+        Goal goal = current;
+        return goal != null && goal.blocksRelocation();
+    }
+
     /**
      * Lidsky čitelné vysvětlení, co bot právě dělá a proč (intent vrstva).
      *

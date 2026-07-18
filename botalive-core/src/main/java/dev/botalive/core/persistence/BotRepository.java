@@ -96,6 +96,32 @@ public final class BotRepository {
     }
 
     /**
+     * Jména známých botů seřazená od naposledy viděných – „štamgasti" pro
+     * auto-spawn. Roster je tak stabilní napříč restarty: oživují se titíž
+     * boti (identita, vesnice, přátelství), noví se generují jen do počtu.
+     *
+     * @param limit kolik jmen nejvýš
+     * @return jména botů, naposledy připojení první
+     */
+    public CompletableFuture<List<String>> listKnownBotNames(int limit) {
+        return db.async(connection -> {
+            List<String> result = new ArrayList<>();
+            try (PreparedStatement ps = connection.prepareStatement(
+                    "SELECT name FROM ba_bots ORDER BY last_seen_at DESC LIMIT ?")) {
+                ps.setInt(1, limit);
+                try (ResultSet rs = ps.executeQuery()) {
+                    while (rs.next()) {
+                        result.add(rs.getString(1));
+                    }
+                }
+                return result;
+            } catch (SQLException e) {
+                throw new IllegalStateException(e);
+            }
+        });
+    }
+
+    /**
      * Poslední připojení všech botů ({@code ba_bots.last_seen_at}).
      *
      * @return mapa UUID bota → epoch ms posledního připojení
@@ -432,7 +458,7 @@ public final class BotRepository {
      * @param plotX        origin parcely x ({@code null} = bez parcely)
      * @param plotY        origin parcely y
      * @param plotZ        origin parcely z
-     * @param plotFacing   orientace dveří (název {@code HouseFacing})
+     * @param plotFacing   orientace dveří (název {@code Cardinal})
      */
     public record SettlementMemberRow(UUID botId, long settlementId, long joinedAt,
                                       Integer plotIndex, Integer plotX, Integer plotY,
@@ -504,6 +530,25 @@ public final class BotRepository {
                 ps.setInt(6, z);
                 ps.setString(7, founder);
                 ps.setLong(8, createdAt);
+                ps.executeUpdate();
+                return null;
+            } catch (SQLException e) {
+                throw new IllegalStateException(e);
+            }
+        });
+    }
+
+    /**
+     * Přepíše střed (náves) vesnice – po zániku zakladatelova domu.
+     */
+    public CompletableFuture<Void> updateSettlementCenter(long id, int x, int y, int z) {
+        return db.async(connection -> {
+            try (PreparedStatement ps = connection.prepareStatement(
+                    "UPDATE ba_settlements SET x = ?, y = ?, z = ? WHERE id = ?")) {
+                ps.setInt(1, x);
+                ps.setInt(2, y);
+                ps.setInt(3, z);
+                ps.setLong(4, id);
                 ps.executeUpdate();
                 return null;
             } catch (SQLException e) {

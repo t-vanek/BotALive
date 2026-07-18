@@ -1,6 +1,6 @@
 package dev.botalive.core.settlement;
 
-import dev.botalive.core.build.HouseFacing;
+import dev.botalive.core.util.Cardinal;
 import dev.botalive.core.config.BotAliveConfig;
 import dev.botalive.core.util.BlockPos;
 import org.junit.jupiter.api.BeforeEach;
@@ -39,7 +39,7 @@ class SettlementServiceTest {
     }
 
     private static BotAliveConfig.Settlement config() {
-        return new BotAliveConfig.Settlement(true, 12, 8, 200, 150, 0.30, 0.60, 30, true, true, 0);
+        return new BotAliveConfig.Settlement(true, 12, 8, 200, 150, 0.30, 0.60, 30, true, true, 0, 2);
     }
 
     private SocialView view(UUID botId, BlockPos position, double sociability,
@@ -57,7 +57,7 @@ class SettlementServiceTest {
     private SettlementService.SettlementInfo foundVillage() {
         Optional<SettlementService.SettlementInfo> info = service.foundSettlement(
                 plainView(founder, 0.7), HOME_SITE, HOME_SITE.offset(-2, 0, -2),
-                HouseFacing.NORTH, 42L);
+                Cardinal.NORTH, 42L);
         assertTrue(info.isPresent());
         return info.get();
     }
@@ -123,7 +123,7 @@ class SettlementServiceTest {
 
     @Test
     void plnaVesniceNoveClenyNebere() {
-        var config = new BotAliveConfig.Settlement(true, 12, 2, 200, 150, 0.30, 0.60, 30, true, true, 0);
+        var config = new BotAliveConfig.Settlement(true, 12, 2, 200, 150, 0.30, 0.60, 30, true, true, 0, 2);
         service = new SettlementService(config, null, () -> now);
         var village = foundVillage();
         assertTrue(service.join(village.id(),
@@ -232,7 +232,7 @@ class SettlementServiceTest {
                 view(joiner, HOME_SITE, 0.6, null, Map.of(founder, 0.1), Map.of(), Map.of())));
         var farSite = HOME_SITE.offset(200, 0, 0);
         var villageB = service.foundSettlement(plainView(third, 0.7), farSite,
-                farSite.offset(-2, 0, -2), HouseFacing.NORTH, 7L).orElseThrow();
+                farSite.offset(-2, 0, -2), Cardinal.NORTH, 7L).orElseThrow();
         now += 31 * 60_000; // cooldown stěhování uplynul
 
         var view = view(joiner, HOME_SITE, 0.6, HOME_SITE,
@@ -269,12 +269,12 @@ class SettlementServiceTest {
 
     @Test
     void vypnuteVesniceNicNedelaji() {
-        var config = new BotAliveConfig.Settlement(false, 12, 8, 200, 150, 0.30, 0.60, 30, true, true, 0);
+        var config = new BotAliveConfig.Settlement(false, 12, 8, 200, 150, 0.30, 0.60, 30, true, true, 0, 2);
         service = new SettlementService(config, null, () -> now);
         assertEquals(SettlementService.HomePlan.Kind.SOLO,
                 service.planHome(plainView(founder, 0.9)).kind());
         assertTrue(service.foundSettlement(plainView(founder, 0.9), HOME_SITE,
-                null, HouseFacing.NORTH, 1L).isEmpty());
+                null, Cardinal.NORTH, 1L).isEmpty());
     }
 
     @Test
@@ -282,10 +282,10 @@ class SettlementServiceTest {
         var village = foundVillage();
         // Moc blízko cizí vesnice založit nejde…
         assertTrue(service.foundSettlement(plainView(joiner, 0.7),
-                HOME_SITE.offset(60, 0, 0), null, HouseFacing.NORTH, 9L).isEmpty());
+                HOME_SITE.offset(60, 0, 0), null, Cardinal.NORTH, 9L).isEmpty());
         // …dostatečně daleko ano.
         var rival = service.foundSettlement(plainView(joiner, 0.7),
-                HOME_SITE.offset(200, 0, 0), null, HouseFacing.NORTH, 9L);
+                HOME_SITE.offset(200, 0, 0), null, Cardinal.NORTH, 9L);
         assertTrue(rival.isPresent());
         assertEquals(2, service.all().size());
         assertFalse(rival.get().name().equals(village.name()),
@@ -305,9 +305,25 @@ class SettlementServiceTest {
     void zakladatelBezParcelySeNenabiziKZastavbe() {
         // FOUND_AT_HOME styl: zakladatel bez evidované parcely.
         var village = service.foundSettlement(plainView(founder, 0.7), HOME_SITE,
-                null, HouseFacing.NORTH, 42L).orElseThrow();
+                null, Cardinal.NORTH, 42L).orElseThrow();
         assertTrue(service.claimedPlot(founder).isEmpty());
         assertEquals(1, service.suggestPlots(village.id(), 1).getFirst().index());
+    }
+
+    @Test
+    void navesSePrepocitaPoZanikuZakladatelovaDomu() {
+        var village = foundVillage();
+        var joinerView = view(joiner, HOME_SITE, 0.7, null,
+                Map.of(founder, 0.5), Map.of(), Map.of());
+        assertTrue(service.join(village.id(), joinerView));
+        var slot = service.suggestPlots(village.id(), 1).getFirst();
+        assertTrue(service.claimPlot(village.id(), joiner, slot));
+        // Zakladatelův dům zanikl (zatopený) → náves se stěhuje k domům členů.
+        service.releasePlot(founder);
+        var center = service.all().getFirst().center();
+        assertFalse(center.equals(HOME_SITE), "náves nesmí zůstat na ruině");
+        assertEquals(slot.origin().x() + 2, center.x());
+        assertEquals(slot.origin().z() + 2, center.z());
     }
 
     @Test

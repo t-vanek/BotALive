@@ -1,7 +1,7 @@
 package dev.botalive.core.settlement;
 
 import dev.botalive.core.build.HouseBlueprint;
-import dev.botalive.core.build.HouseFacing;
+import dev.botalive.core.util.Cardinal;
 import dev.botalive.core.util.BlockPos;
 import org.junit.jupiter.api.Test;
 
@@ -67,8 +67,8 @@ class PlotLayoutTest {
     void dumSeDivaKNavsi() {
         // Parcela východně od středu má mít dveře na západ.
         BlockPos east = new BlockPos(SPACING - 2, 64, -2);
-        assertEquals(HouseFacing.WEST, PlotLayout.facingToward(east, CENTER));
+        assertEquals(Cardinal.WEST, PlotLayout.facingToward(east, CENTER));
         BlockPos north = new BlockPos(-2, 64, -SPACING - 2);
-        assertEquals(HouseFacing.SOUTH, PlotLayout.facingToward(north, CENTER));
+        assertEquals(Cardinal.SOUTH, PlotLayout.facingToward(north, CENTER));
     }
 }

@@ -1,6 +1,7 @@
 package dev.botalive.core.build;
 
 import dev.botalive.core.util.BlockPos;
+import dev.botalive.core.util.Cardinal;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
@@ -21,8 +22,8 @@ class HouseBlueprintTest {
     private static final BlockPos ORIGIN = new BlockPos(100, 64, 100);
 
     @ParameterizedTest
-    @EnumSource(HouseFacing.class)
-    void dverniOtvorZustavaVolny(HouseFacing facing) {
+    @EnumSource(Cardinal.class)
+    void dverniOtvorZustavaVolny(Cardinal facing) {
         List<BlockPos> placements = HouseBlueprint.placements(ORIGIN, facing);
         BlockPos doorBottom = HouseBlueprint.doorBottom(ORIGIN, facing);
         BlockPos doorTop = doorBottom.up();
@@ -31,8 +32,8 @@ class HouseBlueprintTest {
     }
 
     @ParameterizedTest
-    @EnumSource(HouseFacing.class)
-    void dvereJsouNaHraneSveOrientace(HouseFacing facing) {
+    @EnumSource(Cardinal.class)
+    void dvereJsouNaHraneSveOrientace(Cardinal facing) {
         BlockPos door = HouseBlueprint.doorBottom(ORIGIN, facing);
         switch (facing) {
             case NORTH -> assertEquals(ORIGIN.z(), door.z());
@@ -50,23 +51,23 @@ class HouseBlueprintTest {
     }
 
     @ParameterizedTest
-    @EnumSource(HouseFacing.class)
-    void pocetBlokuNezavisiNaOrientaci(HouseFacing facing) {
+    @EnumSource(Cardinal.class)
+    void pocetBlokuNezavisiNaOrientaci(Cardinal facing) {
         assertEquals(HouseBlueprint.blocksNeeded(),
                 HouseBlueprint.placements(ORIGIN, facing).size());
     }
 
     @ParameterizedTest
-    @EnumSource(HouseFacing.class)
-    void zadneDuplicity(HouseFacing facing) {
+    @EnumSource(Cardinal.class)
+    void zadneDuplicity(Cardinal facing) {
         List<BlockPos> placements = HouseBlueprint.placements(ORIGIN, facing);
         Set<BlockPos> unique = new HashSet<>(placements);
         assertEquals(placements.size(), unique.size());
     }
 
     @ParameterizedTest
-    @EnumSource(HouseFacing.class)
-    void vsechnyBlokyLeziVPudorysu(HouseFacing facing) {
+    @EnumSource(Cardinal.class)
+    void vsechnyBlokyLeziVPudorysu(Cardinal facing) {
         for (BlockPos pos : HouseBlueprint.placements(ORIGIN, facing)) {
             assertTrue(pos.x() >= ORIGIN.x() && pos.x() < ORIGIN.x() + HouseBlueprint.SIZE,
                     "blok mimo půdorys: " + pos);
@@ -77,7 +78,7 @@ class HouseBlueprintTest {
 
     @Test
     void staviSeZdolaNahoru() {
-        List<BlockPos> placements = HouseBlueprint.placements(ORIGIN, HouseFacing.NORTH);
+        List<BlockPos> placements = HouseBlueprint.placements(ORIGIN, Cardinal.NORTH);
         int lastY = Integer.MIN_VALUE;
         for (BlockPos pos : placements) {
             assertTrue(pos.y() >= lastY, "bloky se pokládají zdola nahoru");
@@ -87,7 +88,7 @@ class HouseBlueprintTest {
 
     @Test
     void strechaAzPoZdech() {
-        List<BlockPos> placements = HouseBlueprint.placements(ORIGIN, HouseFacing.NORTH);
+        List<BlockPos> placements = HouseBlueprint.placements(ORIGIN, Cardinal.NORTH);
         int firstRoof = -1;
         for (int i = 0; i < placements.size(); i++) {
             if (placements.get(i).y() == ORIGIN.y() + HouseBlueprint.WALL_HEIGHT) {
@@ -99,8 +100,8 @@ class HouseBlueprintTest {
     }
 
     @ParameterizedTest
-    @EnumSource(HouseFacing.class)
-    void mistoProStaniJeUvnitr(HouseFacing facing) {
+    @EnumSource(Cardinal.class)
+    void mistoProStaniJeUvnitr(Cardinal facing) {
         BlockPos stand = HouseBlueprint.standPoint(ORIGIN, facing);
         assertTrue(stand.x() > ORIGIN.x() && stand.x() < ORIGIN.x() + HouseBlueprint.SIZE - 1);
         assertTrue(stand.z() > ORIGIN.z() && stand.z() < ORIGIN.z() + HouseBlueprint.SIZE - 1);
@@ -109,8 +110,8 @@ class HouseBlueprintTest {
     }
 
     @ParameterizedTest
-    @EnumSource(HouseFacing.class)
-    void nabytekJeUvnitr(HouseFacing facing) {
+    @EnumSource(Cardinal.class)
+    void nabytekJeUvnitr(Cardinal facing) {
         for (BlockPos spot : List.of(HouseBlueprint.torchSpot(ORIGIN, facing),
                 HouseBlueprint.bedSpot(ORIGIN, facing))) {
             assertTrue(spot.x() > ORIGIN.x() && spot.x() < ORIGIN.x() + HouseBlueprint.SIZE - 1,
@@ -129,9 +130,9 @@ class HouseBlueprintTest {
     @Test
     void orientaceKCiliMiriSpravne() {
         // Dům západně od návsi má koukat na východ atd.
-        assertEquals(HouseFacing.EAST, HouseFacing.toward(0, 0, 10, 3));
-        assertEquals(HouseFacing.WEST, HouseFacing.toward(10, 3, 0, 0));
-        assertEquals(HouseFacing.SOUTH, HouseFacing.toward(0, 0, 3, 10));
-        assertEquals(HouseFacing.NORTH, HouseFacing.toward(3, 10, 0, 0));
+        assertEquals(Cardinal.EAST, Cardinal.toward(0, 0, 10, 3));
+        assertEquals(Cardinal.WEST, Cardinal.toward(10, 3, 0, 0));
+        assertEquals(Cardinal.SOUTH, Cardinal.toward(0, 0, 3, 10));
+        assertEquals(Cardinal.NORTH, Cardinal.toward(3, 10, 0, 0));
     }
 }

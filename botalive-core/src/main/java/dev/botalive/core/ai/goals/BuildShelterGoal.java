@@ -54,6 +54,16 @@ public final class BuildShelterGoal extends AbstractGoal {
         if (snapshot == null || !snapshot.hasItem(InventoryHelper::isBuildingBlock)) {
             return 0;
         }
+        // V katastru vesnice se panikářské budky nestaví – náves není
+        // staveniště a mezi domy je světlo; noc se přečká mezi lidmi.
+        var settlements = ctx.settlements();
+        if (settlements != null && ctx.config().settlement().enabled()
+                && ctx.worldView() != null
+                && settlements.nearestSettlement(ctx.worldView().worldName(),
+                        ctx.position().toBlockPos(),
+                        ctx.config().settlement().plotSpacing() * 2).isPresent()) {
+            return 0;
+        }
         double caution = bot.personality().trait(Trait.CAUTION);
         return 10 + caution * 30;
     }

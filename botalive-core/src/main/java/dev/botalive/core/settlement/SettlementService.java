@@ -2,7 +2,7 @@ package dev.botalive.core.settlement;
 
 import dev.botalive.api.bot.Bot;
 import dev.botalive.core.bot.BotManagerImpl;
-import dev.botalive.core.build.HouseFacing;
+import dev.botalive.core.util.Cardinal;
 import dev.botalive.core.config.BotAliveConfig;
 import dev.botalive.core.persistence.BotRepository;
 import dev.botalive.core.util.BlockPos;
@@ -50,15 +50,13 @@ public final class SettlementService {
     private static final double FOLLOW_RATIO = 1.25;
     /** Opustit hotový dům a přestavět se do vesnice chce silnější pouto. */
     private static final double RELOCATE_MIN_AFFINITY = 0.5;
-    /** Jak čerstvá musí být zášť, aby kvůli ní bot opustil vesnici. */
-    private static final long GRUDGE_WINDOW_MS = 2 * 60 * 60 * 1000L;
     /** Jak dlouho si vesnice pamatuje nepoužitelnou parcelu (skála, jezero…). */
     private static final long PLOT_TOMBSTONE_MS = 24 * 60 * 60 * 1000L;
     /** Strop indexu parcel (7 prstenců, 224 parcel) – dál už vesnice neroste. */
     private static final int MAX_PLOT_INDEX = 224;
 
     /** Parcela k zástavbě: index, origin půdorysu a orientace dveří (k návsi). */
-    public record PlotSlot(int index, BlockPos origin, HouseFacing facing) {
+    public record PlotSlot(int index, BlockPos origin, Cardinal facing) {
     }
 
     /** Člen vesnice (pohled ven). */
@@ -145,7 +143,8 @@ public final class SettlementService {
         final long id;
         final String name;
         final String world;
-        final BlockPos center;
+        /** Náves; může se přepočítat, když zakladatelův dům zanikne. */
+        BlockPos center;
         final UUID founder;
         final long createdAt;
         final Map<UUID, Member> members = new LinkedHashMap<>();
@@ -165,7 +164,7 @@ public final class SettlementService {
 
     /** Členství bota: parcela {@code plotOrigin} může být null (ještě nemá). */
     private record Member(UUID botId, long joinedAt, int plotIndex,
-                          BlockPos plotOrigin, HouseFacing facing) {
+                          BlockPos plotOrigin, Cardinal facing) {
     }
 
     private final BotAliveConfig.Settlement config;
@@ -233,9 +232,9 @@ public final class SettlementService {
                 BlockPos plot = row.plotX() == null
                         ? null
                         : new BlockPos(row.plotX(), row.plotY(), row.plotZ());
-                HouseFacing facing = row.plotFacing() == null
-                        ? HouseFacing.NORTH
-                        : HouseFacing.valueOf(row.plotFacing());
+                Cardinal facing = row.plotFacing() == null
+                        ? Cardinal.NORTH
+                        : Cardinal.valueOf(row.plotFacing());
                 settlement.members.put(row.botId(), new Member(row.botId(), row.joinedAt(),
                         row.plotIndex() == null ? -1 : row.plotIndex(), plot, facing));
                 memberIndex.put(row.botId(), row.settlementId());
@@ -412,7 +411,7 @@ public final class SettlementService {
             return false;
         }
         addMember(settlement, new Member(view.botId(), clock.getAsLong(), -1, null,
-                HouseFacing.NORTH));
+                Cardinal.NORTH));
         lastChangeAt.put(view.botId(), clock.getAsLong());
         return true;
     }
@@ -483,8 +482,44 @@ public final class SettlementService {
         if (member == null || id == null) {
             return;
         }
-        addMember(settlements.get(id), new Member(botId, member.joinedAt(), -1, null,
-                HouseFacing.NORTH));
+        Settlement settlement = settlements.get(id);
+        boolean founderPlot = member.plotIndex() < 0 && member.plotOrigin() != null;
+        addMember(settlement, new Member(botId, member.joinedAt(), -1, null,
+                Cardinal.NORTH));
+        if (founderPlot) {
+            // Náves stála na zakladatelově domě a ten je pryč (zatopený,
+            // zničený) – přepočítat střed na těžiště domů členů, ať se nové
+            // domy nenatáčejí dveřmi k ruině.
+            recenter(settlement);
+        }
+    }
+
+    /** Přesune náves na těžiště parcel členů (má-li kdo domy). */
+    private void recenter(Settlement settlement) {
+        long sumX = 0;
+        long sumY = 0;
+        long sumZ = 0;
+        int plots = 0;
+        int half = dev.botalive.core.build.HouseBlueprint.SIZE / 2;
+        for (Member other : settlement.members.values()) {
+            if (other.plotOrigin() != null) {
+                sumX += other.plotOrigin().x() + half;
+                sumY += other.plotOrigin().y();
+                sumZ += other.plotOrigin().z() + half;
+                plots++;
+            }
+        }
+        if (plots == 0) {
+            return; // není k čemu centrovat – staré souřadnice jsou pořád nejlepší odhad
+        }
+        settlement.center = new BlockPos((int) (sumX / plots), (int) (sumY / plots),
+                (int) (sumZ / plots));
+        // Indexy prstenců se posunuly s návsí – tombstony už neplatí.
+        settlement.unusablePlots.clear();
+        if (repository != null) {
+            repository.updateSettlementCenter(settlement.id, settlement.center.x(),
+                    settlement.center.y(), settlement.center.z());
+        }
     }
 
     /**
@@ -520,7 +555,7 @@ public final class SettlementService {
     public synchronized Optional<SettlementInfo> foundSettlement(SocialView view,
                                                                  BlockPos center,
                                                                  BlockPos founderPlot,
-                                                                 HouseFacing facing,
+                                                                 Cardinal facing,
                                                                  long nameSeed) {
         if (!config.enabled() || memberIndex.containsKey(view.botId())) {
             return Optional.empty();
@@ -599,7 +634,7 @@ public final class SettlementService {
                         UUID friend = strongestFriendIn(view, target);
                         leave(view.botId());
                         addMember(target, new Member(view.botId(), now, -1, null,
-                                HouseFacing.NORTH));
+                                Cardinal.NORTH));
                         rebuildFlags.add(view.botId());
                         lastChangeAt.put(view.botId(), now);
                         return Optional.of(new CohesionAction(
@@ -620,7 +655,7 @@ public final class SettlementService {
         Settlement target = bestJoinable(view, view.position(), config.joinRadius(),
                 Math.max(RELOCATE_MIN_AFFINITY, joinThreshold(view)));
         if (target != null) {
-            addMember(target, new Member(view.botId(), now, -1, null, HouseFacing.NORTH));
+            addMember(target, new Member(view.botId(), now, -1, null, Cardinal.NORTH));
             rebuildFlags.add(view.botId());
             lastChangeAt.put(view.botId(), now);
             return Optional.of(new CohesionAction(CohesionAction.Type.JOIN_NEARBY,
@@ -633,7 +668,7 @@ public final class SettlementService {
                 && nearest(view.world(), view.housePos(),
                 config.minVillageDistance(), null).isEmpty()) {
             Optional<SettlementInfo> founded = foundSettlement(view, view.housePos(),
-                    null, HouseFacing.NORTH, view.botId().getLeastSignificantBits());
+                    null, Cardinal.NORTH, view.botId().getLeastSignificantBits());
             return founded.map(info -> new CohesionAction(
                     CohesionAction.Type.FOUND_AT_HOME, info.name(), null));
         }
@@ -777,7 +812,7 @@ public final class SettlementService {
             double importance = view.enemy(member);
             long updatedAt = view.enemyUpdatedAt().getOrDefault(member, 0L);
             if (importance >= config.grudgeThreshold()
-                    && now - updatedAt <= GRUDGE_WINDOW_MS
+                    && now - updatedAt <= config.grudgeWindowHours() * 60L * 60 * 1000
                     && importance > worstImportance) {
                 worst = member;
                 worstImportance = importance;

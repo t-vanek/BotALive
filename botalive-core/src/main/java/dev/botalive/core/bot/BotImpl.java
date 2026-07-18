@@ -285,8 +285,8 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
         if (!config.settlement().enabled() || services.settlements() == null) {
             return;
         }
-        // Uprostřed stavby domu se nestěhuje – rozhodnutí počká pár minut.
-        if ("house".equals(brain.currentGoalId())) {
+        // Cíl uprostřed práce (stavba domu) smí stěhování odložit.
+        if (brain.currentGoalBlocksRelocation()) {
             return;
         }
         var view = settlementView();
@@ -300,21 +300,7 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
                 memory.forgetIf(MemoryKind.HOME,
                         r -> !"spawn".equals(r.data().get("type")));
             }
-            PhraseCategory category = switch (action.type()) {
-                case GRUDGE_LEAVE -> PhraseCategory.SETTLEMENT_SPLINTER;
-                case FOLLOW_FRIEND -> PhraseCategory.SETTLEMENT_FOLLOW;
-                case JOIN_NEARBY -> PhraseCategory.SETTLEMENT_JOINED;
-                case FOUND_AT_HOME -> PhraseCategory.SETTLEMENT_FOUNDED;
-            };
-            String counterpart = switch (action.type()) {
-                case GRUDGE_LEAVE, FOLLOW_FRIEND -> action.otherName();
-                case JOIN_NEARBY, FOUND_AT_HOME -> action.settlementName();
-            };
-            // Fráze roztržky/stěhování skloňují jméno protistrany – bez něj
-            // (bot offline) by vznikl paskvil „s  pod jednou střechou".
-            if (counterpart != null) {
-                chat.sayFrom(category, counterpart);
-            }
+            dev.botalive.core.settlement.SettlementAnnouncer.say(chat, action);
         });
     }
 
