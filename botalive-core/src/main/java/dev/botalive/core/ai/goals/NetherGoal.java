@@ -7,6 +7,7 @@ import dev.botalive.api.personality.Trait;
 import dev.botalive.core.ai.BotContext;
 import dev.botalive.core.ai.BotNeeds;
 import dev.botalive.core.chat.PhraseCategory;
+import dev.botalive.core.inventory.ItemVariants;
 import dev.botalive.core.mining.DigPlanner;
 import dev.botalive.core.nether.NetherMath;
 import dev.botalive.core.nether.NetherReadiness;
@@ -22,6 +23,7 @@ import dev.botalive.core.world.WorldDimension;
 import dev.botalive.core.world.WorldView;
 import org.bukkit.Material;
 import org.geysermc.mcprotocollib.protocol.data.game.entity.object.Direction;
+import org.geysermc.mcprotocollib.protocol.data.game.entity.Effect;
 import org.geysermc.mcprotocollib.protocol.data.game.entity.type.EntityType;
 
 import java.util.ArrayDeque;
@@ -129,6 +131,8 @@ public final class NetherGoal extends AbstractGoal {
     private final Set<Long> failedTargets = new HashSet<>();
     /** Opakované pokusy o jeden blok rámu (pokládka se ověřuje světem). */
     private int buildRetries;
+    /** Dopíjení lektvaru před sestupem (ticky). */
+    private int drinkTicks;
 
     /** Cache připravenosti – utility běží každý rozhodovací tick fleet-wide. */
     private NetherReadiness cachedReadiness;
@@ -506,6 +510,10 @@ public final class NetherGoal extends AbstractGoal {
             return;
         }
         wearGoldenBoots(ctx);
+        if (drinkTicks > 0) {
+            drinkTicks--; // bot dopíjí lektvar – stojí a drží use
+            return;
+        }
 
         // Rozdělaná práce má přednost (pořadí dle MineGoal).
         if (mineTask != null) {
@@ -589,6 +597,32 @@ public final class NetherGoal extends AbstractGoal {
         }
     }
 
+    /**
+     * Preventivní odolnost ohni z hotbaru (splash hned, láhev ~1,6 s).
+     * Lektvar zastrčený v batohu se neřeší – to umí nouzový cíl „drink".
+     *
+     * @return {@code true} pokud se pije/hodilo (tick je spotřebovaný)
+     */
+    private boolean drinkFireResistance(BotContext ctx) {
+        if (ctx.clientState().effectActive(Effect.FIRE_RESISTANCE)) {
+            return false;
+        }
+        var snapshot = ctx.serverView().latest();
+        int drink = ItemVariants.findPotionSlot(snapshot, ItemVariants.FIRE_RESISTANCE);
+        int splash = ItemVariants.findSplashSlot(snapshot, ItemVariants.FIRE_RESISTANCE);
+        int slot = drink >= 0 && drink < 9 ? drink : splash;
+        if (slot < 0 || slot >= 9) {
+            return false;
+        }
+        boolean throwIt = slot == splash && slot != drink;
+        ctx.navigator().stop();
+        ctx.actions().selectHotbar(slot);
+        ctx.actions().useItem(ctx.humanizer().yaw(),
+                throwIt ? 90f : ctx.humanizer().pitch());
+        drinkTicks = throwIt ? 10 : 40;
+        return true;
+    }
+
     /** Výběr další práce: ruda → truhla → barter → schodiště za troskami → toulání. */
     private void acquireWork(BotContext ctx, Bot bot) {
         WorldView world = ctx.worldView();
@@ -623,6 +657,12 @@ public final class NetherGoal extends AbstractGoal {
         // 4) Schodiště do hloubky trosek (jen s diamantovým krumpáčem).
         if (ctx.config().ai().terraforming() && needs.pickaxeTier() >= 5
                 && feet.y() > DEBRIS_Y + 6 && digBudget > 8 && ctx.rng().chance(0.5)) {
+            // Před sestupem preventivně odolnost ohni (barterová klasika) –
+            // v hloubce trosek jsou lávové kapsy nejzrádnější. Nouzi za pochodu
+            // řeší cíl „drink"; tady jde o rozvahu hráče před kopáním.
+            if (drinkFireResistance(ctx)) {
+                return;
+            }
             digSteps.addAll(DigPlanner.staircase(feet,
                     Math.max(DEBRIS_Y, feet.y() - 20), ctx.rng().rangeInt(0, 4), 20));
             return;
@@ -1078,6 +1118,7 @@ public final class NetherGoal extends AbstractGoal {
         returnScanTicks = 0;
         targetTicks = 0;
         lootTicks = 0;
+        drinkTicks = 0;
         digTaskInPlan = false;
     }
 
