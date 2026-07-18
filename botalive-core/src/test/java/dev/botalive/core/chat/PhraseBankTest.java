@@ -142,14 +142,41 @@ class PhraseBankTest {
         BotRandom rng = new BotRandom(42);
         for (int i = 0; i < 50; i++) {
             String phrase = bank.pick(PhraseCategory.GREETINGS, rng, "Pepa");
-            assertFalse(phrase.contains("{name}"), "placeholder musí být nahrazen");
+            assertFalse(phrase.contains("{name"), "placeholder musí být nahrazen");
             assertEquals(phrase, phrase.trim());
         }
         // null jméno nesmí nechat díru ani mezery na krajích.
         for (int i = 0; i < 50; i++) {
             String phrase = bank.pick(PhraseCategory.MEET_PLAYER, rng, null);
-            assertFalse(phrase.contains("{name}"));
+            assertFalse(phrase.contains("{name"));
             assertEquals(phrase, phrase.trim());
+        }
+    }
+
+    @Test
+    void ceskeFrazeOslovujiPatymPadem() {
+        PhraseBank bank = PhraseBankLoader.builtIn();
+        BotRandom rng = new BotRandom(7);
+        boolean declined = false;
+        for (int i = 0; i < 200; i++) {
+            String phrase = bank.pick(PhraseCategory.GREETINGS, rng, "Karel13");
+            assertFalse(phrase.contains("Karel13"),
+                    "oslovení má skloněné jádro bez číselného ocasu: " + phrase);
+            declined |= phrase.contains("Karle");
+        }
+        assertTrue(declined, "mezi pozdravy se musí objevit oslovení „Karle“");
+    }
+
+    @Test
+    void anglickeFrazeNechavajiJmenoBezeZmeny() {
+        PhraseBank bank = PhraseBankLoader.load(tempDir.toFile(), "en");
+        BotRandom rng = new BotRandom(7);
+        for (int i = 0; i < 100; i++) {
+            String phrase = bank.pick(PhraseCategory.GREETINGS, rng, "Karel13");
+            assertFalse(phrase.contains("{name"), "placeholder musí zmizet i v en");
+            if (phrase.contains("Karel")) {
+                assertTrue(phrase.contains("Karel13"), "en neskloňuje: " + phrase);
+            }
         }
     }
 

@@ -9,6 +9,10 @@
 #  spadne na vestavěnou vrstvu – neúplný překlad botům nevezme řeč.
 #
 #  {name} se nahradí jménem protistrany (může zůstat prázdné).
+#  {name:2} až {name:7} doplní jméno ve skloněném pádu (české číslování,
+#  {name:5} = oslovení: "ahoj Karle", "čau Lucko"). Herní nicky se skloňují
+#  přes čitelné jádro (Xx_Ninja_xX → "čau Ninjo"); když si engine není
+#  jistý, nechá jméno beze změny.
 #  patterns.* jsou regulární výrazy (case-insensitive, plný Unicode) pro
 #  rozpoznání pozdravu/poděkování v příchozích zprávách.
 # ============================================================================
@@ -25,16 +29,16 @@ patterns:
 
 phrases:
   greetings:
-    - "ahoj {name}"
+    - "ahoj {name:5}"
     - "čau"
-    - "nazdar {name}"
+    - "nazdar {name:5}"
     - "zdravím"
     - "čauky"
     - "ahojky"
-    - "hej {name}"
+    - "hej {name:5}"
     - "zdar"
     - "dobrej"
-    - "čus {name}"
+    - "čus {name:5}"
   confused:
     - "co?"
     - "jak to myslíš?"
@@ -44,7 +48,7 @@ phrases:
     - "možná"
     - "to nevím"
     - "asi jo?"
-    - "netuším {name}"
+    - "netuším {name:5}"
     - "dobrá otázka"
   agreement:
     - "jo"
@@ -97,11 +101,11 @@ phrases:
     - "další!"
     - "uff to bolelo"
   meet-player:
-    - "čau {name}, co děláš?"
-    - "ahoj {name}"
-    - "hej {name}, nemáš jídlo?"
-    - "{name} ahoj, kde je nejbližší vesnice?"
-    - "čus {name}, jdeš těžit?"
+    - "čau {name:5}, co děláš?"
+    - "ahoj {name:5}"
+    - "hej {name:5}, nemáš jídlo?"
+    - "{name:5} ahoj, kde je nejbližší vesnice?"
+    - "čus {name:5}, jdeš těžit?"
   pvp-help-calls:
     - "pomoc!"
     - "jdou po mně!"

@@ -79,7 +79,9 @@ public final class PhraseBankLoader {
             LOG.warn("Jazyk frází '{}' nemá vestavěný ani uživatelský soubor "
                     + "(lang/{}.yml) – boti budou mluvit česky.", code, code);
         }
-        return bank;
+        // Skloňování jmen podle výsledného jazyka banky (fallback = čeština).
+        return bank.withInflector(NameInflector.forLanguage(
+                found ? code : BUILT_IN_LANGUAGE));
     }
 
     /**
@@ -131,7 +133,8 @@ public final class PhraseBankLoader {
         for (String key : PhraseBank.PATTERN_KEYS) {
             patterns.put(key, requirePattern(root, key));
         }
-        return new PhraseBank(lists, patterns);
+        return new PhraseBank(lists, patterns,
+                NameInflector.forLanguage(BUILT_IN_LANGUAGE));
     }
 
     /** Překryje fallback banku hodnotami definovanými v {@code root}. */
@@ -148,7 +151,8 @@ public final class PhraseBankLoader {
         for (String key : PhraseBank.PATTERN_KEYS) {
             patterns.put(key, overlayPattern(root, key, fallback.pattern(key), sourceName));
         }
-        return new PhraseBank(lists, patterns);
+        // Skloňovač nastaví load() podle výsledného jazyka.
+        return new PhraseBank(lists, patterns, NameInflector.IDENTITY);
     }
 
     /** Vzor z vrstvy, při absenci/chybě vzor z fallbacku. */
