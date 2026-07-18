@@ -325,6 +325,39 @@ class CraftPlannerTest {
     }
 
     @Test
+    void kopieKovarskeSablony() {
+        Object[] geared = {Material.OAK_PLANKS, 4, Material.STICK, 4,
+                Material.COBBLESTONE, 3, Material.CRAFTING_TABLE, 1,
+                Material.FURNACE, 1, Material.TORCH, 8, Material.SHIELD, 1,
+                Material.DIAMOND_PICKAXE, 1, Material.DIAMOND_SWORD, 1,
+                Material.DIAMOND_AXE, 1, Material.STONE_SHOVEL, 1,
+                Material.DIAMOND_CHESTPLATE, 1, Material.DIAMOND_LEGGINGS, 1,
+                Material.DIAMOND_HELMET, 1, Material.DIAMOND_BOOTS, 1,
+                Material.BOW, 1, Material.ARROW, 16, Material.CHEST, 1,
+                Material.OAK_BOAT, 1, Material.OAK_DOOR, 1, Material.RED_BED, 1,
+                Material.FLINT_AND_STEEL, 1, Material.GOLDEN_BOOTS, 1,
+                Material.SMITHING_TABLE, 1, Material.NETHERITE_INGOT, 1};
+
+        // Jedna šablona + spousta diamantové výbavy → duplikace se vyplatí.
+        CraftPlanner.Plan copy = CraftPlanner.next(state(concat(geared,
+                Material.NETHERITE_UPGRADE_SMITHING_TEMPLATE, 1,
+                Material.DIAMOND, 7, Material.NETHERRACK, 4)));
+        assertEquals("kopie kovářské šablony", copy.id());
+        assertEquals(7, copy.ingredients().get(Material.DIAMOND));
+        assertEquals(1, copy.ingredients().get(Material.NETHERRACK));
+
+        // Dvě šablony nebo málo diamantů → nekopíruje se.
+        CraftPlanner.Plan two = CraftPlanner.next(state(concat(geared,
+                Material.NETHERITE_UPGRADE_SMITHING_TEMPLATE, 2,
+                Material.DIAMOND, 7, Material.NETHERRACK, 4)));
+        assertTrue(two == null || !"kopie kovářské šablony".equals(two.id()));
+        CraftPlanner.Plan poor = CraftPlanner.next(state(concat(geared,
+                Material.NETHERITE_UPGRADE_SMITHING_TEMPLATE, 1,
+                Material.DIAMOND, 6, Material.NETHERRACK, 4)));
+        assertTrue(poor == null || !"kopie kovářské šablony".equals(poor.id()));
+    }
+
+    @Test
     void vsechnyPlanyMajiValidniMatice() {
         // Sanity: každý plán z progrese má neprázdnou matici a ingredience.
         CraftPlanner.Plan plan = CraftPlanner.next(state(Material.OAK_LOG, 3));

@@ -339,6 +339,20 @@ public final class CraftPlanner {
                     Material.IRON_INGOT, 0, Material.IRON_INGOT, 1,
                     plank, 3, plank, 4, plank, 6, plank, 7), true);
         }
+        // Kopie šablony (7 diamantů + netherrack): šablona z bastionu je
+        // jedna, ale povýšit chce bot celou výbavu – duplikace se vyplatí,
+        // dokud zbývá víc diamantových kusů a je z čeho ji zaplatit.
+        if (s.hasTable() && s.count(Material.NETHERITE_UPGRADE_SMITHING_TEMPLATE) == 1
+                && s.count(Material.DIAMOND) >= 7 && s.has(Material.NETHERRACK)
+                && diamondGearPieces(s) >= 2
+                && (s.has(Material.NETHERITE_INGOT) || s.count(Material.NETHERITE_SCRAP) >= 4
+                        || s.has(Material.ANCIENT_DEBRIS))) {
+            return new Plan("kopie kovářské šablony", matrix(
+                    Material.DIAMOND, 0, Material.NETHERITE_UPGRADE_SMITHING_TEMPLATE, 1,
+                    Material.DIAMOND, 2, Material.DIAMOND, 3, Material.NETHERRACK, 4,
+                    Material.DIAMOND, 5, Material.DIAMOND, 6, Material.DIAMOND, 7,
+                    Material.DIAMOND, 8), true);
+        }
 
         // ---- truhla a loďka (zázemí a cestování; rezerva prken)
         if (s.hasTable() && s.planks() >= 12 && plank != null
@@ -414,6 +428,17 @@ public final class CraftPlanner {
             }
         }
         return Material.OAK_SLAB;
+    }
+
+    /** Počet diamantových kusů výbavy (kandidátů na povýšení na netherit). */
+    private static int diamondGearPieces(State s) {
+        return s.countMatching(m -> {
+            String n = m.name();
+            return n.startsWith("DIAMOND_") && (n.endsWith("_PICKAXE") || n.endsWith("_SWORD")
+                    || n.endsWith("_AXE") || n.endsWith("_SHOVEL") || n.endsWith("_HOE")
+                    || n.endsWith("_CHESTPLATE") || n.endsWith("_LEGGINGS")
+                    || n.endsWith("_HELMET") || n.endsWith("_BOOTS"));
+        });
     }
 
     /** Má sekeru v tieru {@code tier} nebo lepší (bez krumpáčů). */

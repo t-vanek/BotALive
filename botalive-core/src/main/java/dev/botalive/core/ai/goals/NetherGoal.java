@@ -125,6 +125,8 @@ public final class NetherGoal extends AbstractGoal {
     private int lootTicks;
     /** Truhly, ze kterých loot jednou nic nedal – druhý neúspěch = konec. */
     private final Set<Long> lootMisses = new HashSet<>();
+    /** Nedosažitelné cíle těžby (glowstone u stropu…) – tenhle trip už ne. */
+    private final Set<Long> failedTargets = new HashSet<>();
     /** Opakované pokusy o jeden blok rámu (pokládka se ověřuje světem). */
     private int buildRetries;
 
@@ -463,6 +465,7 @@ public final class NetherGoal extends AbstractGoal {
             bootTries = 0;
             lootedChests.clear();
             lootMisses.clear();
+            failedTargets.clear();
             structuresRemembered = false;
             if (ctx.rng().chance(0.7)) {
                 ctx.chat().sayFrom(PhraseCategory.NETHER_ARRIVE, null);
@@ -641,6 +644,7 @@ public final class NetherGoal extends AbstractGoal {
                     Material material = world.materialAt(pos);
                     Double value = material == null ? null : NETHER_ORES.get(material);
                     if (value == null || !needs.canHarvest(material)
+                            || failedTargets.contains(pos.asLong())
                             || !DigPlanner.isExposed(world, pos)) {
                         continue;
                     }
@@ -712,15 +716,19 @@ public final class NetherGoal extends AbstractGoal {
         double distSq = targetBlock.center().distanceSquared(ctx.position());
         if (distSq > 4.2 * 4.2) {
             ctx.navigator().navigateTo(ctx.position(), targetBlock);
-            // Nedosažitelné cíle (ruda za lávovým jezerem) hlídá časový
-            // rozpočet – navigátor selhání hlásí asynchronně, ne stavem.
+            // Nedosažitelné cíle (ruda za lávovým jezerem, glowstone u stropu)
+            // hlídá časový rozpočet – navigátor selhání hlásí asynchronně, ne
+            // stavem – a vzdaný cíl jde na černou listinu, jinak by ho další
+            // sken vybral znovu a bot u něj protočil celý trip.
             if (++targetTicks > 300) {
+                failedTargets.add(targetBlock.asLong());
                 targetBlock = null;
             }
             return;
         }
         ctx.navigator().stop();
         if (DigPlanner.unsafeToBreak(ctx.worldView(), targetBlock)) {
+            failedTargets.add(targetBlock.asLong());
             targetBlock = null;
             return;
         }
@@ -732,6 +740,13 @@ public final class NetherGoal extends AbstractGoal {
     /** Po vytěžení: žíla, ekonomika (hodnotu má hlavně debris). */
     private void onBlockMined(BotContext ctx, Bot bot) {
         ctx.stats().addMined();
+        // Netherová těžba se propisuje do ekonomiky jako overworldová
+        // (MineGoal) – jinak by kopáč v pekle „nevydělával".
+        Double value = targetMaterial == null ? null : NETHER_ORES.get(targetMaterial);
+        if (value != null && ctx.config().economy().enabled() && !digTaskInPlan) {
+            bot.wallet().deposit(value,
+                    "těžba " + targetMaterial.name().toLowerCase(java.util.Locale.ROOT));
+        }
         if (targetMaterial != null && targetMaterial == Material.ANCIENT_DEBRIS
                 && ctx.rng().chance(0.8)) {
             ctx.chat().sayFrom(PhraseCategory.NETHER_LOOT, null);
@@ -1054,6 +1069,7 @@ public final class NetherGoal extends AbstractGoal {
         stepBlocks.clear();
         lootedChests.clear();
         lootMisses.clear();
+        failedTargets.clear();
         lightAttempts = 0;
         enterAttempts = 0;
         bootTries = 0;
@@ -1159,7 +1175,7 @@ public final class NetherGoal extends AbstractGoal {
             case WORK -> targetMaterial == Material.ANCIENT_DEBRIS
                     ? "těžím starodávné trosky v Netheru"
                     : "sbírám kořist v Netheru";
-            case RETURN -> "vracím se z Netheru domů";
+            case RETURN -> "vracím se domů (hledám portál)";
             case DONE -> null;
         };
     }

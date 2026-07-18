@@ -39,6 +39,7 @@ public final class FurnaceService implements dev.botalive.core.station.FurnaceSt
     /** Paliva, která bot do pece ochotně obětuje. */
     private static final Set<Material> FUEL = Set.of(
             Material.COAL, Material.CHARCOAL, Material.COAL_BLOCK,
+            Material.BLAZE_ROD,
             Material.OAK_PLANKS, Material.SPRUCE_PLANKS, Material.BIRCH_PLANKS,
             Material.JUNGLE_PLANKS, Material.ACACIA_PLANKS, Material.DARK_OAK_PLANKS,
             Material.STICK
@@ -119,6 +120,9 @@ public final class FurnaceService implements dev.botalive.core.station.FurnaceSt
             java.util.List.of(
                     m -> m == Material.COAL || m == Material.CHARCOAL
                             || m == Material.COAL_BLOCK,
+                    // Blaze rody z Netheru: bez brewingu jsou to jen výborná
+                    // paliva (12 vsázek/kus) – pálí se před prkny.
+                    m -> m == Material.BLAZE_ROD,
                     m -> m.name().endsWith("_PLANKS") || m == Material.STICK,
                     m -> m.name().endsWith("_LOG"));
 

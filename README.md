@@ -77,7 +77,11 @@ inventář a historii; po restartu serveru pokračuje tam, kde skončil.
   z úlomků a zlata složí **netheritový ingot** a u kovářského stolu povýší
   diamantovou výbavu na **netheritovou** (enchanty i poškození zůstávají).
   Postel v Netheru nikdy nepoužije (vybuchla by) a portálům se cesty
-  vyhýbají – dimenzi nikdy nezmění omylem. Vše laditelné sekcí `nether.*`.
+  vyhýbají – dimenzi nikdy nezmění omylem. Kořist se propisuje do života
+  společenství: quartz se prodává na trhu, blaze rody topí v peci, mince
+  z těžby jdou do peněženky, portály si kamarádi předávají v drbech
+  a kovářská šablona se dá zkopírovat (7 diamantů + netherrack), takže na
+  netherit dosáhne celá výbava. Vše laditelné sekcí `nether.*`.
 - **Těžba s účelem** – bot ví, co mu chybí: bez kamenných nástrojů kope kámen,
   s kamenným krumpáčem shání železo a uhlí, se železným jde po diamantech
   (tier gating – nekope rudu nástrojem, ze kterého by nic nepadlo). K zasypané
@@ -339,3 +343,11 @@ Placeholder `{name}` se nahrazuje jménem protistrany. Kategorie: `greetings`,
 ## Známá omezení a roadmapa
 - Boti vyžadují offline-mode (jsou to nepodepsaní klienti); na online-mode
   serveru se plugin korektně odmítne připojit a vysvětlí proč.
+- Nether má vědomé hranice: boti nepijí lektvary (fire resistance z barteru
+  zůstává v batohu – snapshot inventáře nerozlišuje typ lektvaru), nejezdí
+  na striderech a přes velké lávové oceány nestaví dlouhé mosty (BridgeTask
+  má strop 12 bloků – cesta se hledá jinudy). Brewing, respawn anchor
+  a boj s witherem nejsou v plánu; nether wart se sbírá jen jako kořist
+  z truhel.
+- Boti nevylézají na strom techniky v Endu – tam se jen umí neztratit:
+  zavlečený bot najde návratový portál a vrátí se domů.
