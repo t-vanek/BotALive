@@ -23,9 +23,17 @@ import java.util.function.Predicate;
  * Netherit uzavírá progresi: starodávné trosky z Netheru se taví na
  * úlomky ({@code FurnaceService}), 4 úlomky + 4 zlato = ingot a povýšení
  * diamantové výbavy provádí kovářský stůl ({@code SmithingService},
- * s šablonou z bastionu).</p>
+ * s šablonou z bastionu). Z netherové kořisti se melou i oči Enderu
+ * (blaze prach + perla) – klíč k zaplnění rámu portálu ve strongholdu
+ * ({@code EndTravelGoal}).</p>
  */
 public final class CraftPlanner {
+
+    /**
+     * Cílová zásoba očí Enderu: rám portálu má 12 slotů, víc očí nemá
+     * v inventáři co dělat (bez házení očí se strongholdy nehledají).
+     */
+    private static final int EYES_TARGET = 12;
 
     /**
      * Jeden plán receptu: co vyrobit a z čeho (3×3 matice, row-major).
@@ -352,6 +360,20 @@ public final class CraftPlanner {
                     Material.DIAMOND, 2, Material.DIAMOND, 3, Material.NETHERRACK, 4,
                     Material.DIAMOND, 5, Material.DIAMOND, 6, Material.DIAMOND, 7,
                     Material.DIAMOND, 8), true);
+        }
+
+        // ---- oči Enderu (perla + blaze prach, 2×2) – vstupenka k rámu
+        // portálu ve strongholdu. Prach se mele, jen když na něj čeká perla:
+        // 1 rod = 2 prachy a přebytek rodů zůstává vcelku (budoucí vaření).
+        int eyes = s.count(Material.ENDER_EYE);
+        if (eyes < EYES_TARGET && s.has(Material.ENDER_PEARL)
+                && s.has(Material.BLAZE_POWDER)) {
+            return new Plan("oko Enderu", matrix(
+                    Material.ENDER_PEARL, 0, Material.BLAZE_POWDER, 1), false);
+        }
+        if (eyes < EYES_TARGET && s.has(Material.ENDER_PEARL)
+                && !s.has(Material.BLAZE_POWDER) && s.has(Material.BLAZE_ROD)) {
+            return new Plan("blaze prach", matrix(Material.BLAZE_ROD, 0), false);
         }
 
         // ---- truhla a loďka (zázemí a cestování; rezerva prken)

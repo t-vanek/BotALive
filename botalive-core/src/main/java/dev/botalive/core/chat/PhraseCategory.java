@@ -120,6 +120,8 @@ public enum PhraseCategory {
     END_RETURN,
     /** Objev portálu do Endu při toulkách (velká událost, spouští výpravy). */
     PORTAL_FOUND,
+    /** Vkládání očí Enderu do rámu portálu (aktivace strongholdu). */
+    END_EYES,
     /** Smajlíky přidávané podle stylu psaní. */
     EMOJIS;
 
