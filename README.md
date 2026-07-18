@@ -69,9 +69,21 @@ inventář a historii; po restartu serveru pokračuje tam, kde skončil.
   rudě si **prorazí štolu**, do hloubky sestupuje schodištěm (nikdy kolmo
   dolů, kontrola lávy/vody před každým blokem), sleduje celé žíly a ve štolách
   si rozmisťuje pochodně. Vypínatelné přes `ai.terraforming`.
-- **Stavba domů** – bot si najde rovné místo, připraví staveniště a postaví
-  skutečný domek (zdi, dveřní otvor, střecha). Dům si uloží jako domov a
-  vrací se do něj; role stavitel staví ochotněji.
+- **Stavba domů** – bot si připraví staveniště a postaví skutečný domek
+  (zdi, dveřní otvor, střecha, natočení dveří na libovolnou světovou
+  stranu). Dům si uloží jako domov a vrací se do něj; role stavitel staví
+  ochotněji.
+- **Vesnice a společenství** – domy nerostou náhodně po krajině: kdo je
+  aspoň trochu společenský, přidá se k vesnici kamarádů (nebo první
+  založí – jeho dům se stane návsí a vesnice dostane české jméno,
+  „Pepov", „Nová Lhota"…). Parcely se přidělují v prstencích kolem návsi
+  a domy koukají dveřmi ke středu; samotáři dál staví po svém, jen ne
+  cizí vesnici pod okny. Soužití není idylka: čerstvá zášť vůči sousedovi
+  (krádež, potyčka) umí bota vyhnat – rozhlásí to, opustí vesnici
+  a založí si vlastní **za minimálním odstupem**; nejlepší kamarádi se za
+  ním stěhují (emergentní aliance z FRIEND paměti, žádné pevné týmy).
+  Vše persistentní (migrace v3), přehled dává `/botalive settlements`
+  a ladí se sekcí `settlement.*`.
 - **Boti vědí, co dělají** – intent vrstva: každý cíl umí říct, co a proč bot
   právě dělá. `/botalive goal` ukazuje záměr („těžím iron_ore – chci si
   vyrobit železný krumpáč"), na otázku „co děláš?" v chatu bot odpoví podle
@@ -92,7 +104,24 @@ inventář a historii; po restartu serveru pokračuje tam, kde skončil.
 - **Životní ambice** – každý bot má dlouhodobý projekt podle povahy (železná
   výbava / útulný domov / zbohatnout): jemně táhne související cíle a je
   vidět v `/botalive goal` („životní cíl: zbohatnout, krok 1/3"). Postup se
-  počítá ze stavu, takže přežívá restart.
+  počítá ze stavu, takže přežívá restart. Splněný sen chvíli hřeje a pak si
+  bot podle aktuální (vyvinuté!) povahy vybere další – život se nezastaví.
+- **Corpse run** – smrt není reset: bot si pamatuje, kde umřel, a hned po
+  respawnu si běží pro výbavu (dropy mizí za ~5 minut, tak spěchá). Po lávě
+  a pádu do voidu neběhá – ví, že tam nic nezbylo.
+- **Údržba domu** – creeper díry a vytlučené zdi bot opravuje: čas od času
+  projde dům proti plánu, doplní chybějící bloky, vykope, co se připletlo do
+  vchodu, a osadí nové dveře. Vesnice nechátrají.
+- **Osvětlené vesnice s cestičkami** – po dostavění domu bot udusá lopatou
+  cestičku od dveří k návsi a rozestaví podél ní pochodně – vesnice v noci
+  nespawnuje moby mezi domy a vypadá jako vesnice
+  (`settlement.lighting/paths`).
+- **Trh mezi boty** – přebytky (jídlo, uhlí, železo) se vyvolávají v chatu
+  („prodávám 5x bread za 12, kdo chce?"), zájemce si nabídku zamluví, dojde
+  si pro zboží a při předávce se převedou peníze – kamarádi mají slevu,
+  chamtivci přirážku, vydařený obchod sbližuje. Hladový bot s penězi si
+  koupí jídlo (slušnější než krást), líný si koupí železo místo kopání.
+  Peníze obíhají uvnitř společenství (`economy.bot-trade`).
 - **Učení z chyb a reflexy** – pathfinding zdražuje průchod místy, kde bot
   zemřel (paměť DEATH/DANGER); creeper v odpalové vzdálenosti spouští
   okamžitý úprk; sebrané brnění si boti sami nasazují.
@@ -228,6 +257,7 @@ PostgreSQL driver – vše relokované do `dev.botalive.libs`).
 | `goal <jméno> [set <cíl>\|clear]` | utility přehled / vynucení cíle |
 | `stats <jméno>` | vytěženo, postaveno, smrti, zabití, nachozeno, peníze… |
 | `role <jméno> [role\|random]` | zobrazí/nastaví profesi bota |
+| `settlements` | přehled vesnic botů (jméno, náves, zakladatel, členové) |
 
 Oprávnění:
 

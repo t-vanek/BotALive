@@ -114,6 +114,17 @@ public interface BotContext {
     /** @return sdílená kniha zločinů (krádeže mají oběti a následky) */
     dev.botalive.core.social.CrimeLog crimeLog();
 
+    /** @return sdílená služba vesnic (parcely, členství, sousedské vztahy) */
+    dev.botalive.core.settlement.SettlementService settlements();
+
+    /**
+     * Sociální snímek bota pro rozhodování o vesnicích – FRIEND/ENEMY vazby
+     * z paměti, povaha, pozice a vlastní dům.
+     *
+     * @return snímek (sestavený na tick vlákně bota)
+     */
+    dev.botalive.core.settlement.SocialView settlementView();
+
     /**
      * Vyzvedne čekající adresnou prosbu o sdílení (z chatu) – vyzvednutím
      * se maže. Čte ji {@code ShareGoal} při startu.

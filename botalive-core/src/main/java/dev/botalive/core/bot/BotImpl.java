@@ -10,6 +10,7 @@ import dev.botalive.api.event.BotDiedEvent;
 import dev.botalive.api.event.BotSpawnedEvent;
 import dev.botalive.api.memory.BotMemory;
 import dev.botalive.api.memory.MemoryKind;
+import dev.botalive.api.memory.MemoryRecord;
 import dev.botalive.api.personality.Personality;
 import dev.botalive.core.ai.BotContext;
 import dev.botalive.core.ai.Brain;
@@ -151,8 +152,13 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
      *  lifecycle zásahy z jiných vláken (disconnect, pause, remove). */
     private final Object tickLock = new Object();
 
+    /** Jak dlouho po splnění ambice se vybírá další (radost si užít). */
+    private static final long AMBITION_AFTERGLOW_MS = 10 * 60_000L;
+
     private int ticksSinceSnapshot;
     private int ticksSinceFlush;
+    private int ticksSinceCohesion;
+    private long ambitionCompletedAt;
     private Vec3 lastDistancePos;
 
     /**
@@ -230,6 +236,85 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
         return services.crimeLog();
     }
 
+    @Override
+    public dev.botalive.core.settlement.SettlementService settlements() {
+        return services.settlements();
+    }
+
+    @Override
+    public dev.botalive.core.settlement.SocialView settlementView() {
+        java.util.Map<UUID, Double> friends = new java.util.HashMap<>();
+        java.util.Map<UUID, Double> enemies = new java.util.HashMap<>();
+        java.util.Map<UUID, Long> enemyUpdatedAt = new java.util.HashMap<>();
+        for (MemoryRecord record : memory.recall(MemoryKind.FRIEND)) {
+            if (record.subject() != null) {
+                friends.merge(record.subject(), record.importance(), Math::max);
+            }
+        }
+        for (MemoryRecord record : memory.recall(MemoryKind.ENEMY)) {
+            if (record.subject() != null) {
+                enemies.merge(record.subject(), record.importance(), Math::max);
+                enemyUpdatedAt.merge(record.subject(), record.updatedAt(), Math::max);
+            }
+        }
+        dev.botalive.core.util.BlockPos house = null;
+        for (MemoryRecord record : memory.recall(MemoryKind.HOME)) {
+            if ("house".equals(record.data().get("type"))) {
+                house = new dev.botalive.core.util.BlockPos(record.x(), record.y(), record.z());
+                break;
+            }
+        }
+        var world = worldView();
+        return new dev.botalive.core.settlement.SocialView(id, name,
+                world == null ? null : world.worldName(),
+                position().toBlockPos(),
+                personality.trait(dev.botalive.api.personality.Trait.SOCIABILITY),
+                personality.trait(dev.botalive.api.personality.Trait.PATIENCE),
+                house, friends, enemies, enemyUpdatedAt);
+    }
+
+    /**
+     * Sousedská úvaha: jednou za ~30–45 s zváží roztržky, stěhování za
+     * kamarády a usazování samotářů. Změna členství znamená zapomenout
+     * domov (bot si postaví nový na parcele) a okomentovat to v chatu.
+     */
+    private void tickSettlementCohesion() {
+        if (!config.settlement().enabled() || services.settlements() == null) {
+            return;
+        }
+        // Uprostřed stavby domu se nestěhuje – rozhodnutí počká pár minut.
+        if ("house".equals(brain.currentGoalId())) {
+            return;
+        }
+        var view = settlementView();
+        if (view.world() == null) {
+            return;
+        }
+        services.settlements().checkCohesion(view).ifPresent(action -> {
+            if (action.rebuild()) {
+                // Staré stavby (dům, postel, přístřešek) zůstávají v opuštěné
+                // vesnici – zapomenout; kotva spawnu je nouzové útočiště a zůstává.
+                memory.forgetIf(MemoryKind.HOME,
+                        r -> !"spawn".equals(r.data().get("type")));
+            }
+            PhraseCategory category = switch (action.type()) {
+                case GRUDGE_LEAVE -> PhraseCategory.SETTLEMENT_SPLINTER;
+                case FOLLOW_FRIEND -> PhraseCategory.SETTLEMENT_FOLLOW;
+                case JOIN_NEARBY -> PhraseCategory.SETTLEMENT_JOINED;
+                case FOUND_AT_HOME -> PhraseCategory.SETTLEMENT_FOUNDED;
+            };
+            String counterpart = switch (action.type()) {
+                case GRUDGE_LEAVE, FOLLOW_FRIEND -> action.otherName();
+                case JOIN_NEARBY, FOUND_AT_HOME -> action.settlementName();
+            };
+            // Fráze roztržky/stěhování skloňují jméno protistrany – bez něj
+            // (bot offline) by vznikl paskvil „s  pod jednou střechou".
+            if (counterpart != null) {
+                chat.sayFrom(category, counterpart);
+            }
+        });
+    }
+
     /**
      * Přitáhne item z hlavního inventáře do hotbaru (SWAP klik ve vlastním
      * okně inventáře – funguje v server i packet režimu, je to čistý protokol).
@@ -272,6 +357,36 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
         boolean hasBed = snapshot != null
                 && snapshot.hasItem(m -> m.name().endsWith("_BED"));
         ambitionProgress = ambition.progress(needs, hasHouse, hasBed, wallet.balance());
+
+        // Splněný sen chvíli hřeje – a pak si člověk najde další. Nová ambice
+        // se volí podle aktuální (vyvinuté) povahy; hotové cíle se přeskakují.
+        if (ambitionProgress.complete()) {
+            if (ambitionCompletedAt == 0) {
+                ambitionCompletedAt = System.currentTimeMillis();
+            } else if (System.currentTimeMillis() - ambitionCompletedAt
+                    > AMBITION_AFTERGLOW_MS) {
+                for (var candidate : dev.botalive.core.ai.Ambition.ranked(personality)) {
+                    if (candidate == ambition || candidate
+                            .progress(needs, hasHouse, hasBed, wallet.balance())
+                            .complete()) {
+                        continue;
+                    }
+                    memory.forget(MemoryKind.AMBITION);
+                    memory.remember(MemoryKind.AMBITION,
+                            worldView != null ? worldView.worldName() : "", 0, 0, 0,
+                            null, Map.of("type", candidate.name()), 1.0);
+                    ambition = candidate;
+                    ambitionProgress = null;
+                    chat.sayFrom(PhraseCategory.AMBITION_NEW, candidate.label());
+                    break;
+                }
+                // Všechno splněné → žije z renty; zkusí to zas za chvíli
+                // (stav se může změnit – vyloupená truhla, ztracený dům).
+                ambitionCompletedAt = System.currentTimeMillis();
+            }
+        } else {
+            ambitionCompletedAt = 0;
+        }
     }
 
     /**
@@ -360,6 +475,24 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
             return null;
         }
         Vec3 pos = physics.position();
+        // Vlastní vesnice má přednost – tu bot zná jménem. Jen ve stejném
+        // světě a jen se zapnutými vesnicemi (vypnuté = chování jako dřív).
+        var settlements = services.settlements();
+        if (settlements != null && config.settlement().enabled()) {
+            var own = settlements.settlementOf(id);
+            if (own.isPresent() && own.get().world().equals(worldView.worldName())) {
+                var center = own.get().center();
+                return "bydlim v %s, naves je u %d, %d, %d".formatted(
+                        own.get().name(), center.x(), center.y(), center.z());
+            }
+            var nearest = settlements.nearestSettlement(worldView.worldName(),
+                    pos.toBlockPos(), 400);
+            if (nearest.isPresent()) {
+                var center = nearest.get().center();
+                return "%s je u %d, %d, %d".formatted(nearest.get().name(),
+                        center.x(), center.y(), center.z());
+            }
+        }
         return memory.recallNearest(MemoryKind.VILLAGE, worldView.worldName(),
                         (int) pos.x(), (int) pos.y(), (int) pos.z())
                 .map(r -> "vesnice je u %d, %d, %d".formatted(r.x(), r.y(), r.z()))
@@ -472,6 +605,8 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
      * @param phrases     banka frází zvoleného jazyka
      * @param stateMapper překlad block states (jen režim packet, jinak {@code null})
      * @param itemMapper  překlad item ID (jen režim packet, jinak {@code null})
+     * @param crimeLog    sdílená kniha zločinů
+     * @param settlements sdílená služba vesnic
      */
     public record SharedServices(
             BotAliveConfig config,
@@ -483,7 +618,8 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
             dev.botalive.core.chat.PhraseBank phrases,
             dev.botalive.core.world.state.BlockStateMapper stateMapper,
             dev.botalive.core.world.state.ItemMapper itemMapper,
-            dev.botalive.core.social.CrimeLog crimeLog
+            dev.botalive.core.social.CrimeLog crimeLog,
+            dev.botalive.core.settlement.SettlementService settlements
     ) {
     }
 
@@ -567,7 +703,8 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
                 (int) pos.x(), (int) pos.y(), (int) pos.z(), null,
                 Map.of("message", deathMessage), 0.9);
         memory.remember(MemoryKind.LOST_ITEMS, worldName,
-                (int) pos.x(), (int) pos.y(), (int) pos.z(), null, Map.of(), 0.8);
+                (int) pos.x(), (int) pos.y(), (int) pos.z(), null,
+                Map.of("cause", deathMessage == null ? "" : deathMessage), 0.8);
         gainExperience(dev.botalive.core.personality.PersonalityEvolution.BotExperience.DEATH);
         new BotDiedEvent(this, worldName, (int) pos.x(), (int) pos.y(), (int) pos.z()).callEvent();
 
@@ -709,6 +846,13 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
             stats.addPlaytime(60);
             stats.flush();
             persistPosition();
+        }
+        // Sousedská úvaha (vesnice) – rozfázovaně, jen u živého aktivního bota.
+        if (++ticksSinceCohesion >= 600 + (int) (Math.abs(id.getLeastSignificantBits()) % 300)
+                && !clientState.dead() && !paused.get()
+                && state.get() == BotLifecycleState.SPAWNED) {
+            ticksSinceCohesion = 0;
+            tickSettlementCohesion();
         }
 
         boolean alive = !clientState.dead();

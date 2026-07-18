@@ -279,6 +279,9 @@ public final class BotManagerImpl implements BotManager {
         new BotRemovedEvent(bot, purge).callEvent();
 
         if (purge) {
+            if (services.settlements() != null) {
+                services.settlements().removeBot(botId);
+            }
             return repository.purgeBot(botId).thenApply(v -> true);
         }
         return CompletableFuture.completedFuture(true);

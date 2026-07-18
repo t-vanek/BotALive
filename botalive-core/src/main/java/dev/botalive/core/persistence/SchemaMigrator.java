@@ -132,6 +132,35 @@ public final class SchemaMigrator {
                 // v2 – profese botů
                 List.of(
                         "ALTER TABLE ba_bots ADD COLUMN role TEXT"
+                ),
+                // v3 – vesnice botů (id přiděluje SettlementService, ne DB)
+                List.of(
+                        """
+                        CREATE TABLE IF NOT EXISTS ba_settlements (
+                            id BIGINT PRIMARY KEY,
+                            name TEXT NOT NULL,
+                            world TEXT NOT NULL,
+                            x INTEGER NOT NULL,
+                            y INTEGER NOT NULL,
+                            z INTEGER NOT NULL,
+                            founder TEXT,
+                            created_at BIGINT NOT NULL
+                        )
+                        """,
+                        """
+                        CREATE TABLE IF NOT EXISTS ba_settlement_members (
+                            bot_id TEXT PRIMARY KEY,
+                            settlement_id BIGINT NOT NULL,
+                            joined_at BIGINT NOT NULL,
+                            plot_index INTEGER,
+                            plot_x INTEGER,
+                            plot_y INTEGER,
+                            plot_z INTEGER,
+                            plot_facing TEXT
+                        )
+                        """,
+                        "CREATE INDEX IF NOT EXISTS idx_ba_settlement_members_sid "
+                                + "ON ba_settlement_members(settlement_id)"
                 )
         );
     }

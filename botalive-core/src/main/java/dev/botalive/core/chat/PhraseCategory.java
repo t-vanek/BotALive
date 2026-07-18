@@ -60,6 +60,30 @@ public enum PhraseCategory {
     GIVE_ACCEPT,
     /** Odmítnutí předání (nemám / nechám si). */
     GIVE_DECLINE,
+    /** Založení vesnice ({name} = jméno vesnice). */
+    SETTLEMENT_FOUNDED,
+    /** Vstup do vesnice ({name} = jméno vesnice). */
+    SETTLEMENT_JOINED,
+    /** Roztržka – odchod z vesnice kvůli nepříteli ({name} = nepřítel). */
+    SETTLEMENT_SPLINTER,
+    /** Stěhování za kamarádem do jiné vesnice ({name} = kamarád). */
+    SETTLEMENT_FOLLOW,
+    /** Běh pro věci po smrti – vyrážím. */
+    RECOVER_RUN,
+    /** Věci po smrti zachráněné. */
+    RECOVER_OK,
+    /** Věci po smrti v háji (pozdě / nedostupné). */
+    RECOVER_FAIL,
+    /** Oprava poškozeného domu (bručení nad dírami). */
+    HOME_REPAIR,
+    /** Nová životní ambice po splnění staré ({name} = popis cíle). */
+    AMBITION_NEW,
+    /** Vyvolávání nabídky na trhu ({name} = zboží a cena). */
+    MARKET_OFFER,
+    /** Plácnutí obchodu ({name} = protistrana). */
+    MARKET_DEAL,
+    /** Zrušení obchodu – kupec nemá peníze ({name} = kupec). */
+    MARKET_DECLINE,
     /** Smajlíky přidávané podle stylu psaní. */
     EMOJIS;
 

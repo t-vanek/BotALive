@@ -239,6 +239,35 @@ public final class InventoryHelper {
     }
 
     /**
+     * Odhad počtu kusů odpovídajících filtru: hotbar přesně, hlavní inventář
+     * konzervativně 4 kusy na slot (snapshot počty hlavního inventáře nenese).
+     *
+     * @param snapshot snapshot inventáře ({@code null} = 0)
+     * @param what     filtr materiálů
+     * @return odhad počtu kusů
+     */
+    public static int countEstimate(ServerSideView.Snapshot snapshot,
+                                    java.util.function.Predicate<Material> what) {
+        if (snapshot == null) {
+            return 0;
+        }
+        int count = 0;
+        Material[] hotbar = snapshot.hotbar();
+        int[] counts = snapshot.hotbarCounts();
+        for (int i = 0; i < hotbar.length; i++) {
+            if (hotbar[i] != null && what.test(hotbar[i])) {
+                count += counts != null && i < counts.length ? Math.max(counts[i], 1) : 1;
+            }
+        }
+        for (Material material : snapshot.mainInventory()) {
+            if (material != null && what.test(material)) {
+                count += 4;
+            }
+        }
+        return count;
+    }
+
+    /**
      * @param material materiál
      * @return {@code true} pokud jde o blok vhodný ke stavění úkrytu
      */

@@ -47,15 +47,16 @@ public final class BotAliveCommand implements TabExecutor {
 
     private static final List<String> ADMIN_SUBCOMMANDS = List.of(
             "create", "remove", "pause", "resume", "personality", "memory",
-            "goal", "stats", "role");
+            "goal", "stats", "role", "settlements");
     private static final List<String> SUBCOMMANDS = List.of(
             "create", "remove", "tp", "list", "pause", "resume",
-            "personality", "memory", "goal", "stats", "role");
+            "personality", "memory", "goal", "stats", "role", "settlements");
 
     private final BotManagerImpl botManager;
     private final GoalRegistryImpl goalRegistry;
     private final BotRepository repository;
     private final dev.botalive.core.config.BotAliveConfig config;
+    private final dev.botalive.core.settlement.SettlementService settlements;
     private final dev.botalive.core.teleport.TeleportCooldowns cooldowns;
 
     /**
@@ -63,14 +64,17 @@ public final class BotAliveCommand implements TabExecutor {
      * @param goalRegistry registr cílů (pro /botalive goal)
      * @param repository   repozitář (pro /botalive stats)
      * @param config       konfigurace (teleport sekce)
+     * @param settlements  služba vesnic (pro /botalive settlements)
      */
     public BotAliveCommand(BotManagerImpl botManager, GoalRegistryImpl goalRegistry,
                            BotRepository repository,
-                           dev.botalive.core.config.BotAliveConfig config) {
+                           dev.botalive.core.config.BotAliveConfig config,
+                           dev.botalive.core.settlement.SettlementService settlements) {
         this.botManager = botManager;
         this.goalRegistry = goalRegistry;
         this.repository = repository;
         this.config = config;
+        this.settlements = settlements;
         this.cooldowns = new dev.botalive.core.teleport.TeleportCooldowns(
                 config.teleport().playerCooldownSeconds());
     }
@@ -100,6 +104,7 @@ public final class BotAliveCommand implements TabExecutor {
             case "goal" -> goal(sender, args);
             case "stats" -> stats(sender, args);
             case "role" -> role(sender, args);
+            case "settlements" -> settlements(sender);
             default -> help(sender);
         }
         return true;
@@ -302,6 +307,41 @@ public final class BotAliveCommand implements TabExecutor {
                             + " 🍗" + snapshot.food(), NamedTextColor.GRAY))
                     .append(Component.text("  cíl: " + (snapshot.currentGoal() == null
                             ? "-" : snapshot.currentGoal()), NamedTextColor.YELLOW)));
+        }
+    }
+
+    /** {@code /botalive settlements} – přehled vesnic botů. */
+    private void settlements(CommandSender sender) {
+        var all = settlements.all();
+        if (all.isEmpty()) {
+            info(sender, "Žádná vesnice zatím nestojí – boti se teprve seznamují.");
+            return;
+        }
+        info(sender, "Vesnice botů (" + all.size() + "):");
+        for (var settlement : all) {
+            String founderName = settlement.founder() == null ? "?"
+                    : botManager.byId(settlement.founder()).map(Bot::name).orElse("?");
+            List<String> memberNames = new ArrayList<>();
+            int houses = 0;
+            for (var member : settlement.members()) {
+                memberNames.add(botManager.byId(member.botId())
+                        .map(Bot::name).orElse("…"));
+                if (member.plotOrigin() != null) {
+                    houses++;
+                }
+            }
+            sender.sendMessage(Component.text(" • ", NamedTextColor.DARK_GRAY)
+                    .append(Component.text(settlement.name(), NamedTextColor.AQUA))
+                    .append(Component.text("  " + settlement.world() + " "
+                                    + settlement.center().x() + "/" + settlement.center().y()
+                                    + "/" + settlement.center().z(),
+                            NamedTextColor.WHITE))
+                    .append(Component.text("  zakladatel: " + founderName,
+                            NamedTextColor.LIGHT_PURPLE))
+                    .append(Component.text("  členů: " + settlement.members().size()
+                            + " (parcel: " + houses + ")", NamedTextColor.GRAY)));
+            sender.sendMessage(Component.text("   " + String.join(", ", memberNames),
+                    NamedTextColor.GRAY));
         }
     }
 

@@ -8,10 +8,14 @@ import java.util.List;
 /**
  * Plán jednoduchého domku 4×4 – čistá geometrie, jednotkově testovatelná.
  *
- * <p>Domek: obvodové zdi 3 bloky vysoké s dveřním otvorem 1×2 na jižní
- * straně (směr −z od originu je „ven"), plná střecha ve výšce 3. Origin je
- * severozápadní roh na úrovni podlahy (nohou). Interiér 2×2 zůstává volný;
- * bot celý domek postaví z jednoho místa uvnitř a vyjde dveřmi.</p>
+ * <p>Domek: obvodové zdi 3 bloky vysoké s dveřním otvorem 1×2, plná střecha
+ * ve výšce 3. Origin je roh půdorysu s minimálními souřadnicemi na úrovni
+ * podlahy (nohou). Interiér 2×2 zůstává volný; bot celý domek postaví
+ * z jednoho místa uvnitř a vyjde dveřmi.</p>
+ *
+ * <p>Domek se umí natočit ({@link HouseFacing}) – dveře vždy míří na stranu
+ * dané orientace, takže domy ve vesnici koukají na náves. {@link HouseFacing#NORTH}
+ * odpovídá původní geometrii (dveřní otvor na hraně z = 0).</p>
  */
 public final class HouseBlueprint {
 
@@ -19,7 +23,7 @@ public final class HouseBlueprint {
     public static final int SIZE = 4;
     /** Výška zdí. */
     public static final int WALL_HEIGHT = 3;
-    /** Sloupec dveří (x offset od originu, z = 0). */
+    /** Sloupec dveří (x offset od originu, z = 0, před natočením). */
     public static final int DOOR_X = 1;
 
     private HouseBlueprint() {
@@ -28,10 +32,11 @@ public final class HouseBlueprint {
     /**
      * Bloky domku v pořadí stavby (zdi zdola nahoru, pak střecha od krajů).
      *
-     * @param origin severozápadní roh půdorysu na úrovni podlahy
+     * @param origin roh půdorysu s minimálními souřadnicemi na úrovni podlahy
+     * @param facing orientace dveří
      * @return pozice bloků k položení
      */
-    public static List<BlockPos> placements(BlockPos origin) {
+    public static List<BlockPos> placements(BlockPos origin, HouseFacing facing) {
         List<BlockPos> result = new ArrayList<>();
         // Zdi po vrstvách.
         for (int y = 0; y < WALL_HEIGHT; y++) {
@@ -43,7 +48,7 @@ public final class HouseBlueprint {
                     if (isDoor(x, y, z)) {
                         continue;
                     }
-                    result.add(origin.offset(x, y, z));
+                    result.add(local(origin, x, y, z, facing));
                 }
             }
         }
@@ -53,7 +58,7 @@ public final class HouseBlueprint {
                 for (int z = 0; z < SIZE; z++) {
                     boolean edge = isPerimeter(x, z);
                     if ((pass == 0) == edge) {
-                        result.add(origin.offset(x, WALL_HEIGHT, z));
+                        result.add(local(origin, x, WALL_HEIGHT, z, facing));
                     }
                 }
             }
@@ -95,14 +100,79 @@ public final class HouseBlueprint {
         return result;
     }
 
-    /** @return pozice, kde bot stojí při stavbě (vnitřek domku) */
-    public static BlockPos standPoint(BlockPos origin) {
-        return origin.offset(2, 0, 2);
+    /**
+     * @param origin roh půdorysu
+     * @param facing orientace dveří
+     * @return pozice, kde bot stojí při stavbě (vnitřek domku)
+     */
+    public static BlockPos standPoint(BlockPos origin, HouseFacing facing) {
+        return local(origin, 2, 0, 2, facing);
     }
+
+    /**
+     * @param origin roh půdorysu
+     * @param facing orientace dveří
+     * @return spodní blok dveřního otvoru
+     */
+    public static BlockPos doorBottom(BlockPos origin, HouseFacing facing) {
+        return local(origin, DOOR_X, 0, 0, facing);
+    }
+
+    /**
+     * @param origin roh půdorysu
+     * @param facing orientace dveří
+     * @return vnitřní pozice pro pochodeň
+     */
+    public static BlockPos torchSpot(BlockPos origin, HouseFacing facing) {
+        return local(origin, 2, 0, 1, facing);
+    }
+
+    /**
+     * @param origin roh půdorysu
+     * @param facing orientace dveří
+     * @return vnitřní pozice pro postel
+     */
+    public static BlockPos bedSpot(BlockPos origin, HouseFacing facing) {
+        return local(origin, 1, 0, 1, facing);
+    }
+
+    /** Počet bloků domku – konstanta, počítá se jednou (čte se v utility 4×/s). */
+    private static final int BLOCKS_NEEDED =
+            placements(new BlockPos(0, 0, 0), HouseFacing.NORTH).size();
 
     /** @return počet bloků potřebných na celý domek */
     public static int blocksNeeded() {
-        return placements(new BlockPos(0, 0, 0)).size();
+        return BLOCKS_NEEDED;
+    }
+
+    /**
+     * Převod lokální souřadnice půdorysu na světovou podle orientace.
+     * Půdorys je čtverec, takže natočení jen přemapuje (x, z) uvnitř
+     * stejného objemu – {@code origin} zůstává minimálním rohem.
+     */
+    private static BlockPos local(BlockPos origin, int x, int y, int z, HouseFacing facing) {
+        int wx;
+        int wz;
+        switch (facing) {
+            case NORTH -> {
+                wx = x;
+                wz = z;
+            }
+            case SOUTH -> {
+                wx = SIZE - 1 - x;
+                wz = SIZE - 1 - z;
+            }
+            case WEST -> {
+                wx = z;
+                wz = x;
+            }
+            case EAST -> {
+                wx = SIZE - 1 - z;
+                wz = x;
+            }
+            default -> throw new IllegalStateException();
+        }
+        return origin.offset(wx, y, wz);
     }
 
     private static boolean isPerimeter(int x, int z) {

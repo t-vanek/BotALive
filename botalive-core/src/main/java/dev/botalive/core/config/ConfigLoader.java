@@ -83,7 +83,8 @@ public final class ConfigLoader {
         var economy = new BotAliveConfig.Economy(
                 c.getBoolean("economy.enabled", true),
                 c.getDouble("economy.starting-balance", 100.0),
-                c.getBoolean("economy.vault", true)
+                c.getBoolean("economy.vault", true),
+                c.getBoolean("economy.bot-trade", true)
         );
 
         var worlds = new BotAliveConfig.Worlds(
@@ -114,6 +115,20 @@ public final class ConfigLoader {
                 Math.max(1, c.getInt("pvp.max-attackers-per-target", 2))
         );
 
+        var settlement = new BotAliveConfig.Settlement(
+                c.getBoolean("settlement.enabled", true),
+                Math.max(8, c.getInt("settlement.plot-spacing", 12)),
+                Math.max(2, c.getInt("settlement.max-members", 8)),
+                Math.max(32, c.getInt("settlement.join-radius", 200)),
+                Math.max(48, c.getInt("settlement.min-village-distance", 150)),
+                c.getDouble("settlement.loner-sociability", 0.30),
+                c.getDouble("settlement.grudge-threshold", 0.60),
+                Math.max(1, c.getInt("settlement.change-cooldown-minutes", 30)),
+                c.getBoolean("settlement.lighting", true),
+                c.getBoolean("settlement.paths", true),
+                Math.max(0, c.getInt("settlement.ghost-days", 7))
+        );
+
         var performance = new BotAliveConfig.Performance(
                 c.getInt("performance.tick-threads", 0),
                 c.getInt("performance.pathfinding-threads", 0),
@@ -135,6 +150,6 @@ public final class ConfigLoader {
         );
 
         return new BotAliveConfig(network, bots, ai, chat, combat, economy,
-                worlds, spawn, teleport, pvp, performance, persistence);
+                worlds, spawn, teleport, pvp, settlement, performance, persistence);
     }
 }
