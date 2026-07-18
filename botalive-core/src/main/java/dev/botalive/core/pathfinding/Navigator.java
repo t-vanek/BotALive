@@ -73,6 +73,13 @@ public final class Navigator {
     /** Cooldown mezi kliky na dveře – server dveře přepíná a stav dorazí se zpožděním. */
     private int doorClickCooldown;
 
+    /** Cache vyhlazení trasy: základní waypoint, výsledek a stáří. */
+    private int smoothBase = -1;
+    private int smoothIndex;
+    private int smoothCooldown;
+    /** Sprintuje-li bot po rovince se skoky (rozhodnuto per cesta dle povahy). */
+    private boolean sprintHopper;
+
     /** Kolikrát smí bot cestu „odblokovat" zásahem do terénu, než to vzdá. */
     private static final int MAX_ASSIST_CYCLES = 10;
     private boolean assistNeeded;
@@ -259,6 +266,12 @@ public final class Navigator {
             if (!computed.isEmpty()) {
                 path = computed;
                 waypointIndex = 0;
+                smoothBase = -1;
+                // Sprint-skoky na rovinkách: odvážní a čilí boti si na cestu
+                // „zabunnyhopují", líní chodí. Rozhodnutí drží celou cestu.
+                sprintHopper = rng.next() < 0.25
+                        + 0.45 * personality.trait(Trait.COURAGE)
+                        - 0.35 * personality.trait(Trait.LAZINESS);
             } else if (destination != null) {
                 if (segmentGoal != null) {
                     // Mezicíl nedosažitelný → laterální posun, nakonec přímý
@@ -363,6 +376,20 @@ public final class Navigator {
             return new MoveInput(direction, wideGap, false, false);
         }
 
+        // Vyhlazení trasy: na rovině mířit na nejvzdálenější „viditelný"
+        // waypoint – rohy se řežou po pochozí ploše, chůze dostane oblouky.
+        int smooth = smoothedTarget(position);
+        if (smooth > waypointIndex && !inWater) {
+            direction = path.waypoints().get(smooth).center().sub(position)
+                    .horizontal().normalized();
+            // Rohy, kolem kterých bot zkratkou prošel, odbavit.
+            while (waypointIndex < smooth
+                    && path.waypoints().get(waypointIndex).center().sub(position)
+                            .horizontalLength() < 1.3) {
+                waypointIndex++;
+            }
+        }
+
         // Hrana srázu: před botem zeje díra hlubší než bezpečný seskok a cesta
         // dolů nevede → přibrzdit, ať setrvačnost nepřenese bota přes okraj.
         if (onGround && !inWater && !jump && delta.y() > -0.5 && cliffAhead(position, direction)) {
@@ -370,7 +397,27 @@ public final class Navigator {
         }
 
         boolean sprint = !inWater && shouldSprint(delta);
+        // Sprint-skoky: dlouhá volná rovinka před botem → bunny hop (rychlejší
+        // přesun, lidský návyk). Jen u povah, které si to na cestu „zapnuly".
+        if (sprint && sprintHopper && onGround && smooth - waypointIndex >= 3
+                && Math.abs(delta.y()) < 0.5) {
+            jump = true;
+        }
         return MoveInput.of(direction, sprint, jump);
+    }
+
+    /** Vyhlazený cílový waypoint (cache – přepočet při postupu nebo po pár ticích). */
+    private int smoothedTarget(Vec3 position) {
+        if (world == null || !hasPath()) {
+            return waypointIndex;
+        }
+        if (smoothBase == waypointIndex && smoothCooldown-- > 0) {
+            return Math.min(smoothIndex, path.waypoints().size() - 1);
+        }
+        smoothBase = waypointIndex;
+        smoothCooldown = 4;
+        smoothIndex = PathSmoother.smoothTarget(world, position, path.waypoints(), waypointIndex);
+        return smoothIndex;
     }
 
     /** Odrazová hrana: kousek před botem už chybí pevná podlaha pod nohama. */
