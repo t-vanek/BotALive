@@ -55,6 +55,10 @@ public final class FishGoal extends AbstractGoal {
             cooldownTicks -= ctx.config().ai().decisionIntervalTicks();
             return 0;
         }
+        // V Netheru není voda – prut zůstává v batohu.
+        if (outsideOverworld(ctx)) {
+            return 0;
+        }
         if (ctx.worldView() == null || ctx.clientState().dead()) {
             return 0;
         }

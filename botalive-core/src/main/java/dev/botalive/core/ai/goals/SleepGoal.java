@@ -40,6 +40,11 @@ public final class SleepGoal extends AbstractGoal {
             cooldownTicks -= ctx.config().ai().decisionIntervalTicks();
             return 0;
         }
+        // Mimo overworld se nespí NIKDY – použití postele v Netheru/Endu
+        // vybuchuje (vanilla) a noc tam stejně neexistuje.
+        if (ctx.dimension() != dev.botalive.core.world.WorldDimension.OVERWORLD) {
+            return 0;
+        }
         long time = ctx.worldTime();
         boolean night = time >= 12500 && time <= 23000;
         if (!night || ctx.clientState().dead()) {

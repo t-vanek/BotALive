@@ -55,6 +55,10 @@ public final class FarmGoal extends AbstractGoal {
             cooldownTicks -= ctx.config().ai().decisionIntervalTicks();
             return 0;
         }
+        // Pole patří do overworldu (v Netheru plodiny nerostou).
+        if (outsideOverworld(ctx)) {
+            return 0;
+        }
         // Chuť farmařit: hlad zvyšuje, trpělivost a ochota pomoci podporují.
         double patience = bot.personality().trait(Trait.PATIENCE);
         double hungerPressure = Math.max(0, 16 - ctx.clientState().food());

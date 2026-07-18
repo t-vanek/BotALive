@@ -79,6 +79,10 @@ public final class SellGoal extends AbstractGoal {
         if (!tradeEnabled(ctx)) {
             return 0;
         }
+        // Trh se odehrává doma v overworldu – z Netheru se neprodává.
+        if (outsideOverworld(ctx)) {
+            return 0;
+        }
         // Rozjednaný obchod se dotahuje přednostně (kupec už jde).
         if (market.pendingDeal(bot.id()).isPresent()) {
             return 22;

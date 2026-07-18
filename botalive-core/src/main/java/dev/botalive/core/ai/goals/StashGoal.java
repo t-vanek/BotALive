@@ -53,6 +53,10 @@ public final class StashGoal extends AbstractGoal {
             cooldownTicks -= ctx.config().ai().decisionIntervalTicks();
             return 0;
         }
+        // Přebytky se ukládají doma – ne do truhel pevností v Netheru.
+        if (outsideOverworld(ctx)) {
+            return 0;
+        }
         var snapshot = ctx.serverView().latest();
         if (snapshot == null) {
             return 0;

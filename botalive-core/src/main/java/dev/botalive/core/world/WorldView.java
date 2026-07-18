@@ -60,4 +60,10 @@ public interface WorldView {
      * @return název Bukkit světa, na který se pohled dívá
      */
     String worldName();
+
+    /**
+     * @return dimenze světa (overworld/nether/end) – řídí chování závislé
+     *         na prostředí (spánek, farmaření, výpravy do Netheru)
+     */
+    WorldDimension dimension();
 }

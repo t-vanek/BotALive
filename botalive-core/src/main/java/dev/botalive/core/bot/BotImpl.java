@@ -148,6 +148,14 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
     /** Čeká se na první teleport po loginu/respawnu (pošle se PlayerLoaded). */
     private volatile boolean awaitingFirstTeleport = true;
 
+    /**
+     * Název světa, ze kterého bot právě prošel portálem (nastavuje síťové
+     * vlákno při živém respawnu se změnou světa). První teleport v novém
+     * světě je pozice cílového portálu – zapíše se jako PORTAL vzpomínka,
+     * aby bot uměl najít cestu zpátky.
+     */
+    private volatile String portalArrivedFrom;
+
     /** Smrt už byla obsloužena na tick vlákně (halt mozku, stop navigace). */
     private boolean deathHandled;
 
@@ -820,15 +828,18 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
     @Override
     public void onRespawn(String worldKey, boolean afterDeath) {
         // Respawn paket zaživa = změna dimenze (nether/end portál, plugin
-        // teleport mezi světy). Bot si portálový přechod zapamatuje.
+        // teleport mezi světy). Bot si portálový přechod zapamatuje – stranu
+        // odchodu hned, stranu příletu při prvním teleportu v novém světě.
         WorldView oldWorld = worldView;
         BotPhysics oldPhysics = physics;
+        portalArrivedFrom = null;
         if (!afterDeath && oldWorld != null && oldPhysics != null
                 && !oldWorld.worldName().equals(expectedWorldName(worldKey))) {
             Vec3 pos = oldPhysics.position();
             memory.remember(MemoryKind.PORTAL, oldWorld.worldName(),
                     (int) pos.x(), (int) pos.y(), (int) pos.z(), null,
-                    Map.of("to", worldKey), 0.7);
+                    Map.of("to", expectedWorldName(worldKey)), 0.7);
+            portalArrivedFrom = oldWorld.worldName();
         }
         awaitingFirstTeleport = true;
     }
@@ -1462,6 +1473,17 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
         state.set(BotLifecycleState.SPAWNED);
         LOG.info("[{}] Naspawnován na {} v {}", name, position.toBlockPos(),
                 worldView != null ? worldView.worldName() : "?");
+
+        // Přílet portálem: první pozice v novém světě je cílový portál –
+        // vzpomínka na něj je cesta zpátky domů (i z Netheru).
+        String arrivedFrom = portalArrivedFrom;
+        portalArrivedFrom = null;
+        if (arrivedFrom != null && worldView != null) {
+            BlockPos arrival = position.toBlockPos();
+            memory.remember(MemoryKind.PORTAL, worldView.worldName(),
+                    arrival.x(), arrival.y(), arrival.z(), null,
+                    Map.of("to", arrivedFrom), 0.8);
+        }
 
         // Životní ambice: vybrat jednou podle povahy a zapamatovat.
         if (memory.recall(MemoryKind.AMBITION).isEmpty()) {

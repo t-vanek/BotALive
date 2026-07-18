@@ -59,6 +59,27 @@ public final class ContainerService implements dev.botalive.core.station.ChestSt
         return JUNK.contains(material);
     }
 
+    /**
+     * Cennosti strukturálních truhel (pevnosti, bastiony) – to, co stojí za
+     * odnesení z Netheru: kovářské šablony (netherite upgrade!), zlato,
+     * diamanty, obsidián a hotové netheritové suroviny.
+     *
+     * @param material materiál
+     * @return {@code true} pokud jde o kořist hodnou vyloupení
+     */
+    public static boolean isValuableLoot(Material material) {
+        if (material.name().endsWith("_SMITHING_TEMPLATE")) {
+            return true;
+        }
+        return switch (material) {
+            case GOLD_INGOT, GOLD_BLOCK, GOLD_NUGGET, GOLDEN_APPLE, ENCHANTED_GOLDEN_APPLE,
+                 GOLDEN_CARROT, DIAMOND, IRON_INGOT, OBSIDIAN, CRYING_OBSIDIAN,
+                 ANCIENT_DEBRIS, NETHERITE_SCRAP, NETHERITE_INGOT, ENCHANTED_BOOK,
+                 ARROW, SPECTRAL_ARROW, STRING -> true;
+            default -> false;
+        };
+    }
+
     @Override
     public CompletableFuture<Integer> depositJunk(dev.botalive.core.ai.BotContext ctx,
                                                   String worldName, BlockPos chestPos) {
@@ -194,6 +215,50 @@ public final class ContainerService implements dev.botalive.core.station.ChestSt
                 } else {
                     blocksTaken += moved;
                 }
+            }
+            return taken;
+        }).exceptionally(t -> 0);
+    }
+
+    @Override
+    public CompletableFuture<Integer> lootValuables(dev.botalive.core.ai.BotContext ctx,
+                                                    String worldName, BlockPos chestPos) {
+        UUID botId = ctx.bot().id();
+        World world = Bukkit.getWorld(worldName);
+        Player player = Bukkit.getPlayer(botId);
+        if (world == null || player == null) {
+            return CompletableFuture.completedFuture(0);
+        }
+        Location location = new Location(world, chestPos.x(), chestPos.y(), chestPos.z());
+        return bridge.callAt(location, () -> {
+            if (player.getLocation().distanceSquared(location) > 6 * 6) {
+                return 0;
+            }
+            if (!(world.getBlockAt(chestPos.x(), chestPos.y(), chestPos.z())
+                    .getState() instanceof Container container)) {
+                return 0;
+            }
+            Inventory chest = container.getInventory();
+            var playerInventory = player.getInventory();
+            int taken = 0;
+            for (int slot = 0; slot < chest.getSize(); slot++) {
+                ItemStack stack = chest.getItem(slot);
+                if (stack == null || !isValuableLoot(stack.getType())) {
+                    continue;
+                }
+                var leftover = playerInventory.addItem(stack.clone());
+                int moved = stack.getAmount() - leftover.values().stream()
+                        .mapToInt(ItemStack::getAmount).sum();
+                if (moved <= 0) {
+                    break; // plný inventář bota
+                }
+                if (moved >= stack.getAmount()) {
+                    chest.setItem(slot, null);
+                } else {
+                    stack.setAmount(stack.getAmount() - moved);
+                    chest.setItem(slot, stack);
+                }
+                taken += moved;
             }
             return taken;
         }).exceptionally(t -> 0);

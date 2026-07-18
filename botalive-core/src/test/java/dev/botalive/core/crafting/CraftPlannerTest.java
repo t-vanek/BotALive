@@ -236,6 +236,83 @@ class CraftPlannerTest {
     }
 
     @Test
+    void vybavaDoNetheru() {
+        Object[] geared = {Material.OAK_PLANKS, 4, Material.STICK, 4,
+                Material.COBBLESTONE, 3, Material.CRAFTING_TABLE, 1,
+                Material.FURNACE, 1, Material.TORCH, 8, Material.SHIELD, 1,
+                Material.DIAMOND_PICKAXE, 1, Material.DIAMOND_SWORD, 1,
+                Material.DIAMOND_AXE, 1, Material.STONE_SHOVEL, 1,
+                Material.DIAMOND_CHESTPLATE, 1, Material.DIAMOND_LEGGINGS, 1,
+                Material.DIAMOND_HELMET, 1, Material.DIAMOND_BOOTS, 1,
+                Material.BOW, 1, Material.ARROW, 16, Material.CHEST, 1,
+                Material.OAK_BOAT, 1, Material.OAK_DOOR, 1, Material.RED_BED, 1};
+
+        // Křesadlo: železo + pazourek, 2×2 (bez ponku) – až s diamantovým krumpáčem.
+        CraftPlanner.Plan flintSteel = CraftPlanner.next(state(concat(geared,
+                Material.IRON_INGOT, 1, Material.FLINT, 1)));
+        assertEquals("křesadlo", flintSteel.id());
+        assertFalse(flintSteel.needsTable());
+
+        // Se železným krumpáčem se křesadlo neplánuje (obsidián by nevytěžil).
+        Object[] ironTier = geared.clone();
+        for (int i = 0; i < ironTier.length; i++) {
+            if (ironTier[i] == Material.DIAMOND_PICKAXE) {
+                ironTier[i] = Material.IRON_PICKAXE;
+            }
+        }
+        CraftPlanner.Plan early = CraftPlanner.next(state(concat(ironTier,
+                Material.IRON_INGOT, 1, Material.FLINT, 1)));
+        assertTrue(early == null || !"křesadlo".equals(early.id()));
+
+        // Zlaté boty: 4 na boty + 2 do rezervy na barter.
+        CraftPlanner.Plan boots = CraftPlanner.next(state(concat(geared,
+                Material.FLINT_AND_STEEL, 1, Material.GOLD_INGOT, 6)));
+        assertEquals("zlaté boty", boots.id());
+        CraftPlanner.Plan fewGold = CraftPlanner.next(state(concat(geared,
+                Material.FLINT_AND_STEEL, 1, Material.GOLD_INGOT, 5)));
+        assertTrue(fewGold == null || !"zlaté boty".equals(fewGold.id()),
+                "5 ingotů nestačí (rezerva na barter)");
+    }
+
+    @Test
+    void netheritovyRetez() {
+        Object[] geared = {Material.OAK_PLANKS, 4, Material.STICK, 4,
+                Material.COBBLESTONE, 3, Material.CRAFTING_TABLE, 1,
+                Material.FURNACE, 1, Material.TORCH, 8, Material.SHIELD, 1,
+                Material.DIAMOND_PICKAXE, 1, Material.DIAMOND_SWORD, 1,
+                Material.DIAMOND_AXE, 1, Material.STONE_SHOVEL, 1,
+                Material.DIAMOND_CHESTPLATE, 1, Material.DIAMOND_LEGGINGS, 1,
+                Material.DIAMOND_HELMET, 1, Material.DIAMOND_BOOTS, 1,
+                Material.BOW, 1, Material.ARROW, 16, Material.CHEST, 1,
+                Material.OAK_BOAT, 1, Material.OAK_DOOR, 1, Material.RED_BED, 1,
+                Material.FLINT_AND_STEEL, 1, Material.GOLDEN_BOOTS, 1};
+
+        // 4 úlomky + 4 zlato → ingot (na ponku).
+        CraftPlanner.Plan ingot = CraftPlanner.next(state(concat(geared,
+                Material.NETHERITE_SCRAP, 4, Material.GOLD_INGOT, 4)));
+        assertEquals("netheritový ingot", ingot.id());
+        assertTrue(ingot.needsTable());
+        assertEquals(4, ingot.ingredients().get(Material.NETHERITE_SCRAP));
+        assertEquals(4, ingot.ingredients().get(Material.GOLD_INGOT));
+
+        // 3 úlomky nestačí.
+        CraftPlanner.Plan few = CraftPlanner.next(state(concat(geared,
+                Material.NETHERITE_SCRAP, 3, Material.GOLD_INGOT, 4)));
+        assertTrue(few == null || !"netheritový ingot".equals(few.id()));
+
+        // Kovářský stůl se plánuje, jakmile je doma netherová kořist.
+        CraftPlanner.Plan table = CraftPlanner.next(state(concat(geared,
+                Material.NETHERITE_INGOT, 1, Material.IRON_INGOT, 2)));
+        assertEquals("kovářský stůl", table.id());
+        assertEquals(2, table.ingredients().get(Material.IRON_INGOT));
+
+        // Bez netherové kořisti kovářský stůl nedává smysl.
+        CraftPlanner.Plan noLoot = CraftPlanner.next(state(concat(geared,
+                Material.IRON_INGOT, 2)));
+        assertTrue(noLoot == null || !"kovářský stůl".equals(noLoot.id()));
+    }
+
+    @Test
     void vsechnyPlanyMajiValidniMatice() {
         // Sanity: každý plán z progrese má neprázdnou matici a ingredience.
         CraftPlanner.Plan plan = CraftPlanner.next(state(Material.OAK_LOG, 3));

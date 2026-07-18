@@ -71,6 +71,36 @@ class BotNeedsTest {
     }
 
     @Test
+    void netherovyTierGating() {
+        // Netherové zlato padá z libovolného krumpáče (na rozdíl od overworld
+        // zlata) a trosky/obsidián jen z diamantového.
+        assertEquals(1, BotNeeds.requiredPickTier(Material.NETHER_GOLD_ORE));
+        assertEquals(1, BotNeeds.requiredPickTier(Material.NETHER_QUARTZ_ORE));
+        assertEquals(1, BotNeeds.requiredPickTier(Material.GLOWSTONE));
+        assertEquals(5, BotNeeds.requiredPickTier(Material.ANCIENT_DEBRIS));
+        assertEquals(5, BotNeeds.requiredPickTier(Material.OBSIDIAN));
+    }
+
+    @Test
+    void pripravaNaNetherVeWishlistu() {
+        // Diamantový krumpáč bez křesadla → gravel (pazourek) a obsidián.
+        BotNeeds needs = BotNeeds.assess(snapshot(Material.DIAMOND_PICKAXE, Material.TORCH));
+        assertTrue(needs.miningWishlist().contains(Material.GRAVEL));
+        assertTrue(needs.miningWishlist().contains(Material.OBSIDIAN));
+
+        // S křesadlem gravel mizí, obsidián zůstává, dokud není 14 kusů.
+        BotNeeds withFlint = BotNeeds.assess(
+                snapshot(Material.DIAMOND_PICKAXE, Material.TORCH, Material.FLINT_AND_STEEL));
+        assertFalse(withFlint.miningWishlist().contains(Material.GRAVEL));
+        assertTrue(withFlint.miningWishlist().contains(Material.OBSIDIAN));
+
+        // Železný krumpáč na nether přípravu nestačí.
+        BotNeeds iron = BotNeeds.assess(snapshot(Material.IRON_PICKAXE, Material.TORCH));
+        assertFalse(iron.miningWishlist().contains(Material.GRAVEL));
+        assertFalse(iron.miningWishlist().contains(Material.OBSIDIAN));
+    }
+
+    @Test
     void rodinaRudNormalizujeDeepslate() {
         assertEquals("IRON_ORE", BotNeeds.oreFamily(Material.DEEPSLATE_IRON_ORE));
         assertEquals("IRON_ORE", BotNeeds.oreFamily(Material.IRON_ORE));

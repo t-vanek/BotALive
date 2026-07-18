@@ -138,6 +138,14 @@ public final class ConfigLoader {
                 Math.max(1, c.getInt("settlement.grudge-window-hours", 2))
         );
 
+        var nether = new BotAliveConfig.Nether(
+                c.getBoolean("nether.enabled", true),
+                c.getBoolean("nether.build-portals", true),
+                c.getBoolean("nether.barter", true),
+                Math.max(3, c.getInt("nether.max-trip-minutes", 20)),
+                Math.min(5, Math.max(3, c.getInt("nether.min-gear-tier", 4)))
+        );
+
         var performance = new BotAliveConfig.Performance(
                 c.getInt("performance.tick-threads", 0),
                 c.getInt("performance.pathfinding-threads", 0),
@@ -159,6 +167,6 @@ public final class ConfigLoader {
         );
 
         return new BotAliveConfig(network, bots, ai, chat, combat, economy, memory,
-                worlds, spawn, teleport, pvp, settlement, performance, persistence);
+                worlds, spawn, teleport, pvp, settlement, nether, performance, persistence);
     }
 }

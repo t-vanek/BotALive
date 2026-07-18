@@ -125,6 +125,10 @@ public final class BuildHouseGoal extends AbstractGoal {
             cooldownTicks -= ctx.config().ai().decisionIntervalTicks();
             return 0;
         }
+        // Domy se stavějí v overworldu.
+        if (outsideOverworld(ctx)) {
+            return 0;
+        }
         // Dům se staví za světla.
         long time = ctx.worldTime();
         if (time >= 11500 && time <= 23000) {

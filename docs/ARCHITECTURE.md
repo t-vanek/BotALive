@@ -451,3 +451,56 @@ vesnice; boj řeší existující bojová AI s vyšší utilitou. (8) **Počasí
 v utility** – stav deště/bouřky drží `BotClientState` z GameEvent paketů
 (funguje i v packet režimu): bouřka boostuje návrat domů a povoluje denní
 úkryt, déšť bez bouřky zvedá rybaření.
+
+Hotovo ve fázi 16: plná podpora Netheru (`core/nether` + cíl `nether`).
+
+- **Dimenze jako vlastnost world view** (`WorldView.dimension()`,
+  `WorldDimension`): server režim čte autoritativně Bukkit
+  `World.Environment`, packet režim heuristicky z protokolového klíče světa
+  (`minecraft:the_nether`, `world_nether`…). Cíle vázané na overworld
+  (spánek – postel v Netheru **vybuchuje**, farmy, rybaření, stavba domů,
+  vesnice, trh, ukládání do truhel, klasická těžba) se mimo overworld
+  odmlčí jedním sdíleným gatem (`AbstractGoal.outsideOverworld`).
+- **Portálový blok je trait** (`BlockTraits.portal` + `COST_PORTAL` v A*):
+  vnitřní smyčka pathfinderu zůstává čistě nad traits (žádné dotazy na
+  materiály) a boti portály obcházejí – dimenzi nikdy nezmění omylem.
+  Záměrný vstup penalizace neblokuje: cíl cesty smí být portálová buňka
+  (konstantní přirážka, žádný zákaz).
+- **Rám se staví plný, 14 obsidiánu** (`PortalBlueprint`): ekonomický rám
+  bez rohů by při pokládce horní řady neměl žádného pevného souseda
+  a vyžadoval dočasné opěrné bloky. Pořadí spodní řada → sloupky zdola
+  → horní řada od krajů zaručuje, že každý blok má oporu v zemi nebo v už
+  položeném sousedovi (invariant hlídá test). Zapaluje se křesadlem přes
+  horní plochu spodního obsidiánu; křesadlo a zlaté boty přidává
+  `CraftPlanner` po diamantovém krumpáči (dřív nemá smysl – obsidián jiným
+  nejde vytěžit) a pazourek/obsidián si bot řekne přes `BotNeeds` wishlist.
+- **PORTAL paměť z obou stran**: odchodová vzpomínka vzniká při živém
+  respawnu se změnou světa (jako dřív), příletová při **prvním teleportu
+  v novém světě** (`BotImpl.onSpawnComplete`) – to je pozice cílového
+  portálu, tedy cesta zpátky. Návrat výpravy: paměť → sken → stavba
+  vlastního portálu z kořisti → kotva `NetherMath.toNether(domov)`
+  (overworld/8, celočíselně k −∞) a hledání cestou. V Netheru drží cíl
+  `nether` utilitu 30 bez ohledu na config – bot přerušený bojem, jídlem
+  nebo restartem serveru se k návratu vždy vrátí a v pekle „nezůstane
+  bydlet" (restart uprostřed výpravy naváže s polovičním rozpočtem).
+- **Výprava s rozpočty** (`NetherGoal`): časový limit
+  (`nether.max-trip-minutes`), návrat při zdraví < 8 / hladu < 6 / plném
+  batohu; výkopy sdílejí sondy `MineGoal` (podlaha do 3 bloků, tekutina
+  v 6-okolí = stop). Gear gating je čistá funkce (`NetherReadiness`).
+  Truhly pevností/bastionů vylupuje `ChestStation.lootValuables`
+  (server-side i paketové kliky; klasifikace kořisti sdílená
+  v `ContainerService.isValuableLoot` – hlavně **kovářské šablony**).
+  Barter: se zlatými botami na nohou (nasazuje se výslovně – tier logika
+  by zlato nikdy nevzala) bot piglinovi hodí ingot a počká si na zboží.
+- **Netheritový řetěz**: pec taví `ANCIENT_DEBRIS` (rozšíření SMELTABLE),
+  `CraftPlanner` skládá ingot (4 úlomky + 4 zlato) a kovářský stůl;
+  povýšení dělá `SmithingStation` – server-side `SmithingService`
+  (`ItemStack.withType` zachová enchanty a poškození, spotřeba šablony
+  + ingotu dle vanilly, precedent §9) a `PacketSmithingStation` (explicitní
+  dvojice kliků do slotů 0–2, výběr výsledku shift-klikem, §13). Nový cíl
+  `smith` je aktivní jen s kompletní trojicí ingot+šablona+diamantový kus.
+- **Neutrální mobové**: z `TrackedEntity.isHostile` vypadl ENDERMAN –
+  boti na neutrální druhy (enderman, piglin, zombifikovaný piglin) útočí
+  jen odvetou přes čerstvou ENEMY vzpomínku, přesně jako hráč, který si
+  s hordou zombifikovaných piglinů nezačíná. Piglinům se navíc platí
+  respektem: zlaté boty v Netheru = klid a možnost barteru.

@@ -97,6 +97,10 @@ public final class MineGoal extends AbstractGoal {
             cooldownTicks -= ctx.config().ai().decisionIntervalTicks();
             return 0;
         }
+        // Těžbu v Netheru řídí výprava (NetherGoal) – vlastní cíle a rizika.
+        if (outsideOverworld(ctx)) {
+            return 0;
+        }
         double greed = bot.personality().trait(Trait.GREED);
         double patience = bot.personality().trait(Trait.PATIENCE);
         double base = 5 + greed * 14 + patience * 4;

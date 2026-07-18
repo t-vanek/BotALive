@@ -62,7 +62,22 @@ inventář a historii; po restartu serveru pokračuje tam, kde skončil.
   brnění → diamantové nástroje a brnění → **luk a šípy** (dálkový boj) →
   truhla (položí si vlastní) → loďka → dveře a postel. Farmaří (sklizeň +
   přesazení), v noci spí v posteli nebo si staví úkryt a přebytky ukládají
-  do truhel. Netherit chybí záměrně (vyžaduje Nether).
+  do truhel. Progresi uzavírá **netherit** (viz Nether níže).
+- **Plná podpora Netheru** – připravený bot (výbava dle `nether.min-gear-tier`,
+  jídlo, křesadlo z pazourku) si najde portál z paměti, objeví cizí, nebo si
+  **postaví vlastní**: vytěží 14 obsidiánu diamantovým krumpáčem, postaví rám
+  4×5 v pořadí se stálou oporou a zapálí ho křesadlem. Průchod si pamatuje
+  z obou stran (PORTAL paměť), takže trefí domů. V Netheru těží quartz,
+  netherové zlato, glowstone a **starodávné trosky** (schodiště k y≈15 se
+  sondami proti lávě), vylupuje truhly pevností a bastionů (**kovářské
+  šablony!**), pamatuje si struktury (FORTRESS/BASTION) a se zlatými botami
+  na nohou **směňuje ingoty s pigliny**. Výprava má časový rozpočet
+  a návratové pojistky (zdraví, hlad, plný batoh); zombifikovaných piglinů
+  a endermanů si nevšímá, dokud si nezačnou. Doma trosky přetaví na úlomky,
+  z úlomků a zlata složí **netheritový ingot** a u kovářského stolu povýší
+  diamantovou výbavu na **netheritovou** (enchanty i poškození zůstávají).
+  Postel v Netheru nikdy nepoužije (vybuchla by) a portálům se cesty
+  vyhýbají – dimenzi nikdy nezmění omylem. Vše laditelné sekcí `nether.*`.
 - **Těžba s účelem** – bot ví, co mu chybí: bez kamenných nástrojů kope kámen,
   s kamenným krumpáčem shání železo a uhlí, se železným jde po diamantech
   (tier gating – nekope rudu nástrojem, ze kterého by nic nepadlo). K zasypané
@@ -318,7 +333,8 @@ vyexportuje šablony `plugins/BotAlive/lang/cs.yml` a `en.yml`:
 Placeholder `{name}` se nahrazuje jménem protistrany. Kategorie: `greetings`,
 `confused`, `agreement`, `disagreement`, `youre-welcome`, `idle-chatter`,
 `death-reactions`, `combat-taunts`, `meet-player`, `pvp-help-calls`,
-`pvp-assist`, `pvp-taunts`, `emojis`.
+`pvp-assist`, `pvp-taunts`, `nether-depart`, `nether-arrive`,
+`nether-return`, `nether-loot`, `emojis`.
 
 ## Známá omezení a roadmapa
 - Boti vyžadují offline-mode (jsou to nepodepsaní klienti); na online-mode
