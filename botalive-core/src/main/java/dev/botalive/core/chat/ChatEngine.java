@@ -309,12 +309,16 @@ public final class ChatEngine {
             senderCooldowns.put(inbound.sender, now);
         } else {
             // Nezmíněný bot reaguje jen výjimečně a jen když je společenský;
-            // na volání o pomoc bez adresáta slyší ochotní.
+            // na volání o pomoc bez adresáta slyší ochotní. V davu se šance
+            // dělí počtem posluchačů – konverzace 30 botů se jinak sama živí
+            // (každá zpráva zplodí ~1 odpověď a vlákno nikdy neuhasne).
+            double crowd = 1.0 / (1.0
+                    + (botContext != null ? botContext.nearbyPlayerCount() : 0) * 0.4);
             double chance = mentioned
                     ? config.replyChance() * (0.6 + sociability * 0.6)
                     : request && phrases.matches("help", inbound.content)
-                            ? 0.25 + personality.trait(Trait.HELPFULNESS) * 0.35
-                            : config.replyChance() * sociability * 0.08;
+                            ? (0.25 + personality.trait(Trait.HELPFULNESS) * 0.35) * crowd
+                            : config.replyChance() * sociability * 0.08 * crowd;
             if (!mentioned && now - lastSentAtMs < GLOBAL_COOLDOWN_MS) {
                 return;
             }
