@@ -14,7 +14,7 @@ class InventoryHelperTest {
 
     private static ServerSideView.Snapshot snapshot(Material[] hotbar, int[] counts,
                                                     Material[] main) {
-        return new ServerSideView.Snapshot(null, hotbar, counts, main, null, null,
+        return new ServerSideView.Snapshot(null, hotbar, counts, main, null, null, null,
                 new Material[4], null, 0, 20, 20, 0, false, false, false, 1000, 0);
     }
 
@@ -78,7 +78,7 @@ class InventoryHelperTest {
         main[5] = Material.OBSIDIAN;
         mainCounts[5] = 14;
         var withCounts = new ServerSideView.Snapshot(null, new Material[9], new int[9],
-                main, mainCounts, null, new Material[4], null,
+                main, mainCounts, null, null, new Material[4], null,
                 0, 20, 20, 0, false, false, false, 1000, 0);
         assertEquals(14, InventoryHelper.countEstimate(withCounts,
                 m -> m == Material.OBSIDIAN));

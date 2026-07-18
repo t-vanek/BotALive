@@ -35,6 +35,9 @@ public final class ServerSideView {
      * @param mainCounts  počty kusů hlavního inventáře (index odpovídá
      *                    {@code mainInventory}; null u ručně sestavených
      *                    snapshotů = konzervativní odhad)
+     * @param itemVariants varianty itemů podle metadat (slot 0–35 → varianta:
+     *                    typ lektvaru, enchant knihy; viz
+     *                    {@code ItemVariants}); null = bez informace
      * @param offhand     materiál v druhé ruce (null = prázdná)
      * @param health      zdraví
      * @param foodLevel   najedenost
@@ -51,6 +54,7 @@ public final class ServerSideView {
             int[] hotbarCounts,
             Material[] mainInventory,
             int[] mainCounts,
+            java.util.Map<Integer, String> itemVariants,
             Material offhand,
             Material[] armor,
             Material damagedTool,
@@ -152,9 +156,32 @@ public final class ServerSideView {
                 });
     }
 
+    /**
+     * Varianta itemu z metadat: typ lektvaru (lektvary, obalené šípy) nebo
+     * první uložený enchant knihy ({@code klíč:úroveň}). Ostatní itemy
+     * variantu nemají.
+     */
+    private static void putVariant(java.util.Map<Integer, String> variants, int slot,
+                                   ItemStack item) {
+        var meta = item.getItemMeta();
+        if (meta instanceof org.bukkit.inventory.meta.PotionMeta potion) {
+            var type = potion.getBasePotionType();
+            if (type != null) {
+                variants.put(slot, type.name().toLowerCase(java.util.Locale.ROOT));
+            }
+            return;
+        }
+        if (meta instanceof org.bukkit.inventory.meta.EnchantmentStorageMeta book
+                && !book.getStoredEnchants().isEmpty()) {
+            var entry = book.getStoredEnchants().entrySet().iterator().next();
+            variants.put(slot, entry.getKey().getKey().getKey() + ":" + entry.getValue());
+        }
+    }
+
     /** Pořídí snapshot – běží na vlákně entity. */
     private Snapshot capture(Player player) {
         var inventory = player.getInventory();
+        java.util.Map<Integer, String> variants = new java.util.HashMap<>();
         Material[] hotbar = new Material[9];
         int[] hotbarCounts = new int[9];
         for (int i = 0; i < 9; i++) {
@@ -162,6 +189,7 @@ public final class ServerSideView {
             if (item != null && !item.getType().isAir()) {
                 hotbar[i] = item.getType();
                 hotbarCounts[i] = item.getAmount();
+                putVariant(variants, i, item);
             }
         }
         Material[] main = new Material[27];
@@ -171,6 +199,7 @@ public final class ServerSideView {
             if (item != null && !item.getType().isAir()) {
                 main[i] = item.getType();
                 mainCounts[i] = item.getAmount();
+                putVariant(variants, 9 + i, item);
             }
         }
         Material[] armor = new Material[4];
@@ -203,7 +232,7 @@ public final class ServerSideView {
         Material offhand = offhandItem.getType().isAir() ? null : offhandItem.getType();
         return new Snapshot(
                 player.getLocation().clone(),
-                hotbar, hotbarCounts, main, mainCounts, offhand, armor,
+                hotbar, hotbarCounts, main, mainCounts, variants, offhand, armor,
                 damagedTool, damagedPercent,
                 player.getHealth(),
                 player.getFoodLevel(),

@@ -75,7 +75,7 @@ public final class ContainerService implements dev.botalive.core.station.ChestSt
             case GOLD_INGOT, GOLD_BLOCK, GOLD_NUGGET, GOLDEN_APPLE, ENCHANTED_GOLDEN_APPLE,
                  GOLDEN_CARROT, DIAMOND, IRON_INGOT, OBSIDIAN, CRYING_OBSIDIAN,
                  ANCIENT_DEBRIS, NETHERITE_SCRAP, NETHERITE_INGOT, ENCHANTED_BOOK,
-                 ARROW, SPECTRAL_ARROW, STRING -> true;
+                 ARROW, SPECTRAL_ARROW, TIPPED_ARROW, POTION, STRING -> true;
             default -> false;
         };
     }

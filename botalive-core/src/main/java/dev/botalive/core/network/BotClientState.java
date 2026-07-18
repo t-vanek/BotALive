@@ -44,6 +44,11 @@ public final class BotClientState {
     /** Denní čas světa 0–23999 (SetTime paket; -1 = ještě nedorazil). */
     private volatile long worldTime = -1;
 
+    /** Aktivní lektvarové efekty: efekt → čas vypršení (epoch ms). */
+    private final java.util.concurrent.ConcurrentHashMap<
+            org.geysermc.mcprotocollib.protocol.data.game.entity.Effect, Long> activeEffects =
+            new java.util.concurrent.ConcurrentHashMap<>();
+
     /** Prší ve světě bota (GameEvent pakety – server posílá stav i po loginu). */
     private volatile boolean raining;
 
@@ -80,6 +85,49 @@ public final class BotClientState {
     /** Nastaví klíč světa (login/respawn). */
     public void worldKey(String key) {
         this.worldKey = key;
+    }
+
+    /**
+     * Efekt aplikován (UpdateMobEffect).
+     *
+     * @param effect        efekt
+     * @param durationTicks doba trvání v ticích (-1 = nekonečno)
+     */
+    public void effectApplied(org.geysermc.mcprotocollib.protocol.data.game.entity.Effect effect,
+                              int durationTicks) {
+        long expiry = durationTicks < 0 ? Long.MAX_VALUE
+                : System.currentTimeMillis() + durationTicks * 50L;
+        activeEffects.put(effect, expiry);
+    }
+
+    /**
+     * Efekt odebrán (RemoveMobEffect).
+     *
+     * @param effect efekt
+     */
+    public void effectRemoved(org.geysermc.mcprotocollib.protocol.data.game.entity.Effect effect) {
+        activeEffects.remove(effect);
+    }
+
+    /**
+     * @param effect efekt
+     * @return {@code true} pokud efekt právě působí (dle paketů a času)
+     */
+    public boolean effectActive(org.geysermc.mcprotocollib.protocol.data.game.entity.Effect effect) {
+        Long expiry = activeEffects.get(effect);
+        if (expiry == null) {
+            return false;
+        }
+        if (expiry <= System.currentTimeMillis()) {
+            activeEffects.remove(effect);
+            return false;
+        }
+        return true;
+    }
+
+    /** Zahodí všechny efekty (respawn/smrt – server je čistí bez paketů). */
+    public void clearEffects() {
+        activeEffects.clear();
     }
 
     /** @return {@code true} pokud bot dokončil spawn sekvenci */

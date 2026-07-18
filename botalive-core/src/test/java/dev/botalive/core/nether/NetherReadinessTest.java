@@ -36,7 +36,7 @@ class NetherReadinessTest {
         for (int i = 0; i < main.size() && i < 27; i++) {
             mainArr[i] = main.get(i);
         }
-        return new ServerSideView.Snapshot(null, bar, counts, mainArr, null, null,
+        return new ServerSideView.Snapshot(null, bar, counts, mainArr, null, null, null,
                 armor, null, 0, 20, 20, 0, false, false, false, 1000, 0);
     }
 

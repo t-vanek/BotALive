@@ -47,13 +47,24 @@ public final class RepairGoal extends AbstractGoal {
             return 0;
         }
         var snapshot = ctx.serverView().latest();
-        if (snapshot == null || snapshot.damagedTool() == null
-                || ctx.clientState().expLevel() < 2) {
+        if (snapshot == null) {
             return 0;
         }
-        Material repairMat = AnvilService.repairMaterial(snapshot.damagedTool());
-        if (repairMat == null || !snapshot.hasItem(m -> m == repairMat)) {
+        // Vyloupená enchantovaná kniha + XP → ke kovadlině i bez oprav.
+        boolean hasBook = snapshot.hasItem(m -> m == Material.ENCHANTED_BOOK)
+                && ctx.clientState().expLevel() >= 4;
+        boolean canRepair = snapshot.damagedTool() != null
+                && ctx.clientState().expLevel() >= 2;
+        if (canRepair) {
+            Material repairMat = AnvilService.repairMaterial(snapshot.damagedTool());
+            canRepair = repairMat != null && snapshot.hasItem(m -> m == repairMat);
+        }
+        if (!canRepair && !hasBook) {
             return 0;
+        }
+        if (!canRepair) {
+            double intelligence = bot.personality().trait(Trait.INTELLIGENCE);
+            return 8 + intelligence * 6; // jen kniha – klidná pochůzka
         }
         double caution = bot.personality().trait(Trait.CAUTION);
         int percent = snapshot.damagedToolPercent();
@@ -104,8 +115,15 @@ public final class RepairGoal extends AbstractGoal {
                 ctx.humanizer().lookAt(ctx.position().add(0, 1.62, 0),
                         anvil.center().add(0, 0.5, 0));
                 ctx.actions().useItemOn(anvil, Direction.UP);
-                pending = anvils.repair(ctx.bot().id(),
-                        ctx.worldView() != null ? ctx.worldView().worldName() : "world", anvil);
+                // Nejdřív opravy; bez nich se u kovadliny aplikuje kniha.
+                var snapshot = ctx.serverView().latest();
+                boolean repairable = snapshot != null && snapshot.damagedTool() != null
+                        && AnvilService.repairMaterial(snapshot.damagedTool()) != null;
+                String worldName = ctx.worldView() != null
+                        ? ctx.worldView().worldName() : "world";
+                pending = repairable
+                        ? anvils.repair(ctx.bot().id(), worldName, anvil)
+                        : anvils.applyBook(ctx.bot().id(), worldName, anvil);
                 waitTicks = ctx.rng().rangeInt(25, 45); // „buší kladivem"
                 phase = Phase.REPAIR;
             }
@@ -118,7 +136,8 @@ public final class RepairGoal extends AbstractGoal {
                 }
                 var report = pending.getNow(AnvilService.RepairReport.NONE);
                 if (report.repaired() != null && ctx.rng().chance(0.5)) {
-                    ctx.chat().say("opraveno, jak novy");
+                    ctx.chat().say(report.unitsUsed() > 0
+                            ? "opraveno, jak novy" : "kniha sedla, to bude parada");
                 }
                 cooldownTicks = report.repaired() != null ? 1200 : 2400;
                 phase = Phase.DONE;

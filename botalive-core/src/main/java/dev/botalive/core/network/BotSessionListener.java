@@ -88,6 +88,18 @@ public final class BotSessionListener extends SessionAdapter {
                 case ClientboundLoginPacket p -> handleLogin(p);
                 case ClientboundPlayerPositionPacket p -> handleTeleport(session, p);
                 case ClientboundSetHealthPacket p -> handleHealth(p);
+                case org.geysermc.mcprotocollib.protocol.packet.ingame.clientbound.entity
+                        .ClientboundUpdateMobEffectPacket p -> {
+                    if (p.getEntityId() == state.entityId()) {
+                        state.effectApplied(p.getEffect(), p.getDuration());
+                    }
+                }
+                case org.geysermc.mcprotocollib.protocol.packet.ingame.clientbound.entity
+                        .ClientboundRemoveMobEffectPacket p -> {
+                    if (p.getEntityId() == state.entityId()) {
+                        state.effectRemoved(p.getEffect());
+                    }
+                }
                 case ClientboundPlayerCombatKillPacket p -> handleDeath(p);
                 case ClientboundRespawnPacket p -> handleRespawn(p);
                 case ClientboundAddEntityPacket p -> handleAddEntity(p);
@@ -307,6 +319,7 @@ public final class BotSessionListener extends SessionAdapter {
     }
 
     private void handleRespawn(ClientboundRespawnPacket packet) {
+        state.clearEffects();
         String worldKey = packet.getCommonPlayerSpawnInfo().getWorldName().asString();
         boolean afterDeath = state.dead(); // před resetem – odlišuje smrt od portálu
         state.worldKey(worldKey);

@@ -62,7 +62,8 @@ public record NetherReadiness(int pickaxeTier, int weaponTier, boolean hasRanged
             }
         }
         boolean bow = snapshot.hasItem(m -> m == Material.BOW || m == Material.CROSSBOW)
-                && InventoryHelper.countEstimate(snapshot, m -> m == Material.ARROW) >= 4;
+                && InventoryHelper.countEstimate(snapshot, m -> m == Material.ARROW
+                        || m == Material.TIPPED_ARROW || m == Material.SPECTRAL_ARROW) >= 4;
         boolean goldenBootsAnywhere = goldenBoots
                 || snapshot.hasItem(m -> m == Material.GOLDEN_BOOTS);
         return new NetherReadiness(

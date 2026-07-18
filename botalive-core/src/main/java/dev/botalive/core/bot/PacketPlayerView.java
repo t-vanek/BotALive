@@ -81,7 +81,9 @@ final class PacketPlayerView {
         }
         return new ServerSideView.Snapshot(
                 new Location(null, position.x(), position.y(), position.z()),
-                hotbar, hotbarCounts, main, mainCounts, offhand, armor,
+                // Varianty itemů (typ lektvaru…) zatím jen v server režimu –
+                // klientské čtení data komponent by vyžadovalo registry lektvarů.
+                hotbar, hotbarCounts, main, mainCounts, null, offhand, armor,
                 null, 0, // opotřebení jen v server režimu (klientský model ho nečte)
                 state.health(),
                 state.food(),

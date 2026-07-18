@@ -504,3 +504,31 @@ Hotovo ve fázi 16: plná podpora Netheru (`core/nether` + cíl `nether`).
   jen odvetou přes čerstvou ENEMY vzpomínku, přesně jako hráč, který si
   s hordou zombifikovaných piglinů nezačíná. Piglinům se navíc platí
   respektem: zlaté boty v Netheru = klid a možnost barteru.
+
+Hotovo ve fázi 17: lektvary a metadata itemy.
+
+- **Varianty itemů ve snapshotu** (`Snapshot.itemVariants`, `ItemVariants`):
+  identita lektvarů, obalených šípů a enchantovaných knih žije v ItemMeta,
+  ne v Materialu – snapshot proto nese slotovou mapu normalizovaných
+  variant (`fire_resistance`, `sharpness:4`), plněnou v server režimu na
+  vlákně entity z `PotionMeta`/`EnchantmentStorageMeta`. Packet režim
+  varianty zatím nemá (čtení data komponent by chtělo registry lektvarů)
+  – degradace stejného druhu jako anvil/ochočování (§9).
+- **Aktivní efekty z paketů** (`BotClientState.effectActive`):
+  UpdateMobEffect/RemoveMobEffect se sledují s časem vypršení (-1 =
+  nekonečno), respawn efekty čistí. Funguje v obou režimech world modelu –
+  je to čistě protokolová znalost.
+- **Pití jako nouzový reflex, ne alchymie** (cíl `drink`): boti nevaří,
+  lektvary mají z barteru a truhel. Utility se probouzí jen v nouzi:
+  odolnost ohni při hoření/lávě (95 – nad bojem; 1,6 s pití se vyplatí),
+  léčení/regenerace při zdraví ≤ 10. Typ se ověřuje přes varianty – láhev
+  vody není medicína; splash lektvary se záměrně ignorují (házení je jiná
+  mechanika). Mechanika pití zrcadlí jídlo (use + ~32 ticků); úspěch
+  potvrzuje aplikovaný efekt z paketu, u okamžitého léčení nárůst zdraví.
+- **Enchantované knihy u kovadliny** (`AnvilService.applyBook`
+  + rozšířený `RepairGoal`): kniha z kořisti se aplikuje na nejlepší
+  kompatibilní kus (Bukkit `canEnchantItem`/`conflictsWith`, vyšší úroveň
+  vyhrává), spotřebuje se a strhne 4 XP úrovně – zjednodušení bez
+  prior-work penalizace po precedentu oprav (§9). Obalené/svítící šípy
+  jsou střelivo už tím, že je server při střelbě z luku bere z inventáře
+  sám – stačilo je počítat v kontrolách zásob.
