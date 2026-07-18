@@ -188,4 +188,9 @@ public final class FakeWorldView implements WorldView {
     public WorldDimension dimension() {
         return dimension;
     }
+
+    @Override
+    public int minY() {
+        return -64;
+    }
 }

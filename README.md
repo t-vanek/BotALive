@@ -141,6 +141,22 @@ inventář a historii; po restartu serveru pokračuje tam, kde skončil.
   vidět v `/botalive goal` („životní cíl: zbohatnout, krok 1/3"). Postup se
   počítá ze stavu, takže přežívá restart. Splněný sen chvíli hřeje a pak si
   bot podle aktuální (vyvinuté!) povahy vybere další – život se nezastaví.
+- **Dimenze End** – plná podpora výprav za drakem. Bot, který zná portál
+  (prošel jím, všiml si ho při toulkách, doslechl se o něm drby od kamaráda,
+  nebo mu ho prozradil admin přes `/botalive end portal`), se s železnou
+  výbavou, jídlem, bloky a ideálně lukem vypraví do Endu. Tam platí
+  disciplína zkušených hráčů: **chůze s pohledem u země** (endermanům se
+  do očí nekouká; jsou teď korektně neutrální, bije se jen ten, kdo si
+  začal), **ochrana hran** drží útěky i bojový strafing na ostrově
+  (`EdgeGuard`), mosty přes void se staví blok po bloku a **v Endu se
+  nespí ani nestaví domy** – postel by explodovala (platí i v Netheru).
+  Samotný boj jde po hráčovsku: lukem sestřelit dračí krystaly, draka
+  mlátit usazeného a střílet letícího, uhýbat dračímu dechu; vítězství
+  se slaví v chatu, ukládá jako trofej (`TROPHY`) a zvedá odvahu. Pak
+  sběr end stone a lov perel (trh je zpeněží – `ender_pearl` má ceníkovou
+  položku), chorus ovoce slouží jako nouzové jídlo, a nakonec výstupním
+  portálem domů. Nová životní ambice **„skolit ender draka"** táhne celý
+  řetěz od kování výbavy po vstup do portálu. Ladí se sekcí `end.*`.
 - **Corpse run** – smrt není reset: bot si pamatuje, kde umřel, a hned po
   respawnu si běží pro výbavu (dropy mizí za ~5 minut, tak spěchá). Po lávě
   a pádu do voidu neběhá – ví, že tam nic nezbylo.
@@ -293,6 +309,7 @@ PostgreSQL driver – vše relokované do `dev.botalive.libs`).
 | `stats <jméno>` | vytěženo, postaveno, smrti, zabití, nachozeno, peníze… |
 | `role <jméno> [role\|random]` | zobrazí/nastaví profesi bota |
 | `settlements` | přehled vesnic botů (jméno, náves, zakladatel, členové) |
+| `end portal <x> <y> <z> [svět]` | prozradí všem botům polohu portálu do Endu (drby ji šíří dál) |
 
 Oprávnění:
 
@@ -354,7 +371,8 @@ Placeholder `{name}` se nahrazuje jménem protistrany. Kategorie: `greetings`,
 `confused`, `agreement`, `disagreement`, `youre-welcome`, `idle-chatter`,
 `death-reactions`, `combat-taunts`, `meet-player`, `pvp-help-calls`,
 `pvp-assist`, `pvp-taunts`, `nether-depart`, `nether-arrive`,
-`nether-return`, `nether-loot`, `emojis`.
+`nether-return`, `nether-loot`, `end-depart`, `end-arrive`,
+`dragon-slain`, `end-return`, `emojis`.
 
 ## Známá omezení a roadmapa
 - Boti vyžadují offline-mode (jsou to nepodepsaní klienti); na online-mode
@@ -368,5 +386,9 @@ Placeholder `{name}` se nahrazuje jménem protistrany. Kategorie: `greetings`,
   z dynamického registru konfigurační fáze. Splash lektvary bot
   hází jen sám pod sebe (nouzová záchrana); útočné házení po nepřátelích
   chybí.
-- Boti nevylézají na strom techniky v Endu – tam se jen umí neztratit:
-  zavlečený bot najde návratový portál a vrátí se domů.
+- End: vnější ostrovy (end gateway, end cities, shulkeři, elytra) zatím
+  nejsou – boti operují na hlavním ostrově; chorus sklízejí, jen když na
+  něj narazí. Průlet gatewayí hozenou perlou je na roadmapě.
+- Strongholdy boti sami nehledají (oči Enderu se zatím necraftí) – portál
+  do Endu se naučí průchodem, náhodným objevem, drby, nebo od admina
+  (`/botalive end portal`).

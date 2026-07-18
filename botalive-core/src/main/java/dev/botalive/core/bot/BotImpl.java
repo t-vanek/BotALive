@@ -140,6 +140,8 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
     private int boatCheckCooldown;
     /** Odpočet periodické kontroly brnění v hotbaru. */
     private int armorCheckTicks = 60;
+    /** Odpočet pasivního všímání si portálů do Endu v okolí. */
+    private int portalScanTicks = 200;
     /** Životní ambice (cache; zdroj pravdy je paměť AMBITION). */
     private volatile dev.botalive.core.ai.Ambition ambition;
     private volatile dev.botalive.core.ai.Ambition.Progress ambitionProgress;
@@ -430,13 +432,8 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
         if (ambition == null) {
             return;
         }
-        var needs = dev.botalive.core.ai.BotNeeds.assess(serverView.latest());
-        boolean hasHouse = memory.recall(MemoryKind.HOME).stream()
-                .anyMatch(r -> "house".equals(r.data().get("type")));
-        var snapshot = serverView.latest();
-        boolean hasBed = snapshot != null
-                && snapshot.hasItem(m -> m.name().endsWith("_BED"));
-        ambitionProgress = ambition.progress(needs, hasHouse, hasBed, wallet.balance());
+        var state = ambitionState();
+        ambitionProgress = ambition.progress(state);
 
         // Splněný sen chvíli hřeje – a pak si člověk najde další. Nová ambice
         // se volí podle aktuální (vyvinuté) povahy; hotové cíle se přeskakují.
@@ -446,9 +443,8 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
             } else if (System.currentTimeMillis() - ambitionCompletedAt
                     > AMBITION_AFTERGLOW_MS) {
                 for (var candidate : dev.botalive.core.ai.Ambition.ranked(personality)) {
-                    if (candidate == ambition || candidate
-                            .progress(needs, hasHouse, hasBed, wallet.balance())
-                            .complete()) {
+                    if (candidate == ambition || !ambitionAllowed(candidate)
+                            || candidate.progress(state).complete()) {
                         continue;
                     }
                     memory.forget(MemoryKind.AMBITION);
@@ -466,6 +462,77 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
             }
         } else {
             ambitionCompletedAt = 0;
+        }
+    }
+
+    /** Stav bota pro výpočet postupu ambicí (inventář, dům, peníze, End). */
+    private dev.botalive.core.ai.Ambition.State ambitionState() {
+        var snapshot = serverView.latest();
+        var needs = dev.botalive.core.ai.BotNeeds.assess(snapshot);
+        boolean hasHouse = memory.recall(MemoryKind.HOME).stream()
+                .anyMatch(r -> "house".equals(r.data().get("type")));
+        boolean hasBed = snapshot != null
+                && snapshot.hasItem(m -> m.name().endsWith("_BED"));
+        var readiness = dev.botalive.core.ai.EndReadiness.assess(snapshot);
+        return new dev.botalive.core.ai.Ambition.State(needs, hasHouse, hasBed,
+                wallet.balance(),
+                readiness.swordTier() >= 4 && readiness.armorPieces() >= 3,
+                readiness.hasBow(),
+                dev.botalive.core.ai.EndKnowledge.knowsEndPortal(
+                        memory.recall(MemoryKind.PORTAL)),
+                dev.botalive.core.ai.EndKnowledge.dragonSlain(
+                        memory.recall(MemoryKind.TROPHY)));
+    }
+
+    /** Smí bot tuhle ambici mít? (výpravové sny jen se zapnutými výpravami) */
+    private boolean ambitionAllowed(dev.botalive.core.ai.Ambition candidate) {
+        if (candidate == dev.botalive.core.ai.Ambition.DRAGON_SLAYER) {
+            return config.end().enabled();
+        }
+        if (candidate == dev.botalive.core.ai.Ambition.NETHERITE) {
+            return config.nether().enabled();
+        }
+        return true;
+    }
+
+    /**
+     * Pasivní objevení portálu do Endu: bot, který o žádném neví, se čas od
+     * času porozhlédne po portálových blocích v okolí (stronghold, custom
+     * mapa, admin teleport doprostřed portálové síně). Nalezený portál se
+     * uloží jako PORTAL {@code type=end} a šíří se drby.
+     */
+    private void noticeEndPortal() {
+        WorldView view = worldView;
+        BotPhysics phys = physics;
+        if (view == null || phys == null
+                || view.dimension() != dev.botalive.core.world.WorldDimension.OVERWORLD) {
+            return;
+        }
+        Vec3 pos = phys.position();
+        if (dev.botalive.core.ai.EndKnowledge.nearestEndPortal(
+                memory, view.worldName(), (int) pos.x(), (int) pos.z()).isPresent()) {
+            return; // o portálu už ví – není co hledat
+        }
+        BlockPos feet = pos.toBlockPos();
+        int radius = 10;
+        for (int dx = -radius; dx <= radius; dx++) {
+            for (int dy = -8; dy <= 8; dy++) {
+                for (int dz = -radius; dz <= radius; dz++) {
+                    BlockPos p = feet.offset(dx, dy, dz);
+                    // Jen aktivní portál (END_PORTAL): prázdný rám bez očí se
+                    // nepamatuje – bot ho neumí zapálit (oči chtějí Nether)
+                    // a výprava k němu by skončila marným hledáním a smazáním.
+                    if (view.materialAt(p) == org.bukkit.Material.END_PORTAL) {
+                        memory.remember(MemoryKind.PORTAL, view.worldName(),
+                                p.x(), p.y(), p.z(), null,
+                                Map.of("type", dev.botalive.core.ai.EndKnowledge.TYPE_END),
+                                0.9);
+                        LOG.info("[{}] objevil portál do Endu na {} {} {} ({})",
+                                name, p.x(), p.y(), p.z(), view.worldName());
+                        return;
+                    }
+                }
+            }
         }
     }
 
@@ -1147,6 +1214,15 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
             refreshAmbition();
         }
 
+        // Periodicky: všimnout si portálu do Endu v okolí (kdo žádný nezná).
+        // Takhle se znalost dostane do systému: admin teleportuje bota do
+        // strongholdu (nebo bot pevnost proleze sám) a on si portál uloží;
+        // drby ji pak roznesou dál. Bez zapnutých výprav se neskenuje.
+        if (alive && !paused.get() && config.end().enabled() && --portalScanTicks <= 0) {
+            portalScanTicks = 600 + rng.rangeInt(0, 200);
+            noticeEndPortal();
+        }
+
         // Periodicky: sebrané brnění nasadit + štít do druhé ruky. V Netheru
         // se zlaté boty nechávají na nohou (piglini) – jinak by je tier
         // logika hned přezula zpátky a rozbila neutralitu i barter.
@@ -1329,6 +1405,15 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
             return new dev.botalive.core.tasks.BridgeTask(sx, sz);
         }
 
+        // Propast v cestě (mezera mezi ostrovy Endu, kaňon) → stejný most,
+        // jen deck visí nad prázdnem. Cíl přibližně v úrovni bota nebo výš –
+        // k cíli dole se nemostí, tam vede sestup jinudy.
+        if (dy >= 0 && worldView.traitsAt(front).passable()
+                && chasmAhead(front)
+                && inventoryHelper.equipBuildingBlock(serverView.latest())) {
+            return new dev.botalive.core.tasks.BridgeTask(sx, sz);
+        }
+
         // Svislá stěna vyšší než skok (front i patro nad ním pevné) a cíl výš →
         // přilepit žebřík a přelézt ji. Klasika hráče místo hloubení schodiště;
         // řeší i zdi se stropem, kudy se prokopat vzhůru nedá.
@@ -1426,6 +1511,26 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
                 || worldView.traitsAt(block.offset(0, 0, -1)).liquid();
     }
 
+    /**
+     * Propast před botem: pod sloupcem {@code front} není v dohledné hloubce
+     * nic pevného ani tekutina – jen vzduch, případně void (UNKNOWN pod
+     * spodkem světa). Hloubka záměrně převyšuje bezpečný seskok.
+     */
+    private boolean chasmAhead(BlockPos front) {
+        for (int depth = 1; depth <= 8; depth++) {
+            var below = worldView.traitsAt(front.offset(0, -depth, 0));
+            if (below == dev.botalive.core.world.BlockTraits.UNKNOWN) {
+                // Nenačtený chunk nelze odlišit od voidu – nemostit naslepo,
+                // ledaže jsme pod spodní hranou světa (tam už nic nebude).
+                return front.y() - depth < worldView.minY();
+            }
+            if (below.solid() || below.liquid()) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     /** Aplikuje teleporty od serveru na fyziku. */
     private void drainTeleports() {
         TeleportSync teleport;
@@ -1499,9 +1604,15 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
                     Map.of("to", arrivedFrom), 0.8);
         }
 
-        // Životní ambice: vybrat jednou podle povahy a zapamatovat.
+        // Životní ambice: vybrat jednou podle povahy a zapamatovat
+        // (dračí/netheritový sen jen se zapnutými výpravami).
         if (memory.recall(MemoryKind.AMBITION).isEmpty()) {
-            var picked = dev.botalive.core.ai.Ambition.pick(personality);
+            // Fallback nesmí obejít filtr povolených ambicí – bezpečná
+            // konstanta místo opakovaného pick().
+            var picked = dev.botalive.core.ai.Ambition.ranked(personality).stream()
+                    .filter(this::ambitionAllowed)
+                    .findFirst()
+                    .orElse(dev.botalive.core.ai.Ambition.FULL_IRON);
             memory.remember(MemoryKind.AMBITION,
                     worldView != null ? worldView.worldName() : "", 0, 0, 0, null,
                     Map.of("type", picked.name()), 1.0);
@@ -1524,6 +1635,7 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
 
     /** Přepnutí světa (login, respawn, portál). */
     private void switchWorld(String worldKey, Vec3 position) {
+        boolean transition = worldView != null; // false = první spawn/login
         if (packetWorlds != null) {
             // Klientský world model – geometrie z chunk paketů, žádný Bukkit svět.
             this.worldView = packetWorlds.switchTo(worldKey);
@@ -1544,6 +1656,15 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
             obstacleTask = null;
         }
         worldView.prefetch(position.toBlockPos(), 2);
+
+        // Disciplína Endu: chůze s pohledem u země (endermani). Průchod
+        // portálem do Endu bot okomentuje – je to událost.
+        dev.botalive.core.world.WorldDimension dimension = worldView.dimension();
+        humanizer.groundGaze(dimension == dev.botalive.core.world.WorldDimension.END);
+        if (transition && dimension == dev.botalive.core.world.WorldDimension.END
+                && rng.chance(0.7)) {
+            chat.sayFrom(PhraseCategory.END_ARRIVE, null);
+        }
     }
 
     /** Očekávaný název světa pro daný protokolový klíč (dle režimu world modelu). */

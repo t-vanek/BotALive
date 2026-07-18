@@ -239,6 +239,18 @@ public final class InventoryHelper {
     }
 
     /**
+     * Nouzové jídlo – k snědku, ale s vedlejším efektem, který za normálních
+     * okolností nestojí za to (chorus ovoce teleportuje). Sáhne se po něm,
+     * až když pořádné jídlo došlo a hlad tlačí.
+     *
+     * @param material materiál
+     * @return {@code true} pro jídlo „až když není zbytí"
+     */
+    public static boolean isEmergencyFood(Material material) {
+        return material == Material.CHORUS_FRUIT;
+    }
+
+    /**
      * Odhad počtu kusů odpovídajících filtru: hotbar přesně, hlavní inventář
      * konzervativně 4 kusy na slot (snapshot počty hlavního inventáře nenese).
      *
@@ -282,7 +294,8 @@ public final class InventoryHelper {
         return material == Material.DIRT || material == Material.COBBLESTONE
                 || material == Material.COBBLED_DEEPSLATE || material == Material.NETHERRACK
                 || material == Material.STONE || material == Material.OAK_PLANKS
-                || material == Material.SPRUCE_PLANKS || material == Material.BIRCH_PLANKS;
+                || material == Material.SPRUCE_PLANKS || material == Material.BIRCH_PLANKS
+                || material == Material.END_STONE;
     }
 
     /**

@@ -1,11 +1,11 @@
 package dev.botalive.core.ai.goals;
 
 import dev.botalive.api.bot.Bot;
-import dev.botalive.api.memory.MemoryKind;
 import dev.botalive.api.personality.Trait;
 import dev.botalive.core.ai.BotContext;
 import dev.botalive.core.chat.PhraseCategory;
 import dev.botalive.core.entity.TrackedEntity;
+import dev.botalive.core.physics.MoveInput;
 
 import java.util.Optional;
 
@@ -114,8 +114,15 @@ public final class CombatGoal extends AbstractGoal {
         maybeThrowSplash(ctx);
 
         // Bojový pohyb (výběr zbraně – melee/luk/štít – řídí controller).
-        ctx.requestMove(ctx.combat().tick(ctx.position(), ctx.clientState().health(),
-                ctx.onGround(), ctx.serverView().latest()));
+        // V Endu strafing nesmí přenést bota přes hranu do voidu; v overworldu
+        // zůstává pohyb volný – guard by blokoval přiblížení přes seskok.
+        MoveInput combatMove = ctx.combat().tick(ctx.position(), ctx.clientState().health(),
+                ctx.onGround(), ctx.serverView().latest());
+        if (ctx.dimension() == dev.botalive.core.world.WorldDimension.END) {
+            combatMove = dev.botalive.core.physics.EdgeGuard.apply(
+                    ctx.worldView(), ctx.position(), combatMove);
+        }
+        ctx.requestMove(combatMove);
     }
 
     /**
@@ -181,16 +188,11 @@ public final class CombatGoal extends AbstractGoal {
             return hostile;
         }
         // Neutrální útočník z čerstvé paměti (ne hráč – to je věc PvpGoal,
-        // a nikdy ne vlastní mazlíček).
-        long now = System.currentTimeMillis();
+        // a nikdy ne vlastní mazlíček). Sdílený helper s únikem SurviveGoal.
         return ctx.entities().nearby(ctx.position(), viewDistance,
                         e -> !e.isPlayer() && e.uuid() != null)
                 .stream()
-                .filter(e -> bot.memory().recallAbout(e.uuid()).stream()
-                        .anyMatch(r -> r.kind() == MemoryKind.ENEMY
-                                && now - r.updatedAt() < 60_000))
-                .filter(e -> bot.memory().recallAbout(e.uuid()).stream()
-                        .noneMatch(r -> r.kind() == MemoryKind.PET))
+                .filter(e -> recentAggressor(bot, e))
                 .findFirst();
     }
 

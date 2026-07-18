@@ -22,6 +22,9 @@ import java.util.Optional;
 public final class SurviveGoal extends AbstractGoal {
 
     private int safeTicks;
+    /** Cache zuřícího neutrála (id) + odpočet drahé paměťové kontroly. */
+    private int aggressorId = -1;
+    private int aggressorScanCooldown;
 
     /** Vytvoří cíl. */
     public SurviveGoal() {
@@ -51,6 +54,8 @@ public final class SurviveGoal extends AbstractGoal {
     public void start(Bot bot) {
         BotContext ctx = ctx(bot);
         safeTicks = 0;
+        aggressorId = -1;
+        aggressorScanCooldown = 0;
         ctx.combat().disengage();
         ctx.navigator().stop();
         // Zapamatovat si nebezpečné místo.
@@ -67,25 +72,54 @@ public final class SurviveGoal extends AbstractGoal {
         BotContext ctx = ctx(bot);
         Vec3 pos = ctx.position();
 
-        // Hrozba: vždy nepřátelský mob, NEBO neutrální útočník (rozzuřený
-        // enderman, vlk…) s čerstvou ENEMY vzpomínkou – ten v klasifikaci
-        // isHostile záměrně není, ale zraněný bot před ním utíkat musí.
-        long now = System.currentTimeMillis();
-        Optional<TrackedEntity> threat = ctx.entities().nearest(pos, 24,
-                e -> e.isHostile()
-                        || (!e.isPlayer() && e.uuid() != null
-                                && bot.memory().recallAbout(e.uuid()).stream()
-                                        .anyMatch(r -> r.kind() == MemoryKind.ENEMY
-                                                && now - r.updatedAt() < 60_000)));
+        // Hrozba je i neutrál, který bota nedávno napadl (rozzuřený enderman,
+        // vlk…) – ti v isHostile nefigurují, ale utéct se před nimi musí.
+        Optional<TrackedEntity> threat = ctx.entities().nearest(pos, 24, TrackedEntity::isHostile);
+        if (threat.isEmpty()) {
+            threat = aggressorThreat(ctx, bot, pos);
+        }
         if (threat.isPresent()) {
-            // Panický útěk přímo od hrozby.
             Vec3 away = pos.sub(threat.get().position()).horizontal().normalized();
-            ctx.requestMove(MoveInput.of(away, true, ctx.onGround() && ctx.rng().chance(0.2)));
-            ctx.humanizer().lookAlong(away);
+            MoveInput flee = MoveInput.of(away, true, ctx.onGround() && ctx.rng().chance(0.2));
+            // V Endu panika nesmí skončit ve voidu; v overworldu zůstává útěk
+            // přímočarý – slepá zatáčka podél hrany umí vrátit bota k hrozbě.
+            if (ctx.dimension() == dev.botalive.core.world.WorldDimension.END) {
+                flee = dev.botalive.core.physics.EdgeGuard.apply(ctx.worldView(), pos, flee);
+            }
+            ctx.requestMove(flee);
+            if (flee.direction().horizontalLength() > 1.0E-4) {
+                ctx.humanizer().lookAlong(flee.direction());
+            }
             safeTicks = 0;
         } else {
             safeTicks++;
         }
+    }
+
+    /**
+     * Zuřící neutrál z paměti – kontrola je dražší (recallAbout na entitu),
+     * proto běží po pěti ticích a nalezený útočník se drží podle id.
+     */
+    private Optional<TrackedEntity> aggressorThreat(BotContext ctx, Bot bot, Vec3 pos) {
+        if (aggressorId >= 0) {
+            Optional<TrackedEntity> cached = ctx.entities().byId(aggressorId);
+            if (cached.isPresent() && cached.get().position().distance(pos) < 24) {
+                return cached;
+            }
+            aggressorId = -1;
+        }
+        if (--aggressorScanCooldown > 0) {
+            return Optional.empty();
+        }
+        aggressorScanCooldown = 5;
+        for (TrackedEntity entity : ctx.entities().nearby(pos, 24,
+                e -> !e.isPlayer() && e.uuid() != null)) {
+            if (recentAggressor(bot, entity)) {
+                aggressorId = entity.entityId();
+                return Optional.of(entity);
+            }
+        }
+        return Optional.empty();
     }
 
     @Override

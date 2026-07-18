@@ -66,4 +66,9 @@ public interface WorldView {
      *         na prostředí (spánek, farmaření, výpravy do Netheru)
      */
     WorldDimension dimension();
+
+    /**
+     * @return spodní hrana světa (min Y) – pod ní už je jen void
+     */
+    int minY();
 }

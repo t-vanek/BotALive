@@ -431,16 +431,14 @@ public final class Navigator {
         return !world.traitsAt(ahead.down()).solid();
     }
 
-    /** Sloupec kousek před botem nemá do 4 bloků pod nohama nic pevného ani vodu. */
+    /**
+     * Sloupec kousek před botem nemá do 4 bloků pod nohama bezpečnou podlahu.
+     * Sdílená sonda s {@link dev.botalive.core.physics.EdgeGuard} – na rozdíl
+     * od původní verze nebere lávu jako „podlahu", takže bot brzdí i před
+     * hranou lávového jezera.
+     */
     private boolean cliffAhead(Vec3 position, Vec3 direction) {
-        BlockPos ahead = position.add(direction.mul(0.9)).toBlockPos();
-        for (int depth = 1; depth <= 4; depth++) {
-            var traits = world.traitsAt(ahead.offset(0, -depth, 0));
-            if (traits.solid() || traits.liquid()) {
-                return false;
-            }
-        }
-        return true;
+        return !dev.botalive.core.physics.EdgeGuard.safeAhead(world, position, direction, 4);
     }
 
     /** Sprint na delších úsecích; líní boti sprintují méně. */

@@ -236,6 +236,26 @@ nether:
   # S horší výbavou se do pekla nechodí.
   min-gear-tier: 4
 
+end:
+  # Výpravy do dimenze End. Bot, který zná portál (prošel jím, našel ho při
+  # toulkách, doslechl se o něm drby od kamaráda, nebo mu ho prozradil admin
+  # přes /botalive end portal <x> <y> <z> [svět]), se s železnou výbavou,
+  # jídlem, bloky a ideálně lukem vypraví za drakem: sestřelí krystaly,
+  # skolí draka, nasbírá end stone a perly a výstupním portálem se vrátí
+  # domů. V Endu boti nespí (postel exploduje), nestaví domy, chodí
+  # s pohledem u země (endermani) a pohyb hlídá ochrana hran nad voidem.
+  # false = boti výpravy neplánují (pravidla přežití v Endu platí i tak,
+  # když se tam bot dostane teleportem).
+  enabled: true
+  # Souboj s drakem (vypnout na serverech, kde má být drak trofejí hráčů).
+  dragon-fight: true
+  # Cílený lov endermanů kvůli perlám (jen odvážní boti, mimo dračí souboj).
+  hunt-endermen: true
+  # Minimální rozestup dvou výprav jednoho bota (minuty).
+  expedition-cooldown-minutes: 90
+  # Minimální odvaha (rys COURAGE 0–1) pro výpravu – zbabělci nelezou do Endu.
+  min-courage: 0.5
+
 performance:
   # 0 = automaticky podle počtu jader.
   tick-threads: 0

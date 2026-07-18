@@ -538,3 +538,50 @@ Hotovo ve fázi 17: lektvary a metadata itemy.
   prior-work penalizace po precedentu oprav (§9). Obalené/svítící šípy
   jsou střelivo už tím, že je server při střelbě z luku bere z inventáře
   sám – stačilo je počítat v kontrolách zásob.
+
+Hotovo ve fázi 18: dimenze End. (1) **Dimenzní povědomí** –
+`WorldView.dimension()` (server mode z Bukkit `World.Environment`, packet
+mode z klíče světa přes `WorldDimension.fromWorldKey`) a centrální
+`DimensionPolicy` aplikovaná v `Brain.decide()`: jediné místo, které ví,
+že v Endu/Netheru **postel exploduje** (spánek 0), že se v Endu nestaví,
+nefarmaří a nenavigují vzpomínky z jiného světa (home/stash/steal), a že
+denní rytmus mimo overworld neplatí. Per-goal roztroušené kontroly by
+tenhle invariant dřív nebo později prolomily. (2) **Znalost portálů** –
+PORTAL paměť dostala konzumenty: zapisuje ji průchod (`onRespawn`,
+`data.to`), pasivní všímání si portálových bloků (pomalý sken v tick
+smyčce, jen dokud bot žádný nezná), admin (`/botalive end portal`), a
+šíří ji gossip (PORTAL přidán mezi místní drby). Dvě pojistky drží drby
+oddělené od vlastních zážitků: kopie nese jen `type=end` (nikdy `to` –
+z doslechu se nestává „vlastní průchod"), a portál, který posluchač už
+zná, se znovu nevypráví – opakovaný remember by se slil do jeho záznamu
+a bumpl `updatedAt`. Rozestup výprav se totiž měří z `updatedAt`
+průchodové vzpomínky (bez gossip značky) – přežije restart bez nového
+stavu. (3) **Bezpečnost Endu** – `EdgeGuard` (čistá třída) chrání
+přímý, nenaplánovaný pohyb (panický útěk, strafing, úhyby) před hranami:
+otáčí směr podél hrany, láva v cílové buňce i pod hranou nejistí nikdy,
+osamělý pilíř = stát. V SurviveGoal/CombatGoal/PvpGoal se zapíná jen
+v Endu (v overworldu by měnil zavedené chování – přiblížení k cíli přes
+seskok, přímočarý útěk), End cíle ho mají vždy; sondu podlahy sdílí
+i brzda navigátoru u hran (`cliffAhead`), takže bot nově brzdí i před
+hranou lávového jezera. Pathfinding sám je vůči voidu bezpečný odjakživa
+(drop scan + UNKNOWN pod minY). Obstacle pipeline se naučila **mostit propasti**
+(dřív jen tekutiny) – `BridgeTask` deck nad prázdnem, směr k cíli.
+Endermani jsou nově korektně **neutrální** (`isHostile` je nezahrnuje;
+rozzuřené řeší ENEMY paměť z damage eventů) a humanizer má „end gaze" –
+chůzi a mikro-rozhlížení s pohledem u země, cílené `lookAt` (míření,
+kliky) nedotčené. (4) **Výprava jako řetěz cílů** – `end-travel`
+(overworld: připravenost `EndReadiness`, cesta k portálu, nástup přes
+rám – A* na portálový blok cíleně nevede, vkročení je řízený krok),
+`dragon-fight` (krystaly `RangedAttack` zezdola s bezpečným odstupem,
+drak přes standardní `CombatController`, úhyby před dechem; vítězství =
+zmizení draka poblíž středu **potvrzené výstupním portálem** na fontáně –
+pouhý výpadek z trackeru umí i drak kroužící mimo dosah sledování entit
+→ `TROPHY type=dragon`, oslava, odvaha roste), `end-harvest` (osamocení endermani na perly, end stone na mosty,
+chorus když je) a `end-return` (výstupní portál na fontáně existuje jen
+po drakovi – „nenašel jsem portál" znamená „drak žije, zpátky do
+práce"). (5) **Ambice `DRAGON_SLAYER`** – skóre COURAGE ×0.9: odvážlivec
+si nejdřív splní železnou výbavu (COURAGE ×1.0), chamtivý dá přednost
+i netheritu, a na draka dojde, když je odvaha dominantní rys; `Ambition.progress` přešel na `State` record (výbava, luk, znalost
+portálu, trofej), gating `end.enabled` drží `BotImpl` (enum zůstává
+čistý). Ceník trhu zná `ender_pearl`, chorus ovoce je nouzové jídlo
+(`isEmergencyFood` – jí se až při hladu ≤ 8, teleport je menší zlo).

@@ -21,12 +21,13 @@ public final class RoleProfiles {
                     "maintain", 2.2),
             BotRole.MINER, Map.of(
                     "mine", 2.5, "collect", 1.3, "craft", 1.2, "smelt", 1.3,
-                    "nether", 1.6, "smith", 1.4),
+                    "nether", 1.6, "smith", 1.4, "end-harvest", 1.4),
             BotRole.LUMBERJACK, Map.of(
                     "mine", 2.2, "craft", 1.4, "shelter", 1.2, "house", 1.4),
             BotRole.HUNTER, Map.of(
                     "hunt", 2.5, "combat", 1.4, "collect", 1.2, "tame", 1.5,
-                    "guard", 2.2, "nether", 1.3),
+                    "guard", 2.2, "nether", 1.3, "end-travel", 1.4,
+                    "dragon-fight", 1.5, "end-harvest", 1.3),
             BotRole.BLACKSMITH, Map.of(
                     "smelt", 2.5, "craft", 1.6, "mine", 1.4, "repair", 2.2,
                     "smith", 2.2, "nether", 1.2),

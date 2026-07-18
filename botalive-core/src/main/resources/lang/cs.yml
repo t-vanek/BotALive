@@ -383,6 +383,30 @@ phrases:
     - "to je ono! tohle jsem hledal"
     - "jackpot! tohle se bude hodit"
     - "paráda, batoh se plní"
+  end-depart:
+    - "jdu do Endu. jestli se nevrátím, truhla je vaše"
+    - "výbava sbalená, portál znám... drak si mě najde sám"
+    - "tak já jdu na draka, držte palce"
+    - "mířím do Endu, kdo se přidá, ať si pospíší"
+    - "portál čeká. snad jsem na to fakt připravenej"
+  end-arrive:
+    - "tak jsem v Endu... a nikam se nekoukám, hlavně ne na endermany"
+    - "wow, samej kámen a prázdno. a někde tu lítá drak"
+    - "End! hlavně nespadnout, dolů se padá dlouho"
+    - "tak jsem prošel. je to tu... jiný"
+    - "obsidianová plošina, void všude kolem. paráda, jdeme na to"
+  dragon-slain:
+    - "DRAK JE MRTVEJ! já to dokázal!!"
+    - "tak toho draka jsem sundal. kdo je tady legenda?"
+    - "drak dole! xp prší z nebe :D"
+    - "je po něm. po DRAKOVI. nemůžu tomu uvěřit"
+    - "vítězství! drak padl, jdu domů jako hrdina"
+  end-return:
+    - "z Endu se vracím domů, mise splněna"
+    - "tak a dost dobrodružství, jedu domů"
+    - "kapsy plný, čas zmizet z týhle prázdnoty"
+    - "hledám výstupní portál, domov volá"
+    - "End je hezkej, ale doma je doma"
   emojis:
     - ":D"
     - ":)"

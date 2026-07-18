@@ -26,7 +26,10 @@ public enum Ambition {
     /** Chce zbohatnout. */
     RICH("zbohatnout", Set.of("mine", "trade", "farm", "fish", "stash")),
     /** Chce dobýt Nether a povýšit výbavu na netherit. */
-    NETHERITE("mít netheritovou výbavu", Set.of("nether", "mine", "smelt", "craft", "smith"));
+    NETHERITE("mít netheritovou výbavu", Set.of("nether", "mine", "smelt", "craft", "smith")),
+    /** Chce skolit ender draka. */
+    DRAGON_SLAYER("skolit ender draka",
+            Set.of("mine", "smelt", "craft", "end-travel", "dragon-fight"));
 
     /** Násobič utility cílů, které k ambici vedou (dokud není splněná). */
     private static final double DRIVE = 1.25;
@@ -72,7 +75,12 @@ public enum Ambition {
                         // Netherit chce odvahu i chamtivost zároveň – průměr
                         // drží sen o pekle typicky až jako druhý (po základech).
                         new Scored(NETHERITE, (personality.trait(Trait.COURAGE)
-                                + personality.trait(Trait.GREED)) / 2))
+                                + personality.trait(Trait.GREED)) / 2),
+                        // Drak je „druhý sen" odvážných: železná výbava
+                        // (COURAGE ×1.0) vede vždy a u chamtivých má přednost
+                        // i netherit (průměr s GREED) – faktor 0.9 drží draka
+                        // pod oběma, dokud odvaha není jasně dominantní rys.
+                        new Scored(DRAGON_SLAYER, personality.trait(Trait.COURAGE) * 0.9))
                 .sorted(java.util.Comparator.comparingDouble(Scored::score).reversed())
                 .map(Scored::ambition)
                 .toList();
@@ -94,16 +102,33 @@ public enum Ambition {
     }
 
     /**
+     * Stav bota pro výpočet postupu – vše, co milníky ambicí potřebují.
+     *
+     * @param needs          potřeby (inventář)
+     * @param hasHouse       má dům (paměť HOME typu house)
+     * @param hasBedItem     má postel (item)
+     * @param balance        zůstatek peněženky
+     * @param endGeared      má výbavu na End (železný meč + většina brnění)
+     * @param hasBow         má luk nebo kuši
+     * @param knowsEndPortal zná portál do Endu (PORTAL paměť)
+     * @param dragonSlain    už skolil draka (TROPHY paměť)
+     */
+    public record State(BotNeeds needs, boolean hasHouse, boolean hasBedItem,
+                        double balance, boolean endGeared, boolean hasBow,
+                        boolean knowsEndPortal, boolean dragonSlain) {
+    }
+
+    /**
      * Spočítá postup ze stavu bota.
      *
-     * @param needs      potřeby (inventář)
-     * @param hasHouse   má dům (paměť HOME typu house)
-     * @param hasBedItem má postel (item)
-     * @param balance    zůstatek peněženky
+     * @param state stav bota (inventář, dům, peníze, znalosti Endu)
      * @return postup k ambici
      */
-    public Progress progress(BotNeeds needs, boolean hasHouse, boolean hasBedItem,
-                             double balance) {
+    public Progress progress(State state) {
+        BotNeeds needs = state.needs();
+        boolean hasHouse = state.hasHouse();
+        boolean hasBedItem = state.hasBedItem();
+        double balance = state.balance();
         return switch (this) {
             case FULL_IRON -> {
                 if (needs.pickaxeTier() >= 4) {
@@ -158,6 +183,21 @@ public enum Ambition {
                     yield new Progress(1, 3, "sehnat obsidián a křesadlo");
                 }
                 yield new Progress(0, 3, "dopracovat se k diamantovému krumpáči");
+            }
+            case DRAGON_SLAYER -> {
+                if (state.dragonSlain()) {
+                    yield new Progress(4, 4, "splněno – drak je poražen!");
+                }
+                if (state.endGeared() && state.hasBow() && state.knowsEndPortal()) {
+                    yield new Progress(3, 4, "vypravit se do Endu a skolit draka");
+                }
+                if (state.endGeared() && state.hasBow()) {
+                    yield new Progress(2, 4, "najít portál do Endu");
+                }
+                if (state.endGeared()) {
+                    yield new Progress(1, 4, "sehnat luk a šípy");
+                }
+                yield new Progress(0, 4, "vykovat si železnou výbavu");
             }
         };
     }

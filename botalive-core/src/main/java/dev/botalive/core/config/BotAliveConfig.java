@@ -22,6 +22,7 @@ import java.util.List;
  * @param pvp         PvP botů a aliance
  * @param settlement  vesnice botů (společné stavění, parcely, roztržky)
  * @param nether      výpravy do Netheru (portály, těžba, netherit)
+ * @param end         výpravy do dimenze End (drak, perly, návrat)
  * @param performance výkonnostní laditelné parametry
  * @param persistence databáze
  */
@@ -39,6 +40,7 @@ public record BotAliveConfig(
         Pvp pvp,
         Settlement settlement,
         Nether nether,
+        End end,
         Performance performance,
         Persistence persistence
 ) {
@@ -311,6 +313,31 @@ public record BotAliveConfig(
      */
     public record Nether(boolean enabled, boolean buildPortals, boolean barter,
                          int maxTripMinutes, int minGearTier) {
+    }
+
+    /**
+     * Výpravy do dimenze End.
+     *
+     * <p>Bot, který zná portál do Endu (prošel jím, našel ho, doslechl se
+     * o něm drby, nebo ho admin zadal přes {@code /botalive end portal}),
+     * se s dostatečnou výbavou a odvahou vypraví za drakem. V Endu platí
+     * tvrdá pravidla dimenze ({@code DimensionPolicy}): nespí se, nestaví,
+     * na endermany se nekouká.</p>
+     *
+     * @param enabled                   hlavní vypínač výprav do Endu (chování
+     *                                  v Endu – void, endermani – platí vždy,
+     *                                  když se tam bot ocitne)
+     * @param dragonFight               smí boti bojovat s drakem (vypnout na
+     *                                  serverech, kde drak patří hráčům)
+     * @param huntEndermen              smí odvážní boti v Endu cíleně lovit
+     *                                  endermany kvůli perlám
+     * @param expeditionCooldownMinutes minimální rozestup dvou výprav jednoho
+     *                                  bota (minuty)
+     * @param minCourage                minimální rys COURAGE pro výpravu –
+     *                                  zbabělci do Endu nelezou
+     */
+    public record End(boolean enabled, boolean dragonFight, boolean huntEndermen,
+                      int expeditionCooldownMinutes, double minCourage) {
     }
 
     /**

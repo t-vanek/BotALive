@@ -11,7 +11,7 @@ website: https://github.com/t-vanek/BotALive
 commands:
   botalive:
     description: Správa AI botů a teleportace k nim
-    usage: /botalive <create|remove|tp|list|pause|resume|personality|memory|goal|stats>
+    usage: /botalive <create|remove|tp|list|pause|resume|personality|memory|goal|stats|end>
     permission: botalive.use
     aliases: [ba, bots]
 

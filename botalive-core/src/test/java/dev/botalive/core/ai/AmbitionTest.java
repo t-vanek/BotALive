@@ -8,6 +8,7 @@ import java.util.EnumMap;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Testy volby životních ambicí – pořadí podle povahy.
@@ -76,5 +77,48 @@ class AmbitionTest {
     void remizaDrziPuvodniPreference() {
         // Shodné rysy → stejné pořadí jako historicky (RICH > COZY > IRON).
         assertEquals(Ambition.RICH, Ambition.pick(personality(0.5, 0.5, 0.5)));
+    }
+
+    @Test
+    void drakJeDruhySenOdvaznych() {
+        // Odvážlivec (bez chamtivosti): železná výbava (COURAGE ×1.0) vede,
+        // drak (×0.9) hned za ní; netherit u nechamtivého zaostává.
+        var ranked = Ambition.ranked(personality(0.2, 0.3, 0.9));
+        assertEquals(Ambition.FULL_IRON, ranked.get(0));
+        assertEquals(Ambition.DRAGON_SLAYER, ranked.get(1));
+    }
+
+    @Test
+    void postupDracihoSnaVedeOdVybavyKPortalu() {
+        var needs = BotNeeds.assess(null);
+        var start = new Ambition.State(needs, false, false, 0,
+                false, false, false, false);
+        assertEquals(0, Ambition.DRAGON_SLAYER.progress(start).step());
+
+        var geared = new Ambition.State(needs, false, false, 0,
+                true, false, false, false);
+        assertEquals(1, Ambition.DRAGON_SLAYER.progress(geared).step());
+
+        var armed = new Ambition.State(needs, false, false, 0,
+                true, true, false, false);
+        assertEquals(2, Ambition.DRAGON_SLAYER.progress(armed).step());
+
+        var knowsPortal = new Ambition.State(needs, false, false, 0,
+                true, true, true, false);
+        assertEquals(3, Ambition.DRAGON_SLAYER.progress(knowsPortal).step());
+
+        var slain = new Ambition.State(needs, false, false, 0,
+                true, true, true, true);
+        assertTrue(Ambition.DRAGON_SLAYER.progress(slain).complete());
+    }
+
+    @Test
+    void stareAmbiceStavemNetrpi() {
+        // Refaktoring na State nesmí změnit milníky původních ambicí.
+        var needs = BotNeeds.assess(null);
+        var state = new Ambition.State(needs, true, true, 600, false, false, false, false);
+        assertTrue(Ambition.COZY_HOME.progress(state).complete());
+        assertTrue(Ambition.RICH.progress(state).complete());
+        assertEquals(0, Ambition.FULL_IRON.progress(state).step());
     }
 }

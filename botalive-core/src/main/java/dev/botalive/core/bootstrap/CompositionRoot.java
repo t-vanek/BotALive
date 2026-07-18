@@ -250,6 +250,10 @@ public final class CompositionRoot {
         registry.register("guard", bot -> new dev.botalive.core.ai.goals.GuardGoal());
         registry.register("nether", bot -> new dev.botalive.core.ai.goals.NetherGoal(containers));
         registry.register("drink", bot -> new dev.botalive.core.ai.goals.DrinkPotionGoal());
+        registry.register("end-travel", bot -> new dev.botalive.core.ai.goals.EndTravelGoal());
+        registry.register("dragon-fight", bot -> new dev.botalive.core.ai.goals.DragonFightGoal());
+        registry.register("end-harvest", bot -> new dev.botalive.core.ai.goals.EndHarvestGoal());
+        registry.register("end-return", bot -> new dev.botalive.core.ai.goals.EndReturnGoal());
     }
 
     /**

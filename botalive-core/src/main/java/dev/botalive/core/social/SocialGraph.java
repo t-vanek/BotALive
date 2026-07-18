@@ -96,6 +96,12 @@ public final class SocialGraph {
         // Portály se sdílí taky – vesnice tak časem používá společný portál
         // do Netheru místo lesa rámů (výprava čte „to"/„built" z dat).
         places.addAll(teller.memory().recall(MemoryKind.PORTAL));
+        // Portál, o kterém posluchač už ví, se ale znovu nevypráví: opakovaný
+        // remember by se slil do jeho záznamu, přepsal data drbem a bumpl
+        // updatedAt – u vlastního průchodu by to resetovalo cooldown výprav
+        // do Endu a přepsalo prvoruční „to".
+        places.removeIf(record -> record.kind() == MemoryKind.PORTAL
+                && knowsPlace(listener, record));
         List<MemoryRecord> shareable = shareable(places,
                 teller.memory().recall(MemoryKind.ENEMY), trust, listener.id());
         int told = 0;
@@ -109,9 +115,18 @@ public final class SocialGraph {
         return told;
     }
 
+    /** Zná posluchač místo záznamu? (stejný druh a svět do slučovací dálky) */
+    private static boolean knowsPlace(Bot listener, MemoryRecord record) {
+        return listener.memory().recall(record.kind()).stream()
+                .anyMatch(own -> java.util.Objects.equals(own.world(), record.world())
+                        && own.distanceSquared(record.x(), record.y(), record.z()) <= 8 * 8);
+    }
+
     /**
      * Razítko drbu; klíče nesoucí význam („to"/„built" u portálů) se
-     * zachovávají – bez nich by předaný portál nebyl použitelný.
+     * zachovávají – bez nich by předaný portál nebyl použitelný. Rozestup
+     * výprav do Endu drby neovlivní: čtení vlastních průchodů filtruje
+     * značku {@code via=gossip} ({@code EndKnowledge.recentEndVisit}).
      */
     private static Map<String, String> gossipStamp(Bot teller, MemoryRecord record) {
         Map<String, String> stamp = new java.util.HashMap<>();

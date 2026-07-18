@@ -168,4 +168,24 @@ public final class TrackedEntity {
             default -> false;
         };
     }
+
+    /** @return {@code true} pokud jde o endermana (neutrál – nekoukat, neprovokovat) */
+    public boolean isEnderman() {
+        return type == EntityType.ENDERMAN;
+    }
+
+    /** @return {@code true} pokud jde o dračí (end) krystal na obsidiánovém pilíři */
+    public boolean isEndCrystal() {
+        return type == EntityType.END_CRYSTAL;
+    }
+
+    /** @return {@code true} pokud jde o ender draka */
+    public boolean isEnderDragon() {
+        return type == EntityType.ENDER_DRAGON;
+    }
+
+    /** @return {@code true} pokud jde o oblak efektu (dračí dech, lektvary) */
+    public boolean isEffectCloud() {
+        return type == EntityType.AREA_EFFECT_CLOUD;
+    }
 }

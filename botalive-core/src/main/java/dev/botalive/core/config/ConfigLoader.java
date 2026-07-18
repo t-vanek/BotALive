@@ -146,6 +146,14 @@ public final class ConfigLoader {
                 Math.min(5, Math.max(3, c.getInt("nether.min-gear-tier", 4)))
         );
 
+        var end = new BotAliveConfig.End(
+                c.getBoolean("end.enabled", true),
+                c.getBoolean("end.dragon-fight", true),
+                c.getBoolean("end.hunt-endermen", true),
+                Math.max(1, c.getInt("end.expedition-cooldown-minutes", 90)),
+                Math.min(1, Math.max(0, c.getDouble("end.min-courage", 0.5)))
+        );
+
         var performance = new BotAliveConfig.Performance(
                 c.getInt("performance.tick-threads", 0),
                 c.getInt("performance.pathfinding-threads", 0),
@@ -167,6 +175,6 @@ public final class ConfigLoader {
         );
 
         return new BotAliveConfig(network, bots, ai, chat, combat, economy, memory,
-                worlds, spawn, teleport, pvp, settlement, nether, performance, persistence);
+                worlds, spawn, teleport, pvp, settlement, nether, end, performance, persistence);
     }
 }
