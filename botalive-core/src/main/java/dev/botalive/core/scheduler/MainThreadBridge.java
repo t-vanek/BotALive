@@ -28,21 +28,39 @@ public final class MainThreadBridge {
 
     /**
      * Spustí akci na globálním regionu (ekvivalent hlavního vlákna na Paperu).
+     * Během vypínání pluginu se akce tiše zahodí – AI vlákna botů dobíhají
+     * o chvíli déle než plugin a plánovat úlohy už nesmí (spam
+     * {@code IllegalPluginAccessException} v logu při každém stopu).
      *
      * @param action akce
      */
     public void runGlobal(Runnable action) {
-        plugin.getServer().getGlobalRegionScheduler().execute(plugin, action);
+        if (!plugin.isEnabled()) {
+            return;
+        }
+        try {
+            plugin.getServer().getGlobalRegionScheduler().execute(plugin, action);
+        } catch (org.bukkit.plugin.IllegalPluginAccessException e) {
+            // Závod s vypnutím pluginu mezi kontrolou a naplánováním – zahodit.
+        }
     }
 
     /**
-     * Spustí akci na vlákně vlastnícím region dané lokace (na Paperu hlavní vlákno).
+     * Spustí akci na vlákně vlastnícím region dané lokace (na Paperu hlavní
+     * vlákno). Během vypínání pluginu se akce tiše zahodí.
      *
      * @param location lokace určující region
      * @param action   akce
      */
     public void runAt(Location location, Runnable action) {
-        plugin.getServer().getRegionScheduler().execute(plugin, location, action);
+        if (!plugin.isEnabled()) {
+            return;
+        }
+        try {
+            plugin.getServer().getRegionScheduler().execute(plugin, location, action);
+        } catch (org.bukkit.plugin.IllegalPluginAccessException e) {
+            // Závod s vypnutím pluginu mezi kontrolou a naplánováním – zahodit.
+        }
     }
 
     /**
@@ -67,6 +85,11 @@ public final class MainThreadBridge {
      */
     public <T> CompletableFuture<T> callAt(Location location, Supplier<T> query) {
         CompletableFuture<T> future = new CompletableFuture<>();
+        if (!plugin.isEnabled()) {
+            // Vypínání: dotaz rovnou selže, ať volající nečeká na future věčně.
+            future.completeExceptionally(new IllegalStateException("Plugin se vypíná"));
+            return future;
+        }
         runAt(location, () -> {
             try {
                 future.complete(query.get());
