@@ -19,7 +19,9 @@ import java.util.regex.Pattern;
  *
  * <p>Instance je nemutabilní a sdílená všemi boty (čtou ji souběžně
  * z tick vláken). Fráze podporují placeholder {@code {name}} pro jméno
- * protistrany.</p>
+ * protistrany; {@code {name:2}}–{@code {name:7}} vyplní jméno ve skloněném
+ * pádu (české číslování, {@code {name:5}} = oslovení), pokud jazyk frází
+ * skloňování má ({@link NameInflector}).</p>
  */
 public final class PhraseBank {
 
@@ -32,14 +34,20 @@ public final class PhraseBank {
             "greeting", "thanks", "what-doing", "where-are-you", "what-have",
             "where-village", "come-here", "give-food");
 
+    /** Placeholder jména s volitelným pádem: {@code {name}} nebo {@code {name:5}}. */
+    private static final Pattern NAME_PLACEHOLDER = Pattern.compile("\\{name(?::([1-7]))?\\}");
+
     private final Map<PhraseCategory, List<String>> phrases;
     private final Map<String, Pattern> patterns;
+    private final NameInflector inflector;
 
     /**
-     * @param phrases  fráze podle kategorií (všechny kategorie, neprázdné seznamy)
-     * @param patterns rozpoznávací vzory podle klíčů {@link #PATTERN_KEYS}
+     * @param phrases   fráze podle kategorií (všechny kategorie, neprázdné seznamy)
+     * @param patterns  rozpoznávací vzory podle klíčů {@link #PATTERN_KEYS}
+     * @param inflector skloňování jmen podle jazyka frází
      */
-    PhraseBank(Map<PhraseCategory, List<String>> phrases, Map<String, Pattern> patterns) {
+    PhraseBank(Map<PhraseCategory, List<String>> phrases, Map<String, Pattern> patterns,
+               NameInflector inflector) {
         EnumMap<PhraseCategory, List<String>> copy = new EnumMap<>(PhraseCategory.class);
         for (PhraseCategory category : PhraseCategory.values()) {
             List<String> list = phrases.get(category);
@@ -55,6 +63,15 @@ public final class PhraseBank {
             }
         }
         this.patterns = Map.copyOf(patterns);
+        this.inflector = inflector == null ? NameInflector.IDENTITY : inflector;
+    }
+
+    /**
+     * @param newInflector skloňovač cílového jazyka
+     * @return kopie banky se zadaným skloňovačem (fráze a vzory sdílené)
+     */
+    PhraseBank withInflector(NameInflector newInflector) {
+        return new PhraseBank(phrases, patterns, newInflector);
     }
 
     /**
@@ -66,7 +83,7 @@ public final class PhraseBank {
     }
 
     /**
-     * Vybere frázi a doplní jméno.
+     * Vybere frázi a doplní jméno (ve skloněném pádu, žádá-li ho placeholder).
      *
      * @param category kategorie frází
      * @param rng      per-bot náhoda
@@ -74,7 +91,19 @@ public final class PhraseBank {
      * @return fráze
      */
     public String pick(PhraseCategory category, BotRandom rng, String name) {
-        return rng.pick(list(category)).replace("{name}", name == null ? "" : name).trim();
+        String phrase = rng.pick(list(category));
+        java.util.regex.Matcher m = NAME_PLACEHOLDER.matcher(phrase);
+        StringBuilder sb = new StringBuilder();
+        while (m.find()) {
+            String value = "";
+            if (name != null && !name.isEmpty()) {
+                int grammaticalCase = m.group(1) == null ? 1 : Integer.parseInt(m.group(1));
+                value = grammaticalCase == 1 ? name : inflector.inflect(name, grammaticalCase);
+            }
+            m.appendReplacement(sb, java.util.regex.Matcher.quoteReplacement(value));
+        }
+        m.appendTail(sb);
+        return sb.toString().trim();
     }
 
     /**
