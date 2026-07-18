@@ -622,6 +622,7 @@ public final class NetherGoal extends AbstractGoal {
                 && remembered.get().distanceSquared(feet.x(), feet.y(), feet.z()) < 96 * 96) {
             var r = remembered.get();
             outpost = new BlockPos(r.x(), r.y(), r.z());
+            lootedChests.add(outpost.asLong()); // vlastní truhla se nevylupuje
             outpostChecked = true;
             return;
         }
@@ -1006,7 +1007,15 @@ public final class NetherGoal extends AbstractGoal {
         }
         // Nedosažitelnou truhlu (za lávou) hlídá časový rozpočet.
         if (++lootTicks > 300) {
-            lootedChests.add(lootChest.asLong());
+            if (depositMode) {
+                // Vlastní základna se neblacklistuje – jen to dnes nevyšlo;
+                // režim se MUSÍ vypnout, jinak by další strukturální truhla
+                // dostala depositJunk místo vyloupení.
+                depositMode = false;
+                depositDone = true;
+            } else {
+                lootedChests.add(lootChest.asLong());
+            }
             lootChest = null;
             return;
         }

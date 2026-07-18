@@ -116,9 +116,13 @@ public final class RepairGoal extends AbstractGoal {
                         anvil.center().add(0, 0.5, 0));
                 ctx.actions().useItemOn(anvil, Direction.UP);
                 // Nejdřív opravy; bez nich se u kovadliny aplikuje kniha.
+                // Oprava musí být skutečně proveditelná (surovina V BATOHU
+                // + XP) – jinak by NONE výsledek zablokoval aplikaci knihy.
                 var snapshot = ctx.serverView().latest();
-                boolean repairable = snapshot != null && snapshot.damagedTool() != null
-                        && AnvilService.repairMaterial(snapshot.damagedTool()) != null;
+                Material mat = snapshot == null || snapshot.damagedTool() == null
+                        ? null : AnvilService.repairMaterial(snapshot.damagedTool());
+                boolean repairable = mat != null && snapshot.hasItem(m -> m == mat)
+                        && ctx.clientState().expLevel() >= 2;
                 String worldName = ctx.worldView() != null
                         ? ctx.worldView().worldName() : "world";
                 pending = repairable
