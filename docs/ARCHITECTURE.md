@@ -511,9 +511,13 @@ Hotovo ve fázi 17: lektvary a metadata itemy.
   identita lektvarů, obalených šípů a enchantovaných knih žije v ItemMeta,
   ne v Materialu – snapshot proto nese slotovou mapu normalizovaných
   variant (`fire_resistance`, `sharpness:4`), plněnou v server režimu na
-  vlákně entity z `PotionMeta`/`EnchantmentStorageMeta`. Packet režim
-  varianty zatím nemá (čtení data komponent by chtělo registry lektvarů)
-  – degradace stejného druhu jako anvil/ochočování (§9).
+  vlákně entity z `PotionMeta`/`EnchantmentStorageMeta`. Packet režim čte
+  typ lektvaru z komponenty `POTION_CONTENTS`: registr lektvarů je
+  statický (per verze protokolu), takže `ReflectionItemMapper` sestavuje
+  tabulku id → klíč z `BuiltInRegistries.POTION` hostitele stejně jako
+  u itemů (§11 – platí táž verzní podmínka a degradace). Enchanty knih
+  jsou naopak **dynamický** registr posílaný v konfigurační fázi – packet
+  režim je zatím nečte (kovadlina je beztak server-side, §9).
 - **Aktivní efekty z paketů** (`BotClientState.effectActive`):
   UpdateMobEffect/RemoveMobEffect se sledují s časem vypršení (-1 =
   nekonečno), respawn efekty čistí. Funguje v obou režimech world modelu –

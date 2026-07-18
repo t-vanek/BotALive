@@ -358,10 +358,11 @@ Placeholder `{name}` se nahrazuje jménem protistrany. Kategorie: `greetings`,
 - Nether má vědomé hranice: boti nejezdí na striderech a přes velké lávové
   oceány nestaví dlouhé mosty (BridgeTask má strop 12 bloků – cesta se
   hledá jinudy). Brewing, respawn anchor a boj s witherem nejsou v plánu;
-  nether wart se sbírá jen jako kořist z truhel. Varianty lektvarů se čtou
-  jen v server režimu – protokolová knihovna dává v packet režimu jen
-  číselné registry ID typu lektvaru a zadrátovaná tabulka by byla křehká
-  (stejný důvod jako u hashed stacků, §13). Splash lektvary bot hází jen
-  sám pod sebe (nouzová záchrana); útočné házení po nepřátelích chybí.
+  nether wart se sbírá jen jako kořist z truhel. Varianty lektvarů fungují
+  i v packet režimu (POTION_CONTENTS komponenta + tabulka typů lektvarů
+  z registrů hostitele, stejný vzor jako itemy); enchanty knih jsou
+  dynamický registr a packet režim je zatím nečte. Splash lektvary bot
+  hází jen sám pod sebe (nouzová záchrana); útočné házení po nepřátelích
+  chybí.
 - Boti nevylézají na strom techniky v Endu – tam se jen umí neztratit:
   zavlečený bot najde návratový portál a vrátí se domů.

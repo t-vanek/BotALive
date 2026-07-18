@@ -39,9 +39,28 @@ final class PacketPlayerView {
      * @param world     pohled na svět ({@code null} před spawnem)
      * @return snapshot kompatibilní se server-side pohledem
      */
+    /** Typ lektvaru z data komponent (POTION_CONTENTS → tabulka registrů). */
+    private static void putPotionVariant(java.util.Map<Integer, String> variants, int slot,
+                                         ItemStack item, ItemMapper mapper) {
+        var components = item.getDataComponentsPatch();
+        if (components == null) {
+            return;
+        }
+        var contents = components.get(org.geysermc.mcprotocollib.protocol.data.game.item
+                .component.DataComponentTypes.POTION_CONTENTS);
+        if (contents == null) {
+            return;
+        }
+        String key = mapper.potionKeyOf(contents.getPotionId());
+        if (key != null) {
+            variants.put(slot, key);
+        }
+    }
+
     static ServerSideView.Snapshot capture(ClientInventory inventory, ItemMapper mapper,
                                            BotClientState state, Vec3 position,
                                            WorldView world) {
+        java.util.Map<Integer, String> variants = new java.util.HashMap<>();
         Material[] hotbar = new Material[9];
         int[] hotbarCounts = new int[9];
         for (int i = 0; i < 9; i++) {
@@ -49,6 +68,7 @@ final class PacketPlayerView {
             if (item != null && mapper != null) {
                 hotbar[i] = mapper.materialOf(item.getId());
                 hotbarCounts[i] = item.getAmount();
+                putPotionVariant(variants, i, item, mapper);
             }
         }
         Material[] main = new Material[27];
@@ -58,6 +78,7 @@ final class PacketPlayerView {
             if (item != null && mapper != null) {
                 main[i] = mapper.materialOf(item.getId());
                 mainCounts[i] = item.getAmount();
+                putPotionVariant(variants, 9 + i, item, mapper);
             }
         }
         ItemStack offhandItem = inventory.slot(45);
@@ -81,9 +102,11 @@ final class PacketPlayerView {
         }
         return new ServerSideView.Snapshot(
                 new Location(null, position.x(), position.y(), position.z()),
-                // Varianty itemů (typ lektvaru…) zatím jen v server režimu –
-                // klientské čtení data komponent by vyžadovalo registry lektvarů.
-                hotbar, hotbarCounts, main, mainCounts, null, offhand, armor,
+                // Varianty lektvarů se čtou z POTION_CONTENTS komponenty přes
+                // tabulku registrů hostitele; enchanty knih (dynamický registr)
+                // packet režim zatím nečte.
+                hotbar, hotbarCounts, main, mainCounts,
+                variants.isEmpty() ? null : variants, offhand, armor,
                 null, 0, // opotřebení jen v server režimu (klientský model ho nečte)
                 state.health(),
                 state.food(),
