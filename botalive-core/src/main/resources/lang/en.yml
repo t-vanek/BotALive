@@ -224,6 +224,12 @@ phrases:
     - "nothing to give right now"
     - "all out"
     - "sorry, I need it"
+  no-village-known:
+    - "don't know of any village"
+    - "haven't seen a village around here"
+    - "no idea where a village would be"
+    - "never came across one"
+    - "none that I know of nearby"
   emojis:
     - ":D"
     - ":)"

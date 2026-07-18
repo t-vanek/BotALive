@@ -239,6 +239,12 @@ phrases:
     - "teď ti nemám co dát"
     - "došlo mi to"
     - "sorry, potřebuju to sám"
+  no-village-known:
+    - "o žádné vesnici nevím"
+    - "vesnici jsem tu ještě neviděl"
+    - "netuším, kde by tu byla vesnice"
+    - "žádnou jsem nepotkal"
+    - "tady v okolí o žádné nevím"
   emojis:
     - ":D"
     - ":)"
