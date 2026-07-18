@@ -25,7 +25,10 @@ import java.util.concurrent.CompletableFuture;
  *       širší mezera vynucuje sprint,</li>
  *   <li>zavřené dveře v cestě bot otevře interakcí,</li>
  *   <li>detekce zaseknutí: bez postupu několik desítek ticků → požádá o novou cestu,</li>
- *   <li>replanning je asynchronní – bot mezitím dojíždí starou cestu.</li>
+ *   <li>replanning je asynchronní – bot mezitím dojíždí starou cestu,</li>
+ *   <li>daleké cíle (za {@link #FAR_THRESHOLD}) se dělí na segmenty podél
+ *       vzdušné čáry ({@link SegmentPlanner}) s prefetchem chunků po trase;
+ *       neprůchodný segment zkouší laterální posuny, pak přímý částečný plán.</li>
  * </ul>
  */
 public final class Navigator {
@@ -35,6 +38,15 @@ public final class Navigator {
 
     /** Po kolika ticích bez postupu se považujeme za zaseknuté. */
     private static final int STUCK_TICKS = 50;
+
+    /** Od jaké vodorovné vzdálenosti se cíl dělí na segmenty (bloky). */
+    private static final int FAR_THRESHOLD = 96;
+    /** Délka jednoho segmentu po vzdušné čáře (bloky). */
+    private static final int SEGMENT_LENGTH = 64;
+    /** Dosažení mezicíle (bloky², vodorovně) – pak se plánuje další segment. */
+    private static final double SEGMENT_REACHED_SQ = 3 * 3;
+    /** Laterální posuny mezicíle při neprůchodnosti (obchůzka slepého ramene). */
+    private static final int[] SEGMENT_OFFSETS = {0, 24, -24};
 
     private final NavigationService service;
     private final BotActions actions;
@@ -47,6 +59,10 @@ public final class Navigator {
     private Path path;
     private int waypointIndex;
     private BlockPos destination;
+    /** Mezicíl na dlouhé trase; {@code null} = plánuje se rovnou k cíli. */
+    private BlockPos segmentGoal;
+    /** Index do {@link #SEGMENT_OFFSETS} při hledání průchodného segmentu. */
+    private int segmentAttempt;
     private CompletableFuture<Path> pendingPath;
 
     private Vec3 lastProgressPos = Vec3.ZERO;
@@ -54,6 +70,15 @@ public final class Navigator {
     private int repathAttempts;
     /** Zbývající ticky „odskakovacího" pokusu při zaseknutí (nízká překážka). */
     private int unstuckJumpTicks;
+    /** Cooldown mezi kliky na dveře – server dveře přepíná a stav dorazí se zpožděním. */
+    private int doorClickCooldown;
+
+    /** Cache vyhlazení trasy: základní waypoint, výsledek a stáří. */
+    private int smoothBase = -1;
+    private int smoothIndex;
+    private int smoothCooldown;
+    /** Sprintuje-li bot po rovince se skoky (rozhodnuto per cesta dle povahy). */
+    private boolean sprintHopper;
 
     /** Kolikrát smí bot cestu „odblokovat" zásahem do terénu, než to vzdá. */
     private static final int MAX_ASSIST_CYCLES = 10;
@@ -111,6 +136,11 @@ public final class Navigator {
         repathAttempts = 0;
         assistNeeded = false;
         assistCycles = 0;
+        segmentGoal = null;
+        segmentAttempt = 0;
+        if (isFar(from.toBlockPos(), to)) {
+            advanceSegment(from.toBlockPos());
+        }
         requestPath(from);
     }
 
@@ -119,6 +149,8 @@ public final class Navigator {
         path = null;
         waypointIndex = 0;
         destination = null;
+        segmentGoal = null;
+        segmentAttempt = 0;
         pendingPath = null;
         ticksWithoutProgress = 0;
         assistNeeded = false;
@@ -168,6 +200,50 @@ public final class Navigator {
     }
 
     /**
+     * @return aktuální objekt zájmu navigace: mezicíl segmentu na dlouhé
+     *         trase, jinak konečný cíl (pro směr zásahů do terénu, lodě…)
+     */
+    public BlockPos currentObjective() {
+        return segmentGoal != null ? segmentGoal : destination;
+    }
+
+    /** Je cíl dál než {@link #FAR_THRESHOLD} (vodorovně)? */
+    private static boolean isFar(BlockPos from, BlockPos to) {
+        long dx = from.x() - to.x();
+        long dz = from.z() - to.z();
+        return dx * dx + dz * dz > (long) FAR_THRESHOLD * FAR_THRESHOLD;
+    }
+
+    /**
+     * Vybere další mezicíl (s aktuálním laterálním posunem) a přednačte
+     * koridor k němu.
+     *
+     * @param from odkud se plánuje
+     * @return {@code false} když segment nejde vybrat (blízko cíle, neznámá
+     *         oblast po všech posunech) – plánuje se rovnou k cíli
+     */
+    private boolean advanceSegment(BlockPos from) {
+        segmentGoal = null;
+        if (destination == null || !isFar(from, destination)) {
+            return false;
+        }
+        while (segmentAttempt < SEGMENT_OFFSETS.length) {
+            BlockPos segment = SegmentPlanner.nextSegment(world, from, destination,
+                    SEGMENT_LENGTH, SEGMENT_OFFSETS[segmentAttempt]);
+            if (segment != null) {
+                segmentGoal = segment;
+                // Prefetch koridoru: mezicíl a střed úseku k němu.
+                world.prefetch(segment, 2);
+                world.prefetch(new BlockPos((from.x() + segment.x()) / 2, from.y(),
+                        (from.z() + segment.z()) / 2), 2);
+                return true;
+            }
+            segmentAttempt++;
+        }
+        return false;
+    }
+
+    /**
      * Jeden tick navigace.
      *
      * @param position aktuální pozice bota (nohy)
@@ -185,12 +261,26 @@ public final class Navigator {
             Path computed = pendingPath.join();
             pendingPath = null;
             org.slf4j.LoggerFactory.getLogger(Navigator.class).debug(
-                    "[nav] cesta: {} waypointů, complete={}, cíl={}",
-                    computed.waypoints().size(), computed.complete(), destination);
+                    "[nav] cesta: {} waypointů, complete={}, cíl={}, segment={}",
+                    computed.waypoints().size(), computed.complete(), destination, segmentGoal);
             if (!computed.isEmpty()) {
                 path = computed;
                 waypointIndex = 0;
+                smoothBase = -1;
+                // Sprint-skoky na rovinkách: odvážní a čilí boti si na cestu
+                // „zabunnyhopují", líní chodí. Rozhodnutí drží celou cestu.
+                sprintHopper = rng.next() < 0.25
+                        + 0.45 * personality.trait(Trait.COURAGE)
+                        - 0.35 * personality.trait(Trait.LAZINESS);
             } else if (destination != null) {
+                if (segmentGoal != null) {
+                    // Mezicíl nedosažitelný → laterální posun, nakonec přímý
+                    // (částečný) plán ke konečnému cíli.
+                    segmentAttempt++;
+                    advanceSegment(position.toBlockPos());
+                    requestPath(position);
+                    return MoveInput.IDLE;
+                }
                 // Cíl je pěšky nedosažitelný – šance na odblokování terénu.
                 if (assistCycles < MAX_ASSIST_CYCLES) {
                     assistNeeded = true;
@@ -215,9 +305,22 @@ public final class Navigator {
                 && Math.abs(delta.y()) < (inWater ? 1.6 : 1.2)) {
             waypointIndex++;
             if (waypointIndex >= path.waypoints().size()) {
-                if (!path.complete() && destination != null
-                        && position.toBlockPos().distanceSquared(destination) > 4) {
+                BlockPos feet = position.toBlockPos();
+                if (segmentGoal != null && feet.distanceSquared(segmentGoal) <= SEGMENT_REACHED_SQ) {
+                    // Mezicíl dosažen → naplánovat další segment trasy.
+                    segmentAttempt = 0;
+                    advanceSegment(feet);
+                    requestPath(position);
+                } else if (!path.complete() && destination != null
+                        && currentObjective() != null
+                        && feet.distanceSquared(currentObjective()) > 4) {
                     requestPath(position); // částečná cesta – doplánovat
+                } else if (segmentGoal != null && destination != null) {
+                    // Kompletní cesta skončila kus od mezicíle (normalizace
+                    // cíle nad deskou apod.) → pokračovat dalším segmentem.
+                    segmentAttempt = 0;
+                    advanceSegment(feet);
+                    requestPath(position);
                 } else {
                     stop();
                 }
@@ -230,9 +333,15 @@ public final class Navigator {
 
         detectStuck(position);
 
-        // Zavřené dveře před nosem → otevřít.
-        if (world.traitsAt(waypoint).door()) {
+        // Zavřené dveře před nosem → otevřít. Traits znají stav dveří, takže
+        // klik padne jen na zavřené; cooldown kryje zpoždění block-update
+        // paketu, aby bot dveře omylem nepřepínal tam a zpět.
+        if (doorClickCooldown > 0) {
+            doorClickCooldown--;
+        }
+        if (world.traitsAt(waypoint).door() && doorClickCooldown == 0) {
             actions.useItemOn(waypoint, Direction.NORTH);
+            doorClickCooldown = 8;
         }
 
         boolean jump;
@@ -242,7 +351,9 @@ public final class Navigator {
             boolean submerged = world.traitsAt(position.toBlockPos().up()).liquid();
             jump = delta.y() > -0.4 || submerged;
         } else {
-            jump = delta.y() > 0.5 && onGround;
+            // Po schodech se neskáče – step-up fyzika je vyjde plynule.
+            boolean stairsAhead = world.traitsAt(waypoint.down()).stepFriendly();
+            jump = delta.y() > 0.5 && onGround && !stairsAhead;
             if (unstuckJumpTicks > 0) {
                 unstuckJumpTicks--;
                 jump = jump || onGround; // odskočit nízkou překážku (deska, koberec…)
@@ -265,6 +376,20 @@ public final class Navigator {
             return new MoveInput(direction, wideGap, false, false);
         }
 
+        // Vyhlazení trasy: na rovině mířit na nejvzdálenější „viditelný"
+        // waypoint – rohy se řežou po pochozí ploše, chůze dostane oblouky.
+        int smooth = smoothedTarget(position);
+        if (smooth > waypointIndex && !inWater) {
+            direction = path.waypoints().get(smooth).center().sub(position)
+                    .horizontal().normalized();
+            // Rohy, kolem kterých bot zkratkou prošel, odbavit.
+            while (waypointIndex < smooth
+                    && path.waypoints().get(waypointIndex).center().sub(position)
+                            .horizontalLength() < 1.3) {
+                waypointIndex++;
+            }
+        }
+
         // Hrana srázu: před botem zeje díra hlubší než bezpečný seskok a cesta
         // dolů nevede → přibrzdit, ať setrvačnost nepřenese bota přes okraj.
         if (onGround && !inWater && !jump && delta.y() > -0.5 && cliffAhead(position, direction)) {
@@ -272,7 +397,27 @@ public final class Navigator {
         }
 
         boolean sprint = !inWater && shouldSprint(delta);
+        // Sprint-skoky: dlouhá volná rovinka před botem → bunny hop (rychlejší
+        // přesun, lidský návyk). Jen u povah, které si to na cestu „zapnuly".
+        if (sprint && sprintHopper && onGround && smooth - waypointIndex >= 3
+                && Math.abs(delta.y()) < 0.5) {
+            jump = true;
+        }
         return MoveInput.of(direction, sprint, jump);
+    }
+
+    /** Vyhlazený cílový waypoint (cache – přepočet při postupu nebo po pár ticích). */
+    private int smoothedTarget(Vec3 position) {
+        if (world == null || !hasPath()) {
+            return waypointIndex;
+        }
+        if (smoothBase == waypointIndex && smoothCooldown-- > 0) {
+            return Math.min(smoothIndex, path.waypoints().size() - 1);
+        }
+        smoothBase = waypointIndex;
+        smoothCooldown = 4;
+        smoothIndex = PathSmoother.smoothTarget(world, position, path.waypoints(), waypointIndex);
+        return smoothIndex;
     }
 
     /** Odrazová hrana: kousek před botem už chybí pevná podlaha pod nohama. */
@@ -333,11 +478,12 @@ public final class Navigator {
     }
 
     private void requestPath(Vec3 from) {
-        if (world == null || destination == null) {
+        BlockPos target = currentObjective();
+        if (world == null || target == null) {
             return;
         }
         java.util.List<BlockPos> dangers = dangerSupplier != null
                 ? dangerSupplier.get() : java.util.List.of();
-        pendingPath = service.findPath(world, from.toBlockPos(), destination, 0, dangers);
+        pendingPath = service.findPath(world, from.toBlockPos(), target, 0, dangers);
     }
 }

@@ -76,7 +76,9 @@ public final class ReflectionBlockStateMapper implements BlockStateMapper {
                 BlockData data = (BlockData) fromData.invoke(null, state);
                 blockData[id] = data;
                 materials[id] = data.getMaterial();
-                traits[id] = BlockTraits.of(data.getMaterial());
+                // Per-state vlastnosti: poloviny desek, otevřenost dveří,
+                // waterlogging, přesné kolizní boxy.
+                traits[id] = BlockTraits.of(data);
             }
             LOG.info("Block-state tabulka sestavena z registrů serveru ({} stavů)", count);
             return Optional.of(new ReflectionBlockStateMapper(traits, blockData, materials));

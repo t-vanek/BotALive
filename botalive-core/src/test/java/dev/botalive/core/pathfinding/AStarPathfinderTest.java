@@ -381,4 +381,124 @@ class AStarPathfinderTest {
                         .noneMatch(p -> world.traitsAt(p).powderSnow()),
                 "žádný waypoint nesmí vést prašanem: " + path.waypoints());
     }
+
+    // ------------------------------------------------------------ terén 2.0
+
+    @Test
+    void prejdeDeskuVJejiBunce() {
+        FakeWorldView world = new FakeWorldView(FLOOR);
+        // Pruh spodních desek napříč cestou – bot jde PŘES ně (nohy v buňce
+        // desky, ne o patro výš) a nepotřebuje skákat.
+        for (int z = -8; z <= 8; z++) {
+            world.set(3, FEET, z, FakeWorldView.SLAB_BOTTOM);
+        }
+        Path path = new AStarPathfinder(world)
+                .findPath(new BlockPos(0, FEET, 0), new BlockPos(6, FEET, 0), 0);
+
+        assertTrue(path.complete(), "přes desky se má dát přejít: " + path.waypoints());
+        assertTrue(path.waypoints().stream()
+                        .anyMatch(p -> p.x() == 3 && p.y() == FEET),
+                "waypoint má být v buňce desky: " + path.waypoints());
+        assertTrue(path.waypoints().stream()
+                        .noneMatch(p -> p.x() == 3 && p.y() == FEET + 1),
+                "bot nemá skákat NAD desku: " + path.waypoints());
+    }
+
+    @Test
+    void vystoupaPoSchodechNaTerasu() {
+        FakeWorldView world = new FakeWorldView(FLOOR);
+        // Terasa o blok výš od x=4; nástup přes schody na x=3.
+        for (int x = 4; x <= 8; x++) {
+            for (int z = -3; z <= 3; z++) {
+                world.set(x, FEET, z, FakeWorldView.SOLID);
+            }
+        }
+        for (int z = -3; z <= 3; z++) {
+            world.set(3, FEET, z, FakeWorldView.STAIR_EAST);
+        }
+        Path path = new AStarPathfinder(world)
+                .findPath(new BlockPos(0, FEET, 0), new BlockPos(6, FEET + 1, 0), 0);
+
+        assertTrue(path.complete(), "po schodech se má dát vyjít: " + path.waypoints());
+        assertTrue(path.waypoints().stream()
+                        .anyMatch(p -> p.x() == 3 && p.y() == FEET + 1),
+                "cesta má vést přes schodovou buňku: " + path.waypoints());
+    }
+
+    @Test
+    void plotJeNeprekonatelny() {
+        FakeWorldView world = corridorWithWall();
+        // Příčnou zeď nahradit plotem: přes 1,5 bloku bot nepřeskočí.
+        world.set(3, FEET, 0, FakeWorldView.FENCE);
+        world.set(3, FEET + 1, 0, FakeWorldView.AIRLIKE);
+        world.set(3, FEET + 2, 0, FakeWorldView.AIRLIKE);
+        Path path = new AStarPathfinder(world)
+                .findPath(new BlockPos(0, FEET, 0), new BlockPos(6, FEET, 0), 2000);
+
+        assertFalse(path.complete(), "plot nesmí jít překonat: " + path.waypoints());
+        assertTrue(path.waypoints().stream()
+                        .noneMatch(p -> p.x() == 3 && p.z() == 0 && p.y() >= FEET),
+                "bot nesmí plánovat výstup na plot: " + path.waypoints());
+    }
+
+    @Test
+    void pavucineSeVyhne() {
+        FakeWorldView world = new FakeWorldView(FLOOR);
+        // Pavučiny v přímé lajně – bot je obejde (uvíznout nechce).
+        for (int z = -1; z <= 1; z++) {
+            world.set(3, FEET, z, FakeWorldView.WEB);
+        }
+        Path path = new AStarPathfinder(world)
+                .findPath(new BlockPos(0, FEET, 0), new BlockPos(6, FEET, 0), 0);
+
+        assertTrue(path.complete(), "pavučiny mají jít obejít: " + path.waypoints());
+        assertTrue(path.waypoints().stream().noneMatch(p -> world.traitsAt(p).web()),
+                "žádný waypoint nesmí vést pavučinou: " + path.waypoints());
+    }
+
+    @Test
+    void zavrenymiDvermiProjde() {
+        FakeWorldView world = corridorWithWall();
+        // V příčné zdi jsou zavřené dveře (2 buňky na výšku) – jediný průchod.
+        world.set(3, FEET, 0, FakeWorldView.DOOR_CLOSED);
+        world.set(3, FEET + 1, 0, FakeWorldView.DOOR_CLOSED);
+        Path path = new AStarPathfinder(world)
+                .findPath(new BlockPos(0, FEET, 0), new BlockPos(6, FEET, 0), 0);
+
+        assertTrue(path.complete(), "zavřenými dveřmi se má projít: " + path.waypoints());
+        assertTrue(path.waypoints().stream()
+                        .anyMatch(p -> p.x() == 3 && p.y() == FEET),
+                "cesta má vést buňkou dveří: " + path.waypoints());
+    }
+
+    @Test
+    void pomalemuPovrchuSeVyhne() {
+        FakeWorldView world = new FakeWorldView(FLOOR);
+        // Soul sand v podlaze přímo v lajně – úkrok o buňku vedle je levnější
+        // než pomalé brodění (u širokého pole se naopak vyplatí projít).
+        world.set(3, FLOOR, 0, FakeWorldView.SOUL_SAND);
+        Path path = new AStarPathfinder(world)
+                .findPath(new BlockPos(0, FEET, 0), new BlockPos(6, FEET, 0), 0);
+
+        assertTrue(path.complete());
+        assertTrue(path.waypoints().stream()
+                        .noneMatch(p -> p.x() == 3 && p.z() == 0),
+                "bot má soul sand obejít úkrokem: " + path.waypoints());
+    }
+
+    @Test
+    void vysokySnihPrekonaSkokem() {
+        FakeWorldView world = corridorWithWall();
+        // Místo zdi šest vrstev sněhu (0.625) – přes step-up to nejde, skokem ano.
+        world.set(3, FEET, 0, FakeWorldView.SNOW_SIX);
+        world.set(3, FEET + 1, 0, FakeWorldView.AIRLIKE);
+        world.set(3, FEET + 2, 0, FakeWorldView.AIRLIKE);
+        Path path = new AStarPathfinder(world)
+                .findPath(new BlockPos(0, FEET, 0), new BlockPos(6, FEET, 0), 0);
+
+        assertTrue(path.complete(), "vysoký sníh má jít přeskočit: " + path.waypoints());
+        assertTrue(path.waypoints().stream()
+                        .anyMatch(p -> p.x() == 3 && p.y() == FEET),
+                "cesta má vést buňkou sněhu: " + path.waypoints());
+    }
 }

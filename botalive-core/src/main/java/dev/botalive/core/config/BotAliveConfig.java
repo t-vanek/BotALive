@@ -113,6 +113,9 @@ public record BotAliveConfig(
      *                              staveniště domů); false = jen povrchová těžba
      * @param ladders               smí boti stavět žebříky na přelezení svislých stěn
      *                              vyšších než skok (vyžaduje {@code terraforming})
+     * @param pillaring             smí se boti pilířovat vzhůru (skok + blok pod sebe),
+     *                              když cíl leží výš a není stěna na žebřík
+     *                              (vyžaduje {@code terraforming})
      * @param boats                 smí boti použít loď k překonání široké vody: když
      *                              navigace míří přes souvislou vodní plochu a bot má
      *                              loď (v inventáři nebo poblíž), nasedne a přepluje ji
@@ -124,7 +127,8 @@ public record BotAliveConfig(
      */
     public record Ai(int decisionIntervalTicks, double goalHysteresis,
                      int viewDistanceBlocks, String difficulty, boolean terraforming,
-                     boolean ladders, boolean boats, boolean dailyRhythm, boolean desperation) {
+                     boolean ladders, boolean pillaring, boolean boats, boolean dailyRhythm,
+                     boolean desperation) {
     }
 
     /**

@@ -86,8 +86,22 @@ public final class SnapshotWorldView implements WorldView {
         if (pos.y() >= world.getMaxHeight()) {
             return BlockTraits.AIR;
         }
-        Material material = materialAt(pos);
-        return material == null ? BlockTraits.UNKNOWN : BlockTraits.of(material);
+        ChunkSnapshot snapshot = snapshots.getIfPresent(chunkKey(pos.chunkX(), pos.chunkZ()));
+        if (snapshot == null) {
+            requestChunk(pos.chunkX(), pos.chunkZ());
+            return BlockTraits.UNKNOWN;
+        }
+        Material material = snapshot.getBlockType(pos.x() & 15, pos.y(), pos.z() & 15);
+        if (material == null) {
+            return BlockTraits.UNKNOWN;
+        }
+        // Stavově citlivé bloky (desky, schody, dveře, sníh…) čteme z plných
+        // block dat – per-state cache v BlockTraits drží náklady na jednom
+        // přečtení pro každý unikátní stav.
+        if (BlockTraits.stateSensitive(material)) {
+            return BlockTraits.of(snapshot.getBlockData(pos.x() & 15, pos.y(), pos.z() & 15));
+        }
+        return BlockTraits.of(material);
     }
 
     @Override
