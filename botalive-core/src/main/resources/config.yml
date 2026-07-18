@@ -115,6 +115,11 @@ economy:
   # ekonomice jako hráčům (/pay botovi funguje, /baltop je vidí).
   # false = vždy interní peněženka v databázi BotAlive.
   vault: true
+  # Trh mezi boty: přebytky (jídlo, uhlí, železo) se vyvolávají v chatu,
+  # zájemce si nabídku zamluví, dojde si pro zboží a při předávce se
+  # převedou peníze (kamarádi mají slevu). Peníze tak obíhají uvnitř
+  # společenství a profese dostávají ekonomický smysl.
+  bot-trade: true
 
 worlds:
   # Povolené světy pro boty (prázdné = všechny kromě blacklistu).
@@ -149,6 +154,40 @@ teleport:
   # botalive.teleport.summon (bot ke mně); botalive.admin vždy a bez cooldownu.
   enabled: true
   player-cooldown-seconds: 30
+
+settlement:
+  # Vesnice botů: domy se nestaví náhodně po krajině, ale na parcelách kolem
+  # návsi. Kdo je aspoň trochu společenský, přidá se k vesnici kamarádů
+  # (nebo první založí); parcely rostou v prstencích od návsi a domy koukají
+  # dveřmi ke středu. Samotáři (nízká SOCIABILITY) dál staví po svém, jen ne
+  # cizí vesnici pod okny. Soužití má i stinné stránky: čerstvá zášť vůči
+  # sousedovi (krádež, potyčka) umí bota vyhnat – odejde a založí si vlastní
+  # vesnici kus dál; nejlepší kamarádi se za ním časem stěhují (aliance).
+  # false = každý staví sám jako dřív.
+  enabled: true
+  # Rozestup parcel v mřížce vesnice (bloky; dům má 4×4).
+  plot-spacing: 12
+  # Kapacita vesnice – plná vesnice nové členy nebere.
+  max-members: 8
+  # Jak daleko bot hledá vesnici, ke které by se přidal (bloky).
+  join-radius: 200
+  # Minimální vzdálenost mezi vesnicemi – odštěpenci zakládají až za ní.
+  min-village-distance: 150
+  # Pod tímto rysem SOCIABILITY je bot samotář a vesnice neřeší.
+  loner-sociability: 0.30
+  # Důležitost nepřátelské vzpomínky na souseda, která se počítá jako vážná
+  # zášť (krádež z truhly ~0.8, rvačka ~0.4–1.0 podle poškození).
+  grudge-threshold: 0.60
+  # Nejkratší rozestup mezi stěhováními jednoho bota (minuty); roztržka smí dřív.
+  change-cooldown-minutes: 30
+  # Po dostavění domu osvětlit pochodněmi linii ke návsi (méně mobů v noci).
+  lighting: true
+  # Udusat lopatou cestičku od dveří k návsi (vesnice vypadá jako vesnice).
+  paths: true
+  # Po kolika dnech bez připojení se člen vesnice při startu serveru vyřadí
+  # a uvolní parcelu (bot odstraněný bez purge; jeho dům ve vesnici zůstává).
+  # 0 = duchové se nevymetají nikdy.
+  ghost-days: 7
 
 performance:
   # 0 = automaticky podle počtu jader.

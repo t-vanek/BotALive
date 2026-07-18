@@ -19,6 +19,7 @@ import java.util.List;
  * @param spawn       kde se boti spawnují
  * @param teleport    teleportace hráčů k botům a botů k hráčům
  * @param pvp         PvP botů a aliance
+ * @param settlement  vesnice botů (společné stavění, parcely, roztržky)
  * @param performance výkonnostní laditelné parametry
  * @param persistence databáze
  */
@@ -33,6 +34,7 @@ public record BotAliveConfig(
         Spawn spawn,
         Teleport teleport,
         Pvp pvp,
+        Settlement settlement,
         Performance performance,
         Persistence persistence
 ) {
@@ -165,8 +167,12 @@ public record BotAliveConfig(
      * @param startingBalance počáteční zůstatek nového bota
      * @param vault           použít serverovou ekonomiku přes Vault, je-li dostupná
      *                        (jinak interní peněženka v databázi)
+     * @param botTrade        trh mezi boty: přebytky se nabízejí okolí a boti
+     *                        si je navzájem kupují (peníze obíhají uvnitř
+     *                        společenství, profese dostávají ekonomický smysl)
      */
-    public record Economy(boolean enabled, double startingBalance, boolean vault) {
+    public record Economy(boolean enabled, double startingBalance, boolean vault,
+                          boolean botTrade) {
     }
 
     /**
@@ -225,6 +231,38 @@ public record BotAliveConfig(
      * @param playerCooldownSeconds  cooldown mezi teleporty jednoho hráče (0 = bez limitu)
      */
     public record Teleport(boolean enabled, int playerCooldownSeconds) {
+    }
+
+    /**
+     * Vesnice botů – domy se nestaví náhodně po lese, ale na parcelách
+     * kolem návsi; členství vyrůstá z přátelství a roztržky z něj ubírají.
+     *
+     * @param enabled               hlavní vypínač (vypnuto = každý staví sám
+     *                              jako dřív)
+     * @param plotSpacing           rozestup parcel v mřížce vesnice (bloky)
+     * @param maxMembers            kapacita vesnice (počet členů)
+     * @param joinRadius            jak daleko bot hledá vesnici, ke které se
+     *                              přidá (bloky)
+     * @param minVillageDistance    minimální vzdálenost mezi vesnicemi –
+     *                              odštěpenci zakládají až za ní (bloky)
+     * @param lonerSociability      pod tímto rysem SOCIABILITY bot vesnice
+     *                              ignoruje a staví sám (samotář)
+     * @param grudgeThreshold       důležitost ENEMY vzpomínky na souseda,
+     *                              která se počítá jako vážná zášť
+     * @param changeCooldownMinutes minimální rozestup stěhování jednoho bota
+     *                              (roztržka smí dřív)
+     * @param lighting              po dostavění domu osvětlit pochodněmi linii
+     *                              ke návsi (méně mobů ve vesnici v noci)
+     * @param paths                 udusat lopatou cestičku od dveří k návsi
+     * @param ghostDays             po kolika dnech bez připojení se člen
+     *                              vesnice při startu serveru vyřadí
+     *                              (0 = nikdy; dům mu ve vesnici zůstává)
+     */
+    public record Settlement(boolean enabled, int plotSpacing, int maxMembers,
+                             int joinRadius, int minVillageDistance,
+                             double lonerSociability, double grudgeThreshold,
+                             int changeCooldownMinutes, boolean lighting,
+                             boolean paths, int ghostDays) {
     }
 
     /**

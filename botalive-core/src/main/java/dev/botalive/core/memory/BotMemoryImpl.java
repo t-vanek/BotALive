@@ -108,6 +108,21 @@ public final class BotMemoryImpl implements BotMemory {
     }
 
     @Override
+    public synchronized void forgetIf(MemoryKind kind,
+                                      java.util.function.Predicate<MemoryRecord> filter) {
+        var iterator = records.iterator();
+        while (iterator.hasNext()) {
+            MemoryRecord record = iterator.next();
+            if (record.kind() == kind && filter.test(record)) {
+                iterator.remove();
+                if (record.id() > 0) {
+                    repository.deleteMemory(record.id());
+                }
+            }
+        }
+    }
+
+    @Override
     public synchronized int size() {
         return records.size();
     }

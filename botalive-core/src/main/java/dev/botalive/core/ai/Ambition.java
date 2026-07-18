@@ -49,16 +49,27 @@ public enum Ambition {
      * @return ambice
      */
     public static Ambition pick(Personality personality) {
-        double greed = personality.trait(Trait.GREED);
-        double caution = personality.trait(Trait.CAUTION);
-        double courage = personality.trait(Trait.COURAGE);
-        if (greed >= caution && greed >= courage) {
-            return RICH;
+        return ranked(personality).getFirst();
+    }
+
+    /**
+     * Ambice seřazené podle povahy (od nejlákavější). Používá se při volbě
+     * další ambice po splnění té současné – druhý sen odpovídá druhému
+     * nejsilnějšímu rysu a povaha se vývojem mění.
+     *
+     * @param personality osobnost bota
+     * @return všechny ambice, nejlákavější první
+     */
+    public static java.util.List<Ambition> ranked(Personality personality) {
+        record Scored(Ambition ambition, double score) {
         }
-        if (caution >= courage) {
-            return COZY_HOME;
-        }
-        return FULL_IRON;
+        return java.util.stream.Stream.of(
+                        new Scored(RICH, personality.trait(Trait.GREED)),
+                        new Scored(COZY_HOME, personality.trait(Trait.CAUTION)),
+                        new Scored(FULL_IRON, personality.trait(Trait.COURAGE)))
+                .sorted(java.util.Comparator.comparingDouble(Scored::score).reversed())
+                .map(Scored::ambition)
+                .toList();
     }
 
     /**

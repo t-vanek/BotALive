@@ -366,5 +366,56 @@ lokalizované rozpoznávací vzory, fallback po kategoriích.
 Hotovo ve fázi 12: plný survival na cizích serverech (viz §13) – paketové
 container kliky s prázdnou hashed predikcí (crafting, truhly, pec, obchod,
 enchant přes rozhraní stanic), item mapper z registrů hostitele, klientský
-snapshot hráče a klientský odhad dob těžby. Roadmapa je tím vyčerpaná;
-dalším krokem je živé testovací prostředí (docker compose s Paper serverem).
+snapshot hráče a klientský odhad dob těžby.
+
+Hotovo ve fázi 13: vesnice botů (`core/settlement`). Domy se nestaví
+náhodně: `SettlementService` (sdílený koordinátor po vzoru
+`PvpCoordinator`) drží vesnice, členství a parcely; `PlotLayout` počítá
+parcely v prstencích kolem návsi (čistá geometrie) a `HouseBlueprint` se
+naučil natočení (`HouseFacing`) – domy koukají dveřmi ke středu.
+Rozhodování (`planHome`/`checkCohesion`) běží nad snímkem `SocialView`,
+který si bot sestaví z vlastní FRIEND/ENEMY paměti a povahy – služba tak
+nedrží zámky přes cizí stav a logika je jednotkově testovatelná
+(repository je nullable, čas se injektuje). Členství vyrůstá z přátelství
+(hodně společenští vstupují i k cizím, samotáři pod `loner-sociability`
+nikdy), roztržky z ENEMY paměti (čerstvá zášť > vazby) vyhánějí boty
+zakládat rivalské vesnice za `min-village-distance` a kamarádi je
+následují – aliance zůstávají emergentní, žádné pevné týmy. Persistence:
+migrace v3 (`ba_settlements`, `ba_settlement_members`), id jsou náhodná
+(čítač by na sdílené PostgreSQL kolidoval mezi instancemi), zápisy
+write-behind. Vesnice zanikají s posledním členem; fyzické domy zůstávají
+ve světě jako opuštěné.
+
+Dvě klíčová rozhodnutí proti tichým selháním: (1) **vesnice vzniká až
+s hotovým domem zakladatele** (`finishHouse`) – kdyby se zakládala při
+výběru staveniště, nedostavěný dům by nechal ve světě fantomovou vesnici,
+která blokuje zakládání v okruhu `min-village-distance`; (2) **terén
+vzdálené parcely se posuzuje až na místě** – nenačtené chunky hlásí
+`BlockTraits.UNKNOWN` a kdyby se braly jako „vzduch", bot by si z dálky
+otombstonoval všech 224 parcel vesnice. Bot proto parcelu nejdřív zabere,
+dojde na ni (RELOCATE/GOTO_SITE) a rozhoduje s teplou chunk cache; vlastní
+rozestavěné zdi se při návratu nepočítají jako překážka (dostavuje se,
+nebourá). Když vesnice opakovaně nemá použitelnou parcelu, člen si po
+třech marných seancích postaví dům po svém – bydlení má přednost před
+urbanismem. Při stěhování se zapomíná jen starý dům/postel/přístřešek
+(`BotMemory.forgetIf`), kotva spawnu zůstává.
+
+Hotovo ve fázi 14: uzavření životního cyklu. (1) **Corpse run**
+(`RecoverItemsGoal`) – dosud nevyužitá LOST_ITEMS paměť dostala konzumenta:
+priorita klesá s despawn oknem, beznadějné smrti (láva/void, z death
+message) se neběhají a záznam se po pokusu vždy uklidí. (2) **Údržba domu**
+(`MaintainHomeGoal`) – diff proti blueprintu; orientaci zná člen z parcely,
+novější sólo domy z HOME dat (`ox/oy/oz/facing`), staré se rekonstruují
+(stand point, sever). (3) **Osvětlení a cestičky** – fáze DECORATE
+v `BuildHouseGoal`: linie dveře→náves, pochodně vedle cesty, cestička
+lopatou (vanilla use-item na grass). (4) **Obnova ambic** – po splnění se
+z `Ambition.ranked(personality)` vybere další nesplněná; povaha se vývojem
+mění, takže druhý sen bývá jiný. (5) **Ghost reaping** – při `load()` se
+vyřadí členové vesnic s `last_seen_at` starším než `settlement.ghost-days`.
+(6) **Trh mezi boty** (`MarketBoard` + `SellGoal`/`BuyGoal`) – chat je jen
+prezentace, pravda o nabídkách žije ve sdílené službě (žádné parsování
+vlastních zpráv); zamluvení je first-come, peníze se převádějí až při
+předávce (`BotWallet` je thread-safe), takže rozpadlý obchod nikoho
+neokrade; ceník `MarketPrices` je čistý a testovaný, chamtivost zdražuje,
+kamarádství (sdílený `PvpCoordinator.ALLY_THRESHOLD`) zlevňuje a vydařený
+obchod zapisuje oboustranné FRIEND vzpomínky – trh tká sociální síť.

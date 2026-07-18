@@ -41,7 +41,9 @@ public final class PvpCoordinator {
     private static final long ASSIST_TTL_MS = 45_000;
 
     /** Práh důležitosti FRIEND vzpomínky pro spojenectví. */
-    private static final double ALLY_THRESHOLD = 0.45;
+    /** Práh FRIEND důležitosti, od kterého se vztah počítá jako aliance
+     *  (sdílí PvP asistence i zakládání vesnic – jedna definice kamarádství). */
+    public static final double ALLY_THRESHOLD = 0.45;
 
     /**
      * Aktivní hrozba – bot byl napaden.

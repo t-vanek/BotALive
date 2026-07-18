@@ -81,7 +81,7 @@ public final class BotRepository {
         return db.async(connection -> {
             String botId = id.toString();
             for (String table : List.of("ba_memories", "ba_personalities", "ba_wallets",
-                    "ba_transactions", "ba_stats", "ba_bots")) {
+                    "ba_transactions", "ba_stats", "ba_settlement_members", "ba_bots")) {
                 String column = table.equals("ba_bots") ? "id" : "bot_id";
                 try (PreparedStatement ps = connection.prepareStatement(
                         "DELETE FROM " + table + " WHERE " + column + " = ?")) {
@@ -92,6 +92,27 @@ public final class BotRepository {
                 }
             }
             return null;
+        });
+    }
+
+    /**
+     * Poslední připojení všech botů ({@code ba_bots.last_seen_at}).
+     *
+     * @return mapa UUID bota → epoch ms posledního připojení
+     */
+    public CompletableFuture<Map<UUID, Long>> loadLastSeen() {
+        return db.async(connection -> {
+            Map<UUID, Long> result = new java.util.HashMap<>();
+            try (PreparedStatement ps = connection.prepareStatement(
+                    "SELECT id, last_seen_at FROM ba_bots");
+                 ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    result.put(UUID.fromString(rs.getString(1)), rs.getLong(2));
+                }
+                return result;
+            } catch (SQLException e) {
+                throw new IllegalStateException(e);
+            }
         });
     }
 
@@ -292,6 +313,22 @@ public final class BotRepository {
     }
 
     /**
+     * Smaže jednu vzpomínku podle primárního klíče.
+     */
+    public CompletableFuture<Void> deleteMemory(long memoryId) {
+        return db.async(connection -> {
+            try (PreparedStatement ps = connection.prepareStatement(
+                    "DELETE FROM ba_memories WHERE id = ?")) {
+                ps.setLong(1, memoryId);
+                ps.executeUpdate();
+                return null;
+            } catch (SQLException e) {
+                throw new IllegalStateException(e);
+            }
+        });
+    }
+
+    /**
      * Smaže vzpomínky bota dané kategorie.
      */
     public CompletableFuture<Void> deleteMemories(UUID botId, MemoryKind kind) {
@@ -359,6 +396,178 @@ public final class BotRepository {
                 ps.setDouble(2, amount);
                 ps.setString(3, reason);
                 ps.setLong(4, System.currentTimeMillis());
+                ps.executeUpdate();
+                return null;
+            } catch (SQLException e) {
+                throw new IllegalStateException(e);
+            }
+        });
+    }
+
+    // --------------------------------------------------------------- vesnice
+
+    /**
+     * Řádek vesnice ({@code ba_settlements}).
+     *
+     * @param id        id vesnice (přiděluje služba, ne DB)
+     * @param name      jméno
+     * @param world     svět
+     * @param x         střed x
+     * @param y         střed y
+     * @param z         střed z
+     * @param founder   UUID zakladatele (text, může být {@code null})
+     * @param createdAt čas založení (epoch ms)
+     */
+    public record SettlementRow(long id, String name, String world, int x, int y, int z,
+                                String founder, long createdAt) {
+    }
+
+    /**
+     * Řádek členství ({@code ba_settlement_members}).
+     *
+     * @param botId        UUID bota
+     * @param settlementId id vesnice
+     * @param joinedAt     čas vstupu (epoch ms)
+     * @param plotIndex    index parcely ({@code null} = bez parcely / vlastní)
+     * @param plotX        origin parcely x ({@code null} = bez parcely)
+     * @param plotY        origin parcely y
+     * @param plotZ        origin parcely z
+     * @param plotFacing   orientace dveří (název {@code HouseFacing})
+     */
+    public record SettlementMemberRow(UUID botId, long settlementId, long joinedAt,
+                                      Integer plotIndex, Integer plotX, Integer plotY,
+                                      Integer plotZ, String plotFacing) {
+    }
+
+    /**
+     * Načte všechny vesnice.
+     */
+    public CompletableFuture<List<SettlementRow>> loadSettlements() {
+        return db.async(connection -> {
+            List<SettlementRow> result = new ArrayList<>();
+            try (PreparedStatement ps = connection.prepareStatement(
+                    "SELECT id, name, world, x, y, z, founder, created_at FROM ba_settlements");
+                 ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    result.add(new SettlementRow(rs.getLong(1), rs.getString(2),
+                            rs.getString(3), rs.getInt(4), rs.getInt(5), rs.getInt(6),
+                            rs.getString(7), rs.getLong(8)));
+                }
+                return result;
+            } catch (SQLException e) {
+                throw new IllegalStateException(e);
+            }
+        });
+    }
+
+    /**
+     * Načte všechna členství ve vesnicích.
+     */
+    public CompletableFuture<List<SettlementMemberRow>> loadSettlementMembers() {
+        return db.async(connection -> {
+            List<SettlementMemberRow> result = new ArrayList<>();
+            try (PreparedStatement ps = connection.prepareStatement(
+                    "SELECT bot_id, settlement_id, joined_at, plot_index, plot_x, plot_y, "
+                            + "plot_z, plot_facing FROM ba_settlement_members");
+                 ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    Integer plotIndex = (Integer) rs.getObject(4);
+                    Integer plotX = (Integer) rs.getObject(5);
+                    Integer plotY = (Integer) rs.getObject(6);
+                    Integer plotZ = (Integer) rs.getObject(7);
+                    result.add(new SettlementMemberRow(UUID.fromString(rs.getString(1)),
+                            rs.getLong(2), rs.getLong(3), plotIndex, plotX, plotY, plotZ,
+                            rs.getString(8)));
+                }
+                return result;
+            } catch (SQLException e) {
+                throw new IllegalStateException(e);
+            }
+        });
+    }
+
+    /**
+     * Vloží vesnici (id přiděluje volající).
+     */
+    public CompletableFuture<Void> insertSettlement(long id, String name, String world,
+                                                    int x, int y, int z, String founder,
+                                                    long createdAt) {
+        return db.async(connection -> {
+            try (PreparedStatement ps = connection.prepareStatement(
+                    "INSERT INTO ba_settlements(id, name, world, x, y, z, founder, created_at) "
+                            + "VALUES (?,?,?,?,?,?,?,?)")) {
+                ps.setLong(1, id);
+                ps.setString(2, name);
+                ps.setString(3, world);
+                ps.setInt(4, x);
+                ps.setInt(5, y);
+                ps.setInt(6, z);
+                ps.setString(7, founder);
+                ps.setLong(8, createdAt);
+                ps.executeUpdate();
+                return null;
+            } catch (SQLException e) {
+                throw new IllegalStateException(e);
+            }
+        });
+    }
+
+    /**
+     * Smaže vesnici (členství maže služba po jednom při odchodech).
+     */
+    public CompletableFuture<Void> deleteSettlement(long id) {
+        return db.async(connection -> {
+            try (PreparedStatement ps = connection.prepareStatement(
+                    "DELETE FROM ba_settlements WHERE id = ?")) {
+                ps.setLong(1, id);
+                ps.executeUpdate();
+                return null;
+            } catch (SQLException e) {
+                throw new IllegalStateException(e);
+            }
+        });
+    }
+
+    /**
+     * Uloží/aktualizuje členství bota ve vesnici.
+     */
+    public CompletableFuture<Void> upsertSettlementMember(UUID botId, long settlementId,
+                                                          long joinedAt, Integer plotIndex,
+                                                          Integer plotX, Integer plotY,
+                                                          Integer plotZ, String plotFacing) {
+        String sql = "INSERT INTO ba_settlement_members(bot_id, settlement_id, joined_at, "
+                + "plot_index, plot_x, plot_y, plot_z, plot_facing) VALUES (?,?,?,?,?,?,?,?)"
+                + db.dialect().upsertSuffix("bot_id",
+                "settlement_id=excluded.settlement_id, joined_at=excluded.joined_at, "
+                        + "plot_index=excluded.plot_index, plot_x=excluded.plot_x, "
+                        + "plot_y=excluded.plot_y, plot_z=excluded.plot_z, "
+                        + "plot_facing=excluded.plot_facing");
+        return db.async(connection -> {
+            try (PreparedStatement ps = connection.prepareStatement(sql)) {
+                ps.setString(1, botId.toString());
+                ps.setLong(2, settlementId);
+                ps.setLong(3, joinedAt);
+                ps.setObject(4, plotIndex);
+                ps.setObject(5, plotX);
+                ps.setObject(6, plotY);
+                ps.setObject(7, plotZ);
+                ps.setString(8, plotFacing);
+                ps.executeUpdate();
+                return null;
+            } catch (SQLException e) {
+                throw new IllegalStateException(e);
+            }
+        });
+    }
+
+    /**
+     * Smaže členství bota ve vesnici.
+     */
+    public CompletableFuture<Void> deleteSettlementMember(UUID botId) {
+        return db.async(connection -> {
+            try (PreparedStatement ps = connection.prepareStatement(
+                    "DELETE FROM ba_settlement_members WHERE bot_id = ?")) {
+                ps.setString(1, botId.toString());
                 ps.executeUpdate();
                 return null;
             } catch (SQLException e) {

@@ -61,6 +61,15 @@ public interface BotMemory {
     void forget(MemoryKind kind);
 
     /**
+     * Smaže vzpomínky dané kategorie, které vyhoví filtru – např. při
+     * stěhování zapomenout jen starý dům, ale ne kotvu spawnu.
+     *
+     * @param kind   kategorie
+     * @param filter smaže se to, pro co filtr vrátí {@code true}
+     */
+    void forgetIf(MemoryKind kind, java.util.function.Predicate<MemoryRecord> filter);
+
+    /**
      * @return celkový počet vzpomínek v paměti
      */
     int size();
