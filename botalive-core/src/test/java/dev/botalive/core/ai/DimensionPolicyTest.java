@@ -61,6 +61,21 @@ class DimensionPolicyTest {
     }
 
     @Test
+    void netherVypravaJenZOverworlduAEnchantMimoNether() {
+        // Výprava do Netheru se plánuje doma a v Netheru dobíhá; v Endu ji
+        // politika nuluje (návrat z Endu vlastní pravidla řeší end-return).
+        assertEquals(1.0, DimensionPolicy.weight("nether", WorldDimension.OVERWORLD));
+        assertEquals(1.0, DimensionPolicy.weight("nether", WorldDimension.NETHER));
+        assertEquals(0.0, DimensionPolicy.weight("nether", WorldDimension.END));
+        // Enchant nemá vlastní dimenzní gate – bez téhle nuly by ENCHANTER
+        // uprostřed nether výpravy flapoval k marnému hledání stolu.
+        assertEquals(0.0, DimensionPolicy.weight("enchant", WorldDimension.NETHER));
+        assertEquals(0.0, DimensionPolicy.weight("enchant", WorldDimension.END));
+        assertEquals(1.0, DimensionPolicy.weight("enchant", WorldDimension.OVERWORLD));
+        assertEquals(0.0, DimensionPolicy.weight("smith", WorldDimension.END));
+    }
+
+    @Test
     void pruzkumVEnduJenTlumeny() {
         double weight = DimensionPolicy.weight("explore", WorldDimension.END);
         assertTrue(weight > 0 && weight < 1, "průzkum v Endu má být tlumený, ne vypnutý");

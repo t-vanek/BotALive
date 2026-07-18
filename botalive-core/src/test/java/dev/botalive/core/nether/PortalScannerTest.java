@@ -37,7 +37,7 @@ class PortalScannerTest {
     void najdeAktivniPortal() {
         FakeWorldView world = worldWithFrame(true, true);
         Optional<BlockPos> entry = PortalScanner.findActivePortal(
-                world, new BlockPos(0, FLOOR + 1, 0), 16, 8);
+                world, new BlockPos(0, FLOOR + 1, 0), 16, 8, Material.NETHER_PORTAL);
         assertTrue(entry.isPresent());
         // Vstup je spodní patro vnitřku (pod ním už portál není).
         assertEquals(BASE.y(), entry.get().y());
@@ -49,9 +49,27 @@ class PortalScannerTest {
     void bezPortaluNicNenajde() {
         FakeWorldView world = new FakeWorldView(FLOOR);
         assertTrue(PortalScanner.findActivePortal(
-                world, new BlockPos(0, FLOOR + 1, 0), 16, 8).isEmpty());
+                world, new BlockPos(0, FLOOR + 1, 0), 16, 8, Material.NETHER_PORTAL).isEmpty());
         assertTrue(PortalScanner.findFrame(
                 world, new BlockPos(0, FLOOR + 1, 0), 16, 8).isEmpty());
+    }
+
+    @Test
+    void endovyPortalNeniNetherovy() {
+        // Rám endového portálu (END_PORTAL bloky s trait PORTAL) nesmí scanner
+        // s materiálem NETHER_PORTAL najít – jinak by bot „návrat z Netheru"
+        // omylem skončil v Endu.
+        FakeWorldView world = new FakeWorldView(FLOOR);
+        for (int dx = -1; dx <= 1; dx++) {
+            for (int dz = -1; dz <= 1; dz++) {
+                world.set(4 + dx, FLOOR + 1, 4 + dz, Material.END_PORTAL,
+                        FakeWorldView.PORTAL);
+            }
+        }
+        assertTrue(PortalScanner.findActivePortal(
+                world, new BlockPos(0, FLOOR + 1, 0), 16, 8, Material.NETHER_PORTAL).isEmpty());
+        assertTrue(PortalScanner.findActivePortal(
+                world, new BlockPos(0, FLOOR + 1, 0), 16, 8, Material.END_PORTAL).isPresent());
     }
 
     @Test

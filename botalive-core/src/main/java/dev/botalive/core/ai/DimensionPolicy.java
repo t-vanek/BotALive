@@ -51,7 +51,12 @@ public final class DimensionPolicy {
             Map.entry("smith", 0.0)       // kovářský stůl do Endu nepatří
     );
 
-    /** Cíle vypnuté v Netheru (boti se tam zatím dostávají jen teleportem). */
+    /**
+     * Cíle vypnuté v Netheru. Většinu kryjí vlastní gaty cílů
+     * ({@code outsideOverworld}); tabulka je pojistka + kryje cíle bez
+     * vlastního gatu (enchant – ENCHANTER by uprostřed výpravy flapoval
+     * k marnému hledání stolu a resetoval si tím trip deadline).
+     */
     private static final Map<String, Double> NETHER = Map.ofEntries(
             Map.entry("sleep", 0.0),     // postel exploduje!
             Map.entry("fish", 0.0),      // voda se vypařuje
@@ -68,7 +73,8 @@ public final class DimensionPolicy {
             Map.entry("end-travel", 0.0),
             Map.entry("dragon-fight", 0.0),
             Map.entry("end-harvest", 0.0),
-            Map.entry("end-return", 0.0)
+            Map.entry("end-return", 0.0),
+            Map.entry("enchant", 0.0)
     );
 
     /** Cíle, které mají smysl jen v Endu. */

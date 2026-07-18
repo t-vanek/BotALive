@@ -118,6 +118,8 @@ public enum PhraseCategory {
     DRAGON_SLAIN,
     /** Návrat z Endu domů (hledání výstupního portálu). */
     END_RETURN,
+    /** Objev portálu do Endu při toulkách (velká událost, spouští výpravy). */
+    PORTAL_FOUND,
     /** Smajlíky přidávané podle stylu psaní. */
     EMOJIS;
 

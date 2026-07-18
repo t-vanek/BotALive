@@ -57,10 +57,22 @@ class EndReadinessTest {
                 Material.COBBLESTONE, Material.COBBLESTONE, Material.COBBLESTONE,
                 Material.COBBLESTONE, Material.COBBLESTONE, Material.BREAD};
         EndReadiness readiness = EndReadiness.assess(
-                snapshot(ironArmor(3), main, Material.IRON_SWORD, Material.BREAD));
+                snapshot(ironArmor(3), main, Material.IRON_SWORD, Material.IRON_PICKAXE,
+                        Material.BREAD));
         assertTrue(readiness.expeditionReady(),
-                "železný meč + 3 kusy brnění + jídlo + bloky = připraven");
+                "železný meč + krumpáč + 3 kusy brnění + jídlo + bloky = připraven");
         assertFalse(readiness.wellArmed(), "bez luku není dobře vyzbrojen");
+    }
+
+    @Test
+    void bezKrumpaceSeNevyrazi() {
+        Material[] main = {Material.COBBLESTONE, Material.COBBLESTONE, Material.COBBLESTONE,
+                Material.COBBLESTONE, Material.COBBLESTONE, Material.COBBLESTONE,
+                Material.COBBLESTONE, Material.COBBLESTONE, Material.BREAD};
+        EndReadiness readiness = EndReadiness.assess(
+                snapshot(ironArmor(3), main, Material.IRON_SWORD, Material.BREAD));
+        assertFalse(readiness.expeditionReady(),
+                "bez krumpáče by bot po vyčerpání bloků uvízl na ostrůvku");
     }
 
     @Test

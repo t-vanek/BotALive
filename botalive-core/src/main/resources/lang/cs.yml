@@ -401,6 +401,11 @@ phrases:
     - "drak dole! xp prší z nebe :D"
     - "je po něm. po DRAKOVI. nemůžu tomu uvěřit"
     - "vítězství! drak padl, jdu domů jako hrdina"
+  portal-found:
+    - "počkat... to je portál do Endu?!"
+    - "našel jsem portál do Endu! tohle si musím zapamatovat"
+    - "aktivní end portál, jen tak v divočině. paráda"
+    - "tak tudy se leze za drakem... zajímavý"
   end-return:
     - "z Endu se vracím domů, mise splněna"
     - "tak a dost dobrodružství, jedu domů"

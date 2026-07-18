@@ -68,6 +68,24 @@ class EndKnowledgeTest {
         assertFalse(EndKnowledge.dragonSlain(List.of()));
         assertTrue(EndKnowledge.dragonSlain(List.of(
                 record(MemoryKind.TROPHY, "the_end", 0, 64, 0, Map.of("type", "dragon"), 0))));
+        // Trofej je osobní úspěch – z doslechu se drakobijcem nikdo nestane.
+        assertFalse(EndKnowledge.dragonSlain(List.of(
+                record(MemoryKind.TROPHY, "the_end", 0, 64, 0,
+                        Map.of("type", "dragon", "via", "gossip"), 0))));
+    }
+
+    @Test
+    void anotaceDimenzeprebijHeuristikuJmena() {
+        // Custom jméno End světa heuristika nepozná – anotace dim=end ano.
+        var custom = record(MemoryKind.PORTAL, "world", 10, 30, 0,
+                Map.of("to", "skyblock_end_dim", "dim", "end"), 0);
+        assertTrue(EndKnowledge.isEndPortal(custom));
+        assertTrue(EndKnowledge.recentEndVisit(List.of(
+                record(MemoryKind.PORTAL, "world", 10, 30, 0,
+                        Map.of("to", "skyblock_end_dim", "dim", "end"), 1_000)), 2_000, 90_000));
+        // Bez anotace ani heuristiky portál není.
+        assertFalse(EndKnowledge.isEndPortal(record(MemoryKind.PORTAL, "world", 10, 30, 0,
+                Map.of("to", "skyblock_end_dim"), 0)));
     }
 
     @Test

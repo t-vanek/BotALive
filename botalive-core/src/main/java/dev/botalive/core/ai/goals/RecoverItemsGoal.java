@@ -55,17 +55,21 @@ public final class RecoverItemsGoal extends AbstractGoal {
         if (freshest == null) {
             return 0;
         }
-        // Jiný svět: po respawnu jinde nemá cesta smysl.
-        if (!ctx.worldView().worldName().equals(freshest.world())) {
-            return 0;
-        }
         long age = System.currentTimeMillis() - freshest.createdAt();
         if (age > DESPAWN_BUDGET_MS || hopeless(freshest)) {
             // Věci jsou pryč (čas/láva/void) – vzpomínku uklidit, ať se
             // sem mozek nevrací. Stejný vzor „úklid v utility" jako cooldowny.
+            // Úklid běží PŘED world-gatem: smrt v Endu/Netheru by jinak
+            // nechala záznam viset navěky (bot se do světa v despawn okně
+            // nevrátí a jiný svět dřív cíl vypínal bez úklidu).
             if (age > STALE_MS || hopeless(freshest)) {
                 bot.memory().forget(MemoryKind.LOST_ITEMS);
             }
+            return 0;
+        }
+        // Jiný svět: po respawnu jinde nemá cesta smysl (do cizí dimenze se
+        // v despawn okně stihnout nedá) – záznam doběhne do stale úklidu výš.
+        if (!ctx.worldView().worldName().equals(freshest.world())) {
             return 0;
         }
         // Vysoká priorita hned po smrti, klesá k nule s despawn oknem.

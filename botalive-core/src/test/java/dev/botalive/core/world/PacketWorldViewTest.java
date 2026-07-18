@@ -30,7 +30,7 @@ class PacketWorldViewTest {
     private static final int STONE_STATE = 1; // fallback mapper: nenulové = pevné
 
     private static final DimensionRegistry.DimensionInfo DIMENSION =
-            new DimensionRegistry.DimensionInfo(MIN_Y, HEIGHT);
+            new DimensionRegistry.DimensionInfo(MIN_Y, HEIGHT, "minecraft:overworld");
 
     /** Sestaví payload chunku: vzduch všude, pevná „podlaha" na y=64. */
     private static byte[] chunkDataWithFloor(int floorY) {

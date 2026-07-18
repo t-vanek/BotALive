@@ -151,7 +151,8 @@ public final class ConfigLoader {
                 c.getBoolean("end.dragon-fight", true),
                 c.getBoolean("end.hunt-endermen", true),
                 Math.max(1, c.getInt("end.expedition-cooldown-minutes", 90)),
-                Math.min(1, Math.max(0, c.getDouble("end.min-courage", 0.5)))
+                Math.min(1, Math.max(0, c.getDouble("end.min-courage", 0.5))),
+                Math.max(3, c.getInt("end.max-fight-minutes", 15))
         );
 
         var performance = new BotAliveConfig.Performance(

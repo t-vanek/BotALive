@@ -132,7 +132,10 @@ public final class SocialGraph {
         Map<String, String> stamp = new java.util.HashMap<>();
         if (record.data() != null) {
             record.data().forEach((key, value) -> {
-                if (key.equals("to") || key.equals("built")) {
+                // „type" nese objevené/admin portály do Endu, „dim" anotaci
+                // dimenze – bez nich by drb přestal být použitelným portálem.
+                if (key.equals("to") || key.equals("built")
+                        || key.equals("type") || key.equals("dim")) {
                     stamp.put(key, value);
                 }
             });

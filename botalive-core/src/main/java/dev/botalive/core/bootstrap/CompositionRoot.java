@@ -153,7 +153,12 @@ public final class CompositionRoot {
         if (config.network().packetWorldModel()) {
             if (dev.botalive.core.via.ViaCompat.hostMatchesBotProtocol()) {
                 stateMapper = dev.botalive.core.world.state.ReflectionBlockStateMapper.tryCreate()
-                        .orElseGet(dev.botalive.core.world.state.FallbackBlockStateMapper::new);
+                        .orElseGet(() -> {
+                            LOG.warn("Block-state mapper běží v degradovaném fallbacku – "
+                                    + "výpravy do Netheru a Endu nebudou umět číst portály "
+                                    + "(materiály se nepřekládají).");
+                            return new dev.botalive.core.world.state.FallbackBlockStateMapper();
+                        });
                 itemMapper = dev.botalive.core.world.state.ReflectionItemMapper.tryCreate()
                         .orElse(null);
             } else {

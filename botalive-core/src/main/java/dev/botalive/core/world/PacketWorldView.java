@@ -35,6 +35,7 @@ public final class PacketWorldView implements WorldView {
     private static final Logger LOG = LoggerFactory.getLogger(PacketWorldView.class);
 
     private final String worldKey;
+    private final WorldDimension dimension;
     private final int minY;
     private final int height;
     private final int blockBits;
@@ -73,6 +74,9 @@ public final class PacketWorldView implements WorldView {
     public PacketWorldView(String worldKey, DimensionRegistry.DimensionInfo dimension,
                            BlockStateMapper mapper, int biomeBits) {
         this.worldKey = worldKey;
+        // Dimenzi určuje klíč dimension_type z registru (autoritativní pro
+        // vanilla typy); heuristika názvu světa je jen fallback pro custom typy.
+        this.dimension = WorldDimension.fromDimensionType(dimension.typeKey(), worldKey);
         this.minY = dimension.minY();
         this.height = dimension.height();
         this.mapper = mapper;
@@ -205,8 +209,7 @@ public final class PacketWorldView implements WorldView {
 
     @Override
     public WorldDimension dimension() {
-        // Packet režim nemá Bukkit Environment – odhad z klíče světa.
-        return WorldDimension.fromWorldKey(worldKey);
+        return dimension;
     }
 
     @Override

@@ -26,15 +26,19 @@ import java.util.concurrent.CopyOnWriteArrayList;
 public final class DimensionRegistry {
 
     /** Výchozí rozměry overworldu (fallback při chybějících datech). */
-    public static final DimensionInfo OVERWORLD_DEFAULT = new DimensionInfo(-64, 384);
+    public static final DimensionInfo OVERWORLD_DEFAULT =
+            new DimensionInfo(-64, 384, "minecraft:overworld");
 
     /**
      * Rozměry jedné dimenze.
      *
-     * @param minY   nejnižší stavební výška
-     * @param height celková výška světa (počet bloků)
+     * @param minY    nejnižší stavební výška
+     * @param height  celková výška světa (počet bloků)
+     * @param typeKey klíč dimension_type (např. {@code minecraft:the_end}) –
+     *                autoritativní zdroj dimenze pro packet režim; custom
+     *                svět „mv_end" s overworld typem nesmí projít jako End
      */
-    public record DimensionInfo(int minY, int height) {
+    public record DimensionInfo(int minY, int height, String typeKey) {
 
         /** @return počet 16bloků vysokých sekcí */
         public int sectionCount() {
@@ -59,7 +63,7 @@ public final class DimensionRegistry {
             case "minecraft:dimension_type" -> {
                 dimensions.clear();
                 for (RegistryEntry entry : entries) {
-                    dimensions.add(parseDimension(entry.getData()));
+                    dimensions.add(parseDimension(entry));
                 }
             }
             case "minecraft:worldgen/biome" -> biomeCount = Math.max(1, entries.size());
@@ -85,17 +89,21 @@ public final class DimensionRegistry {
         return id < 0 || id >= enchantments.size() ? null : enchantments.get(id);
     }
 
-    private static DimensionInfo parseDimension(NbtMap data) {
+    private static DimensionInfo parseDimension(RegistryEntry entry) {
+        String typeKey = entry.getId() != null ? entry.getId().asString() : null;
+        NbtMap data = entry.getData();
         if (data == null) {
-            return OVERWORLD_DEFAULT;
+            return new DimensionInfo(OVERWORLD_DEFAULT.minY(), OVERWORLD_DEFAULT.height(),
+                    typeKey);
         }
         int minY = data.containsKey("min_y") ? data.getInt("min_y") : OVERWORLD_DEFAULT.minY();
         int height = data.containsKey("height") ? data.getInt("height") : OVERWORLD_DEFAULT.height();
         // Sanity: výška musí být kladný násobek 16.
         if (height <= 0 || (height & 15) != 0) {
-            return OVERWORLD_DEFAULT;
+            return new DimensionInfo(OVERWORLD_DEFAULT.minY(), OVERWORLD_DEFAULT.height(),
+                    typeKey);
         }
-        return new DimensionInfo(minY, height);
+        return new DimensionInfo(minY, height, typeKey);
     }
 
     /**

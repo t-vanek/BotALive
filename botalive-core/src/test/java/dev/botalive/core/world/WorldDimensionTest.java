@@ -45,4 +45,24 @@ class WorldDimensionTest {
         assertEquals(WorldDimension.UNKNOWN, WorldDimension.fromWorldKey(""));
         assertEquals(WorldDimension.UNKNOWN, WorldDimension.fromWorldKey(null));
     }
+
+    @Test
+    void dimensionTypeJeAutoritativni() {
+        // Custom svět „mv_end" s overworld typem je overworld (postel OK)...
+        assertEquals(WorldDimension.OVERWORLD, WorldDimension.fromDimensionType(
+                "minecraft:overworld", "minecraft:mv_end"));
+        // ...a naopak nenápadné jméno s typem the_end je End (postel bouchá!).
+        assertEquals(WorldDimension.END, WorldDimension.fromDimensionType(
+                "minecraft:the_end", "minecraft:dragonworld"));
+        assertEquals(WorldDimension.NETHER, WorldDimension.fromDimensionType(
+                "minecraft:the_nether", "minecraft:hell_custom"));
+        // Custom typ datapacku: heuristika typu, pak jména světa.
+        assertEquals(WorldDimension.END, WorldDimension.fromDimensionType(
+                "mypack:floating_the_end", "minecraft:islands"));
+        assertEquals(WorldDimension.NETHER, WorldDimension.fromDimensionType(
+                "mypack:custom", "minecraft:world_nether"));
+        // Bez typu zůstává heuristika jména.
+        assertEquals(WorldDimension.END, WorldDimension.fromDimensionType(
+                null, "minecraft:world_the_end"));
+    }
 }

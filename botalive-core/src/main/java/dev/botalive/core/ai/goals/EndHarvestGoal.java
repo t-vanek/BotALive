@@ -194,7 +194,10 @@ public final class EndHarvestGoal extends AbstractGoal {
         if (!ctx.config().end().huntEndermen() || !ctx.config().combat().enabled()) {
             return false;
         }
-        if (bot.personality().trait(Trait.COURAGE) < 0.6) {
+        // Lov je riskantnější než samotná výprava – práh drží aspoň 0.6
+        // a respektuje přísnější end.min-courage z konfigurace.
+        if (bot.personality().trait(Trait.COURAGE)
+                < Math.max(0.6, ctx.config().end().minCourage())) {
             return false;
         }
         var snapshot = ctx.serverView().latest();

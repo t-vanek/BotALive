@@ -196,6 +196,19 @@ public abstract class AbstractGoal implements Goal {
     }
 
     /**
+     * Je bot ve stavu vyrazit na výpravu do cizí dimenze? Návratové prahy
+     * výprav jsou ~8 HP / 6 hladu – bez odjezdové brány by se bot vracel
+     * z Netheru na 7,9 HP a okamžitě „připravený" pochodoval do Endu.
+     * Sdílí {@code NetherGoal} a {@code EndTravelGoal}.
+     *
+     * @param ctx kontext bota
+     * @return {@code true} pokud je dost zdravý a najedený na výpravu
+     */
+    protected static boolean expeditionFit(BotContext ctx) {
+        return ctx.clientState().health() >= 14 && ctx.clientState().food() >= 14;
+    }
+
+    /**
      * Nedávný útočník z paměti – neutrální mob (rozzuřený enderman, vlk…),
      * který botovi ublížil ({@code ServerEventListener} zapisuje ENEMY) nebo
      * kterého bot sám vyprovokoval. Enderman zuří prakticky trvale, ostatním

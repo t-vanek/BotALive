@@ -49,13 +49,22 @@ public final class EndReturnGoal extends AbstractGoal {
             cooldownTicks -= ctx.config().ai().decisionIntervalTicks();
             return 0;
         }
-        double urge = 0;
+        // Bazální chuť domů: End je výprava, ne domov – i bot bez nouze
+        // (třeba hozený do Endu hráčem, bez vlastního průchodu) má důvod
+        // dojít k fontáně a zkusit výstup, místo věčného bloumání.
+        double urge = 6;
         int food = ctx.clientState().food();
         if (food <= 8) {
             urge += 25;
         }
         if (ctx.clientState().health() < 10) {
             urge += 20;
+        }
+        if (food <= 8 && ctx.clientState().health() < 10) {
+            // Na dně: hlad a zranění zároveň musí přebít i dračí souboj
+            // s hysterezí (45+10 odvahy ×1,15 ≈ 63) – jinak bot bojuje
+            // do smrti a nikdy se nepokusí odejít.
+            urge += 18;
         }
         var snapshot = ctx.serverView().latest();
         if (snapshot != null && InventoryHelper.countEstimate(snapshot,
