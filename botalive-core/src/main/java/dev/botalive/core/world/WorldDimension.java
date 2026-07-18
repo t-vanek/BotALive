@@ -43,6 +43,47 @@ public enum WorldDimension {
     }
 
     /**
+     * Určení dimenze z klíče dimension_type registru (packet režim).
+     *
+     * <p>Vanilla typy ({@code minecraft:overworld}, {@code minecraft:the_nether},
+     * {@code minecraft:the_end}, {@code minecraft:overworld_caves}) jsou
+     * autoritativní – custom svět „mv_end" s overworld typem je overworld,
+     * a naopak „dragonworld" s typem the_end je End (postel tam bouchá!).
+     * U custom typů datapacků se spadne na heuristiku názvů (typ, pak svět).</p>
+     *
+     * @param typeKey  klíč dimension_type z registru (může být {@code null})
+     * @param worldKey protokolový klíč světa (fallback heuristiky)
+     * @return dimenze
+     */
+    public static WorldDimension fromDimensionType(String typeKey, String worldKey) {
+        if (typeKey != null) {
+            String path = typeKey.substring(typeKey.indexOf(':') + 1)
+                    .toLowerCase(Locale.ROOT);
+            boolean vanillaNamespace = typeKey.startsWith("minecraft:");
+            switch (path) {
+                case "overworld", "overworld_caves" -> {
+                    if (vanillaNamespace) {
+                        return OVERWORLD;
+                    }
+                }
+                case "the_nether" -> {
+                    return NETHER;
+                }
+                case "the_end" -> {
+                    return END;
+                }
+                default -> {
+                }
+            }
+            WorldDimension byType = fromWorldKey(typeKey);
+            if (byType == NETHER || byType == END) {
+                return byType;
+            }
+        }
+        return fromWorldKey(worldKey);
+    }
+
+    /**
      * Heuristika pro packet režim, kde je k dispozici jen klíč světa.
      *
      * @param worldKey protokolový klíč nebo název světa (např.

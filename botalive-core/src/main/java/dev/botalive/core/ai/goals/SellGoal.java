@@ -355,6 +355,16 @@ public final class SellGoal extends AbstractGoal {
             return new Sale(Material.IRON_INGOT, 6,
                     MarketPrices.price(Material.IRON_INGOT, 6, greed));
         }
+        // Kořist z výprav: perly nad rezervu (hod perlou/oči Enderu jednou
+        // přijdou – 12 kusů si bot nechává), quartz jako uhlí.
+        if (InventoryHelper.countEstimate(snapshot, m -> m == Material.ENDER_PEARL) > 12) {
+            return new Sale(Material.ENDER_PEARL, 4,
+                    MarketPrices.price(Material.ENDER_PEARL, 4, greed));
+        }
+        if (InventoryHelper.countEstimate(snapshot, m -> m == Material.QUARTZ) > 24) {
+            return new Sale(Material.QUARTZ, 12,
+                    MarketPrices.price(Material.QUARTZ, 12, greed));
+        }
         return null;
     }
 

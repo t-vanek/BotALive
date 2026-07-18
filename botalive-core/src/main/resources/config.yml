@@ -255,6 +255,10 @@ end:
   expedition-cooldown-minutes: 90
   # Minimální odvaha (rys COURAGE 0–1) pro výpravu – zbabělci nelezou do Endu.
   min-courage: 0.5
+  # Rozpočet jednoho zátahu na draka (minuty). Po vyčerpání si bot dá pauzu
+  # (najíst se, kořist, pokus o návrat) a k boji se vrátí – bez rozpočtu by
+  # proti drakovi, kterého neumí dorazit, bojoval do smrti.
+  max-fight-minutes: 15
 
 performance:
   # 0 = automaticky podle počtu jader.

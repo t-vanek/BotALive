@@ -335,9 +335,14 @@ public record BotAliveConfig(
      *                                  bota (minuty)
      * @param minCourage                minimální rys COURAGE pro výpravu –
      *                                  zbabělci do Endu nelezou
+     * @param maxFightMinutes           rozpočet jednoho zátahu na draka –
+     *                                  po vyčerpání si bot dá pauzu (jídlo,
+     *                                  kořist, pokus o návrat) a pak to zkusí
+     *                                  znovu; bez rozpočtu by bojoval do smrti
      */
     public record End(boolean enabled, boolean dragonFight, boolean huntEndermen,
-                      int expeditionCooldownMinutes, double minCourage) {
+                      int expeditionCooldownMinutes, double minCourage,
+                      int maxFightMinutes) {
     }
 
     /**

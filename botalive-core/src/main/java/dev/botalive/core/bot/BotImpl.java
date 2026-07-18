@@ -432,6 +432,25 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
         if (ambition == null) {
             return;
         }
+        // Revalidace: ambici uloženou za jiné konfigurace (vypnuté výpravy)
+        // vyměnit hned – jinak by navěky blokovala výběr dalšího snu.
+        if (!ambitionAllowed(ambition)) {
+            var state = ambitionState();
+            for (var candidate : dev.botalive.core.ai.Ambition.ranked(personality)) {
+                if (candidate == ambition || !ambitionAllowed(candidate)
+                        || candidate.progress(state).complete()) {
+                    continue;
+                }
+                memory.forget(MemoryKind.AMBITION);
+                memory.remember(MemoryKind.AMBITION,
+                        worldView != null ? worldView.worldName() : "", 0, 0, 0,
+                        null, Map.of("type", candidate.name()), 1.0);
+                ambition = candidate;
+                ambitionProgress = null;
+                return;
+            }
+            return; // žádná povolená alternativa – nechat a zkusit příště
+        }
         var state = ambitionState();
         ambitionProgress = ambition.progress(state);
 
@@ -484,6 +503,42 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
                         memory.recall(MemoryKind.TROPHY)));
     }
 
+    /**
+     * Přišel bot ze světa, který je Endem? Heuristika jména + vlastní
+     * vzpomínky s autoritativní anotací dimenze (custom jména End světů).
+     */
+    private boolean cameFromEnd(String fromWorld) {
+        if (dev.botalive.core.world.WorldDimension.fromWorldKey(fromWorld)
+                == dev.botalive.core.world.WorldDimension.END) {
+            return true;
+        }
+        return memory.recall(MemoryKind.PORTAL).stream()
+                .anyMatch(r -> fromWorld.equals(r.world())
+                        && "end".equals(r.data().get("dim")));
+    }
+
+    /**
+     * Oživí vlastní průchodové vzpomínky vedoucí do daného End světa
+     * (re-remember = merge bumpne {@code updatedAt} k času návratu, kotva
+     * cooldownu výprav) a doplní jim anotaci {@code dim=end}.
+     */
+    private void touchOwnEndPassages(String endWorld) {
+        annotateEndPassages(endWorld, endWorld);
+    }
+
+    /** Doplní {@code dim=end} vlastním průchodům s {@code to=endWorld}. */
+    private void annotateEndPassages(String endWorld, String toValue) {
+        for (MemoryRecord record : memory.recall(MemoryKind.PORTAL)) {
+            if (!endWorld.equals(record.data().get("to"))
+                    || "gossip".equals(record.data().get("via"))) {
+                continue;
+            }
+            memory.remember(MemoryKind.PORTAL, record.world(),
+                    record.x(), record.y(), record.z(), record.subject(),
+                    Map.of("to", toValue, "dim", "end"), record.importance());
+        }
+    }
+
     /** Smí bot tuhle ambici mít? (výpravové sny jen se zapnutými výpravami) */
     private boolean ambitionAllowed(dev.botalive.core.ai.Ambition candidate) {
         if (candidate == dev.botalive.core.ai.Ambition.DRAGON_SLAYER) {
@@ -529,6 +584,9 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
                                 0.9);
                         LOG.info("[{}] objevil portál do Endu na {} {} {} ({})",
                                 name, p.x(), p.y(), p.z(), view.worldName());
+                        if (rng.chance(0.6)) {
+                            chat.sayFrom(PhraseCategory.PORTAL_FOUND, null);
+                        }
                         return;
                     }
                 }
@@ -580,7 +638,15 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
         Vec3 pos = physics.position();
         String where = "jsem na %d, %d, %d".formatted(
                 (int) pos.x(), (int) pos.y(), (int) pos.z());
-        return worldView != null ? where + " (" + worldView.worldName() + ")" : where;
+        if (worldView == null) {
+            return where;
+        }
+        // Lidská odpověď na „kde jsi": dimenze srozumitelně, svět jen jménem.
+        return switch (worldView.dimension()) {
+            case END -> where + " v Endu";
+            case NETHER -> where + " v Netheru";
+            default -> where + " (" + worldView.worldName() + ")";
+        };
     }
 
     @Override
@@ -1594,14 +1660,40 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
                 worldView != null ? worldView.worldName() : "?");
 
         // Přílet portálem: první pozice v novém světě je cílový portál –
-        // vzpomínka na něj je cesta zpátky domů (i z Netheru).
+        // vzpomínka na něj je cesta zpátky domů (Nether: portál↔portál).
         String arrivedFrom = portalArrivedFrom;
         portalArrivedFrom = null;
         if (arrivedFrom != null && worldView != null) {
-            BlockPos arrival = position.toBlockPos();
-            memory.remember(MemoryKind.PORTAL, worldView.worldName(),
-                    arrival.x(), arrival.y(), arrival.z(), null,
-                    Map.of("to", arrivedFrom), 0.8);
+            var dimension = worldView.dimension();
+            if (dimension == dev.botalive.core.world.WorldDimension.OVERWORLD
+                    && cameFromEnd(arrivedFrom)) {
+                // Návrat z Endu vysazuje u spawnu/postele, kde žádný portál
+                // není – slepý zápis by vyrobil fantomový „portál do Endu"
+                // u domova (a drby by ho roznesly). Místo toho se oživí
+                // vlastní průchodová vzpomínka: kotví cooldown výprav k času
+                // návratu a doplní autoritativní anotaci dimenze.
+                touchOwnEndPassages(arrivedFrom);
+            } else {
+                BlockPos arrival = position.toBlockPos();
+                java.util.Map<String, String> data = new java.util.HashMap<>();
+                data.put("to", arrivedFrom);
+                if (dimension == dev.botalive.core.world.WorldDimension.END
+                        || dimension == dev.botalive.core.world.WorldDimension.NETHER) {
+                    // Anotace dimenze je autoritativní (Bukkit environment /
+                    // dimension_type) – heuristika jmen světů ji jen doplňuje.
+                    data.put("dim", dimension == dev.botalive.core.world.WorldDimension.END
+                            ? "end" : "nether");
+                }
+                memory.remember(MemoryKind.PORTAL, worldView.worldName(),
+                        arrival.x(), arrival.y(), arrival.z(), null,
+                        Map.copyOf(data), 0.8);
+                if (dimension == dev.botalive.core.world.WorldDimension.END) {
+                    // Vstupní straně (průchody s to=tento End svět) doplnit
+                    // dim=end – u custom jmen End světů by jinak cooldown
+                    // výprav selhal na heuristice názvu.
+                    touchOwnEndPassages(worldView.worldName());
+                }
+            }
         }
 
         // Životní ambice: vybrat jednou podle povahy a zapamatovat
@@ -1679,6 +1771,10 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
                 return world.getName();
             }
         }
+        // Nouzový fallback – bot by dostal geometrii cizího světa; hlasitě,
+        // ať se to v logu nedá přehlédnout.
+        LOG.warn("[{}] Klíč světa '{}' nesedí na žádný načtený svět – fallback na první",
+                name, worldKey);
         return Bukkit.getWorlds().isEmpty() ? "world" : Bukkit.getWorlds().getFirst().getName();
     }
 

@@ -57,6 +57,18 @@ public final class EndTravelGoal extends AbstractGoal {
                 || ctx.dimension() != WorldDimension.OVERWORLD) {
             return 0;
         }
+        // Past zavřeného Endu: bez dračího souboje (config/combat vypnuté)
+        // výstupní portál nikdy nevznikne a End je jednosměrka. Vstup se
+        // povolí, jen když má bot šanci si portál otevřít – nebo už ví,
+        // že je otevřený (vlastní trofej z dřívějška).
+        if ((!cfg.dragonFight() || !ctx.config().combat().enabled())
+                && !EndKnowledge.dragonSlain(bot.memory())) {
+            return 0;
+        }
+        // Na výpravu se nevyráží polomrtvý ani hladový.
+        if (!expeditionFit(ctx)) {
+            return 0;
+        }
         if (cooldownTicks > 0) {
             cooldownTicks -= ctx.config().ai().decisionIntervalTicks();
             return 0;
@@ -148,9 +160,12 @@ public final class EndTravelGoal extends AbstractGoal {
                     }
                 }
                 if (++searchTicks > SEARCH_BUDGET_TICKS) {
-                    // Portál tu není. Zapomenout jen s načtenou oblastí –
-                    // studená cache nesmí smazat skutečný portál z paměti.
-                    if (world.isAvailable(rememberedPortal)) {
+                    // Portál tu není. Zapomenout jen s načtenou oblastí, ve
+                    // které jdou číst materiály – studená cache ani degradovaný
+                    // block-state mapper (packet režim s Via překladem, kdy
+                    // materialAt vrací null) nesmí smazat skutečný portál.
+                    if (world.isAvailable(rememberedPortal)
+                            && world.materialAt(rememberedPortal) != null) {
                         BlockPos remembered = rememberedPortal;
                         bot.memory().forgetIf(MemoryKind.PORTAL, r ->
                                 EndKnowledge.isEndPortal(r)

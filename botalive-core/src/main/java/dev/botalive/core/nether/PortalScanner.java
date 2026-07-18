@@ -27,31 +27,32 @@ public final class PortalScanner {
     }
 
     /**
-     * Najde nejbližší aktivní portál: portálový blok, ve kterém se dá stát
-     * (pevné dno pod ním). Přes trait {@code portal} pokrývá nether i end
-     * portály – záchrana z Endu vede skrz návratový portál na hlavním
-     * ostrově.
+     * Najde nejbližší aktivní portál <b>daného druhu</b>. Filtr materiálem je
+     * záměrný: generický trait {@code portal} pokrývá nether portál, End
+     * portál i gateway – sken bez filtru uměl poslat nether výpravu do Endu
+     * (bez luku, bloků na mosty a s drakem za dveřmi).
      *
      * @param world  pohled na svět
      * @param around střed hledání
      * @param radius vodorovný poloměr (bloky)
      * @param depth  svislý rozsah ±(bloky)
-     * @return vstupní buňka nejbližšího portálu
+     * @param portal materiál portálového bloku (např. {@code NETHER_PORTAL})
+     * @return vstupní buňka nejbližšího portálu daného druhu
      */
     public static Optional<BlockPos> findActivePortal(WorldView world, BlockPos around,
-                                                      int radius, int depth) {
+                                                      int radius, int depth, Material portal) {
         BlockPos best = null;
         double bestDist = Double.MAX_VALUE;
         for (int dx = -radius; dx <= radius; dx++) {
             for (int dz = -radius; dz <= radius; dz++) {
                 for (int dy = -depth; dy <= depth; dy++) {
                     BlockPos pos = around.offset(dx, dy, dz);
-                    if (!world.traitsAt(pos).portal()) {
+                    if (world.materialAt(pos) != portal) {
                         continue;
                     }
                     // Vstupní buňka: portálový blok s oporou pod nohama
                     // (spodní patro vnitřku).
-                    if (world.traitsAt(pos.down()).portal()) {
+                    if (world.materialAt(pos.down()) == portal) {
                         continue;
                     }
                     double dist = around.distanceSquared(pos);

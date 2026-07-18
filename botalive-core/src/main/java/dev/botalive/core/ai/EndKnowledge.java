@@ -36,6 +36,11 @@ public final class EndKnowledge {
         if (record.kind() != MemoryKind.PORTAL) {
             return false;
         }
+        // Anotace dimenze z průchodu je autoritativní (funguje i pro custom
+        // jména End světů, kde heuristika klíče selže).
+        if (TYPE_END.equals(record.data().get("dim"))) {
+            return true;
+        }
         String to = record.data().get("to");
         if (to != null && dev.botalive.core.world.WorldDimension.fromWorldKey(to)
                 == dev.botalive.core.world.WorldDimension.END) {
@@ -104,12 +109,21 @@ public final class EndKnowledge {
         return records.stream()
                 .filter(r -> r.kind() == MemoryKind.PORTAL)
                 .filter(r -> !"gossip".equals(r.data().get("via")))
-                .filter(r -> {
-                    String to = r.data().get("to");
-                    return to != null && dev.botalive.core.world.WorldDimension.fromWorldKey(to)
-                            == dev.botalive.core.world.WorldDimension.END;
-                })
+                .filter(EndKnowledge::ownEndPassage)
                 .anyMatch(r -> nowMs - r.updatedAt() < windowMs);
+    }
+
+    /** Vlastní průchod do Endu: nese cílový svět (a ideálně anotaci dimenze). */
+    private static boolean ownEndPassage(MemoryRecord record) {
+        String to = record.data().get("to");
+        if (to == null) {
+            return false; // spatřený/admin portál – ne průchod
+        }
+        if (TYPE_END.equals(record.data().get("dim"))) {
+            return true;
+        }
+        return dev.botalive.core.world.WorldDimension.fromWorldKey(to)
+                == dev.botalive.core.world.WorldDimension.END;
     }
 
     /**
@@ -119,9 +133,12 @@ public final class EndKnowledge {
      * @return {@code true} pokud má bot dračí trofej
      */
     public static boolean dragonSlain(List<MemoryRecord> records) {
+        // Pojistka via=gossip: trofej je osobní úspěch – kdyby se TROPHY
+        // někdy přidala mezi drby, posluchač se drakobijcem stát nesmí.
         return records.stream()
                 .anyMatch(r -> r.kind() == MemoryKind.TROPHY
-                        && "dragon".equals(r.data().get("type")));
+                        && "dragon".equals(r.data().get("type"))
+                        && !"gossip".equals(r.data().get("via")));
     }
 
     /**

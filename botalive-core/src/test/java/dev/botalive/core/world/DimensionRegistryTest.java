@@ -59,7 +59,12 @@ class DimensionRegistryTest {
         registry.accept(Key.key("minecraft:dimension_type"), List.of(
                 dimension("minecraft:broken", 0, 100))); // není násobek 16
 
-        assertEquals(DimensionRegistry.OVERWORLD_DEFAULT, registry.dimensionInfo(0));
+        DimensionRegistry.DimensionInfo info = registry.dimensionInfo(0);
+        assertEquals(DimensionRegistry.OVERWORLD_DEFAULT.minY(), info.minY());
+        assertEquals(DimensionRegistry.OVERWORLD_DEFAULT.height(), info.height());
+        // Klíč typu se zachovává i při rozbitých rozměrech – rozbitá výška
+        // u the_end nesmí z dimenze udělat overworld.
+        assertEquals("minecraft:broken", info.typeKey());
     }
 
     @Test

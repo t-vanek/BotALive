@@ -29,7 +29,9 @@ public enum Ambition {
     NETHERITE("mít netheritovou výbavu", Set.of("nether", "mine", "smelt", "craft", "smith")),
     /** Chce skolit ender draka. */
     DRAGON_SLAYER("skolit ender draka",
-            Set.of("mine", "smelt", "craft", "end-travel", "dragon-fight"));
+            // „explore" táhne krok „najít portál" – jiný cíl ho splnit neumí
+            // (pasivní sken portálů běží při toulkách po světě).
+            Set.of("mine", "smelt", "craft", "explore", "end-travel", "dragon-fight"));
 
     /** Násobič utility cílů, které k ambici vedou (dokud není splněná). */
     private static final double DRIVE = 1.25;

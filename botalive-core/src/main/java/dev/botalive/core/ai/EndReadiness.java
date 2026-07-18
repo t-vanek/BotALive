@@ -70,8 +70,10 @@ public record EndReadiness(int swordTier, int armorPieces, boolean hasBow, int a
 
     /** @return {@code true} pokud výbava stačí na výpravu do Endu */
     public boolean expeditionReady() {
+        // Krumpáč je nutný: end stone na mosty se bez něj netěží a bot by
+        // po vyčerpání bloků uvízl na ostrůvku.
         return swordTier >= MIN_SWORD_TIER && armorPieces >= 3
-                && foodCount >= 5 && buildingBlocks >= 32;
+                && foodCount >= 5 && buildingBlocks >= 32 && hasPickaxe;
     }
 
     /** @return {@code true} pokud má bot luk a rozumnou zásobu šípů (krystaly) */

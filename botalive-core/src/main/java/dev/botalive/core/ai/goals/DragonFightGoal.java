@@ -7,6 +7,7 @@ import dev.botalive.core.ai.BotContext;
 import dev.botalive.core.chat.PhraseCategory;
 import dev.botalive.core.combat.RangedAttack;
 import dev.botalive.core.entity.TrackedEntity;
+import dev.botalive.core.inventory.ItemVariants;
 import dev.botalive.core.personality.PersonalityEvolution;
 import dev.botalive.core.physics.EdgeGuard;
 import dev.botalive.core.physics.MoveInput;
@@ -14,8 +15,10 @@ import dev.botalive.core.util.BlockPos;
 import dev.botalive.core.util.Vec3;
 import dev.botalive.core.world.WorldDimension;
 
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * Souboj s ender drakem – vrchol výpravy do Endu.
@@ -47,6 +50,15 @@ public final class DragonFightGoal extends AbstractGoal {
     private boolean fightStarted;
     private int dragonGoneTicks;
     private int tauntCooldown;
+    /** Rozpočet zátahu (end.max-fight-minutes) – po vyčerpání pauza. */
+    private long fightDeadlineMs;
+    private int cooldownTicks;
+    /** Krystaly, do kterých se marně střílelo (klece z mříží) – přeskakují se. */
+    private final Set<Integer> crystalBlacklist = new HashSet<>();
+    private int crystalTargetId = -1;
+    private int crystalEngageTicks;
+    /** Doušek regenerace/healu před bojem (ticky pití). */
+    private int drinkTicks;
     /** Stabilní navigační cíl ke středu – přepočet každý tick by resetoval
      *  rozjeté přemosťování voidu (y se při stavbě mostu mění). */
     private BlockPos centerTarget;
@@ -65,6 +77,11 @@ public final class DragonFightGoal extends AbstractGoal {
         var cfg = ctx.config().end();
         if (!cfg.enabled() || !cfg.dragonFight() || !ctx.config().combat().enabled()
                 || ctx.clientState().dead() || ctx.dimension() != WorldDimension.END) {
+            return 0;
+        }
+        if (cooldownTicks > 0) {
+            // Pauza po vyčerpaném zátahu – prostor pro jídlo, kořist a návrat.
+            cooldownTicks -= ctx.config().ai().decisionIntervalTicks();
             return 0;
         }
         boolean dragonVisible = findDragon(ctx).isPresent();
@@ -88,6 +105,26 @@ public final class DragonFightGoal extends AbstractGoal {
         // Instance cíle žije přes výpravy i smrti – bez resetu by starý boj
         // „strašil" a zmizení draka z trackeru by vyrobilo falešné vítězství.
         fightStarted = false;
+        fightDeadlineMs = System.currentTimeMillis()
+                + ctx.config().end().maxFightMinutes() * 60_000L;
+        crystalBlacklist.clear();
+        crystalTargetId = -1;
+        crystalEngageTicks = 0;
+        // Doušek před bojem: regenerace/heal z hotbaru (vzor nether výpravy,
+        // která pije odolnost ohni před sestupem) – reaktivní pití v nouzi
+        // dál řeší cíl „drink".
+        drinkTicks = 0;
+        var snapshot = ctx.serverView().latest();
+        int slot = ItemVariants.findPotionSlot(snapshot, ItemVariants.REGENERATION);
+        if (slot < 0 || slot >= 9) {
+            slot = ItemVariants.findPotionSlot(snapshot, ItemVariants.HEALING);
+        }
+        if (slot >= 0 && slot < 9) {
+            ctx.navigator().stop();
+            ctx.actions().selectHotbar(slot);
+            ctx.actions().useItem(ctx.humanizer().yaw(), ctx.humanizer().pitch());
+            drinkTicks = 40;
+        }
     }
 
     /** Navigace ke středu ostrova se stabilním cílem (mosty přes void). */
@@ -106,8 +143,23 @@ public final class DragonFightGoal extends AbstractGoal {
     public void tick(Bot bot) {
         BotContext ctx = ctx(bot);
         Vec3 pos = ctx.position();
+        if (drinkTicks > 0) {
+            drinkTicks--; // dopít doušek před bojem
+            return;
+        }
         if (tauntCooldown > 0) {
             tauntCooldown--;
+        }
+        // Vyčerpaný rozpočet zátahu: pauza místo boje do smrti – EndReturn,
+        // jídlo a kořist dostanou prostor, pak se zátah zopakuje.
+        if (fightStarted && System.currentTimeMillis() > fightDeadlineMs) {
+            fightStarted = false;
+            ctx.combat().disengage();
+            if (crystalShot != null && crystalShot.busy()) {
+                crystalShot.reset();
+            }
+            cooldownTicks = 2400;
+            return;
         }
 
         Optional<TrackedEntity> dragon = findDragon(ctx);
@@ -170,6 +222,20 @@ public final class DragonFightGoal extends AbstractGoal {
     /** Střelba na krystal: bezpečný odstup od pilíře a šípy šikmo vzhůru. */
     private void tickCrystal(BotContext ctx, TrackedEntity crystal) {
         Vec3 pos = ctx.position();
+        // Marná palba (krystal v kleci z mříží, špatný úhel): po ~15 s bez
+        // zásahu krystal na blacklist – šípy jsou v Endu drahé.
+        if (crystalTargetId != crystal.entityId()) {
+            crystalTargetId = crystal.entityId();
+            crystalEngageTicks = 0;
+        }
+        if (++crystalEngageTicks > 300) {
+            crystalBlacklist.add(crystal.entityId());
+            crystalTargetId = -1;
+            if (crystalShot != null && crystalShot.busy()) {
+                crystalShot.reset();
+            }
+            return;
+        }
         Vec3 base = new Vec3(crystal.position().x(), pos.y(), crystal.position().z());
         double baseDistance = pos.horizontal().distance(base.horizontal());
         if (baseDistance > CRYSTAL_RANGE) {
@@ -250,10 +316,11 @@ public final class DragonFightGoal extends AbstractGoal {
         return ctx.entities().nearest(ctx.position(), 200, TrackedEntity::isEnderDragon);
     }
 
-    /** Nejbližší krystal v dostřelu – vzdálenost se měří k patě pilíře. */
+    /** Nejbližší krystal v dostřelu (mimo blacklist marné palby). */
     private Optional<TrackedEntity> findCrystal(BotContext ctx) {
         Vec3 pos = ctx.position();
-        return ctx.entities().nearest(pos, CRYSTAL_RANGE + 16, TrackedEntity::isEndCrystal);
+        return ctx.entities().nearest(pos, CRYSTAL_RANGE + 16,
+                e -> e.isEndCrystal() && !crystalBlacklist.contains(e.entityId()));
     }
 
     @Override

@@ -159,10 +159,12 @@ public final class NetherGoal extends AbstractGoal {
     public double utility(Bot bot) {
         BotContext ctx = ctx(bot);
         WorldDimension dimension = ctx.dimension();
-        // Mimo overworld se výprava nikdy nepouští – i s vypnutým configem
-        // se musí bot umět vrátit domů (z Netheru i z Endu, kam ho mohl
-        // shodit hráč nebo cizí portál).
-        if (dimension == WorldDimension.NETHER || dimension == WorldDimension.END) {
+        // V Netheru se výprava vždy dokončí (i s vypnutým configem se musí
+        // bot umět vrátit domů). V Endu tenhle cíl neběží: DimensionPolicy
+        // ho tam nuluje a návrat z Endu vlastní pravidla řeší `end-return`
+        // (výstupní portál existuje až po drakovi – nether logika by tam
+        // marně hledala symetrický portál).
+        if (dimension == WorldDimension.NETHER) {
             return IN_NETHER_UTILITY;
         }
         if (!ctx.config().nether().enabled() || dimension != WorldDimension.OVERWORLD) {
@@ -174,6 +176,11 @@ public final class NetherGoal extends AbstractGoal {
         }
         var snapshot = ctx.serverView().latest();
         if (snapshot == null) {
+            return 0;
+        }
+        // Na výpravu se nevyráží polomrtvý ani hladový – jinak bot pendluje
+        // mezi dimenzemi na pár HP (návratové prahy jsou 8 HP / 6 hladu).
+        if (!expeditionFit(ctx)) {
             return 0;
         }
         int minTier = ctx.config().nether().minGearTier();
@@ -204,8 +211,10 @@ public final class NetherGoal extends AbstractGoal {
             return;
         }
         if (ctx.dimension() == WorldDimension.END) {
-            // V Endu se nepracuje – jen najít návratový portál a domů.
-            phase = Phase.RETURN;
+            // V Endu tenhle cíl nemá co dělat (viz utility) – kdyby ho tam
+            // někdo vynutil, hned skončí a předá velení End cílům.
+            phase = Phase.DONE;
+            cooldownTicks = 1200;
             return;
         }
         phase = Phase.PREPARE;
@@ -258,8 +267,9 @@ public final class NetherGoal extends AbstractGoal {
             return;
         }
 
-        // 2) Aktivní portál v okolí.
-        Optional<BlockPos> active = PortalScanner.findActivePortal(world, feet, 16, 8);
+        // 2) Aktivní nether portál v okolí (End portál by bota poslal do Endu).
+        Optional<BlockPos> active = PortalScanner.findActivePortal(world, feet, 16, 8,
+                Material.NETHER_PORTAL);
         if (active.isPresent()) {
             portalEntry = active.get();
             goTo(portalEntry, Phase.ENTER);
@@ -423,14 +433,16 @@ public final class NetherGoal extends AbstractGoal {
 
     private void tickEnter(BotContext ctx, Bot bot) {
         if (enterTask == null) {
-            // Vstup mohl být z paměti – ověřit, že tam portál skutečně je
-            // (trait pokrývá nether i end portály – návrat z Endu).
+            // Vstup mohl být z paměti – ověřit, že tam nether portál
+            // skutečně je (materiálem, ne traitem – trait by uznal i End).
             WorldView world = ctx.worldView();
-            if (!world.traitsAt(portalEntry).portal()) {
-                Optional<BlockPos> near = PortalScanner.findActivePortal(world, portalEntry, 6, 4);
+            if (world.materialAt(portalEntry) != Material.NETHER_PORTAL) {
+                Optional<BlockPos> near = PortalScanner.findActivePortal(world, portalEntry, 6, 4,
+                        Material.NETHER_PORTAL);
                 if (near.isPresent()) {
                     portalEntry = near.get();
-                } else if (world.isAvailable(portalEntry)) {
+                } else if (world.isAvailable(portalEntry)
+                        && world.materialAt(portalEntry) != null) {
                     // Portál zmizel (rozbitý/zhasnutý) – vzpomínka je mrtvá.
                     bot.memory().forgetIf(MemoryKind.PORTAL, r ->
                             r.world().equals(world.worldName())
@@ -485,9 +497,9 @@ public final class NetherGoal extends AbstractGoal {
             return;
         }
         if (ctx.dimension() == WorldDimension.END) {
-            // Cizí portál vedl do Endu – nepracovat, najít cestu domů.
-            phase = Phase.RETURN;
-            returnScanTicks = 0;
+            // Cizí portál vedl do Endu – výpravu ukončit a předat velení End
+            // cílům (`end-return` má bazální chuť domů, `dragon-fight` boj).
+            finish(ctx, 2400);
             return;
         }
         // Zpátky v overworldu – výprava končí.
@@ -502,10 +514,6 @@ public final class NetherGoal extends AbstractGoal {
     // ==================================================================
 
     private void tickWork(BotContext ctx, Bot bot) {
-        if (ctx.dimension() == WorldDimension.END) {
-            phase = Phase.RETURN; // pracuje se jen v Netheru
-            return;
-        }
         if (ctx.dimension() != WorldDimension.NETHER) {
             // Někdo bota přenesl domů (teleport, smrt řeší respawn) – konec.
             finish(ctx, 6000);
@@ -1134,21 +1142,14 @@ public final class NetherGoal extends AbstractGoal {
             return;
         }
 
-        // 2) Aktivní portál v okolí (trait pokrývá i end portály).
-        Optional<BlockPos> active = PortalScanner.findActivePortal(world, feet, 16, 8);
+        // 2) Aktivní nether portál v okolí.
+        Optional<BlockPos> active = PortalScanner.findActivePortal(world, feet, 16, 8,
+                Material.NETHER_PORTAL);
         if (active.isPresent()) {
             portalEntry = active.get();
             enterAttempts = 0;
             returnScanTicks = 100;
             goTo(portalEntry, Phase.ENTER);
-            return;
-        }
-
-        // V Endu nezbývá než hledat návratový portál – rám se tam nestaví
-        // a kotva overworld/8 nedává smysl.
-        if (ctx.dimension() == WorldDimension.END) {
-            returnScanTicks = 80;
-            tickWander(ctx);
             return;
         }
 

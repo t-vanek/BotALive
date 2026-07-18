@@ -386,6 +386,11 @@ phrases:
     - "dragon down! it's raining xp :D"
     - "it's done. the DRAGON is done. can't believe it"
     - "victory! the dragon has fallen, going home a hero"
+  portal-found:
+    - "wait... is that an End portal?!"
+    - "found an End portal! definitely remembering this spot"
+    - "an active end portal, just sitting there. neat"
+    - "so that's the way to the dragon... interesting"
   end-return:
     - "heading home from the End, mission complete"
     - "enough adventure, time to go home"
