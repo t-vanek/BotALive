@@ -6,6 +6,7 @@ import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -77,6 +78,29 @@ class BoatPhysicsTest {
             boat.stepToward(target);
         }
         assertFalse(boat.waterAhead(6), "před břehem už voda není");
+    }
+
+    @Test
+    void serieKorekciZnamenaTvrdyAground() {
+        BoatPhysics boat = new BoatPhysics(lake(100), new Vec3(0.5, WATER_Y + 0.9, 0.5), 0);
+        // Server loď opakovaně vrací – klient vodu vidí, server ne (břeh).
+        for (int i = 0; i < 3; i++) {
+            boat.correct(new Vec3(0.5, WATER_Y + 0.9, 0.5), 0);
+        }
+        assertTrue(boat.aground(), "série korekcí = tvrdý aground (nepřetlačovat se)");
+        assertEquals(0, boat.speed(), 1e-9);
+    }
+
+    @Test
+    void ojedinelaKorekceAgroundNespousti() {
+        BoatPhysics boat = new BoatPhysics(lake(100), new Vec3(0.5, WATER_Y + 0.9, 0.5), 0);
+        Vec3 target = new Vec3(50, WATER_Y + 0.9, 0.5);
+        boat.correct(new Vec3(0.5, WATER_Y + 0.9, 0.5), 0);
+        for (int i = 0; i < 5; i++) {
+            boat.stepToward(target); // čisté ticky sérii rozpouští
+        }
+        boat.correct(boat.position(), 0);
+        assertFalse(boat.aground(), "běžná korekce za jízdy aground nespouští");
     }
 
     @Test

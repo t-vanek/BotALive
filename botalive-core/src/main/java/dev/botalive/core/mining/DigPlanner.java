@@ -1,6 +1,7 @@
 package dev.botalive.core.mining;
 
 import dev.botalive.core.util.BlockPos;
+import dev.botalive.core.world.WorldView;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -90,6 +91,33 @@ public final class DigPlanner {
             current = next;
         }
         return steps; // budget vyčerpán – dovede bota aspoň blíž
+    }
+
+    /**
+     * Má pozice pevnou podlahu do dané hloubky? Sonda před vstupem na krok
+     * výkopu – bez ní si bot prokopne strop velké jeskyně a padá.
+     *
+     * <p>Tekutina pod nohama se bere jako NEbezpečná (kaverna s jezerem/lávou
+     * pod stropem – tam se schodištěm nechodí).</p>
+     *
+     * @param world    pohled na svět
+     * @param feet     pozice chodidel po kroku
+     * @param maxDepth kolik bloků pod chodidly ještě prohledat
+     * @return {@code true} pokud je do {@code maxDepth} pevná podlaha
+     */
+    public static boolean hasFloorBelow(WorldView world, BlockPos feet, int maxDepth) {
+        BlockPos below = feet.down();
+        for (int depth = 1; depth <= maxDepth + 1; depth++) {
+            var traits = world.traitsAt(below);
+            if (traits.liquid()) {
+                return false;
+            }
+            if (traits.floorHeight() >= 0.99) {
+                return depth <= maxDepth;
+            }
+            below = below.down();
+        }
+        return false;
     }
 
     /**

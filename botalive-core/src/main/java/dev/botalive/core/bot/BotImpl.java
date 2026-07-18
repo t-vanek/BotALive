@@ -133,6 +133,9 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
 
     /** Adresná prosba o sdílení z chatu; vyzvedne si ji ShareGoal. */
     private volatile dev.botalive.core.ai.ShareRequest pendingShare;
+
+    /** Kolik ticků v kuse je bot zazděný (stabilizace nouzového vyproštění). */
+    private int buriedTicks;
     /** Odpočet, než bot znovu zváží loď (po přejezdu/neúspěchu se nezkouší hned). */
     private int boatCheckCooldown;
     /** Odpočet periodické kontroly brnění v hotbaru. */
@@ -900,6 +903,25 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
                 input = obstacleTask.move(); // most se posouvá, ostatní zásahy stojí
             }
         } else {
+            // Nouzové vyproštění: bot je (dle world view) uvnitř pevného bloku
+            // a dusí se (nepovedený výkop, zásyp). Přednost přede vším – na
+            // vyproštění je ~10 s. Krátká stabilizace filtruje průlety rohem.
+            if (obstacleTask == null && alive && !paused.get() && worldView != null) {
+                BlockPos trapped = dev.botalive.core.physics.Suffocation
+                        .trappedIn(worldView, physics.position());
+                if (trapped != null) {
+                    if (++buriedTicks >= 10) {
+                        var material = worldView.materialAt(trapped);
+                        inventoryHelper.equipBestTool(serverView.latest(),
+                                material != null ? material : org.bukkit.Material.STONE);
+                        obstacleTask = new dev.botalive.core.tasks.MineBlockTask(trapped);
+                        LOG.debug("[{}] [rescue] zazděný v {} – kopu se ven", name, trapped);
+                        buriedTicks = 0;
+                    }
+                } else {
+                    buriedTicks = 0;
+                }
+            }
             if (alive && !paused.get() && !combat.engaged() && navigator.needsAssist()) {
                 obstacleTask = planObstacleRecovery();
                 LOG.debug("[{}] [nav] assist: plán={}", name,
@@ -927,21 +949,11 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
             input = MoveInput.IDLE;
         }
 
-        // Tekutinové reflexy: útěk z lávy přebíjí vše, vynoření z vody chrání
-        // boty bez aktivní plavecké navigace (stojící, ručně řízené cíle).
-        if (alive && !paused.get() && worldView != null) {
-            input = dev.botalive.core.physics.LiquidReflex.apply(
-                    input, navDriven, physics.position(), physics.submergedTicks(), worldView);
-            // Prašan: zabořený bot mrzne – vyhrabat se skokem k nejbližšímu
-            // bezpečí. Přebíjí vše, v prašanu nemá žádný cíl co pohledávat.
-            input = dev.botalive.core.physics.PowderSnowReflex.apply(
-                    input, physics.inPowderSnow(), physics.position(), worldView);
-        }
-
         // Vyhýbání davu: odpuzuj se od blízkých hráčů/botů, ať se boti neslévají
         // na stejné místo. Platí i v boji – tam se ale vyloučí cíl útoku, aby se
         // bot pořád mohl přiblížit k protivníkovi, jen se nehromadil na ostatních
-        // útočnících stejného cíle.
+        // útočnících stejného cíle. Běží PŘED záchrannými reflexy – dav nesmí
+        // ohnout únikový směr tonoucího/hořícího bota (reflexy mají poslední slovo).
         if (alive && !paused.get()) {
             int targetId = combat.engaged() && combat.target() != null
                     ? combat.target().entityId() : -1;
@@ -954,6 +966,22 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
                     input = new MoveInput(steered, input.sprint(), input.jump(), input.sneak());
                 }
             }
+        }
+
+        // Tekutinové reflexy: útěk z lávy a dušení přebíjí vše, vynoření z vody
+        // chrání boty bez aktivní plavecké navigace (stojící, ručně řízené cíle).
+        if (alive && !paused.get() && worldView != null) {
+            MoveInput beforeLiquid = input;
+            input = dev.botalive.core.physics.LiquidReflex.apply(
+                    input, navDriven, physics.position(), physics.submergedTicks(), worldView);
+            if (input != beforeLiquid && physics.submergedTicks() > 100) {
+                LOG.debug("[{}] [reflex] dech {} ticků pod vodou, únik směr {}",
+                        name, physics.submergedTicks(), input.direction());
+            }
+            // Prašan: zabořený bot mrzne – vyhrabat se skokem k nejbližšímu
+            // bezpečí. Přebíjí vše, v prašanu nemá žádný cíl co pohledávat.
+            input = dev.botalive.core.physics.PowderSnowReflex.apply(
+                    input, physics.inPowderSnow(), physics.position(), worldView);
         }
 
         // Pádový reflex: záchranná síť kolem pádů. Na zemi – když bota u

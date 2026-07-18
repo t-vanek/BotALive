@@ -31,6 +31,11 @@ public final class BoatPhysics {
     private boolean aground;
     private boolean turningLeft;
     private boolean turningRight;
+    /** Série korekcí od serveru bez čistého ticku plavby (nesouhlas o vodě). */
+    private int correctionStreak;
+
+    /** Po kolika korekcích v řadě je jasné, že server loď nepouští (břeh). */
+    private static final int HARD_AGROUND_CORRECTIONS = 3;
 
     /**
      * @param world    pohled na svět (kontrola vody)
@@ -76,13 +81,22 @@ public final class BoatPhysics {
     /**
      * Tvrdá korekce od serveru (clientbound MoveVehicle).
      *
+     * <p>Korekce dřív mazala {@code aground} – když ale klient mělčinu nevidí
+     * (chunk cache, geometrie břehu) a server ano, vznikla smyčka: korekce →
+     * záběr vpřed → „moved wrongly" → korekce, klidně 20× za sekundu. Série
+     * korekcí bez čistého ticku plavby proto znamená tvrdý aground: přestat
+     * se se serverem přetlačovat a nechat plavbu vyřešit vysednutí/restart.</p>
+     *
      * @param position pozice od serveru
      * @param yaw      natočení od serveru
      */
     public void correct(Vec3 position, float yaw) {
         this.position = position;
         this.yaw = yaw;
-        this.aground = false;
+        if (++correctionStreak >= HARD_AGROUND_CORRECTIONS) {
+            aground = true;
+            speed = 0;
+        }
     }
 
     /**
@@ -115,6 +129,11 @@ public final class BoatPhysics {
             return;
         }
         position = next;
+        // Čistý tick plavby: série korekcí se rozpouští (ojedinělá korekce
+        // za jízdy je normální a aground z ní být nemá).
+        if (correctionStreak > 0) {
+            correctionStreak--;
+        }
     }
 
     /**

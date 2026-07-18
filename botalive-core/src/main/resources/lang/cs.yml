@@ -307,6 +307,12 @@ phrases:
     - "bez peněz žádný zboží, sorry"
     - "tak nic no, obchod se ruší"
     - "napřed peníze, {name:5}"
+  no-village-known:
+    - "o žádné vesnici nevím"
+    - "vesnici jsem tu ještě neviděl"
+    - "netuším, kde by tu byla vesnice"
+    - "žádnou jsem nepotkal"
+    - "tady v okolí o žádné nevím"
   emojis:
     - ":D"
     - ":)"

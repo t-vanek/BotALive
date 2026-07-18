@@ -87,4 +87,31 @@ class DigPlannerTest {
                 new BlockPos(0, 64, 0), new BlockPos(100, 64, 0), 10);
         assertEquals(10, steps.size(), "plán respektuje strop kroků");
     }
+
+    // ---------------------------------------------------------- sonda podlahy
+
+    @Test
+    void podlahaHnedPodNohamaJeOk() {
+        var world = new dev.botalive.core.testutil.FakeWorldView(63);
+        assertTrue(DigPlanner.hasFloorBelow(world, new dev.botalive.core.util.BlockPos(0, 64, 0), 3));
+    }
+
+    @Test
+    void stropKavernySondaOdmitne() {
+        var world = new dev.botalive.core.testutil.FakeWorldView(63);
+        // Kaverna: pod chodidly 10 bloků vzduchu.
+        for (int y = 63; y >= 54; y--) {
+            world.set(0, y, 0, dev.botalive.core.world.BlockTraits.AIR);
+        }
+        assertFalse(DigPlanner.hasFloorBelow(world, new dev.botalive.core.util.BlockPos(0, 64, 0), 3),
+                "prokopnutí do kaverny musí sonda odmítnout");
+    }
+
+    @Test
+    void jezeroPodStropemSondaOdmitne() {
+        var world = new dev.botalive.core.testutil.FakeWorldView(63);
+        world.set(0, 63, 0, dev.botalive.core.testutil.FakeWorldView.WATER);
+        assertFalse(DigPlanner.hasFloorBelow(world, new dev.botalive.core.util.BlockPos(0, 64, 0), 3),
+                "tekutina pod chodidly není podlaha");
+    }
 }

@@ -130,6 +130,39 @@ class ChatEngineTest {
     }
 
     @Test
+    void sborovyDedupeZastaviPapouskovani() {
+        // Dva boti sdílejí banku (jako na serveru) – druhý nesmí zopakovat
+        // frázi, kterou první právě řekl, i když mu ji RNG nabídne.
+        PhraseBank shared = PhraseBankLoader.builtIn();
+        long[] now = {1_000_000};
+        List<String> sentA = new ArrayList<>();
+        List<String> sentB = new ArrayList<>();
+        ChatEngine botA = new ChatEngine("Karel13", PersonalityGenerator.generate(1),
+                new BotRandom(1), CONFIG, shared, sentA::add, null);
+        ChatEngine botB = new ChatEngine("Lucka99", PersonalityGenerator.generate(2),
+                new BotRandom(1), CONFIG, shared, sentB::add, null);
+        botA.clock(() -> now[0]);
+        botB.clock(() -> now[0]);
+
+        botA.sayFrom(PhraseCategory.NIGHTFALL, null);
+        for (int i = 0; i < 40; i++) {
+            now[0] += 50;
+            botA.tick();
+        }
+        // Stejný RNG seed → bez sborové paměti by B vybral stejnou frázi.
+        botB.sayFrom(PhraseCategory.NIGHTFALL, null);
+        for (int i = 0; i < 40; i++) {
+            now[0] += 50;
+            botB.tick();
+        }
+        assertEquals(1, sentA.size());
+        if (!sentB.isEmpty()) {
+            assertFalse(sentB.get(0).equals(sentA.get(0)),
+                    "druhý bot nesmí papouškovat: " + sentA + " vs " + sentB);
+        }
+    }
+
+    @Test
     void slysiNaSklonenyTvarJmena() {
         Rig rig = new Rig(3);
         // „Karle" je 5. pád jádra nicku Karel13 – bot to má brát jako zmínku.

@@ -84,6 +84,8 @@ public enum PhraseCategory {
     MARKET_DEAL,
     /** Zrušení obchodu – kupec nemá peníze ({name} = kupec). */
     MARKET_DECLINE,
+    /** Odpověď „o žádné vesnici nevím" (na dotaz, když bot žádnou nepamatuje). */
+    NO_VILLAGE_KNOWN,
     /** Smajlíky přidávané podle stylu psaní. */
     EMOJIS;
 

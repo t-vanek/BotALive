@@ -242,15 +242,28 @@ public final class ChatEngine {
         }
     }
 
-    /** Vybere frázi kategorie, které se bot nedávno nedotkl (pár pokusů). */
+    /** Vybere frázi kategorie, kterou nedávno neřekl on ANI nikdo jiný. */
     private String pickFresh(PhraseCategory category, String name) {
         for (int attempt = 0; attempt < 4; attempt++) {
             String candidate = phrases.pick(category, rng, name);
-            if (!recentlySaid(candidate)) {
+            if (!recentlySaid(candidate)
+                    && !phrases.saidRecentlyByAnyone(normalize(candidate), clock.getAsLong())) {
                 return candidate;
             }
         }
         return null; // celá kategorie ohraná – radši mlčet
+    }
+
+    /** Odpověď z kategorie – vyhne se opakováním, ale odpoví vždy. */
+    private String pickReply(PhraseCategory category, String name) {
+        for (int attempt = 0; attempt < 4; attempt++) {
+            String candidate = phrases.pick(category, rng, name);
+            if (!recentlySaid(candidate)
+                    && !phrases.saidRecentlyByAnyone(normalize(candidate), clock.getAsLong())) {
+                return candidate;
+            }
+        }
+        return phrases.pick(category, rng, name); // odpovědět je víc než neopakovat
     }
 
     /** Řekl bot tohle (normalizovaně) nedávno? */
@@ -259,12 +272,14 @@ public final class ChatEngine {
         return recentSent.contains(normalized);
     }
 
-    /** Zapamatuje odeslaný text proti papouškování. */
+    /** Zapamatuje odeslaný text proti papouškování (vlastnímu i sborovému). */
     private void rememberSent(String message) {
-        recentSent.addFirst(normalize(message));
+        String normalized = normalize(message);
+        recentSent.addFirst(normalized);
         while (recentSent.size() > RECENT_MEMORY) {
             recentSent.pollLast();
         }
+        phrases.markSaid(normalized, clock.getAsLong());
     }
 
     private static String normalize(String message) {
@@ -318,7 +333,7 @@ public final class ChatEngine {
                     ? config.replyChance() * (0.6 + sociability * 0.6)
                     : request && phrases.matches("help", inbound.content)
                             ? (0.25 + personality.trait(Trait.HELPFULNESS) * 0.35) * crowd
-                            : config.replyChance() * sociability * 0.08 * crowd;
+                            : config.replyChance() * sociability * 0.05 * crowd;
             if (!mentioned && now - lastSentAtMs < GLOBAL_COOLDOWN_MS) {
                 return;
             }
@@ -373,7 +388,7 @@ public final class ChatEngine {
         } else {
             category = rng.chance(0.5) ? PhraseCategory.AGREEMENT : PhraseCategory.CONFUSED;
         }
-        return phrases.pick(category, rng, name);
+        return pickReply(category, name);
     }
 
     /** Odpověď na věcnou otázku/prosbu ze stavu bota, nebo {@code null}. */
@@ -381,11 +396,12 @@ public final class ChatEngine {
         if (phrases.matches("what-doing", content)) {
             String activity = botContext.describeActivity();
             return activity != null && !activity.isBlank()
-                    ? activity : phrases.pick(PhraseCategory.IDLE_CHATTER, rng, name);
+                    ? activity : pickReply(PhraseCategory.IDLE_CHATTER, name);
         }
         if (phrases.matches("where-village", content)) {
             String village = botContext.describeVillage();
-            return village != null ? village : "o zadne vesnici nevim";
+            return village != null ? village
+                    : pickReply(PhraseCategory.NO_VILLAGE_KNOWN, name);
         }
         if (phrases.matches("where-are-you", content)) {
             return botContext.describeLocation();
@@ -396,18 +412,18 @@ public final class ChatEngine {
         // Volání o pomoc má přednost před obecným „pojď sem".
         if (phrases.matches("help", content)) {
             return botContext.helpRequest(inbound.sender)
-                    ? phrases.pick(PhraseCategory.PVP_ASSIST, rng, name)
-                    : phrases.pick(PhraseCategory.REQUEST_DECLINE, rng, name);
+                    ? pickReply(PhraseCategory.PVP_ASSIST, name)
+                    : pickReply(PhraseCategory.REQUEST_DECLINE, name);
         }
         if (phrases.matches("come-here", content)) {
             return botContext.followRequest(inbound.sender)
-                    ? phrases.pick(PhraseCategory.REQUEST_ACCEPT, rng, name)
-                    : phrases.pick(PhraseCategory.REQUEST_DECLINE, rng, name);
+                    ? pickReply(PhraseCategory.REQUEST_ACCEPT, name)
+                    : pickReply(PhraseCategory.REQUEST_DECLINE, name);
         }
         if (phrases.matches("give-food", content)) {
             return botContext.giveFoodRequest(inbound.sender)
-                    ? phrases.pick(PhraseCategory.GIVE_ACCEPT, rng, name)
-                    : phrases.pick(PhraseCategory.GIVE_DECLINE, rng, name);
+                    ? pickReply(PhraseCategory.GIVE_ACCEPT, name)
+                    : pickReply(PhraseCategory.GIVE_DECLINE, name);
         }
         // Prosba o konkrétní item: „dej mi dřevo", „máš uhlí?".
         if (phrases.matches("give-item", content)) {

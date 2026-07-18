@@ -292,6 +292,12 @@ phrases:
     - "no money, no goods, sorry"
     - "deal's off then"
     - "money first, {name}"
+  no-village-known:
+    - "don't know of any village"
+    - "haven't seen a village around here"
+    - "no idea where a village would be"
+    - "never came across one"
+    - "none that I know of nearby"
   emojis:
     - ":D"
     - ":)"
