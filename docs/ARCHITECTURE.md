@@ -731,3 +731,13 @@ Neutrální profil je bit-shodný s chováním před personalizací. Test
 `odvaznySkaceOpatrnyObchazi`: nad stejnou roklí odvážný bot volí
 sprint-skok a opatrný obchůzku – dva boti, dvě trasy, viditelná
 individualita.
+
+Hotovo ve fázi 23: rozšíření parkouru. Sprint-skok nově zvládá mezeru
+**3 bloků** prázdna (vanilla dolet ~4 bloky; strop `MAX_GAP = 3`,
+4 bloky se korektně odmítají) a přes jednoblokovou díru umí bot
+**parkour výskok na římsu o blok výš** (jen kardinálně, letová dráha
+se ověřuje o buňku výš nad odrazem i mezerou). Exekuce rozšířila
+svislé meze skokového segmentu (−1.6 až +1.7 – rozestup waypointů ≥ 2
+zaručuje, že jde o naplánovaný skok). Oba pohyby prošly simulačním
+kontraktem: bot je fyzicky doskočí bez poškození – dolet je ověřený
+proti reálné fyzice, ne jen slíbený plánovačem.

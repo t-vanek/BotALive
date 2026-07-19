@@ -116,6 +116,26 @@ class PathExecutionSimulationTest {
     }
 
     @Test
+    void preskociTriblokovouMezeruSprintem() {
+        FakeWorldView world = new FakeWorldView(FLOOR);
+        digChasm(world, 3, 5);
+        simulate(world, at(0), new BlockPos(9, FEET, 0), 800);
+    }
+
+    @Test
+    void vyskociParkouremNaVyssiRimsu() {
+        FakeWorldView world = new FakeWorldView(FLOOR);
+        // Jednobloková propast (x=3) a za ní terén o blok výš.
+        digChasm(world, 3, 3);
+        for (int x = 4; x <= 12; x++) {
+            for (int z = -8; z <= 8; z++) {
+                world.set(x, FEET, z, FakeWorldView.SOLID);
+            }
+        }
+        simulate(world, at(0), new BlockPos(8, FEET + 1, 0), 800);
+    }
+
+    @Test
     void preplaveVodniPrikop() {
         FakeWorldView world = new FakeWorldView(FLOOR);
         for (int x = 3; x <= 4; x++) {

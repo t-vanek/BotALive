@@ -313,10 +313,48 @@ class AStarPathfinderTest {
 
     @Test
     void nepreskociprilisSirokouMezeru() {
-        Path path = new AStarPathfinder(platformsWithGap(3))
-                .findPath(new BlockPos(0, FEET, 0), new BlockPos(8, FEET, 0), 2000);
+        Path path = new AStarPathfinder(platformsWithGap(4))
+                .findPath(new BlockPos(0, FEET, 0), new BlockPos(9, FEET, 0), 2000);
 
-        assertFalse(path.complete(), "mezera 3 bloky je nad síly sprint-skoku");
+        assertFalse(path.complete(), "mezera 4 bloky je nad síly sprint-skoku");
+    }
+
+    @Test
+    void preskociTriblokovouMezeruSprintem() {
+        BlockPos start = new BlockPos(0, FEET, 0);
+        Path path = new AStarPathfinder(platformsWithGap(3))
+                .findPath(start, new BlockPos(8, FEET, 0), 0);
+
+        assertTrue(path.complete(), "mezera 3 bloky má jít přeskočit sprintem: " + path.waypoints());
+        assertTrue(longestStep(path, start) >= 4,
+                "cesta má obsahovat sprint-skok přes 3 bloky: " + path.waypoints());
+    }
+
+    @Test
+    void parkourVyskokNaVyssiRimsuPresDiru() {
+        FakeWorldView world = new FakeWorldView(0);
+        // Startovní plošina, jednobloková díra (x=3) a římsa o blok výš.
+        for (int z = -1; z <= 1; z++) {
+            for (int x = -1; x <= 2; x++) {
+                world.set(x, FLOOR, z, FakeWorldView.SOLID);
+            }
+            for (int x = 4; x <= 8; x++) {
+                world.set(x, FLOOR + 1, z, FakeWorldView.SOLID);
+            }
+        }
+        Path path = new AStarPathfinder(world)
+                .findPath(new BlockPos(0, FEET, 0), new BlockPos(7, FEET + 1, 0), 0);
+
+        assertTrue(path.complete(), "parkour výskok na římsu má existovat: " + path.waypoints());
+        boolean parkour = false;
+        BlockPos prev = new BlockPos(0, FEET, 0);
+        for (BlockPos wp : path.waypoints()) {
+            if (Math.abs(wp.x() - prev.x()) == 2 && wp.y() - prev.y() == 1) {
+                parkour = true;
+            }
+            prev = wp;
+        }
+        assertTrue(parkour, "cesta má obsahovat výskok přes díru na +1: " + path.waypoints());
     }
 
     /**

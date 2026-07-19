@@ -16,9 +16,9 @@ import dev.botalive.core.world.WorldView;
  *   <li>waypoint se považuje za dosažený s tolerancí (bot nechodí „po pravítku"),</li>
  *   <li>sprint se zapíná na delších rovných úsecích podle povahy bota,</li>
  *   <li>skok se vyvolá, když je další waypoint výš,</li>
- *   <li>mezery 1–2 bloků (naplánované pathfinderem, i diagonální nebo
- *       s dopadem o blok níž) se přeskakují rozběhem a odrazem na hraně;
- *       širší mezera vynucuje sprint,</li>
+ *   <li>mezery 1–3 bloků (naplánované pathfinderem, i diagonální, s dopadem
+ *       o blok níž, nebo parkour výskokem na římsu o blok výš) se přeskakují
+ *       rozběhem a odrazem na hraně; širší mezera vynucuje sprint,</li>
  *   <li>zavřené dveře v cestě bot otevře interakcí,</li>
  *   <li>detekce zaseknutí: bez postupu několik desítek ticků → požádá o novou cestu,</li>
  *   <li>replanning je asynchronní – bot mezitím dojíždí starou cestu; zahozený
@@ -599,8 +599,11 @@ public final class Navigator {
                 ? path.waypoints().get(waypointIndex - 1) : position.toBlockPos();
         boolean plannedGap = Math.abs(waypoint.x() - gapOrigin.x()) > 1
                 || Math.abs(waypoint.z() - gapOrigin.z()) > 1;
+        // Svislé meze kryjí i dopad o blok níž (−0.5) a parkour výskok na
+        // římsu o blok výš (+1.5) – rozestup waypointů zaručuje, že jde
+        // o naplánovaný skok, ne o běžný krok.
         boolean gapSegment = plannedGap && onGround && !inWater
-                && delta.y() > -1.6 && delta.y() < 0.6
+                && delta.y() > -1.6 && delta.y() < 1.7
                 && delta.horizontalLength() > 1.4;
         if (gapSegment) {
             boolean wideGap = delta.horizontalLength() > 2.2;

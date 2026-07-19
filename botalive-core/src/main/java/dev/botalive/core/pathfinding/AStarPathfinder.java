@@ -17,8 +17,9 @@ import java.util.function.BooleanSupplier;
  *
  * <p>Prohledává „pochozí" pozice (opora pod nohama, průchozí prostor pro
  * tělo). Podporované pohyby: 4 kardinální směry, diagonály (bez řezání rohů),
- * výstup o 1 blok (skok), seskok až o 3 bloky, skok přes mezeru 1–2 bloků
- * (sprint-skok, i s dopadem o blok níž; diagonálně přes rohovou mezeru),
+ * výstup o 1 blok (skok), seskok až o 3 bloky, skok přes mezeru 1–3 bloků
+ * (sprint-skok, i s dopadem o blok níž; přes jednoblokovou díru i parkour
+ * výskok na římsu o blok výš; diagonálně přes rohovou mezeru),
  * šplhání po žebřících a plavání.</p>
  *
  * <p>Terén se čte přes {@link BlockTraits#floorHeight()} – bot rozumí deskám
@@ -81,8 +82,8 @@ public final class AStarPathfinder {
     /** Maximální seskok do hluboké vody (dopad do vody neubližuje). */
     private static final int MAX_WATER_DROP = 20;
 
-    /** Nejširší mezera, kterou bot přeskočí (sprint-skok zvládne 2 bloky prázdna). */
-    private static final int MAX_GAP = 2;
+    /** Nejširší mezera, kterou bot přeskočí (sprint-skok zvládne 3 bloky prázdna). */
+    private static final int MAX_GAP = 3;
     /** Přirážka za skok přes mezeru (rizikovější než chůze, levnější než obcházka). */
     private static final int COST_GAP_JUMP = 18;
     /** Do jaké hloubky kontrolovat dno mezery na hazard (láva = skok zakázán). */
@@ -587,6 +588,21 @@ public final class AStarPathfinder {
                             && !traits(lower).liquid()) {
                         int cost = base + costFallPerBlock + terrainPenalty(lower);
                         tryAdd(current, lower, cost);
+                        return;
+                    }
+                }
+                // Dopad o blok výš (jen kardinálně, jen jednobloková mezera):
+                // parkour výskok na vyšší římsu přes díru. Letová dráha vede
+                // výš – nad mezerou i nad odrazem musí být volno o buňku navíc.
+                if (!diagonal && span == 2) {
+                    BlockPos higher = landing.up();
+                    double higherFeet = feetHeight(higher);
+                    if (flatLanding(higher, higherFeet)
+                            && transitClear(pos.offset(0, 3, 0))
+                            && transitClear(gap.offset(0, 3, 0))
+                            && !traits(higher).liquid()) {
+                        int cost = base + costJump + terrainPenalty(higher);
+                        tryAdd(current, higher, cost);
                         return;
                     }
                 }

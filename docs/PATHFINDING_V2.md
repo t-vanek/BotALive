@@ -294,15 +294,22 @@ by vypadalo stroze), dva boti volí různé trasy = viditelná individualita.
 > odvaha zlevňuje sprint-skoky, opatrnost zdražuje seskoky, lávu a vodu,
 > lenost šplhání; podlahy multiplikátorů drží přípustnost heuristik
 > a neutrální profil je bit-shodný s dřívějškem. Dva boti nad stejnou
-> roklí volí různé trasy (`odvaznySkaceOpatrnyObchazi`). Z v2.3 zbývá
-> E (nové skoky) a G (silnice). Detaily viz ARCHITECTURE.md, fáze 22.
+> roklí volí různé trasy (`odvaznySkaceOpatrnyObchazi`). Detaily viz
+> ARCHITECTURE.md, fáze 22.
+>
+> **Stav: v2.3-E implementováno** – sprint-skok přes 3 bloky prázdna
+> (4 se korektně odmítají) a parkour výskok přes jednoblokovou díru na
+> římsu o blok výš; oba pohyby fyzicky ověřené simulačním kontraktem
+> (dolet bez poškození). Z roadmapy zbývá v2.2-D (akční hrany
+> kopání/stavění) a v2.3-G (preference cestiček). Detaily viz
+> ARCHITECTURE.md, fáze 23.
 
 | Fáze | Obsah | Náročnost | Riziko | Hlavní přínos |
 |---|---|---|---|---|
 | **v2.0 jádro** ✅ | A (memo, čas, cancel, tie-break, partial-best, konfig+metriky+debug) + B (throttle, splice, validace) | M | nízké | 5–10× levnější výpočty, konec replan bouří u followu, měřitelnost |
 | **v2.1 dálka** ✅ | C (region graf, koridory, optimistické UNKNOWN, prefetch navázaný na výpočet) | M–L | střední | kilometrové trasy bez slepých ramen a stop-and-go |
 | **v2.2 akce** (F ✅) | D (dig/place hrany za flagem, sjednocení s assist eskalací) + F (predikáty – lze i dřív, je nezávislé) ✅ | L | vyšší | tunely/mosty jako plán, plánovaný útěk, multi-target |
-| **v2.3 šmrnc** (H ✅) | E (nové skoky) + G (silnice) + H (osobnost) ✅ | S | nízké | lidskost a individualita tras |
+| **v2.3 šmrnc** (E ✅ H ✅) | E (nové skoky) ✅ + G (silnice) + H (osobnost) ✅ | S | nízké | lidskost a individualita tras |
 
 Pořadí není náhodné: **A je prerekvizita všeho** (bez metrik a levné smyčky
 se C ani D nedá odladit ani zaplatit), B je nejlepší poměr cena/užitek pro
