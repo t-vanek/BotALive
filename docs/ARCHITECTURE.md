@@ -836,3 +836,25 @@ pathfindingu v2) a migrace goalů na `near` cíle.
   (`sameShape`) – replány se tlumí jako u followu. Kde je cíl záměrně
   konkrétní pochozí buňka (rybářské stanoviště, stanoviště kopání,
   sběr dropů pod nohama), zůstává blokový cíl.
+
+Hotovo ve fázi 26: pathfinding v3.0 – tři poslední známé rozpory plánu
+s kolizním systémem (analýza [docs/PATHFINDING_V3.md](PATHFINDING_V3.md)).
+
+- **Padavé bloky nad výkopem**: kopací hrana se odmítne, když má kopaná
+  buňka přímo nad sebou padavý blok (písek, štěrk, beton v prášku,
+  kovadlina, krápník) mimo vlastní výkop – sesyp by štolu zasypal
+  a rozbil „jeden souvislý plán" na smyčku replánů. Padavý blok smí být
+  sám cílem krumpáče (štěrk pod pevným stropem se kope normálně).
+- **Smrtící hloubka a void**: `dropDepth` skenuje dno do 24 bloků – láva
+  na dně zakazuje skok i tam, kam starý sken (8) neviděl, a stejnou
+  pojistku sdílí mostní opěry. Skok nad pádem smrtící hloubky (≥ 20)
+  nese příplatek škálovaný opatrností povahy, nad bezednem dvojnásobný:
+  bázlivý bot volí mezi ostrovy lávku, odvážný skáče – a mostění nad
+  bezednem zůstává povolené (ostrovy v Endu). Práh je záměrně „smrtící",
+  ne „bolestivý": rokle hloubky 12 nechává volbu na odvaze (přísnější
+  práh převracel chování odvážných, odhalil to osobnostní test).
+- **Dveře v letu a v rohu**: nový `flightClear` (průchozí bez ruky na
+  klice) hlídá rohy diagonál i letovou dráhu skoku – zavřené dveře už
+  neřežou roh (bot je při diagonále neotvírá a odíral se o kolizi)
+  a neskáče se skrz ně (letová dráha je dřív brala za průchozí jako
+  chůze). Otevřené dveře nevadí – jsou bez kolize.

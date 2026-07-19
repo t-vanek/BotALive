@@ -955,6 +955,139 @@ class AStarPathfinderTest {
         assertTrue(last.x() > 10, "částečná cesta má postoupit k cíli: " + last);
     }
 
+    /**
+     * Koridor šířky 1 (bedrock mantinely) s roklí přes celou šířku:
+     * sloupce {@code gapFrom..gapTo} vykopané do hloubky {@code depth}
+     * pod úroveň podlahy. Jediná cesta vpřed je sprint-skok.
+     */
+    private static FakeWorldView roklovyKoridor(int gapFrom, int gapTo, int depth) {
+        FakeWorldView world = new FakeWorldView(FLOOR);
+        for (int x = -1; x <= 8; x++) {
+            for (int y = FEET; y <= FEET + 2; y++) {
+                world.set(x, y, -1, org.bukkit.Material.BEDROCK, FakeWorldView.SOLID);
+                world.set(x, y, 1, org.bukkit.Material.BEDROCK, FakeWorldView.SOLID);
+            }
+        }
+        // Čela koridoru – bez nich se rokle dá legálně obejít kolem konců zdí.
+        for (int y = FEET; y <= FEET + 2; y++) {
+            world.set(-1, y, 0, org.bukkit.Material.BEDROCK, FakeWorldView.SOLID);
+            world.set(8, y, 0, org.bukkit.Material.BEDROCK, FakeWorldView.SOLID);
+        }
+        for (int x = gapFrom; x <= gapTo; x++) {
+            for (int y = FLOOR - depth + 1; y <= FLOOR; y++) {
+                world.set(x, y, 0, FakeWorldView.AIRLIKE);
+            }
+        }
+        return world;
+    }
+
+    @Test
+    void lavaVHlubokeRokliZakazeSkok() {
+        // Láva na dně v hloubce 12 – mimo starý sken (8), uvnitř dohledné
+        // hloubky (24). Kontrola: bez lávy se stejná rokle přeskočí.
+        FakeWorldView clean = roklovyKoridor(3, 4, 11);
+        Path jumped = new AStarPathfinder(clean)
+                .findPath(new BlockPos(0, FEET, 0), new BlockPos(7, FEET, 0), 0);
+        assertTrue(jumped.complete(), "hluboká rokle bez lávy se skáče dál");
+        assertTrue(longestStep(jumped, new BlockPos(0, FEET, 0)) >= 3,
+                "očekáván sprint-skok: " + jumped.waypoints());
+
+        FakeWorldView lava = roklovyKoridor(3, 4, 11);
+        for (int x = 3; x <= 4; x++) {
+            lava.set(x, FLOOR - 11, 0, FakeWorldView.HAZARD);
+        }
+        Path refused = new AStarPathfinder(lava)
+                .findPath(new BlockPos(0, FEET, 0), new BlockPos(7, FEET, 0), 0);
+        assertFalse(refused.complete(),
+                "nad lávou v dohledné hloubce se neskáče: " + refused.waypoints());
+    }
+
+    @Test
+    void neskaceSkrzZavreneDvere() {
+        // Zavřené dveře v letové dráze (úroveň hlavy nad mezerou): uprostřed
+        // letu se neotevřou – skok se zakáže. Bez dveří stejná rokle projde
+        // (kontrolu dělá lavaVHlubokeRokliZakazeSkok).
+        FakeWorldView world = roklovyKoridor(3, 4, 12);
+        world.set(4, FEET + 1, 0, FakeWorldView.DOOR_CLOSED);
+        // Strop nad dveřmi – zavřené dveře jsou plný box a bez stropu by na
+        // jejich vršek šel parkour výskok (legální trasa mimo testovaný let).
+        world.set(4, FEET + 2, 0, org.bukkit.Material.BEDROCK, FakeWorldView.SOLID);
+        Path path = new AStarPathfinder(world)
+                .findPath(new BlockPos(0, FEET, 0), new BlockPos(7, FEET, 0), 0);
+        assertFalse(path.complete(),
+                "skrz zavřené dveře se neletí: " + path.waypoints());
+    }
+
+    @Test
+    void diagonalaNerezeRohPresZavreneDvere() {
+        FakeWorldView world = new FakeWorldView(FLOOR);
+        world.set(1, FEET, 0, FakeWorldView.DOOR_CLOSED);
+        world.set(1, FEET + 1, 0, FakeWorldView.DOOR_CLOSED);
+        Path path = new AStarPathfinder(world)
+                .findPath(new BlockPos(0, FEET, 0), new BlockPos(4, FEET, 4), 0);
+
+        assertTrue(path.complete());
+        // Žádný diagonální krok nesmí mít v rohovém sloupci zavřené dveře –
+        // bot je při řezání rohu neotvírá a odřel by se o jejich kolizi.
+        BlockPos prev = new BlockPos(0, FEET, 0);
+        for (BlockPos next : path.waypoints()) {
+            int dx = next.x() - prev.x();
+            int dz = next.z() - prev.z();
+            if (dx != 0 && dz != 0 && next.y() == prev.y()) {
+                for (BlockPos corner : new BlockPos[]{
+                        new BlockPos(prev.x() + dx, prev.y(), prev.z()),
+                        new BlockPos(prev.x(), prev.y(), prev.z() + dz)}) {
+                    assertFalse(world.traitsAt(corner).door()
+                                    || world.traitsAt(corner.up()).door(),
+                            "diagonála " + prev + "→" + next + " řeže roh přes dveře");
+                }
+            }
+            prev = next;
+        }
+    }
+
+    @Test
+    void nekopeTunelPodPadavymStropem() {
+        FakeWorldView world = massif();
+        // Horní dvě patra masivu jsou písek: jakýkoli tunel (i vylámaný
+        // schod) by měl nad vykopanou buňkou padavý blok a strop by se
+        // sesypal do štoly – plán se odmítne.
+        for (int x = 3; x <= 5; x++) {
+            for (int z = -2; z <= 2; z++) {
+                world.set(x, FEET + 2, z, org.bukkit.Material.SAND, FakeWorldView.SOLID);
+                world.set(x, FEET + 3, z, org.bukkit.Material.SAND, FakeWorldView.SOLID);
+            }
+        }
+        // Bedrockové dno proti podkopání masivu zespodu (schody dolů a tunel
+        // pod pískem by pojistku legálně obešly – tady testujeme strop).
+        for (int x = -1; x <= 10; x++) {
+            for (int z = -3; z <= 3; z++) {
+                world.set(x, FLOOR, z, org.bukkit.Material.BEDROCK, FakeWorldView.SOLID);
+            }
+        }
+        AStarPathfinder.Result result = new AStarPathfinder(world).findPath(
+                new BlockPos(0, FEET, 0), PathGoal.block(new BlockPos(9, FEET, 0)),
+                2000, 0L, null, PathOptions.WITH_DIGGING);
+        assertFalse(result.path().complete(),
+                "pod padavým stropem se tunel nekope: " + result.path().waypoints());
+    }
+
+    @Test
+    void prokopeSterkKdyzJeStropPevny() {
+        FakeWorldView world = massif();
+        // Štěrk v ose tunelu s kamenem nad ním: pojistka míří na strop nad
+        // výkopem, ne na kopaný blok – štěrk sám je legitimní cíl krumpáče.
+        for (int z = -2; z <= 2; z++) {
+            world.set(4, FEET, z, org.bukkit.Material.GRAVEL, FakeWorldView.SOLID);
+            world.set(4, FEET + 1, z, org.bukkit.Material.GRAVEL, FakeWorldView.SOLID);
+        }
+        AStarPathfinder.Result result = new AStarPathfinder(world).findPath(
+                new BlockPos(0, FEET, 0), PathGoal.block(new BlockPos(9, FEET, 0)),
+                2000, 0L, null, PathOptions.WITH_DIGGING);
+        assertTrue(result.path().complete(),
+                "štěrk pod pevným stropem se prokopat smí: " + result.path().waypoints());
+    }
+
     @Test
     void nearCilUNepruchozihoBlokuSetriRozpocet() {
         FakeWorldView world = new FakeWorldView(FLOOR);

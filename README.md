@@ -27,8 +27,10 @@ inventář a historii; po restartu serveru pokračuje tam, kde skončil.
   nebezpečí, smrti, domov… v SQLite (výchozí) nebo PostgreSQL, s write-behind
   ukládáním a slučováním blízkých vzpomínek.
 - **Vlastní A\* pathfinding** – asynchronní, s cenami za vodu a seskoky, tvrdým
-  zákazem lávy/propastí, skoky, šplháním, otevíráním dveří i branek a detekcí
-  zaseknutí. Když cesta nevede, bot to nevzdá: **eskaluje jako hráč** –
+  zákazem lávy/propastí (láva na dně rokle zakazuje skok do hloubky 24 bloků
+  a skok nad smrtícím pádem či voidem si bázlivý bot připlatí), skoky,
+  šplháním, otevíráním dveří i branek a detekcí zaseknutí. Tunel se nikdy
+  nekope pod padavým stropem (písek, štěrk – sesyp by plán rozbil). Když cesta nevede, bot to nevzdá: **eskaluje jako hráč** –
   replanning → **kopací plán** (tunel 1×2 a vylámané schody jako hrany grafu –
   jeden souvislý plán s tekutinovou pojistkou a deny-listem majetku, nikdy
   skrz truhly, pece či postele) → reaktivní assist (mosty, pilíře, žebříky).

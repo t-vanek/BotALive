@@ -67,6 +67,48 @@ class PathCostsTest {
                 "opatrný má rokli obejít severem: " + cautiousPath.waypoints());
     }
 
+    @Test
+    void nadVoidemSkaceJenOdvazny() {
+        FakeWorldView world = new FakeWorldView(FLOOR);
+        int y = FEET + 30; // ostrovy vysoko – dno mimo dohlednou hloubku = „void"
+        int floor = y - 1;
+        // Ostrov A (x 0..2), ostrov B (x 6..8), mezera 3 sloupce = sprint-skok.
+        for (int z = -1; z <= 1; z++) {
+            for (int x = 0; x <= 2; x++) {
+                world.set(x, floor, z, FakeWorldView.SOLID);
+            }
+            for (int x = 6; x <= 8; x++) {
+                world.set(x, floor, z, FakeWorldView.SOLID);
+            }
+        }
+        // Lávka okolo (spojky na z 2..4 u obou ostrovů + řada na z=5).
+        for (int z = 2; z <= 4; z++) {
+            world.set(1, floor, z, FakeWorldView.SOLID);
+            world.set(7, floor, z, FakeWorldView.SOLID);
+        }
+        for (int x = 1; x <= 7; x++) {
+            world.set(x, floor, 5, FakeWorldView.SOLID);
+        }
+        BlockPos start = new BlockPos(0, y, 0);
+        BlockPos goal = new BlockPos(8, y, 0);
+
+        Path bravePath = new AStarPathfinder(world, List.of(),
+                PathCosts.of(personality(1.0, 0.0, 0.0)))
+                .findPath(start, goal, 0);
+        Path cautiousPath = new AStarPathfinder(world, List.of(),
+                PathCosts.of(personality(0.0, 1.0, 0.0)))
+                .findPath(start, goal, 0);
+
+        assertTrue(bravePath.complete() && cautiousPath.complete(),
+                "oba musí dorazit (jinou cestou)");
+        assertTrue(hasGapJump(bravePath),
+                "odvážný má mezi ostrovy skočit: " + bravePath.waypoints());
+        assertTrue(!hasGapJump(cautiousPath),
+                "opatrný nemá nad voidem skákat: " + cautiousPath.waypoints());
+        assertTrue(cautiousPath.waypoints().stream().anyMatch(p -> p.z() >= 5),
+                "opatrný má jít lávkou: " + cautiousPath.waypoints());
+    }
+
     /** Obsahuje cesta skokový segment (sousední waypointy dál než 1 blok)? */
     private static boolean hasGapJump(Path path) {
         List<BlockPos> wps = path.waypoints();

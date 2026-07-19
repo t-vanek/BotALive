@@ -97,8 +97,32 @@ public final class AStarPathfinder {
     private static final int MAX_GAP = 3;
     /** Přirážka za skok přes mezeru (rizikovější než chůze, levnější než obcházka). */
     private static final int COST_GAP_JUMP = 18;
-    /** Do jaké hloubky kontrolovat dno mezery na hazard (láva = skok zakázán). */
-    private static final int GAP_HAZARD_SCAN = 8;
+    /**
+     * Dohledná hloubka dna pod skokem/mostem. Hazard kdekoli v ní znamená
+     * zákaz (dřívější sken 8 bloků neviděl lávu na dně hlubší rokle);
+     * bez dna v této hloubce se pád bere jako bezedný (void).
+     */
+    private static final int DEEP_HAZARD_SCAN = 24;
+    /** Výsledek {@code dropDepth}: hazard (láva/oheň) v dohledné hloubce. */
+    private static final int DROP_HAZARD = -1;
+    /** Výsledek {@code dropDepth}: hluboká voda – pád bezpečně tlumí. */
+    private static final int DROP_WATER = 0;
+    /** Výsledek {@code dropDepth}: bez dna v dohledné hloubce (void, propast). */
+    private static final int DROP_BOTTOMLESS = Integer.MAX_VALUE;
+    /**
+     * Hloubka pádu, která by bota zabila nebo skoro zabila (vanilla poškození
+     * = hloubka − 3, tedy 17 při 20). Mělčí pády pod skokem nechávají cenu
+     * skoku na odvaze ({@code gapJump}) – riziko nepovedeného rozskoku je
+     * malé a dopad bolestivý, ne fatální.
+     */
+    private static final int DEADLY_DROP = 20;
+    /**
+     * Přirážka za skok nad pádem smrtící hloubky: nepovedený rozskok
+     * (strčení davem, led, boj) znamená smrt. Škáluje se opatrností povahy
+     * ({@code hazardMargin}), nad bezednem (void – žádná šance) dvojnásobně
+     * – bázlivý bot volí obchůzku, odvážný mezi ostrovy dál skáče.
+     */
+    private static final int COST_DEEP_GAP = 30;
 
     /** Výška schodu zvládnutá bez skoku (step-up fyziky). */
     private static final double STEP_UP = 0.6;
@@ -143,6 +167,7 @@ public final class AStarPathfinder {
     private final int costSubmerged;
     private final int costGapJump;
     private final int costNearHazard;
+    private final int costDeepGap;
 
     /**
      * @param world pohled na svět (thread-safe)
@@ -193,6 +218,7 @@ public final class AStarPathfinder {
         this.costSubmerged = scaled(COST_SUBMERGED, profile.water());
         this.costGapJump = scaled(COST_GAP_JUMP, profile.gapJump());
         this.costNearHazard = scaled(COST_NEAR_HAZARD, profile.hazardMargin());
+        this.costDeepGap = scaled(COST_DEEP_GAP, profile.hazardMargin());
     }
 
     /** Cena škálovaná profilem (zaokrouhlená, nezáporná). */
@@ -215,6 +241,16 @@ public final class AStarPathfinder {
                  RESPAWN_ANCHOR -> true;
             default -> material.name().endsWith("_BED")
                     || material.name().endsWith("SHULKER_BOX");
+        };
+    }
+
+    /** Padavé materiály – bez podpory se sesypou (do vykopnuté štoly). */
+    private static boolean gravityMaterial(org.bukkit.Material material) {
+        return switch (material) {
+            case SAND, RED_SAND, SUSPICIOUS_SAND, GRAVEL, SUSPICIOUS_GRAVEL,
+                 ANVIL, CHIPPED_ANVIL, DAMAGED_ANVIL, POINTED_DRIPSTONE,
+                 DRAGON_EGG -> true;
+            default -> material.name().endsWith("_CONCRETE_POWDER");
         };
     }
 
@@ -641,6 +677,7 @@ public final class AStarPathfinder {
                 return;
             }
             int maxSpan = diagonal ? 2 : MAX_GAP + 1;
+            int worstDrop = 0;
             for (int span = 2; span <= maxSpan; span++) {
                 // Nový mezisloupec (poslední před dopadem pro tento rozpon).
                 BlockPos gap = pos.offset(dx * (span - 1), 0, dz * (span - 1));
@@ -656,12 +693,21 @@ public final class AStarPathfinder {
                         && columnClear(gap.offset(0, 0, dz)))) {
                     return; // rohové sloupce blokují letovou dráhu
                 }
-                if (hazardBelow(gap)) {
-                    return; // láva na dně – radši obchůzka
+                int drop = dropDepth(gap);
+                if (drop == DROP_HAZARD) {
+                    return; // láva/oheň na dně v dohledné hloubce – radši obchůzka
                 }
+                worstDrop = Math.max(worstDrop, drop);
+                // Smrtící pád pod letem: nepovedený rozskok (strčení davem,
+                // led, boj) = smrt. Příplatek roste s opatrností povahy, nad
+                // bezednem (void) je dvojnásobný. Mělčí pády nechávají cenu
+                // na samotné přirážce skoku – bolestivé, ne fatální.
+                int deepPenalty = worstDrop < DEADLY_DROP ? 0
+                        : worstDrop == DROP_BOTTOMLESS ? 2 * costDeepGap : costDeepGap;
                 int base = span * (diagonal ? COST_DIAGONAL : COST_STRAIGHT) + costGapJump
                         + (span - 2) * costGapJump / 2   // širší mezera = větší riziko
-                        + (diagonal ? costGapJump / 2 : 0); // rohový let je delší a těsnější
+                        + (diagonal ? costGapJump / 2 : 0) // rohový let je delší a těsnější
+                        + deepPenalty;
                 BlockPos landing = pos.offset(dx * span, 0, dz * span);
                 double landFeet = feetHeight(landing);
                 if (flatLanding(landing, landFeet) && transitClear(landing.offset(0, 2, 0))
@@ -703,30 +749,50 @@ public final class AStarPathfinder {
 
         /** Průchozí sloupec letové dráhy: úroveň nohou, hlavy i nad hlavou. */
         private boolean columnClear(BlockPos feet) {
-            return transitClear(feet) && transitClear(feet.up())
-                    && transitClear(feet.offset(0, 2, 0));
+            return flightClear(feet) && flightClear(feet.up())
+                    && flightClear(feet.offset(0, 2, 0));
         }
 
-        /** Je na dně sloupce (do {@link #GAP_HAZARD_SCAN} bloků) hazard – láva, oheň? */
-        private boolean hazardBelow(BlockPos top) {
+        /**
+         * Průchozí bez ruky na klice – jako {@link #transitClear}, ale zavřené
+         * dveře překážejí. Pro letovou dráhu skoku (uprostřed letu se dveře
+         * neotevřou) a rohy diagonál (při řezání rohu bot dveře neotvírá
+         * a odřel by se o jejich kolizi). Otevřené dveře nevadí (bez kolize).
+         */
+        private boolean flightClear(BlockPos pos) {
+            BlockTraits t = traits(pos);
+            return t != BlockTraits.UNKNOWN && !t.hazard() && !t.web() && t.lowProfile();
+        }
+
+        /**
+         * Hloubka pádu pod sloupcem: počet bloků k pevnému dnu
+         * (1 = dno hned pod), {@link #DROP_WATER} pro hlubokou vodu (pád
+         * bezpečně tlumí, mělčina se bere jako pevné dno),
+         * {@link #DROP_HAZARD} při hazardu kdekoli v dohledné hloubce
+         * {@link #DEEP_HAZARD_SCAN} a {@link #DROP_BOTTOMLESS} bez dna (void).
+         */
+        private int dropDepth(BlockPos top) {
             BlockPos pos = top.down();
-            for (int depth = 1; depth <= GAP_HAZARD_SCAN; depth++) {
+            for (int depth = 1; depth <= DEEP_HAZARD_SCAN; depth++) {
                 BlockTraits t = traits(pos);
                 if (t.hazard()) {
-                    return true;
+                    return DROP_HAZARD;
                 }
-                if (!t.noCollision() || t.liquid()) {
-                    return false; // pevné/vodní dno je bezpečné
+                if (t.liquid()) {
+                    return traits(pos.down()).liquid() ? DROP_WATER : depth;
+                }
+                if (!t.noCollision()) {
+                    return depth;
                 }
                 pos = pos.down();
             }
-            return false; // bezedno – pád je riziko skoku, ne hazard dna
+            return DROP_BOTTOMLESS;
         }
 
         /** Diagonála je povolená jen, když jsou oba přiléhající sloupce průchozí (žádné řezání rohů). */
         private boolean canCutCorner(BlockPos pos, int dx, int dz) {
-            return transitClear(pos.offset(dx, 0, 0)) && transitClear(pos.offset(dx, 1, 0))
-                    && transitClear(pos.offset(0, 0, dz)) && transitClear(pos.offset(0, 1, dz));
+            return flightClear(pos.offset(dx, 0, 0)) && flightClear(pos.offset(dx, 1, 0))
+                    && flightClear(pos.offset(0, 0, dz)) && flightClear(pos.offset(0, 1, dz));
         }
 
         /** Přidá cíl, pokud je pochozí (pomocník pro šplhání/plavání). */
@@ -805,7 +871,24 @@ public final class AStarPathfinder {
                 }
                 return null; // tekutina, neznámo, hazard, chráněný blok
             }
+            // Gravitační pojistka: padavý blok (písek, štěrk) přímo nad
+            // vykopanou buňkou by se sesypal do štoly – waypoint by se po
+            // výkopu zase zablokoval a plán rozpadl na smyčku replánů.
+            // Padavý blok smí být sám cílem výkopu; vadí jen nekopaný soused
+            // nad čerstvou dírou.
+            for (BlockPos cell : digs) {
+                BlockPos above = cell.up();
+                if (!digs.contains(above) && gravityBlock(above)) {
+                    return null;
+                }
+            }
             return digs;
+        }
+
+        /** Je v buňce padavý blok (sesypal by se do vykopnuté štoly)? */
+        private boolean gravityBlock(BlockPos cell) {
+            org.bukkit.Material material = world.materialAt(cell);
+            return material != null && gravityMaterial(material);
         }
 
         /**
@@ -829,7 +912,9 @@ public final class AStarPathfinder {
                 BlockPos support = target.down();
                 // Hloubkový sken pod oporou (jako u skoků): láva kdekoli
                 // v dohledné hloubce pod mostkem = žádný most, i o patro výš.
-                if (!placeable(support) || hazardBelow(support)) {
+                // Bezedno mostění nebrání – mosty mezi ostrovy (End) jsou
+                // bezpečná chůze po položených blocích.
+                if (!placeable(support) || dropDepth(support) == DROP_HAZARD) {
                     continue;
                 }
                 if (!transitClear(target) || !transitClear(target.up())) {

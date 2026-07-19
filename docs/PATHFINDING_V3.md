@@ -112,11 +112,30 @@ na stěny > 2 bloky zůstává čistě reaktivní – jako plánovaná hrana
 (sloupec žebříků + rozpočet žebříků v inventáři) by dokončilo paritu
 plán ↔ assist.
 
+> **Stav: v3.0 implementováno.** (P1) `digsFor` odmítne výkop s padavým
+> blokem (písek, štěrk, beton v prášku, kovadlina…) přímo nad kopanou
+> buňkou – padavý blok smí být sám cílem výkopu, vadí jen nekopaný soused
+> nad čerstvou dírou (`nekopeTunelPodPadavymStropem`,
+> `prokopeSterkKdyzJeStropPevny`). (P2) `hazardBelow` nahrazen `dropDepth`
+> s dohlednou hloubkou 24: láva na dně zakazuje skok i v hloubce 9+
+> (`lavaVHlubokeRokliZakazeSkok`) a mostní opěry sdílí stejný sken;
+> **smrtící pád** (≥ 20, vanilla poškození 17) a bezedno nesou příplatek
+> škálovaný opatrností (`COST_DEEP_GAP`, nad voidem ×2) – bázlivý bot jde
+> mezi ostrovy lávkou, odvážný skáče (`nadVoidemSkaceJenOdvazny`). Práh
+> je záměrně „smrtící", ne „bolestivý": rokle hloubky 12 nechává volbu na
+> odvaze jako dřív (původní návrh s prahem = bezpečný seskok převracel
+> chování odvážných – odhalil to osobnostní test). Mostění nad bezednem
+> zůstává povolené (ostrovy v Endu). (P5) nový `flightClear` (průchozí
+> bez ruky na klice) kryje rohy diagonál i celou letovou dráhu skoku –
+> zavřené dveře už neřežou roh (`diagonalaNerezeRohPresZavreneDvere`)
+> a neskáče se skrz ně (`neskaceSkrzZavreneDvere` – nález nad rámec
+> analýzy: letová dráha dveře „otvírala" taky).
+
 ## 2. Doporučené fázování
 
 | Fáze | Obsah | Náročnost | Riziko | Přínos |
 |---|---|---|---|---|
-| **v3.0 korektnost** | P1 gravity guard kopání, P2 hluboký sken + příplatek za skok nad pádem/voidem (škálovaný opatrností), P5 roh bez dveří | S | nízké | plán a kolize se přestanou rozcházet v posledních známých místech |
+| **v3.0 korektnost** ✅ | P1 gravity guard kopání, P2 hluboký sken + příplatek za skok nad pádem/voidem (škálovaný opatrností), P5 roh bez dveří | S | nízké | plán a kolize se přestanou rozcházet v posledních známých místech |
 | **v3.1 dokončení migrace** | P3 zbylé `near` cíle (End/Nether/drak/vozidla/průzkum) | S | nízké | konec pálení rozpočtu, drift throttle všude |
 | **v3.2 kvalita výběru** | P4 `anyOf` v goalech s kandidáty (strom/ruda/truhla/postel) + zpětná vazba „který kandidát vyšel" | M | střední | méně marných výpočtů a blacklist smyček, přirozenější volby |
 | **v3.3 parita akcí** | P8 žebříkové hrany + BotTask-level simulace | M | střední | poslední reaktivní eskalace pod kontraktem |
