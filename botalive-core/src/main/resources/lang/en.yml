@@ -264,6 +264,11 @@ phrases:
     - "well's done! the square in {name} finally looks like something"
     - "there, {name} has a well. no stone carried, no water!"
     - "finished, the well stands. come see the square"
+
+  settlement-role-taken:
+    - "nobody here worked as {name}, so I'm taking it up"
+    - "the village needs a {name} around – that's me now"
+    - "changing trades, we simply had no {name} here"
     - "packing up, following my friends"
   recover-run:
     - "my stuff! hope it's still there"

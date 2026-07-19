@@ -343,7 +343,29 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
                         r -> !"spawn".equals(r.data().get("type")));
             }
             dev.botalive.core.settlement.SettlementAnnouncer.say(chat, action);
+            if (action.type() == dev.botalive.core.settlement.SettlementService
+                    .CohesionAction.Type.JOIN_NEARBY) {
+                maybeAdoptRole();
+            }
         });
+    }
+
+    /**
+     * Univerzál vstupující do sídla převezme řemeslo, které tam nikdo nedělá
+     * (fáze C růstové roadmapy) – vesnice si řemeslníky vychovává, nevnucuje:
+     * zavedeným členům se role nemění, jen nový bez vyhraněného zaměření
+     * dostane při vstupu nabídku, kde je potřeba.
+     */
+    private void maybeAdoptRole() {
+        if (role() != dev.botalive.api.role.BotRole.NONE) {
+            return;
+        }
+        services.settlements().settlementIdOf(id).ifPresent(settlementId ->
+                services.settlements().missingCoreRole(settlementId).ifPresent(needed -> {
+                    role(needed);
+                    chat.sayFrom(dev.botalive.core.chat.PhraseCategory
+                            .SETTLEMENT_ROLE_TAKEN, needed.displayName());
+                }));
     }
 
     /**

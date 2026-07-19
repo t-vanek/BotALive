@@ -77,6 +77,9 @@ public enum PhraseCategory {
 
     /** Studna sídla dokončena ({@code {name}} = jméno sídla). */
     SETTLEMENT_WELL_DONE,
+
+    /** Nový člen převzal chybějící řemeslo ({@code {name}} = název role). */
+    SETTLEMENT_ROLE_TAKEN,
     /** Běh pro věci po smrti – vyrážím. */
     RECOVER_RUN,
     /** Věci po smrti zachráněné. */
