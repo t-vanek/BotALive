@@ -72,7 +72,8 @@ public final class SettlementService {
      */
     public record SettlementInfo(long id, String name, String world, BlockPos center,
                                  UUID founder, List<MemberInfo> members,
-                                 int houses, SettlementTier tier, UUID mayor) {
+                                 int houses, SettlementTier tier, UUID mayor,
+                                 List<ProjectInfo> projects) {
     }
 
     /**
@@ -1292,8 +1293,13 @@ public final class SettlementService {
             members.add(new MemberInfo(member.botId(), member.plotIndex(),
                     member.plotOrigin()));
         }
+        List<ProjectInfo> projects = new ArrayList<>();
+        for (Project project : settlement.projects.values()) {
+            projects.add(projectInfo(settlement, project));
+        }
         return new SettlementInfo(settlement.id, settlement.name, settlement.world,
                 settlement.center, settlement.founder, List.copyOf(members),
-                houses(settlement), tierOf(settlement), mayorOf(settlement));
+                houses(settlement), tierOf(settlement), mayorOf(settlement),
+                List.copyOf(projects));
     }
 }

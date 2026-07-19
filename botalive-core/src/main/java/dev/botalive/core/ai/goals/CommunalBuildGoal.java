@@ -111,6 +111,8 @@ public final class CommunalBuildGoal extends AbstractGoal {
     }
 
     private boolean furnishPlanned;
+    /** Klíč posledního ohlášeného projektu – hláška jen pro nový, ne re-claim. */
+    private long lastAnnouncedProject = -1;
 
     @Override
     public void tick(Bot bot) {
@@ -179,7 +181,11 @@ public final class CommunalBuildGoal extends AbstractGoal {
         }
         claimed = true;
         String name = settlementName(ctx, bot);
-        if (name != null && ctx.rng().chance(0.6)) {
+        long announceKey = project.settlementId() * 31 + project.kind().ordinal();
+        if (name != null && announceKey != lastAnnouncedProject && ctx.rng().chance(0.6)) {
+            // Hlásí se jen NOVÝ projekt – opakované zamluvení téhož (návrat
+            // ke stavbě, marné pokusy) by chat zaplavilo.
+            lastAnnouncedProject = announceKey;
             ctx.chat().sayFrom(project.kind() == ProjectKind.WELL
                     ? PhraseCategory.SETTLEMENT_WELL_START
                     : PhraseCategory.SETTLEMENT_GRANARY_START, name);
@@ -200,7 +206,10 @@ public final class CommunalBuildGoal extends AbstractGoal {
         ctx.navigator().navigateTo(ctx.position(),
                 dev.botalive.core.pathfinding.PathGoal.near(stand, 2));
         if (!ctx.navigator().navigating()) {
-            giveUp(ctx, 1200); // staveniště nedostupné – uvolnit a zkusit jindy
+            // Staveniště nedostupné (typicky v backoffu nedosažitelnosti po
+            // dálkovém selhání) – cooldown musí být delší než backoff, jinak
+            // se claim/hláška točí naprázdno každou minutu.
+            giveUp(ctx, 2400);
         }
     }
 

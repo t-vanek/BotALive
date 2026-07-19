@@ -402,6 +402,13 @@ public final class BotAliveCommand implements TabExecutor {
                             NamedTextColor.GRAY)));
             sender.sendMessage(Component.text("   " + String.join(", ", memberNames),
                     NamedTextColor.GRAY));
+            for (var project : settlement.projects()) {
+                sender.sendMessage(Component.text("   ⚒ " + project.kind() + " "
+                                + project.origin().x() + "/" + project.origin().y() + "/"
+                                + project.origin().z()
+                                + (project.done() ? " (hotovo)" : " (staví se)"),
+                        NamedTextColor.DARK_AQUA));
+            }
         }
     }
 
