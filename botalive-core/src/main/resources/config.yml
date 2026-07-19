@@ -317,6 +317,27 @@ end:
   # proti drakovi, kterého neumí dorazit, bojoval do smrti.
   max-fight-minutes: 15
 
+  # Vnější ostrovy Endu (po skolení draka). Bot s dostatkem perel prohodí
+  # perlu gatewayí na okraji hlavního ostrova, na vnějších ostrovech najde
+  # end city, probojuje se přes shulkery (levitaci po zásahu klient poctivě
+  # simuluje), vyluští truhly a z end ship sundá ELYTRY (item frame na lodi).
+  # Domů se vrací zpáteční gatewayí. S elytrami pak umí slétat z výšek
+  # klouzavým letem (konzervativní řízení – žádné střemhlavé nálety).
+  outer:
+    enabled: true
+    # Časový rozpočet výpravy za gatewayí (minuty); pak návrat.
+    max-trip-minutes: 25
+    # Server-side hledání end city (locateNearestStructure, precedent §9).
+    # Vypnuto / paketový režim: město se hledá skenem purpuru při průzkumu.
+    locate-assist: true
+    # Kolik perel si bot vždy nechává na zpáteční průchod gatewayí.
+    pearl-reserve: 2
+    # Nejdál, kam se za nalezeným městem půjde (bloky) – přes větší dálky
+    # se přes prázdné ostrovy nemostí.
+    max-city-distance: 400
+    # Smí boti létat na elytrách (klouzavé slety z výšek).
+    elytra: true
+
 pathfinding:
   # Rozpočet expandovaných uzlů jednoho výpočtu A*; při vyčerpání se vrací
   # nejlepší částečná cesta a bot cestou doplánuje.

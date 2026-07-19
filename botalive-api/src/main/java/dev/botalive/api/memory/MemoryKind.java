@@ -65,5 +65,8 @@ public enum MemoryKind {
     AMBITION,
 
     /** Životní úspěch – trofej (data {@code type}, např. {@code dragon}). */
-    TROPHY
+    TROPHY,
+
+    /** End city na vnějších ostrovech Endu (kořist, elytry). */
+    END_CITY
 }

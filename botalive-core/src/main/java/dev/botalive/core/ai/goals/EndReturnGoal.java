@@ -46,6 +46,11 @@ public final class EndReturnGoal extends AbstractGoal {
         if (ctx.clientState().dead() || ctx.dimension() != WorldDimension.END) {
             return 0;
         }
+        // Vnější ostrovy: k fontáně se přes void nechodí – návrat gatewayí
+        // řeší end-outer, tenhle cíl přebírá až na hlavním ostrově.
+        if (EndOuterGoal.onOuterIslands(ctx.position())) {
+            return 0;
+        }
         if (cooldownTicks > 0) {
             cooldownTicks -= ctx.config().ai().decisionIntervalTicks();
             return 0;

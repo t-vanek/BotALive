@@ -471,6 +471,24 @@ phrases:
     - "you touch {name}, you deal with me!"
     - "bodyguard on duty – nobody gets the boss!"
     - "oh no you don't, that's my paycheck you're hitting!"
+  end-outer-depart:
+    - "pearl in hand, gateway ahead – outer islands, here I come!"
+    - "nothing left after the dragon, so I'm going further... past the edge of the map"
+    - "toss a pearl through the portal and see what's on the other side"
+    - "the outer islands are calling. They say ships fly out there"
+  end-city-found:
+    - "purpur towers on the horizon! An end city!"
+    - "so there it is... beautiful. Coming for the loot"
+    - "found an end city! Careful now, shulkers don't sleep"
+  elytra-found:
+    - "ELYTRA! I've got them! I'm going to FLY!!"
+    - "took them right off the ship! Wings! Real wings!"
+    - "so this is the treasure... the elytra are mine"
+    - "holding elytra and my hands are shaking"
+  end-outer-return:
+    - "back on the main island, pockets full of end city treasure"
+    - "outer islands conquered. Now just the way home"
+    - "survived the shulkers and the void – and I'm carrying wings!"
   war-declared:
     - "enough! We declare war on {name}!"
     - "patience has run out – {name} has been asking for this"

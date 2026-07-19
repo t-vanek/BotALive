@@ -486,6 +486,24 @@ phrases:
     - "kdo sahá na hráče {name}, má co do činění se mnou!"
     - "bodyguard v akci – šéfa nedám!"
     - "tak to ne, na chleba mi nesahej!"
+  end-outer-depart:
+    - "perla v ruce, gateway přede mnou – vnější ostrovy, letím!"
+    - "za drakem prázdno, tak jdu dál... až za kraj mapy"
+    - "prohodit perlu portálem a uvidíme, co je na druhé straně"
+    - "vnější ostrovy volají. Prý tam lodě létají"
+  end-city-found:
+    - "purpurové věže na obzoru! End city!"
+    - "tak tam to je... nádhera. Jdu si pro kořist"
+    - "našel jsem end city! Teď opatrně, shulkeři nespí"
+  elytra-found:
+    - "ELYTRY! Mám je! Já budu lítat!!"
+    - "sundal jsem je z lodi! Křídla! Skutečná křídla!"
+    - "tak tohle je ten poklad... elytry jsou moje"
+    - "držím v ruce elytry a ruce se mi klepou"
+  end-outer-return:
+    - "zpátky na hlavním ostrově, kapsy plné pokladů z end city"
+    - "vnější ostrovy pokořeny. Teď už jen domů"
+    - "přežil jsem shulkery i void – a nesu si křídla!"
   war-declared:
     - "dost bylo křivd! Vyhlašujeme válku vesnici {name}!"
     - "trpělivost došla – {name} si o válku koledovala dost dlouho"

@@ -173,13 +173,23 @@ public final class ConfigLoader {
                 Math.min(5, Math.max(3, c.getInt("nether.min-gear-tier", 4)))
         );
 
+        var endOuter = new BotAliveConfig.Outer(
+                c.getBoolean("end.outer.enabled", true),
+                Math.max(5, c.getInt("end.outer.max-trip-minutes", 25)),
+                c.getBoolean("end.outer.locate-assist", true),
+                Math.max(1, c.getInt("end.outer.pearl-reserve", 2)),
+                Math.max(64, c.getInt("end.outer.max-city-distance", 400)),
+                c.getBoolean("end.outer.elytra", true)
+        );
+
         var end = new BotAliveConfig.End(
                 c.getBoolean("end.enabled", true),
                 c.getBoolean("end.dragon-fight", true),
                 c.getBoolean("end.hunt-endermen", true),
                 Math.max(1, c.getInt("end.expedition-cooldown-minutes", 90)),
                 Math.min(1, Math.max(0, c.getDouble("end.min-courage", 0.5))),
-                Math.max(3, c.getInt("end.max-fight-minutes", 15))
+                Math.max(3, c.getInt("end.max-fight-minutes", 15)),
+                endOuter
         );
 
         var pathfinding = new BotAliveConfig.Pathfinding(

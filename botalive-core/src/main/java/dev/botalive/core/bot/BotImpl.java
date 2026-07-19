@@ -1384,6 +1384,14 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
         boolean idle = input == MoveInput.IDLE && !combat.engaged() && obstacleTask == null;
         humanizer.tick(physics.position().add(0, 1.62, 0), idle && alive);
 
+        // Pohybové efekty (levitace po zásahu shulkerem, slow falling):
+        // server je aplikuje autoritativně, klientská simulace je musí
+        // replikovat, jinak se pozice rozjedou (rubberbanding).
+        physics.effects(
+                clientState.effectActive(org.geysermc.mcprotocollib.protocol.data.game
+                        .entity.Effect.LEVITATION),
+                clientState.effectActive(org.geysermc.mcprotocollib.protocol.data.game
+                        .entity.Effect.SLOW_FALLING));
         physics.step(input);
         movementSender.tick(physics.position(), humanizer.yaw(), humanizer.pitch(),
                 physics.onGround(), physics.horizontalCollision(), input);
@@ -2461,6 +2469,34 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
     @Override
     public void requestMove(MoveInput input) {
         this.requestedMove = input;
+    }
+
+    @Override
+    public void startGliding(Vec3 look) {
+        if (physics == null || physics.gliding()) {
+            return;
+        }
+        actions.startFallFlying();
+        physics.startGliding(look);
+    }
+
+    @Override
+    public void glideSteer(Vec3 look) {
+        if (physics != null) {
+            physics.glideLook(look);
+        }
+    }
+
+    @Override
+    public void stopGliding() {
+        if (physics != null) {
+            physics.stopGliding();
+        }
+    }
+
+    @Override
+    public boolean gliding() {
+        return physics != null && physics.gliding();
     }
 
     @Override

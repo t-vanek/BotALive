@@ -202,4 +202,14 @@ public final class TrackedEntity {
     public boolean isEffectCloud() {
         return type == EntityType.AREA_EFFECT_CLOUD;
     }
+
+    /** @return {@code true} pokud jde o item frame (elytry na end ship) */
+    public boolean isItemFrame() {
+        return type == EntityType.ITEM_FRAME || type == EntityType.GLOW_ITEM_FRAME;
+    }
+
+    /** @return {@code true} pokud jde o shulkera */
+    public boolean isShulker() {
+        return type == EntityType.SHULKER;
+    }
 }

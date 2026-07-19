@@ -59,6 +59,10 @@ public final class EndHarvestGoal extends AbstractGoal {
                 || ctx.dimension() != WorldDimension.END) {
             return 0;
         }
+        // Na vnějších ostrovech velí end-outer (kořist end city > end stone).
+        if (EndOuterGoal.onOuterIslands(ctx.position())) {
+            return 0;
+        }
         if (cooldownTicks > 0) {
             cooldownTicks -= ctx.config().ai().decisionIntervalTicks();
             return 0;

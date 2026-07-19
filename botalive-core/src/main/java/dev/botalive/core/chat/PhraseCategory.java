@@ -143,6 +143,14 @@ public enum PhraseCategory {
     PORTAL_FOUND,
     /** Vkládání očí Enderu do rámu portálu (aktivace strongholdu). */
     END_EYES,
+    /** Odchod na vnější ostrovy Endu (perla do gatewaye). */
+    END_OUTER_DEPART,
+    /** Objevení end city na vnějších ostrovech. */
+    END_CITY_FOUND,
+    /** Elytry sundané z end ship (velká chvíle). */
+    ELYTRA_FOUND,
+    /** Návrat z vnějších ostrovů na hlavní ostrov. */
+    END_OUTER_RETURN,
     /** Najatý bot si říká o mzdu předem ({name} = cena). */
     HIRE_PAY_REQUEST,
     /** Bot přijímá práci ({name} = zaměstnavatel). */

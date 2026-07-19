@@ -407,10 +407,36 @@ public record BotAliveConfig(
      *                                  po vyčerpání si bot dá pauzu (jídlo,
      *                                  kořist, pokus o návrat) a pak to zkusí
      *                                  znovu; bez rozpočtu by bojoval do smrti
+     * @param outer                     výpravy na vnější ostrovy (end cities,
+     *                                  elytry)
      */
     public record End(boolean enabled, boolean dragonFight, boolean huntEndermen,
                       int expeditionCooldownMinutes, double minCourage,
-                      int maxFightMinutes) {
+                      int maxFightMinutes, Outer outer) {
+    }
+
+    /**
+     * Výpravy na vnější ostrovy Endu (po skolení draka).
+     *
+     * <p>Bot s dostatkem perel prohodí perlu gatewayí (portál se objeví po
+     * smrti draka na okraji hlavního ostrova), na vnějších ostrovech najde
+     * end city – server-side asistencí {@code locateNearestStructure}
+     * (precedent §9) nebo skenem purpuru při průzkumu – vybojuje si cestu
+     * přes shulkery (levitaci klient simuluje), vyluští truhly, z lodi
+     * sundá <b>elytry</b> (item frame) a vrátí se gatewayí domů. S elytrami
+     * pak umí slétat z výšek klouzavým letem.</p>
+     *
+     * @param enabled         hlavní vypínač výprav na vnější ostrovy
+     * @param maxTripMinutes  časový rozpočet výpravy za gatewayí (minuty)
+     * @param locateAssist    server-side hledání end city
+     *                        ({@code locateNearestStructure}); vypnuto nebo
+     *                        v paketovém režimu se hledá skenem při průzkumu
+     * @param pearlReserve    kolik perel si bot nechává na návrat
+     * @param maxCityDistance nejdál, kam se za nalezeným městem půjde (bloky)
+     * @param elytra          smí boti létat na elytrách (klouzavé slety)
+     */
+    public record Outer(boolean enabled, int maxTripMinutes, boolean locateAssist,
+                        int pearlReserve, int maxCityDistance, boolean elytra) {
     }
 
     /**

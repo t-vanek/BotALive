@@ -80,14 +80,16 @@ public final class DimensionPolicy {
             Map.entry("enchant", 0.0),
             Map.entry("war-raid", 0.0),
             Map.entry("bodyguard", 0.0),
-            Map.entry("deliver-work", 0.0)
+            Map.entry("deliver-work", 0.0),
+            Map.entry("end-outer", 0.0)
     );
 
     /** Cíle, které mají smysl jen v Endu. */
     private static final Map<String, Double> OVERWORLD = Map.of(
             "dragon-fight", 0.0,
             "end-harvest", 0.0,
-            "end-return", 0.0
+            "end-return", 0.0,
+            "end-outer", 0.0
     );
 
     private DimensionPolicy() {

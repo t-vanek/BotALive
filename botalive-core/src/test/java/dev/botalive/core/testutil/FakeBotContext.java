@@ -214,6 +214,26 @@ public final class FakeBotContext implements BotContext {
     }
 
     @Override
+    public void startGliding(dev.botalive.core.util.Vec3 look) {
+        throw unused();
+    }
+
+    @Override
+    public void glideSteer(dev.botalive.core.util.Vec3 look) {
+        throw unused();
+    }
+
+    @Override
+    public void stopGliding() {
+        throw unused();
+    }
+
+    @Override
+    public boolean gliding() {
+        return false;
+    }
+
+    @Override
     public void gainExperience(
             dev.botalive.core.personality.PersonalityEvolution.BotExperience experience) {
         // tasky hlásí zážitky mimochodem – v simulaci se zahazují
