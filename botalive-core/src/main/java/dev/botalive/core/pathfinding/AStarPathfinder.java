@@ -95,6 +95,12 @@ public final class AStarPathfinder {
     private static final double JUMP_RISE = 1.15;
     private static final double EPS = 1.0E-6;
 
+    /**
+     * Cena vykopnutí jednoho bloku (~8 kroků chůze) – kopací hrany jsou
+     * poslední možnost, pěší obchůzka vyhrává, kdykoli rozumná existuje.
+     */
+    private static final int COST_DIG = 80;
+
     /** Ceny za blízkost místa, kde bot zemřel / poznal nebezpečí. */
     private static final int COST_DANGER_NEAR = 80;
     private static final int COST_DANGER = 30;
@@ -178,6 +184,24 @@ public final class AStarPathfinder {
     }
 
     /**
+     * Chráněné materiály – kopací hrany je nikdy nelámou: nekopatelné či
+     * absurdně drahé bloky (bedrock, obsidián), funkční bloky a majetek
+     * (truhly, pece, postele, ponky) – bot si tunel nesmí prorazit cizím
+     * domem skrz vybavení.
+     */
+    private static boolean protectedMaterial(org.bukkit.Material material) {
+        return switch (material) {
+            case BEDROCK, BARRIER, OBSIDIAN, CRYING_OBSIDIAN, REINFORCED_DEEPSLATE,
+                 END_PORTAL_FRAME, SPAWNER, ENDER_CHEST, CHEST, TRAPPED_CHEST, BARREL,
+                 FURNACE, BLAST_FURNACE, SMOKER, BEACON, ENCHANTING_TABLE,
+                 ANVIL, CHIPPED_ANVIL, DAMAGED_ANVIL, CRAFTING_TABLE, LODESTONE,
+                 RESPAWN_ANCHOR -> true;
+            default -> material.name().endsWith("_BED")
+                    || material.name().endsWith("SHULKER_BOX");
+        };
+    }
+
+    /**
      * Výsledek výpočtu s diagnostikou pro metriky.
      *
      * @param path          cesta (může být částečná či prázdná)
@@ -234,8 +258,30 @@ public final class AStarPathfinder {
      */
     public Result findPath(BlockPos start, PathGoal goal, int nodeBudget,
                            long timeBudgetMs, BooleanSupplier cancelled) {
+        return findPath(start, goal, nodeBudget, timeBudgetMs, cancelled, PathOptions.WALK_ONLY);
+    }
+
+    /**
+     * Naplánuje cestu s volbami výpočtu – s {@link PathOptions#digThrough()}
+     * smí plán obsahovat hrany „prokopej se" ({@link TerrainAction} na
+     * waypointech): tunel 1×2, vylámaný schod vzhůru i dolů. Kopání má
+     * tekutinovou pojistku (žádný zásah vedle vody/lávy), deny-list
+     * chráněných materiálů (bedrock, obsidián, truhly, postele…) a vysokou
+     * cenu – pěší obchůzka vyhrává, kdykoli rozumná existuje.
+     *
+     * @param start        startovní blok (nohy bota)
+     * @param goal         cílový predikát
+     * @param nodeBudget   maximum expandovaných uzlů; {@code <= 0} použije default
+     * @param timeBudgetMs časový strop výpočtu (ms); {@code <= 0} bez limitu
+     * @param cancelled    signál zrušení (smí být {@code null})
+     * @param options      volby výpočtu (kopací hrany)
+     * @return výsledek s cestou a diagnostikou
+     */
+    public Result findPath(BlockPos start, PathGoal goal, int nodeBudget,
+                           long timeBudgetMs, BooleanSupplier cancelled, PathOptions options) {
         int budget = nodeBudget > 0 ? nodeBudget : DEFAULT_NODE_BUDGET;
-        return new Search(budget, timeBudgetMs, cancelled).run(start, goal);
+        return new Search(budget, timeBudgetMs, cancelled,
+                options == null ? PathOptions.WALK_ONLY : options).run(start, goal);
     }
 
     /** Přirážka za krok poblíž špatné vzpomínky (smrt, nebezpečí). */
@@ -274,15 +320,25 @@ public final class AStarPathfinder {
         return !Double.isNaN(feet) && Math.abs(feet - cell.y()) < 0.05;
     }
 
-    /** Zrekonstruuje cestu od cílového uzlu ke startu. */
-    private static List<BlockPos> reconstruct(Node node) {
+    /** Zrekonstruuje cestu od cílového uzlu ke startu (akce podle indexu waypointu). */
+    private static List<BlockPos> reconstruct(Node node,
+                                              java.util.Map<Integer, TerrainAction> actionsOut) {
         List<BlockPos> path = new ArrayList<>();
+        List<TerrainAction> actions = new ArrayList<>();
         for (Node n = node; n != null; n = n.parent) {
             path.add(n.pos);
+            actions.add(n.action);
         }
         Collections.reverse(path);
+        Collections.reverse(actions);
         if (!path.isEmpty()) {
             path.removeFirst(); // startovní pozici bot už má
+            actions.removeFirst();
+        }
+        for (int i = 0; i < actions.size(); i++) {
+            if (actions.get(i) != null) {
+                actionsOut.put(i, actions.get(i));
+            }
         }
         return path;
     }
@@ -297,6 +353,7 @@ public final class AStarPathfinder {
         private final int nodeBudget;
         private final long deadlineNanos;
         private final BooleanSupplier cancelSignal;
+        private final PathOptions options;
         private final long startNanos = System.nanoTime();
 
         private final PriorityQueue<Node> open = new PriorityQueue<>();
@@ -312,10 +369,12 @@ public final class AStarPathfinder {
         private boolean timedOut;
         private boolean cancelled;
 
-        Search(int nodeBudget, long timeBudgetMs, BooleanSupplier cancelSignal) {
+        Search(int nodeBudget, long timeBudgetMs, BooleanSupplier cancelSignal,
+               PathOptions options) {
             this.nodeBudget = nodeBudget;
             this.deadlineNanos = timeBudgetMs > 0 ? startNanos + timeBudgetMs * 1_000_000L : 0L;
             this.cancelSignal = cancelSignal;
+            this.options = options;
             feetMemo.defaultReturnValue(FEET_UNCOMPUTED);
         }
 
@@ -341,7 +400,7 @@ public final class AStarPathfinder {
                 expanded++;
 
                 if (goal.reached(current.pos)) {
-                    return result(new Path(reconstruct(current), true));
+                    return result(toPath(current, true));
                 }
                 long score = partialScore(current);
                 if (score < bestScore) {
@@ -351,11 +410,19 @@ public final class AStarPathfinder {
                 expandNeighbors(current);
             }
             // Rozpočet/čas vyčerpán či zrušeno – vrátit nejlepší částečnou cestu.
-            List<BlockPos> partial = reconstruct(best);
-            if (partial.size() <= 1 && !cancelled) {
+            Path partial = toPath(best, false);
+            if (partial.waypoints().size() <= 1 && !cancelled) {
                 logDeadStart(start, goal.anchor());
             }
-            return result(new Path(partial, false));
+            return result(partial);
+        }
+
+        /** Zrekonstruuje cestu včetně mapy zásahů do terénu. */
+        private Path toPath(Node node, boolean complete) {
+            java.util.Map<Integer, TerrainAction> actions = new java.util.HashMap<>();
+            List<BlockPos> waypoints = reconstruct(node, actions);
+            return new Path(waypoints, complete,
+                    actions.isEmpty() ? java.util.Map.of() : java.util.Map.copyOf(actions));
         }
 
         private Result result(Path path) {
@@ -451,6 +518,11 @@ public final class AStarPathfinder {
             if (traits(pos).climbable()) {
                 tryAddStandable(current, pos.up(), costClimb);
                 tryAddStandable(current, pos.down(), costClimb);
+            }
+
+            // Kopací hrany (jen na vyžádání – náhrada assist eskalace).
+            if (options.digThrough() && Math.abs(curFeet - pos.y()) <= 0.05) {
+                tryDigEdges(current);
             }
 
             // Plavání svisle: ve vodním sloupci se bot může vynořit i potopit.
@@ -644,15 +716,107 @@ public final class AStarPathfinder {
             }
         }
 
+        /**
+         * Kopací hrany ve 4 kardinálních směrech: tunel 1×2 na stejné úrovni,
+         * vylámaný schod vzhůru a schod dolů (nikdy kolmá šachta). Každý
+         * vykopávaný blok musí být pevný, mimo deny-list chráněných materiálů
+         * a bez tekutiny v 6-okolí (vykopnutí by zatopilo štolu).
+         */
+        private void tryDigEdges(Node current) {
+            BlockPos pos = current.pos;
+            for (int dir = 0; dir < 4; dir++) {
+                int dx = dir == 0 ? 1 : dir == 1 ? -1 : 0;
+                int dz = dir == 2 ? 1 : dir == 3 ? -1 : 0;
+                BlockPos target = pos.offset(dx, 0, dz);
+
+                // Tunel 1×2: podlaha pod cílem musí být plná (nekopat si jámu).
+                BlockTraits below = traits(target.down());
+                if (below.floorHeight() >= 0.99 && below.floorHeight() <= 1.01) {
+                    List<BlockPos> digs = digsFor(target.up(), target);
+                    if (digs != null && !digs.isEmpty()) {
+                        tryAdd(current, target,
+                                COST_STRAIGHT + digs.size() * COST_DIG,
+                                new TerrainAction(digs));
+                    }
+                }
+
+                // Schod vzhůru: cílový blok zůstává jako opora, lámou se buňky
+                // nad ním a strop nad hlavou (výskok potřebuje volných +2).
+                BlockTraits step = traits(target);
+                if (step.solid() && step.floorHeight() >= 0.99 && step.floorHeight() <= 1.01) {
+                    List<BlockPos> digs = digsFor(pos.offset(0, 2, 0), target.up(),
+                            target.offset(0, 2, 0));
+                    if (digs != null && !digs.isEmpty()) {
+                        tryAdd(current, target.up(),
+                                COST_STRAIGHT + costJump + digs.size() * COST_DIG,
+                                new TerrainAction(digs));
+                    }
+                }
+
+                // Schod dolů: vylámat zářez 1×2 o patro níž a sestoupit do něj.
+                BlockTraits deepBelow = traits(target.offset(0, -2, 0));
+                if (deepBelow.floorHeight() >= 0.99 && deepBelow.floorHeight() <= 1.01) {
+                    List<BlockPos> digs = digsFor(target, target.down());
+                    if (digs != null && !digs.isEmpty()) {
+                        tryAdd(current, target.down(),
+                                COST_STRAIGHT + costFallPerBlock + digs.size() * COST_DIG,
+                                new TerrainAction(digs));
+                    }
+                }
+            }
+        }
+
+        /**
+         * Bloky k vykopání pro průchod danými buňkami (shora dolů), nebo
+         * {@code null} když průchod vykopat nejde (chráněný materiál, tekutina
+         * v okolí, neznámo). Prázdný seznam = buňky už jsou průchozí a hranu
+         * řeší obyčejná chůze.
+         */
+        private List<BlockPos> digsFor(BlockPos... cells) {
+            List<BlockPos> digs = new ArrayList<>(cells.length);
+            for (BlockPos cell : cells) {
+                if (transitClear(cell)) {
+                    continue;
+                }
+                BlockTraits t = traits(cell);
+                if (t.solid() && diggable(cell) && !liquidNear(cell)) {
+                    digs.add(cell);
+                    continue;
+                }
+                return null; // tekutina, neznámo, hazard, chráněný blok
+            }
+            return digs;
+        }
+
+        /** Smí se blok vykopat? (mimo deny-list chráněných materiálů) */
+        private boolean diggable(BlockPos cell) {
+            org.bukkit.Material material = world.materialAt(cell);
+            return material != null && !protectedMaterial(material);
+        }
+
+        /** Tekutina v 6-okolí bloku – vykopnutí by zatopilo štolu. */
+        private boolean liquidNear(BlockPos cell) {
+            return traits(cell.up()).liquid() || traits(cell.down()).liquid()
+                    || traits(cell.offset(1, 0, 0)).liquid()
+                    || traits(cell.offset(-1, 0, 0)).liquid()
+                    || traits(cell.offset(0, 0, 1)).liquid()
+                    || traits(cell.offset(0, 0, -1)).liquid();
+        }
+
         /** Přidá uzel do open setu, pokud zlepšuje dosavadní cestu. */
         private void tryAdd(Node parent, BlockPos pos, int moveCost) {
+            tryAdd(parent, pos, moveCost, null);
+        }
+
+        /** Přidá uzel (případně se zásahem do terénu), pokud zlepšuje cestu. */
+        private void tryAdd(Node parent, BlockPos pos, int moveCost, TerrainAction action) {
             long key = pos.asLong();
             int g = parent.g + moveCost + dangerPenalty(pos);
             Node existing = visited.get(key);
             if (existing != null && existing.g <= g) {
                 return;
             }
-            Node node = new Node(pos, parent, g, goal.heuristic(pos));
+            Node node = new Node(pos, parent, g, goal.heuristic(pos), action);
             visited.put(key, node);
             open.add(node);
         }
@@ -774,13 +938,20 @@ public final class AStarPathfinder {
         final Node parent;
         final int g;
         final int h;
+        /** Zásah do terénu nutný před vkročením na uzel ({@code null} = chůze). */
+        final TerrainAction action;
         boolean closed;
 
         Node(BlockPos pos, Node parent, int g, int h) {
+            this(pos, parent, g, h, null);
+        }
+
+        Node(BlockPos pos, Node parent, int g, int h, TerrainAction action) {
             this.pos = pos;
             this.parent = parent;
             this.g = g;
             this.h = h;
+            this.action = action;
         }
 
         @Override

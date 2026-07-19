@@ -77,7 +77,8 @@ public final class CompositionRoot {
         NavigationService navigation = container.register(NavigationService.class,
                 new NavigationService(config.performance().pathfindingThreads(),
                         config.pathfinding().nodeBudget(), config.pathfinding().timeBudgetMs(),
-                        config.pathfinding().farCorridor()));
+                        config.pathfinding().farCorridor(),
+                        config.pathfinding().plannedActions()));
         WorldViewRegistry worldViews = container.register(WorldViewRegistry.class,
                 new WorldViewRegistry(bridge, config.performance()));
 

@@ -119,6 +119,17 @@ public final class Navigator {
     private boolean assistNeeded;
     private int assistCycles;
 
+    /** Zásahy do terénu povolené konfigurací bota ({@code ai.terraforming}). */
+    private boolean terraformingAllowed;
+    /** Aktuální navigace už plánuje s kopacími hranami (po selhání pěšího plánu). */
+    private boolean actionsEnabled;
+    /** Zásah čekající na vykonání (bot stojí u zablokovaného waypointu). */
+    private TerrainAction pendingAction;
+    /** Index waypointu čekajícího zásahu. */
+    private int pendingActionIndex = -1;
+    /** Indexy už vykonaných zásahů aktuální cesty. */
+    private final java.util.Set<Integer> resolvedActions = new java.util.HashSet<>();
+
     /**
      * @param service     asynchronní pathfinding
      * @param actions     otevírání dveří v cestě ({@code null} = bez interakcí)
@@ -151,6 +162,35 @@ public final class Navigator {
      */
     public void dangerSupplier(java.util.function.Supplier<java.util.List<BlockPos>> supplier) {
         this.dangerSupplier = supplier;
+    }
+
+    /**
+     * Povolí kopací hrany v plánu ({@code ai.terraforming}) – po selhání
+     * pěšího plánu se cesta přepočítá se zásahy do terénu, místo aby rovnou
+     * eskalovala k reaktivnímu assistu.
+     *
+     * @param allowed zásahy do terénu povoleny
+     */
+    public void terraforming(boolean allowed) {
+        this.terraformingAllowed = allowed;
+    }
+
+    /**
+     * @return zásah do terénu, u kterého bot stojí a čeká na vykonání
+     *         (vykopání bloků z plánu), nebo {@code null}
+     */
+    public TerrainAction actionNeeded() {
+        return pendingAction;
+    }
+
+    /** Zásah z plánu je vykonaný – pokračovat po téže cestě (žádný replán). */
+    public void actionResolved() {
+        if (pendingActionIndex >= 0) {
+            resolvedActions.add(pendingActionIndex);
+        }
+        pendingAction = null;
+        pendingActionIndex = -1;
+        ticksWithoutProgress = 0;
     }
 
     /**
@@ -238,6 +278,10 @@ public final class Navigator {
         ticksWithoutProgress = 0;
         assistNeeded = false;
         assistCycles = 0;
+        actionsEnabled = false;
+        pendingAction = null;
+        pendingActionIndex = -1;
+        resolvedActions.clear();
     }
 
     /** Zruší běžící výpočet cesty (pool přestane mlít mrtvou práci). */
@@ -444,6 +488,9 @@ public final class Navigator {
                 waypointIndex = 0;
                 smoothBase = -1;
                 validateCooldown = VALIDATE_TICKS;
+                resolvedActions.clear();
+                pendingAction = null;
+                pendingActionIndex = -1;
                 // Sprint-skoky na rovinkách: odvážní a čilí boti si na cestu
                 // „zabunnyhopují", líní chodí. Rozhodnutí drží celou cestu.
                 sprintHopper = rng.next() < 0.25
@@ -458,7 +505,12 @@ public final class Navigator {
                     requestPath(position);
                     return MoveInput.IDLE;
                 }
-                // Cíl je pěšky nedosažitelný – šance na odblokování terénu.
+                // Cíl je pěšky nedosažitelný – nejdřív zkusit plán s kopacími
+                // hranami (souvislý tunel místo reaktivní eskalace), teprve
+                // pak assist (mosty přes tekutiny, pilíře, žebříky).
+                if (tryEnableActions(position)) {
+                    return MoveInput.IDLE;
+                }
                 if (assistCycles < MAX_ASSIST_CYCLES) {
                     assistNeeded = true;
                     return MoveInput.IDLE;
@@ -475,11 +527,15 @@ public final class Navigator {
 
         // Levná validace: svět se pod naplánovanou cestou mění (výbuch,
         // vykopnutý blok, postavená zeď). Rozbitý waypoint → okamžitý replán,
-        // ne až po fyzickém zaseknutí o 2,5 s později.
+        // ne až po fyzickém zaseknutí o 2,5 s později. Waypointy s dosud
+        // nevykonaným zásahem do terénu jsou zablokované ZÁMĚRNĚ – přeskočit.
         if (--validateCooldown <= 0) {
             validateCooldown = VALIDATE_TICKS;
             int limit = Math.min(waypointIndex + VALIDATE_WINDOW, path.waypoints().size() - 1);
             for (int i = waypointIndex; i <= limit; i++) {
+                if (path.actions().containsKey(i) && !resolvedActions.contains(i)) {
+                    continue;
+                }
                 if (PathValidator.blocked(world, path.waypoints().get(i))) {
                     org.slf4j.LoggerFactory.getLogger(Navigator.class).debug(
                             "[nav] cesta rozbitá u {} – replán", path.waypoints().get(i));
@@ -493,6 +549,19 @@ public final class Navigator {
         BlockPos waypoint = path.waypoints().get(waypointIndex);
         Vec3 target = waypoint.center();
         Vec3 delta = target.sub(position);
+
+        // Zásah do terénu z plánu: aktuální waypoint je zablokovaný bloky,
+        // které se mají vykopat. Dojít na dosah, ohlásit zásah (vykonají ho
+        // tasky přes {@link #actionNeeded()}) a stát – po {@link #actionResolved()}
+        // cesta pokračuje bez replánu.
+        TerrainAction action = path.actions().get(waypointIndex);
+        if (action != null && !resolvedActions.contains(waypointIndex)) {
+            if (delta.horizontalLength() < 3.0 && Math.abs(delta.y()) < 2.5) {
+                pendingAction = action;
+                pendingActionIndex = waypointIndex;
+                return MoveInput.IDLE;
+            }
+        }
 
         // Waypoint dosažen? Ve vodě je svislá tolerance při stoupání volnější
         // (plave se šikmo) – ale při klesání těsná: potápěcí waypointy odbavené
@@ -713,13 +782,35 @@ public final class Navigator {
             repathAttempts++;
             path = null;
             requestPath(position);
+        } else if (destination != null && tryEnableActions(position)) {
+            // Replany nepomohly – přepočítat s kopacími hranami (souvislý
+            // tunel), teprve pak reaktivní assist.
+            path = null;
         } else if (destination != null && assistCycles < MAX_ASSIST_CYCLES) {
-            // Replany nepomohly – překážka chce zásah (prokopat/přemostit).
+            // Překážka chce zásah, který plán neumí (most, pilíř, žebřík).
             assistNeeded = true;
             path = null;
         } else {
             stop(); // vzdáváme to – cíl si vybere něco jiného
         }
+    }
+
+    /**
+     * Povolí kopací hrany pro tuto navigaci a vyžádá přepočet – jen jednou
+     * (další selhání už jde do assistu) a jen s povoleným terraformingem
+     * a zapnutým kill-switchem.
+     *
+     * @param position aktuální pozice bota
+     * @return {@code true} když se přepočet se zásahy rozjel
+     */
+    private boolean tryEnableActions(Vec3 position) {
+        if (actionsEnabled || !terraformingAllowed || !service.plannedActions()) {
+            return false;
+        }
+        actionsEnabled = true;
+        repathAttempts = 0;
+        requestPath(position);
+        return true;
     }
 
     private void requestPath(Vec3 from) {
@@ -735,7 +826,9 @@ public final class Navigator {
         // cílový predikát (okruh, útěk, hladina, kandidáti…).
         PathGoal requestGoal = segmentGoal != null || goalSpec == null
                 ? PathGoal.block(target) : goalSpec;
-        pendingPath = service.request(world, from.toBlockPos(), requestGoal, 0, dangers, costs);
+        PathOptions options = actionsEnabled ? PathOptions.WITH_DIGGING : PathOptions.WALK_ONLY;
+        pendingPath = service.request(world, from.toBlockPos(), requestGoal, 0, dangers,
+                costs, options);
     }
 
     /**

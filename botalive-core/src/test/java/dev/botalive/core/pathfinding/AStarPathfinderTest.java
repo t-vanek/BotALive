@@ -755,6 +755,119 @@ class AStarPathfinderTest {
     }
 
     @Test
+    void prokopeSeMasivemKdyzJeToPovoleno() {
+        FakeWorldView world = massif();
+        BlockPos start = new BlockPos(0, FEET, 0);
+        BlockPos goal = new BlockPos(9, FEET, 0);
+
+        Path walkOnly = new AStarPathfinder(world)
+                .findPath(start, goal, 2000);
+        assertFalse(walkOnly.complete(), "pěšky masiv nejde");
+
+        AStarPathfinder.Result dug = new AStarPathfinder(world).findPath(
+                start, PathGoal.block(goal), 0, 0L, null, PathOptions.WITH_DIGGING);
+        assertTrue(dug.path().complete(), "s kopáním se má prorazit tunel: "
+                + dug.path().waypoints());
+        assertFalse(dug.path().actions().isEmpty(), "plán má nést zásahy do terénu");
+        int digs = dug.path().actions().values().stream()
+                .mapToInt(a -> a.digs().size()).sum();
+        assertTrue(digs >= 6, "tunel skrz 3 bloky zdi = aspoň 6 vykopnutí, je " + digs);
+    }
+
+    @Test
+    void nekopeChraneneMaterialy() {
+        FakeWorldView world = massif();
+        // Masiv z obsidiánu – deny-list kopání zakazuje.
+        for (int x = 3; x <= 5; x++) {
+            for (int z = -2; z <= 2; z++) {
+                for (int y = FEET; y <= FEET + 3; y++) {
+                    world.set(x, y, z, org.bukkit.Material.OBSIDIAN, FakeWorldView.SOLID);
+                }
+            }
+        }
+        AStarPathfinder.Result result = new AStarPathfinder(world).findPath(
+                new BlockPos(0, FEET, 0), PathGoal.block(new BlockPos(9, FEET, 0)),
+                2000, 0L, null, PathOptions.WITH_DIGGING);
+
+        assertFalse(result.path().complete(), "obsidián se neprokopává");
+    }
+
+    @Test
+    void nekopeVedleTekutiny() {
+        FakeWorldView world = massif();
+        // Vodní kapsa uprostřed masivu v ose tunelu – kopání se jí musí
+        // vyhnout (protržení by štolu zatopilo).
+        world.set(4, FEET, 0, FakeWorldView.WATER);
+        world.set(4, FEET + 1, 0, FakeWorldView.WATER);
+        AStarPathfinder.Result result = new AStarPathfinder(world).findPath(
+                new BlockPos(0, FEET, 0), PathGoal.block(new BlockPos(9, FEET, 0)),
+                0, 0L, null, PathOptions.WITH_DIGGING);
+
+        assertTrue(result.path().complete(), "tunel jde vést mimo vodní kapsu");
+        for (TerrainAction action : result.path().actions().values()) {
+            for (BlockPos dig : action.digs()) {
+                for (BlockPos n : new BlockPos[]{dig.up(), dig.down(),
+                        dig.offset(1, 0, 0), dig.offset(-1, 0, 0),
+                        dig.offset(0, 0, 1), dig.offset(0, 0, -1)}) {
+                    assertFalse(world.traitsAt(n).liquid(),
+                            "vykopávaný blok " + dig + " sousedí s tekutinou");
+                }
+            }
+        }
+    }
+
+    @Test
+    void vylameSchodyDolu() {
+        FakeWorldView world = new FakeWorldView(FLOOR);
+        // Cíl 3 patra pod povrchem – sestup vylámaným schodištěm, nikdy
+        // kolmou šachtou (každý krok klesá nejvýš o 1).
+        AStarPathfinder.Result result = new AStarPathfinder(world).findPath(
+                new BlockPos(0, FEET, 0), PathGoal.block(new BlockPos(4, FEET - 3, 0)),
+                0, 0L, null, PathOptions.WITH_DIGGING);
+
+        assertTrue(result.path().complete(), "schodiště dolů má jít vylámat: "
+                + result.path().waypoints());
+        assertFalse(result.path().actions().isEmpty());
+        BlockPos prev = new BlockPos(0, FEET, 0);
+        for (BlockPos wp : result.path().waypoints()) {
+            assertTrue(prev.y() - wp.y() <= 1,
+                    "sestup po patrech, ne šachtou: " + result.path().waypoints());
+            prev = wp;
+        }
+    }
+
+    /**
+     * Souvislý kamenný masiv (x 3..5, výška 4) přes celou uzavřenou chodbu –
+     * pěšky neprůchozí, jediná cesta vede prokopáním masivu. Ohrada chodby
+     * je z bedrocku: bez ní si plánovač našel levnější tunel skrz
+     * jednoblokovou boční stěnu a masiv obešel venku.
+     */
+    private static FakeWorldView massif() {
+        FakeWorldView world = new FakeWorldView(FLOOR);
+        for (int x = -1; x <= 10; x++) {
+            bedrockWall(world, x, -3);
+            bedrockWall(world, x, 3);
+        }
+        for (int z = -3; z <= 3; z++) {
+            bedrockWall(world, -1, z);
+            bedrockWall(world, 10, z);
+        }
+        for (int x = 3; x <= 5; x++) {
+            for (int z = -2; z <= 2; z++) {
+                world.wall(x, FEET, FEET + 3, z);
+            }
+        }
+        return world;
+    }
+
+    /** Nedigatelný sloupec ohrady (bedrock, výška 4). */
+    private static void bedrockWall(FakeWorldView world, int x, int z) {
+        for (int y = FEET; y <= FEET + 3; y++) {
+            world.set(x, y, z, org.bukkit.Material.BEDROCK, FakeWorldView.SOLID);
+        }
+    }
+
+    @Test
     void castecnaCestaMiriKCili() {
         FakeWorldView world = new FakeWorldView(FLOOR);
         // Cíl nedosažitelný (ve vzduchu), malý rozpočet – částečná cesta se má

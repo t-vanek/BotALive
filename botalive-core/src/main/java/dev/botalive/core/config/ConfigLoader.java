@@ -158,7 +158,8 @@ public final class ConfigLoader {
         var pathfinding = new BotAliveConfig.Pathfinding(
                 Math.max(500, c.getInt("pathfinding.node-budget", 8_000)),
                 Math.max(0, c.getInt("pathfinding.time-budget-ms", 25)),
-                c.getBoolean("pathfinding.far-corridor", true)
+                c.getBoolean("pathfinding.far-corridor", true),
+                c.getBoolean("pathfinding.planned-actions", true)
         );
 
         var performance = new BotAliveConfig.Performance(

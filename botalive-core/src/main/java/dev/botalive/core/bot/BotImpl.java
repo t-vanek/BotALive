@@ -130,6 +130,8 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
     private MoveInput requestedMove;
     /** Probíhající zásah do terénu při zdolávání překážky (kopání/pokládání). */
     private dev.botalive.core.tasks.BotTask obstacleTask;
+    /** Běžící {@code obstacleTask} je zásah z plánu cesty (ne reaktivní assist). */
+    private boolean actionTaskRunning;
 
     /** Adresná prosba o sdílení z chatu; vyzvedne si ji ShareGoal. */
     private volatile dev.botalive.core.ai.ShareRequest pendingShare;
@@ -228,6 +230,7 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
                 door -> actions.useItemOn(door,
                         org.geysermc.mcprotocollib.protocol.data.game.entity.object.Direction.NORTH),
                 rng, personality);
+        this.navigator.terraforming(config.ai().terraforming());
         this.navigator.dangerSupplier(this::dangerMemories);
         this.inventoryHelper = new InventoryHelper(actions);
         this.inventoryHelper.puller(this::pullToHotbar);
@@ -1147,6 +1150,7 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
         if (obstacleTask != null && (!alive || paused.get())) {
             obstacleTask.cancel(this);
             obstacleTask = null;
+            actionTaskRunning = false;
         }
         MoveInput input;
         boolean navDriven = false;
@@ -1156,7 +1160,14 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
                     boatCheckCooldown = 200; // po přejezdu/neúspěchu loď hned nezkoušet
                 }
                 obstacleTask = null;
-                navigator.assistResolved(physics.position());
+                if (actionTaskRunning) {
+                    // Zásah z plánu cesty vykonán → pokračovat po TÉŽE cestě
+                    // (žádný replán – to je celá pointa kopacích hran).
+                    actionTaskRunning = false;
+                    navigator.actionResolved();
+                } else {
+                    navigator.assistResolved(physics.position());
+                }
                 input = MoveInput.IDLE;
             } else {
                 input = obstacleTask.move(); // most se posouvá, ostatní zásahy stojí
@@ -1181,7 +1192,17 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
                     buriedTicks = 0;
                 }
             }
-            if (alive && !paused.get() && !combat.engaged() && navigator.needsAssist()) {
+            if (alive && !paused.get() && !combat.engaged() && navigator.actionNeeded() != null) {
+                // Zásah do terénu z plánu cesty: vykopat bloky a pokračovat
+                // po téže cestě (kopací hrany – náhrada assist eskalace).
+                obstacleTask = plannedDigSequence(navigator.actionNeeded());
+                actionTaskRunning = obstacleTask != null;
+                LOG.debug("[{}] [nav] zásah z plánu: {} bloků", name,
+                        navigator.actionNeeded().digs().size());
+                if (obstacleTask == null) {
+                    navigator.actionResolved(); // prázdný zásah – jen pokračovat
+                }
+            } else if (alive && !paused.get() && !combat.engaged() && navigator.needsAssist()) {
                 obstacleTask = planObstacleRecovery();
                 LOG.debug("[{}] [nav] assist: plán={}", name,
                         obstacleTask == null ? "žádný (vzdávám)" : obstacleTask.getClass().getSimpleName());
@@ -1433,6 +1454,47 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
         boolean boatNearby = entities.nearest(physics.position(), 12,
                 e -> dev.botalive.core.vehicle.Boats.isBoatType(e.type().name())).isPresent();
         return hasItem || boatNearby;
+    }
+
+    /**
+     * Sestaví sekvenci vykopání bloků jednoho zásahu z plánu cesty
+     * ({@link dev.botalive.core.pathfinding.TerrainAction}). Každý krok si
+     * před kopáním nasadí nejlepší nástroj na materiál bloku; blok, který
+     * mezitím zmizel (creeper, jiný bot), se přeskočí.
+     *
+     * @param action zásah z plánu
+     * @return sekvence tasků, nebo {@code null} při prázdném zásahu
+     */
+    private dev.botalive.core.tasks.BotTask plannedDigSequence(
+            dev.botalive.core.pathfinding.TerrainAction action) {
+        java.util.List<dev.botalive.core.tasks.BotTask> steps = new java.util.ArrayList<>();
+        for (BlockPos dig : action.digs()) {
+            steps.add(new dev.botalive.core.tasks.BotTask() {
+                private dev.botalive.core.tasks.MineBlockTask mine;
+
+                @Override
+                public boolean tick(dev.botalive.core.ai.BotContext ctx) {
+                    if (mine == null) {
+                        if (worldView == null || !worldView.traitsAt(dig).solid()) {
+                            return true; // blok už nestojí
+                        }
+                        var material = worldView.materialAt(dig);
+                        inventoryHelper.equipBestTool(serverView.latest(),
+                                material != null ? material : org.bukkit.Material.STONE);
+                        mine = new dev.botalive.core.tasks.MineBlockTask(dig);
+                    }
+                    return mine.tick(ctx);
+                }
+
+                @Override
+                public void cancel(dev.botalive.core.ai.BotContext ctx) {
+                    if (mine != null) {
+                        mine.cancel(ctx);
+                    }
+                }
+            });
+        }
+        return steps.isEmpty() ? null : new dev.botalive.core.tasks.TaskSequence(steps);
     }
 
     /**

@@ -29,9 +29,10 @@ inventář a historii; po restartu serveru pokračuje tam, kde skončil.
 - **Vlastní A\* pathfinding** – asynchronní, s cenami za vodu a seskoky, tvrdým
   zákazem lávy/propastí, skoky, šplháním, otevíráním dveří i branek a detekcí
   zaseknutí. Když cesta nevede, bot to nevzdá: **eskaluje jako hráč** –
-  replanning → prokopání překážky (štola 1×2, schod vzhůru z jámy; s nástrojem
-  a kontrolou tekutin) → přemostění mezery položeným blokem. Zásahy do terénu
-  respektují `ai.terraforming` a mají strop na jednu cestu. Výpočty mají
+  replanning → **kopací plán** (tunel 1×2 a vylámané schody jako hrany grafu –
+  jeden souvislý plán s tekutinovou pojistkou a deny-listem majetku, nikdy
+  skrz truhly, pece či postele) → reaktivní assist (mosty, pilíře, žebříky).
+  Zásahy do terénu respektují `ai.terraforming` a mají strop na jednu cestu. Výpočty mají
   uzlový i časový rozpočet (`pathfinding.*`), jsou kooperativně zrušitelné
   a memo cache drží dotazy do světa na minimu; sledování pohyblivého cíle
   cestu nezahazuje (throttle replánů) a cesta se průběžně validuje proti

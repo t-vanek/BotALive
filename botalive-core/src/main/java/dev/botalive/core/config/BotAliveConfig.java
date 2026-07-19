@@ -359,8 +359,13 @@ public record BotAliveConfig(
      * @param farCorridor  hrubé koridory dálkových tras (A* nad povrchovými
      *                     sondami) – boti obcházejí jezera a masivy; vypnutí
      *                     vrací přímkovou segmentaci (kill-switch)
+     * @param plannedActions kopací hrany v plánu cesty (souvislé tunely místo
+     *                       reaktivní eskalace) – aktivují se až po selhání
+     *                       pěšího plánu a jen s {@code ai.terraforming};
+     *                       vypnutí vrací čistě reaktivní assist (kill-switch)
      */
-    public record Pathfinding(int nodeBudget, int timeBudgetMs, boolean farCorridor) {
+    public record Pathfinding(int nodeBudget, int timeBudgetMs, boolean farCorridor,
+                              boolean plannedActions) {
     }
 
     /**

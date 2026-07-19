@@ -272,6 +272,11 @@ pathfinding:
   # obcházejí jezera, lávová pole a masivy, na které je přímková
   # segmentace krátká. Vypnutí vrací původní dělení po vzdušné čáře.
   far-corridor: true
+  # Kopací hrany v plánu cesty: po selhání pěšího plánu se cesta přepočítá
+  # se zásahy do terénu (souvislý tunel, vylámané schody) místo reaktivní
+  # eskalace po jednom bloku. Jen s ai.terraforming; kopání má tekutinovou
+  # pojistku a nikdy neláme bedrock, obsidián, truhly, pece ani postele.
+  planned-actions: true
 
 performance:
   # 0 = automaticky podle počtu jader.

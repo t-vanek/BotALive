@@ -741,3 +741,38 @@ svislé meze skokového segmentu (−1.6 až +1.7 – rozestup waypointů ≥ 2
 zaručuje, že jde o naplánovaný skok). Oba pohyby prošly simulačním
 kontraktem: bot je fyzicky doskočí bez poškození – dolet je ověřený
 proti reálné fyzice, ne jen slíbený plánovačem.
+
+Hotovo ve fázi 24: kopací hrany v plánu cesty (`TerrainAction`,
+`PathOptions.WITH_DIGGING`).
+
+Dřív byl každý zásah do terénu reaktivní: bot došel k překážce, zasekl
+se (2,5 s), replánoval, eskaloval k assistu, vykopl 1–2 bloky a celý
+cyklus s plným A* se opakoval – dlouhý tunel nešel vůbec (strop 10
+cyklů). Nově se po selhání pěšího plánu cesta **přepočítá s kopacími
+hranami**: tunel 1×2, vylámaný schod vzhůru i dolů (nikdy kolmá šachta)
+jsou hrany grafu s cenou ~8 kroků chůze za blok – pěší obchůzka vyhrává,
+kdykoli rozumná existuje, a tunel je pak JEDEN souvislý plán.
+
+- **Bezpečnost kopání**: každý blok musí být pevný, mimo deny-list
+  chráněných materiálů (bedrock, obsidián, spawner a hlavně majetek –
+  truhly, pece, postele, ponky, kovadliny: bot si tunel neprorazí cizím
+  domem skrz vybavení) a bez tekutiny v 6-okolí (protržení by štolu
+  zatopilo). Deny-list testuje obsidiánový masiv, tekutinovou pojistku
+  vodní kapsa v ose tunelu – plánovač ji korektně obchází.
+- **Dvojí gate**: kopací hrany se aktivují jen po selhání čistě pěšího
+  plánu (empty path / marné replány po zaseknutí), jen s
+  `ai.terraforming` a kill-switchem `pathfinding.planned-actions`.
+  Reaktivní assist pipeline zůstává jako fallback pro vše, co plán
+  neumí (mosty přes lávu, pilíře, žebříky na stěny).
+- **Exekuce bez replánů**: `Path` nese mapu `TerrainAction` podle indexu
+  waypointu; navigátor u zablokovaného waypointu zásah ohlásí
+  (`actionNeeded`), `BotImpl` ho vykoná sekvencí `MineBlockTask`
+  (`TaskSequence`, per-blok equip nejlepšího nástroje) a po
+  `actionResolved` cesta pokračuje **beze změny** – validace cesty
+  záměrně zablokované waypointy přeskakuje, dokud nejsou vykopané.
+- **Simulační důkaz** (`prokopeTunelPodlePlanuBezReplanu`): bot se
+  bedrockem ohrazeným kamenným masivem tloušťky 3 prokope podle jednoho
+  plánu na ≤ 4 výpočty celkem. Půvabný vedlejší nález z ladění fixtur:
+  s kamennou ohradou si plánovač korektně spočítal, že levnější tunel
+  vede jednoblokovou boční stěnou ven a kolem – optimalizuje opravdu
+  přes celý prostor zásahů.

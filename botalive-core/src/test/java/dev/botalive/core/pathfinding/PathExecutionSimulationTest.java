@@ -533,6 +533,80 @@ class PathExecutionSimulationTest {
     }
 
     @Test
+    void prokopeTunelPodlePlanuBezReplanu() {
+        // Uzavřená chodba s kamenným masivem (x 3..5, výška 4) – pěšky
+        // neprůchozí. Po selhání pěšího plánu se cesta přepočítá s kopacími
+        // hranami a bot tuneluje podle JEDNOHO plánu: zásahy hlásí přes
+        // actionNeeded (tady je „vykope" test jako server), cesta pokračuje
+        // bez replánů. Přesně tohle stará eskalace neuměla – kopala po
+        // blocích s plným A* mezi každým párem.
+        FakeWorldView world = new FakeWorldView(FLOOR);
+        // Ohrada z bedrocku – jinak si plánovač prokope jednoblokovou boční
+        // stěnu a masiv obejde venku (levnější legální tunel).
+        for (int x = -1; x <= 10; x++) {
+            for (int y = FEET; y <= FEET + 3; y++) {
+                world.set(x, y, -3, org.bukkit.Material.BEDROCK, FakeWorldView.SOLID);
+                world.set(x, y, 3, org.bukkit.Material.BEDROCK, FakeWorldView.SOLID);
+            }
+        }
+        for (int z = -3; z <= 3; z++) {
+            for (int y = FEET; y <= FEET + 3; y++) {
+                world.set(-1, y, z, org.bukkit.Material.BEDROCK, FakeWorldView.SOLID);
+                world.set(10, y, z, org.bukkit.Material.BEDROCK, FakeWorldView.SOLID);
+            }
+        }
+        for (int x = 3; x <= 5; x++) {
+            for (int z = -2; z <= 2; z++) {
+                world.wall(x, FEET, FEET + 3, z);
+            }
+        }
+        Navigator navigator = new Navigator(service, null, new BotRandom(7), personality());
+        navigator.world(world);
+        navigator.terraforming(true);
+        BotPhysics physics = new BotPhysics(world, at(0));
+        BlockPos goal = new BlockPos(9, FEET, 0);
+        navigator.navigateTo(at(0), goal);
+
+        int digDelay = 0;
+        int actionsDone = 0;
+        for (int tick = 0; tick < 2000; tick++) {
+            if (navigator.navigating() && !navigator.hasPath()) {
+                sleep(1);
+            }
+            TerrainAction action = navigator.actionNeeded();
+            if (action != null) {
+                // „Server": kopání chvíli trvá, pak bloky zmizí.
+                if (++digDelay >= 8) {
+                    for (BlockPos dig : action.digs()) {
+                        world.set(dig.x(), dig.y(), dig.z(), FakeWorldView.AIRLIKE);
+                    }
+                    navigator.actionResolved();
+                    actionsDone++;
+                    digDelay = 0;
+                }
+                continue; // bot při kopání stojí (obstacleTask v BotImpl)
+            }
+            MoveInput input = navigator.tick(physics.position(), physics.onGround(), physics.inWater());
+            input = LiquidReflex.apply(input, navigator.hasPath(), physics.position(),
+                    physics.submergedTicks(), world);
+            input = FallReflex.apply(input, navigator.hasPath(), physics.onGround(),
+                    physics.fallDistance(), physics.position(), world);
+            physics.step(input);
+            assertTrue(!navigator.needsAssist(),
+                    "kopací plán měl assist nahradit (tick " + tick + ")");
+            if (arrived(physics.position(), goal)) {
+                assertTrue(actionsDone >= 3, "tunel měl mít aspoň 3 zásahy, měl " + actionsDone);
+                long requests = service.stats().snapshot().requests();
+                assertTrue(requests <= 4, "tunel má být jeden plán, ne replán na blok; "
+                        + "výpočtů: " + requests);
+                return;
+            }
+        }
+        throw new AssertionError("bot se masivem neprokopal; skončil na " + physics.position()
+                + ", zásahů " + actionsDone);
+    }
+
+    @Test
     void dojdeDoOkruhuNearCile() {
         FakeWorldView world = new FakeWorldView(FLOOR);
         BlockPos center = new BlockPos(15, FEET, 0);
