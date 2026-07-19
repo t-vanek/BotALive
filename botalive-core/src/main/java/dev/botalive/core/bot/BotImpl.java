@@ -1240,7 +1240,11 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
         // bot pořád mohl přiblížit k protivníkovi, jen se nehromadil na ostatních
         // útočnících stejného cíle. Běží PŘED záchrannými reflexy – dav nesmí
         // ohnout únikový směr tonoucího/hořícího bota (reflexy mají poslední slovo).
-        if (alive && !paused.get()) {
+        // Přesným taskům dav USTOUPÍ: pilíř a žebřík drží střed sloupce,
+        // pokládka a kopání míří na blok – strčení kolemjdoucího by stavitele
+        // shodilo z rozestavěného pilíře nebo rozhodilo klik. Kolemjdoucí se
+        // vyhne sám (jeho steering stojícího vidí).
+        if (alive && !paused.get() && obstacleTask == null && navigator.actionNeeded() == null) {
             int targetId = combat.engaged() && combat.target() != null
                     ? combat.target().entityId() : -1;
             List<TrackedEntity> crowd = entities.nearby(physics.position(), CrowdAvoidance.radius(),
@@ -1677,8 +1681,29 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
                 if (worldName.equals(record.world())) {
                     result.add(new BlockPos(record.x(), record.y(), record.z()));
                     if (result.size() >= 24) {
-                        return result;
+                        break;
                     }
+                }
+            }
+            if (result.size() >= 24) {
+                break;
+            }
+        }
+        // Živé hrozby: viditelní hostilové vstupují do cen tras jako měkké
+        // danger body – nové plány je obcházejí obloukem (COST_DANGER),
+        // místo aby bot spoléhal na paniku uprostřed cesty. Aktuální cíl
+        // boje se vynechává – k němu se přibližovat MÁ.
+        if (physics != null && entities != null) {
+            int combatTargetId = combat != null && combat.target() != null
+                    ? combat.target().entityId() : -1;
+            for (var hostile : entities.nearby(physics.position(), 24,
+                    e -> e.isHostile() && e.entityId() != combatTargetId)) {
+                if (hostile.position() == null) {
+                    continue;
+                }
+                result.add(hostile.position().toBlockPos());
+                if (result.size() >= 32) {
+                    break;
                 }
             }
         }

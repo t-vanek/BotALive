@@ -977,3 +977,16 @@ Hotovo ve fázi 28: boj × navigace (v4.0 – analýza
   (lučištník bez spojnice dojde k cíli pěšky) a s běžícím bojem se
   neaktivují akční hrany (bot se v souboji neprokopává – gate
   `!combat.engaged()` trvá).
+- **Dav ustupuje přesným taskům (v4.1)**: steering `CrowdAvoidance` se
+  neaplikuje, dokud běží `obstacleTask` nebo čeká zásah z plánu –
+  pilíř a žebřík drží střed sloupce, pokládka a kopání míří na blok.
+  Simulace `davNestrkaDoPilirujicihoBota` měří, že strkání souseda
+  dotlačí stavitele až na hranu vlastního pilíře (odstup od středu
+  > 0,4 bloku – pád o centimetry); kolemjdoucí se vyhne sám, jeho
+  steering stojícího vidí.
+- **Živé hrozby v plánování (v4.1)**: `dangerSupplier` vedle vzpomínek
+  (DEATH/DANGER) přidává pozice viditelných hostilů (okruh 24, strop 8)
+  – nové trasy obcházejí creepera obloukem přes stávající `COST_DANGER`
+  mechanismus, místo spoléhání na paniku uprostřed cesty. Aktuální cíl
+  boje se vynechává (k němu se přibližovat má). Dav dál záměrně uhýbá
+  jen hráčům/botům.

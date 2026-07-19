@@ -123,12 +123,27 @@ problémy v provozu.
 > a s běžícím bojem se neaktivují akční hrany (bot se v souboji
 > neprokopává – gate `!combat.engaged()` v BotImplu trvá).
 
+> **Stav: v4.1 implementováno.** (P2) Dav ustupuje přesným taskům:
+> steering `CrowdAvoidance` se v BotImplu neaplikuje, dokud běží
+> `obstacleTask` nebo čeká zásah z plánu – simulace
+> `davNestrkaDoPilirujicihoBota` měří, že strkání souseda dotlačí
+> stavitele až na hranu vlastního pilíře (odstup od středu > 0,4 bloku;
+> pád byl o centimetry), zatímco bez strkání drží střed. Kolemjdoucí se
+> vyhne sám – jeho steering stojícího vidí. (P3) Živé hrozby vstupují do
+> plánování: `dangerSupplier` vedle vzpomínek přidává pozice viditelných
+> hostilů (`isHostile`, okruh 24, strop 8, celkem ≤ 32 bodů) – nové
+> trasy obcházejí creepera obloukem přes stávající `COST_DANGER`
+> mechanismus, aktuální cíl boje se vynechává (k němu se přibližovat
+> MÁ). Dav dál záměrně uhýbá jen hráčům/botům – vyhýbání zvířatům
+> a mobům v chůzi by změnilo vyladěné chování stád a není součástí
+> tohoto nálezu.
+
 ## 2. Doporučené fázování
 
 | Fáze | Obsah | Náročnost | Riziko | Přínos |
 |---|---|---|---|---|
 | **v4.0 boj × navigace** ✅ | P1: hybridní přiblížení (LOS gate → `near`), plánovaný ústup `awayFrom`, kiting + ústupový sim scénář (+ oprava latentního deadlocku dvoustupňového útěku) | M | střední | konec kitingu, ústup přestane být sebevražedný – největší viditelná díra spolupráce |
-| **v4.1 ohleduplnost** | P2 dav ustoupí přesným taskům + P3 živé hrozby do dangerSupplier | S | nízké | pilíře/žebříky v davu, trasy obcházejí moby |
+| **v4.1 ohleduplnost** ✅ | P2 dav ustoupí přesným taskům + P3 živé hrozby do dangerSupplier | S | nízké | pilíře/žebříky v davu, trasy obcházejí moby |
 | **v4.2 perturbační kontrakt** | P4: kategorie simulací s rušením | M | nízké | očekávané nálezy v exekuci pod tlakem |
 | odloženo | P5 čluny (chce BoatPhysics), P6 drobnosti | M–L | – | nízká frekvence užití |
 

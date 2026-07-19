@@ -89,6 +89,53 @@ class ReactiveTaskSimulationTest {
         assertEquals(3, ctx.placed(), "zeď výšky 3 = 3 příčky");
     }
 
+    @Test
+    void davNestrkaDoPilirujicihoBota() {
+        // Kolemjdoucí soused a steering davu: bez ústupku dotlačí stavitele
+        // až na hranu vlastního pilíře (pád je o centimetry – proto pravidlo
+        // BotImplu „dav ustoupí přesným taskům": během obstacleTask se
+        // steering neaplikuje). Test měří obojí: se strkáním končí stavitel
+        // na hraně, bez něj drží střed sloupce.
+        double shoved = pillarEndOffset(true);
+        double centered = pillarEndOffset(false);
+        assertTrue(shoved > 0.4,
+                "strkání davu má stavitele vytlačit k hraně sloupce: " + shoved);
+        assertTrue(centered < 0.2,
+                "bez strkání má stavitel držet střed sloupce: " + centered);
+    }
+
+    /** Postaví pilíř +4 (se sousedem v dosahu davu) a vrátí vodorovný
+     *  odstup od středu sloupce na konci – míru vytlačení stavitele. */
+    private static double pillarEndOffset(boolean crowdSteering) {
+        FakeWorldView world = new FakeWorldView(FLOOR);
+        FakeBotContext ctx = new FakeBotContext(world, personality())
+                .give(Material.COBBLESTONE, 12);
+        BotPhysics physics = new BotPhysics(world, at(0));
+        PillarUpTask task = new PillarUpTask(FEET + 4);
+        dev.botalive.core.entity.TrackedEntity neighbor =
+                new dev.botalive.core.entity.TrackedEntity(7, java.util.UUID.randomUUID(),
+                        org.geysermc.mcprotocollib.protocol.data.game.entity.type.EntityType.PLAYER,
+                        new Vec3(1.6, FEET, 0.5));
+        for (int tick = 0; tick < 900; tick++) {
+            ctx.update(physics.position(), physics.onGround());
+            boolean done = task.tick(ctx);
+            dev.botalive.core.physics.MoveInput input = task.move();
+            if (crowdSteering) {
+                Vec3 steered = dev.botalive.core.physics.CrowdAvoidance.steer(
+                        physics.position(), 1, java.util.List.of(neighbor), input.direction());
+                input = new dev.botalive.core.physics.MoveInput(
+                        steered, input.sprint(), input.jump(), input.sneak());
+            }
+            physics.step(input);
+            if (done) {
+                break;
+            }
+        }
+        double dx = physics.position().x() - 0.5;
+        double dz = physics.position().z() - 0.5;
+        return Math.sqrt(dx * dx + dz * dz);
+    }
+
     // ------------------------------------------------------------------ smyčka
 
     /**
