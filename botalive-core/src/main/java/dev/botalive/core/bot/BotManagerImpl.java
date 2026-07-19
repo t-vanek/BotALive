@@ -312,11 +312,28 @@ public final class BotManagerImpl implements BotManager {
     }
 
     /**
-     * Odpojí všechny boty (vypnutí pluginu).
+     * Odpojí všechny boty (vypnutí pluginu) a počká, až síťová vlákna zhasnou.
+     *
+     * <p>Odpojení dobíhá asynchronně; Paper po {@code onDisable} zavře plugin
+     * classloader a líné donačítání (relokovaných) tříd ze síťových vláken by
+     * pak házelo „zip file error" – a umí utnout i poslední write-behind
+     * flush. Dvě fáze: nejdřív se odpojí všichni (běží souběžně), pak se čeká
+     * se společným deadline – na nejpomalejšího, ne na součet.</p>
      */
     public void shutdownAll() {
-        for (BotImpl bot : byId.values()) {
+        java.util.List<BotImpl> bots = new java.util.ArrayList<>(byId.values());
+        for (BotImpl bot : bots) {
             bot.markRemoved();
+        }
+        long deadline = System.currentTimeMillis() + 3000;
+        for (BotImpl bot : bots) {
+            bot.awaitNetworkQuiesce(Math.max(50, deadline - System.currentTimeMillis()));
+        }
+        // Krátká milost pro teardown sdílené netty event-loop skupiny knihovny.
+        try {
+            Thread.sleep(150);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
         }
         byId.clear();
         byName.clear();
