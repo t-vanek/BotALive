@@ -313,10 +313,48 @@ class AStarPathfinderTest {
 
     @Test
     void nepreskociprilisSirokouMezeru() {
-        Path path = new AStarPathfinder(platformsWithGap(3))
-                .findPath(new BlockPos(0, FEET, 0), new BlockPos(8, FEET, 0), 2000);
+        Path path = new AStarPathfinder(platformsWithGap(4))
+                .findPath(new BlockPos(0, FEET, 0), new BlockPos(9, FEET, 0), 2000);
 
-        assertFalse(path.complete(), "mezera 3 bloky je nad síly sprint-skoku");
+        assertFalse(path.complete(), "mezera 4 bloky je nad síly sprint-skoku");
+    }
+
+    @Test
+    void preskociTriblokovouMezeruSprintem() {
+        BlockPos start = new BlockPos(0, FEET, 0);
+        Path path = new AStarPathfinder(platformsWithGap(3))
+                .findPath(start, new BlockPos(8, FEET, 0), 0);
+
+        assertTrue(path.complete(), "mezera 3 bloky má jít přeskočit sprintem: " + path.waypoints());
+        assertTrue(longestStep(path, start) >= 4,
+                "cesta má obsahovat sprint-skok přes 3 bloky: " + path.waypoints());
+    }
+
+    @Test
+    void parkourVyskokNaVyssiRimsuPresDiru() {
+        FakeWorldView world = new FakeWorldView(0);
+        // Startovní plošina, jednobloková díra (x=3) a římsa o blok výš.
+        for (int z = -1; z <= 1; z++) {
+            for (int x = -1; x <= 2; x++) {
+                world.set(x, FLOOR, z, FakeWorldView.SOLID);
+            }
+            for (int x = 4; x <= 8; x++) {
+                world.set(x, FLOOR + 1, z, FakeWorldView.SOLID);
+            }
+        }
+        Path path = new AStarPathfinder(world)
+                .findPath(new BlockPos(0, FEET, 0), new BlockPos(7, FEET + 1, 0), 0);
+
+        assertTrue(path.complete(), "parkour výskok na římsu má existovat: " + path.waypoints());
+        boolean parkour = false;
+        BlockPos prev = new BlockPos(0, FEET, 0);
+        for (BlockPos wp : path.waypoints()) {
+            if (Math.abs(wp.x() - prev.x()) == 2 && wp.y() - prev.y() == 1) {
+                parkour = true;
+            }
+            prev = wp;
+        }
+        assertTrue(parkour, "cesta má obsahovat výskok přes díru na +1: " + path.waypoints());
     }
 
     /**
@@ -544,5 +582,376 @@ class AStarPathfinderTest {
         assertTrue(path.waypoints().stream()
                         .anyMatch(p -> p.x() == 3 && p.y() == FEET),
                 "cesta má vést buňkou sněhu: " + path.waypoints());
+    }
+
+    @Test
+    void vysledekNeseMetriky() {
+        FakeWorldView world = new FakeWorldView(FLOOR);
+        AStarPathfinder.Result result = new AStarPathfinder(world)
+                .findPath(new BlockPos(0, FEET, 0), new BlockPos(5, FEET, 0), 0, 0L, null);
+
+        assertTrue(result.path().complete(), "krátká rovná cesta má dorazit");
+        assertTrue(result.expandedNodes() > 0, "metriky mají nést počet uzlů");
+        assertTrue(result.elapsedNanos() > 0, "metriky mají nést dobu výpočtu");
+        assertFalse(result.timedOut());
+        assertFalse(result.cancelled());
+    }
+
+    @Test
+    void zruseniUkonciVypocetBrzy() {
+        FakeWorldView world = new FakeWorldView(FLOOR);
+        // Nedosažitelný cíl vysoko ve vzduchu nad nekonečnou plání – bez
+        // zrušení by výpočet semlel celý rozpočet uzlů.
+        BlockPos goal = new BlockPos(200, FEET + 50, 0);
+        java.util.concurrent.atomic.AtomicInteger checks = new java.util.concurrent.atomic.AtomicInteger();
+        AStarPathfinder.Result result = new AStarPathfinder(world).findPath(
+                new BlockPos(0, FEET, 0), goal, 100_000, 0L,
+                () -> checks.incrementAndGet() > 2);
+
+        assertTrue(result.cancelled(), "výpočet měl skončit zrušením");
+        assertFalse(result.path().complete());
+        assertTrue(result.expandedNodes() < 2_000,
+                "zrušení se kontroluje po blocích expanzí, expandováno: " + result.expandedNodes());
+    }
+
+    @Test
+    void casovyStropVratiCastecnouCestu() {
+        // Pomalý svět (každý dotaz na nový blok ~20 µs) + nedosažitelný cíl:
+        // časový strop musí výpočet utnout dávno před rozpočtem uzlů.
+        FakeWorldView world = new FakeWorldView(FLOOR);
+        dev.botalive.core.world.WorldView slow = new dev.botalive.core.world.WorldView() {
+            @Override
+            public org.bukkit.Material materialAt(BlockPos pos) {
+                return world.materialAt(pos);
+            }
+
+            @Override
+            public org.bukkit.block.data.BlockData blockDataAt(BlockPos pos) {
+                return world.blockDataAt(pos);
+            }
+
+            @Override
+            public dev.botalive.core.world.BlockTraits traitsAt(BlockPos pos) {
+                java.util.concurrent.locks.LockSupport.parkNanos(20_000);
+                return world.traitsAt(pos);
+            }
+
+            @Override
+            public boolean isAvailable(BlockPos pos) {
+                return world.isAvailable(pos);
+            }
+
+            @Override
+            public void prefetch(BlockPos center, int radiusChunks) {
+            }
+
+            @Override
+            public String worldName() {
+                return world.worldName();
+            }
+
+            @Override
+            public dev.botalive.core.world.WorldDimension dimension() {
+                return world.dimension();
+            }
+
+            @Override
+            public int minY() {
+                return world.minY();
+            }
+        };
+        AStarPathfinder.Result result = new AStarPathfinder(slow).findPath(
+                new BlockPos(0, FEET, 0), new BlockPos(300, FEET + 50, 0), 500_000, 5L, null);
+
+        assertTrue(result.timedOut(), "výpočet měl skončit časovým stropem");
+        assertFalse(result.path().complete());
+        assertTrue(result.expandedNodes() < 500_000,
+                "rozpočet uzlů se neměl stihnout vyčerpat: " + result.expandedNodes());
+    }
+
+    @Test
+    void anyOfNajdeNejblizsihoDosazitelnehoKandidata() {
+        FakeWorldView world = new FakeWorldView(FLOOR);
+        BlockPos near = new BlockPos(6, FEET, 0);
+        BlockPos far = new BlockPos(0, FEET, 12);
+        // Bližší kandidát zazděný do krabice výšky 3 – dosažitelný je jen
+        // vzdálenější; předvýběr vzdušnou čarou by vybral špatně.
+        for (int x = 5; x <= 7; x++) {
+            for (int z = -1; z <= 1; z++) {
+                if (x != 6 || z != 0) {
+                    world.wall(x, FEET, FEET + 2, z);
+                }
+            }
+        }
+        AStarPathfinder.Result result = new AStarPathfinder(world).findPath(
+                new BlockPos(0, FEET, 0),
+                PathGoal.anyOf(java.util.List.of(near, far)), 0, 0L, null);
+
+        assertTrue(result.path().complete(), "dosažitelný kandidát existuje");
+        assertTrue(far.equals(result.path().waypoints().getLast()),
+                "cesta má skončit u dosažitelného kandidáta: "
+                        + result.path().waypoints().getLast());
+    }
+
+    @Test
+    void nearSkonciVOkruhu() {
+        FakeWorldView world = new FakeWorldView(FLOOR);
+        BlockPos center = new BlockPos(12, FEET, 0);
+        Path path = new AStarPathfinder(world).findPath(
+                new BlockPos(0, FEET, 0), PathGoal.near(center, 3), 0, 0L, null).path();
+
+        assertTrue(path.complete(), "okruh 3 kolem bloku je dosažitelný");
+        BlockPos last = path.waypoints().getLast();
+        assertTrue(last.distanceSquared(center) <= 9,
+                "cesta má skončit v okruhu 3: " + last);
+        assertTrue(path.waypoints().size() <= 10,
+                "do okruhu se nemá chodit dál, než je potřeba: " + path.waypoints());
+    }
+
+    @Test
+    void awayFromUtecePoBezpecnemTerenu() {
+        FakeWorldView world = new FakeWorldView(FLOOR);
+        // Láva východně od bota – útěk musí vybrat jiný směr.
+        for (int x = 5; x <= 40; x++) {
+            for (int z = -20; z <= 20; z++) {
+                world.set(x, FEET, z, FakeWorldView.HAZARD);
+                world.set(x, FLOOR, z, FakeWorldView.HAZARD);
+            }
+        }
+        BlockPos threat = new BlockPos(0, FEET, 0);
+        Path path = new AStarPathfinder(world).findPath(
+                new BlockPos(2, FEET, 0), PathGoal.awayFrom(threat, 12), 0, 0L, null).path();
+
+        assertTrue(path.complete(), "únik na 12 bloků má existovat");
+        BlockPos last = path.waypoints().getLast();
+        long dx = last.x() - threat.x();
+        long dz = last.z() - threat.z();
+        assertTrue(dx * dx + dz * dz >= 144,
+                "konec cesty má být aspoň 12 bloků od hrozby: " + last);
+        for (BlockPos waypoint : path.waypoints()) {
+            assertFalse(world.traitsAt(waypoint).hazard(),
+                    "útěk nesmí vést lávou: " + waypoint);
+        }
+    }
+
+    @Test
+    void yLevelSestoupiNaHladinu() {
+        FakeWorldView world = new FakeWorldView(FLOOR);
+        // Kaskáda teras dolů (−1 každé 2 bloky, celkem −4).
+        for (int step = 1; step <= 4; step++) {
+            for (int x = 2 + step * 2; x <= 30; x++) {
+                for (int z = -4; z <= 4; z++) {
+                    world.set(x, FLOOR - step + 1, z, FakeWorldView.AIRLIKE);
+                }
+            }
+        }
+        BlockPos start = new BlockPos(0, FEET, 0);
+        Path path = new AStarPathfinder(world).findPath(
+                start, PathGoal.yLevel(FEET - 4, start), 0, 0L, null).path();
+
+        assertTrue(path.complete(), "na hladinu −4 vedou terasy");
+        assertTrue(path.waypoints().getLast().y() == FEET - 4,
+                "cesta má skončit na cílové hladině: " + path.waypoints().getLast());
+    }
+
+    @Test
+    void prokopeSeMasivemKdyzJeToPovoleno() {
+        FakeWorldView world = massif();
+        BlockPos start = new BlockPos(0, FEET, 0);
+        BlockPos goal = new BlockPos(9, FEET, 0);
+
+        Path walkOnly = new AStarPathfinder(world)
+                .findPath(start, goal, 2000);
+        assertFalse(walkOnly.complete(), "pěšky masiv nejde");
+
+        AStarPathfinder.Result dug = new AStarPathfinder(world).findPath(
+                start, PathGoal.block(goal), 0, 0L, null, PathOptions.WITH_DIGGING);
+        assertTrue(dug.path().complete(), "s kopáním se má prorazit tunel: "
+                + dug.path().waypoints());
+        assertFalse(dug.path().actions().isEmpty(), "plán má nést zásahy do terénu");
+        int digs = dug.path().actions().values().stream()
+                .mapToInt(a -> a.digs().size()).sum();
+        assertTrue(digs >= 6, "tunel skrz 3 bloky zdi = aspoň 6 vykopnutí, je " + digs);
+    }
+
+    @Test
+    void nekopeChraneneMaterialy() {
+        FakeWorldView world = massif();
+        // Masiv z obsidiánu – deny-list kopání zakazuje.
+        for (int x = 3; x <= 5; x++) {
+            for (int z = -2; z <= 2; z++) {
+                for (int y = FEET; y <= FEET + 3; y++) {
+                    world.set(x, y, z, org.bukkit.Material.OBSIDIAN, FakeWorldView.SOLID);
+                }
+            }
+        }
+        AStarPathfinder.Result result = new AStarPathfinder(world).findPath(
+                new BlockPos(0, FEET, 0), PathGoal.block(new BlockPos(9, FEET, 0)),
+                2000, 0L, null, PathOptions.WITH_DIGGING);
+
+        assertFalse(result.path().complete(), "obsidián se neprokopává");
+    }
+
+    @Test
+    void nekopeVedleTekutiny() {
+        FakeWorldView world = massif();
+        // Vodní kapsa uprostřed masivu v ose tunelu – kopání se jí musí
+        // vyhnout (protržení by štolu zatopilo).
+        world.set(4, FEET, 0, FakeWorldView.WATER);
+        world.set(4, FEET + 1, 0, FakeWorldView.WATER);
+        AStarPathfinder.Result result = new AStarPathfinder(world).findPath(
+                new BlockPos(0, FEET, 0), PathGoal.block(new BlockPos(9, FEET, 0)),
+                0, 0L, null, PathOptions.WITH_DIGGING);
+
+        assertTrue(result.path().complete(), "tunel jde vést mimo vodní kapsu");
+        for (TerrainAction action : result.path().actions().values()) {
+            for (BlockPos dig : action.digs()) {
+                for (BlockPos n : new BlockPos[]{dig.up(), dig.down(),
+                        dig.offset(1, 0, 0), dig.offset(-1, 0, 0),
+                        dig.offset(0, 0, 1), dig.offset(0, 0, -1)}) {
+                    assertFalse(world.traitsAt(n).liquid(),
+                            "vykopávaný blok " + dig + " sousedí s tekutinou");
+                }
+            }
+        }
+    }
+
+    @Test
+    void vylameSchodyDolu() {
+        FakeWorldView world = new FakeWorldView(FLOOR);
+        // Cíl 3 patra pod povrchem – sestup vylámaným schodištěm, nikdy
+        // kolmou šachtou (každý krok klesá nejvýš o 1).
+        AStarPathfinder.Result result = new AStarPathfinder(world).findPath(
+                new BlockPos(0, FEET, 0), PathGoal.block(new BlockPos(4, FEET - 3, 0)),
+                0, 0L, null, PathOptions.WITH_DIGGING);
+
+        assertTrue(result.path().complete(), "schodiště dolů má jít vylámat: "
+                + result.path().waypoints());
+        assertFalse(result.path().actions().isEmpty());
+        BlockPos prev = new BlockPos(0, FEET, 0);
+        for (BlockPos wp : result.path().waypoints()) {
+            assertTrue(prev.y() - wp.y() <= 1,
+                    "sestup po patrech, ne šachtou: " + result.path().waypoints());
+            prev = wp;
+        }
+    }
+
+    /**
+     * Souvislý kamenný masiv (x 3..5, výška 4) přes celou uzavřenou chodbu –
+     * pěšky neprůchozí, jediná cesta vede prokopáním masivu. Ohrada chodby
+     * je z bedrocku: bez ní si plánovač našel levnější tunel skrz
+     * jednoblokovou boční stěnu a masiv obešel venku.
+     */
+    private static FakeWorldView massif() {
+        FakeWorldView world = new FakeWorldView(FLOOR);
+        for (int x = -1; x <= 10; x++) {
+            bedrockWall(world, x, -3);
+            bedrockWall(world, x, 3);
+        }
+        for (int z = -3; z <= 3; z++) {
+            bedrockWall(world, -1, z);
+            bedrockWall(world, 10, z);
+        }
+        for (int x = 3; x <= 5; x++) {
+            for (int z = -2; z <= 2; z++) {
+                world.wall(x, FEET, FEET + 3, z);
+            }
+        }
+        return world;
+    }
+
+    /** Nedigatelný sloupec ohrady (bedrock, výška 4). */
+    private static void bedrockWall(FakeWorldView world, int x, int z) {
+        for (int y = FEET; y <= FEET + 3; y++) {
+            world.set(x, y, z, org.bukkit.Material.BEDROCK, FakeWorldView.SOLID);
+        }
+    }
+
+    @Test
+    void premostiPropastKdyzMaBloky() {
+        FakeWorldView world = platformsWithGap(5);
+        BlockPos start = new BlockPos(0, FEET, 0);
+        BlockPos goal = new BlockPos(10, FEET, 0);
+
+        Path walkOnly = new AStarPathfinder(world).findPath(start, goal, 2000);
+        assertFalse(walkOnly.complete(), "mezera 5 bloků pěšky/skokem nejde");
+
+        AStarPathfinder.Result bridged = new AStarPathfinder(world).findPath(
+                start, PathGoal.block(goal), 0, 0L, null, PathOptions.withActions(8));
+        assertTrue(bridged.path().complete(), "s bloky v rozpočtu se má přemostit: "
+                + bridged.path().waypoints());
+        int places = bridged.path().actions().values().stream()
+                .mapToInt(a -> a.places().size()).sum();
+        // Plánovač míchá strategie jako hráč: 2 opory + sprint-skok přes
+        // zbylé 3 sloupce z položeného decku (ne otrocky 5 bloků).
+        assertTrue(places >= 2, "přemostění chce aspoň 2 opory, je " + places);
+
+        AStarPathfinder.Result tight = new AStarPathfinder(world).findPath(
+                start, PathGoal.block(goal), 2000, 0L, null, PathOptions.withActions(1));
+        assertFalse(tight.path().complete(), "1 blok na mezeru 5 nestačí (rozpočet)");
+    }
+
+    @Test
+    void vypilirujeSeNaPlosinu() {
+        FakeWorldView world = new FakeWorldView(FLOOR);
+        // Plošina +4 s kolmými stěnami – bez akcí nedosažitelná.
+        for (int x = 5; x <= 12; x++) {
+            for (int z = -4; z <= 4; z++) {
+                world.wall(x, FEET, FEET + 3, z);
+            }
+        }
+        BlockPos start = new BlockPos(0, FEET, 0);
+        BlockPos goal = new BlockPos(8, FEET + 4, 0);
+
+        Path walkOnly = new AStarPathfinder(world).findPath(start, goal, 2000);
+        assertFalse(walkOnly.complete(), "kolmé stěny pěšky nejdou");
+
+        // Jen pokládání (bez kopání) – deterministicky pilíř, ne schody do stěny.
+        AStarPathfinder.Result pillared = new AStarPathfinder(world).findPath(
+                start, PathGoal.block(goal), 0, 0L, null, new PathOptions(false, 8));
+        assertTrue(pillared.path().complete(), "pilíř má na plošinu vynést: "
+                + pillared.path().waypoints());
+        int places = pillared.path().actions().values().stream()
+                .mapToInt(a -> a.places().size()).sum();
+        // 3 bloky pilíře + výskok na hranu plošiny (poslední patro zvládne skok).
+        assertTrue(places >= 3, "výstup o 4 patra = aspoň 3 bloky, je " + places);
+    }
+
+    @Test
+    void nemostiSLavouPodOperou() {
+        FakeWorldView world = platformsWithGap(1);
+        // Láva těsně pod úrovní opory mostu: skok je zakázaný (hazard dole)
+        // a most taky – pád z mostku nad lávou je rozsudek. Bedrockové
+        // mantinely po stranách: bez nich plánovač korektně vymyslel boční
+        // lávku o dráhu vedle, kde pod oporami láva není.
+        for (int z = -1; z <= 1; z++) {
+            world.set(3, FLOOR - 1, z, FakeWorldView.HAZARD);
+        }
+        for (int x = 0; x <= 6; x++) {
+            for (int y = FLOOR - 2; y <= FEET + 3; y++) {
+                world.set(x, y, -2, org.bukkit.Material.BEDROCK, FakeWorldView.SOLID);
+                world.set(x, y, 2, org.bukkit.Material.BEDROCK, FakeWorldView.SOLID);
+            }
+        }
+        AStarPathfinder.Result result = new AStarPathfinder(world).findPath(
+                new BlockPos(0, FEET, 0), PathGoal.block(new BlockPos(6, FEET, 0)),
+                2000, 0L, null, PathOptions.withActions(8));
+
+        assertFalse(result.path().complete(),
+                "nad lávou se nemostí ani neskáče – zůstává reaktivní BridgeTask");
+    }
+
+    @Test
+    void castecnaCestaMiriKCili() {
+        FakeWorldView world = new FakeWorldView(FLOOR);
+        // Cíl nedosažitelný (ve vzduchu), malý rozpočet – částečná cesta se má
+        // aspoň přiblížit správným směrem.
+        Path path = new AStarPathfinder(world)
+                .findPath(new BlockPos(0, FEET, 0), new BlockPos(60, FEET + 40, 0), 500);
+
+        assertFalse(path.complete());
+        assertFalse(path.isEmpty(), "částečná cesta má obsahovat přiblížení");
+        BlockPos last = path.waypoints().getLast();
+        assertTrue(last.x() > 10, "částečná cesta má postoupit k cíli: " + last);
     }
 }

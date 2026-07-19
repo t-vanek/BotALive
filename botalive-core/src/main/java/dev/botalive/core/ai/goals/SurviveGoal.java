@@ -14,12 +14,18 @@ import java.util.Optional;
 /**
  * Přežití – nejvyšší priorita, když jde do tuhého.
  *
- * <p>Aktivuje se při nízkém zdraví nebo hoření. Bot sprintuje pryč od
- * nejbližšího nepřítele (bez pathfindingu – panika je přímočará), hořící bot
- * hledá vodu v okolí. Nebezpečné místo si zapamatuje. Utility roste s chybějícím
- * zdravím a klesá s odvahou – stateční boti bojují déle.</p>
+ * <p>Aktivuje se při nízkém zdraví nebo hoření. Útěk je dvoustupňový:
+ * okamžitá přímočará panika drží bota v pohybu hned (v Endu s ochranou
+ * hran), a jakmile se dopočítá <b>plánovaný ústup</b>
+ * ({@code PathGoal.awayFrom} – po pochozím terénu, žádné slepé kouty,
+ * hrany ani láva), převezme řízení navigace. Nebezpečné místo si bot
+ * zapamatuje. Utility roste s chybějícím zdravím a klesá s odvahou –
+ * stateční boti bojují déle.</p>
  */
 public final class SurviveGoal extends AbstractGoal {
+
+    /** Minimální vzdálenost plánovaného ústupu od hrozby (bloky). */
+    private static final int FLEE_DISTANCE = 16;
 
     private int safeTicks;
     /** Cache zuřícího neutrála (id) + odpočet drahé paměťové kontroly. */
@@ -79,16 +85,25 @@ public final class SurviveGoal extends AbstractGoal {
             threat = aggressorThreat(ctx, bot, pos);
         }
         if (threat.isPresent()) {
-            Vec3 away = pos.sub(threat.get().position()).horizontal().normalized();
-            MoveInput flee = MoveInput.of(away, true, ctx.onGround() && ctx.rng().chance(0.2));
-            // V Endu panika nesmí skončit ve voidu; v overworldu zůstává útěk
-            // přímočarý – slepá zatáčka podél hrany umí vrátit bota k hrozbě.
-            if (ctx.dimension() == dev.botalive.core.world.WorldDimension.END) {
-                flee = dev.botalive.core.physics.EdgeGuard.apply(ctx.worldView(), pos, flee);
-            }
-            ctx.requestMove(flee);
-            if (flee.direction().horizontalLength() > 1.0E-4) {
-                ctx.humanizer().lookAlong(flee.direction());
+            Vec3 threatPos = threat.get().position();
+            // Plánovaný ústup: awayFrom vede po pochozím terénu (obchází
+            // lávu, hrany i slepé kouty, respektuje DANGER paměť). Drift
+            // throttle navigace zvládá pohybující se hrozbu bez replan bouří.
+            ctx.navigator().navigateTo(pos, dev.botalive.core.pathfinding.PathGoal
+                    .awayFrom(threatPos.toBlockPos(), FLEE_DISTANCE));
+            if (!ctx.navigator().hasPath()) {
+                // Než se ústup dopočítá, drží bota v pohybu přímočará panika.
+                // V Endu nesmí skončit ve voidu; v overworldu zůstává přímá –
+                // slepá zatáčka podél hrany umí vrátit bota k hrozbě.
+                Vec3 away = pos.sub(threatPos).horizontal().normalized();
+                MoveInput flee = MoveInput.of(away, true, ctx.onGround() && ctx.rng().chance(0.2));
+                if (ctx.dimension() == dev.botalive.core.world.WorldDimension.END) {
+                    flee = dev.botalive.core.physics.EdgeGuard.apply(ctx.worldView(), pos, flee);
+                }
+                ctx.requestMove(flee);
+                if (flee.direction().horizontalLength() > 1.0E-4) {
+                    ctx.humanizer().lookAlong(flee.direction());
+                }
             }
             safeTicks = 0;
         } else {

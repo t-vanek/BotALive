@@ -596,3 +596,211 @@ záznamy `eyes=missing`: utility pak bez zásoby očí výpravu nepustí,
 po aktivaci se poznámka maže a drby (`gossipStamp`) ji šíří dál.
 Házení očí (triangulace strongholdů) záměrně chybí – portál se pořád
 musí nejdřív znát.
+
+Hotovo ve fázi 19: pathfinding v2.0 – evoluce jádra a chytřejší replanning
+(analýza a plán dalších fází: [docs/PATHFINDING_V2.md](PATHFINDING_V2.md)).
+
+- **Levné jádro A***: každý výpočet má vlastní memo cache traits a pochozích
+  výšek – jedna buňka se světa ptá jednou, sousední expanze ji čtou zadarmo
+  (dřív se každou buňku ptalo až 8 sousedních expanzí znovu; v bludišťovém
+  scénáři ~70× méně dotazů do světa, regresi hlídá
+  `PathfindingEfficiencyTest`). Tie-break open setu preferuje při shodném
+  f uzel s vyšším g (řeže plata expanzí na rovinách) a částečná cesta se
+  vybírá podle `h·16 + g` – ze stejně blízkých přiblížení vyhrává levněji
+  dosažené, hluboké zajížďky do drahých slepých kapes přestávají vítězit.
+  Danger penalizace má bounding-box early-out místo O(N) smyčky na uzel.
+- **Rozpočty a zrušení**: vedle uzlového rozpočtu i časový strop
+  (`pathfinding.time-budget-ms`, výchozí 25 ms) – garantovaná latence
+  i v členitém terénu, kde jsou uzly drahé; kontroluje se po blocích 128
+  expanzí spolu se signálem zrušení. `PathRequest.cancel()` ukončí běžící
+  výpočet kooperativně a `Navigator` ruší zahozené výpočty při `stop()`
+  i novém cíli – pool nemele mrtvou práci při každé změně plánu (boj, útěk).
+- **Replanning**: pohyblivý cíl (follow, eskorta) rozpracovanou cestu
+  nezahazuje – posun cíle ≤ 2 bloky se jen zapamatuje (stará cesta končí
+  u něj, zbytek se doplánuje při dokončení) a plný replán běží nejvýš
+  jednou za sekundu; dřív sledování spouštělo plný A* při každém kroku
+  cíle o blok. Cesta se navíc každých ~10 ticků levně validuje proti
+  změnám světa (`PathValidator`): rozbitý waypoint (zazděno, láva,
+  stržená podlaha) znamená replán hned, ne až fyzické zaseknutí o 2,5 s
+  později. Validace je záměrně konzervativní – zneplatňuje jen stavy,
+  které by odmítl i A* (jinak by se replán zacyklil), a UNKNOWN po
+  vypršení chunk cache nechává být (žádné replán bouře nad dlouhými
+  trasami).
+- **Observabilita**: `PathfindingStats` (počty výpočtů, úplné/částečné/
+  prázdné, timeouty, zrušení, průměr a maximum uzlů i ms) a příkaz
+  `/botalive path <bot>` – cíl, segment, postup po waypointech, běžící
+  výpočet a agregované metriky. Rozpočty ladí sekce `pathfinding.*`.
+- **Simulační kontrakt plánovač ↔ fyzika**
+  (`PathExecutionSimulationTest`): naplánovaná cesta se v testu skutečně
+  **odejde** – tick smyčka zrcadlí `BotImpl.tick` (navigator → LiquidReflex
+  → FallReflex → `BotPhysics.step`) a scénář selže, když bot fyzicky
+  nedorazí, utrpí pád, vkročí do hazardu, nebo navigace eskaluje k zásahu
+  do terénu. Matice: chůze/diagonály, terasy, schody, desky, sníh, seskoky,
+  mezery 1–2 (i diagonální, i s dopadem níž, i s ledovým rozběhem), voda
+  (přeplavání, vynoření, **potopení na dno**, podvodní tunel, skok z výšky
+  do hlubiny), žebříky (výstup 10 bloků s mantlem, **sestup šachtou**),
+  úzký most, klikatá chodba, nízký tunel, led u hrany útesu, zeď postavená
+  uprostřed chůze (validace → obchůzka), **dveře ve zdi** (klik navigátoru
+  jde přes úzké rozhraní `DoorOpener` – produkce ho adaptuje na paketový
+  `BotActions.useItemOn`, test na lambdu přepínající blok, takže i dveře
+  jsou kryté end-to-end), daleká segmentová trasa a 20
+  seedů náhodného terénu (každá krajina s kompletním plánem musí být
+  fyzicky průchozí). Simulace odhalila a opravila pět reálných mezer
+  exekuce: (1) bot s hlavou pod vodou držel skok bezpodmínečně a
+  naplánovaný sestup vodou nikdy neprovedl – potápěcí waypoint teď skok
+  pouští (o dech se dál stará `LiquidReflex`); (2) volná svislá tolerance
+  waypointů ve vodě „dokončovala" sestupy vysoko nad cílem a záchranný
+  reflex bota vynesl zpět k hladině – při klesání je tolerance těsná;
+  (3) sestup po žebříku posílal vodorovný vstup, který fyzika (vanilla)
+  bere jako „šplhej vzhůru" – bot teď nad kolmým waypointem žebřík pustí
+  a sjíždí; (4) heuristika skoku přes mezeru se řídila jen vzdáleností
+  waypointu a „spadni do jámy o buňku dál" přeskakovala sprintem tam
+  a zpět – skok se pozná podle rozestupu waypointů ≥ 2 (kontrakt
+  plánovače); (5) odbavování waypointů při vyhlazení šlo jen podle
+  blízkosti, diagonální zkratka nechala rohový waypoint stranou a okno
+  vyhlazení se zaseklo – waypointy se odbavují i projekcí „je za botem".
+  Ve fyzice navíc step-up nikdy nezabírá na žebříku/liáně – zbytková
+  rychlost při sestupu šachtou bota „vymantlovávala" přes okraj ven.
+
+Hotovo ve fázi 20: pathfinding v2.1 – hrubé koridory dálkových tras
+(`FarPlanner`).
+
+Přímková segmentace s laterálními posuny ±24 neuměla obejít slepá ramena
+širší než posun (velké jezero, lávové pole, horský masiv) – bot skončil
+u překážky, replánoval do vyčerpání a eskaloval k terraformingu.
+FarPlanner hledá trasu A* nad **mřížkou povrchových sond** 8×8 bloků
+(`SegmentPlanner.surfaceAt` ukotvená na výšce souseda):
+
+- hrana mezi sousedními buňkami existuje jen při výškovém rozdílu povrchů
+  ≤ 8 bloků (útes/převis = zeď) a nese přirážku za převýšení;
+- vodní hladina je průchozí s dvojnásobnou cenou (plave se, ale suchá
+  obchůzka vyhrává), láva a void jsou zeď;
+- **nenačtené chunky jsou optimisticky průchozí** s trojnásobnou cenou
+  a zděděnou výškou – bot smí vyrazit „směrem tam" jako hráč s mapou
+  a detail vyřeší low-level plán s prefetchem při přiblížení; rozlišení
+  „nenačteno" vs. „načteno bez povrchu" dává `WorldView.isAvailable`.
+
+Koridor se počítá asynchronně na pathfinding poolu a navigátor z něj bere
+mezicíle segmentů: nejvzdálenější bod **souvislého** úseku v dosahu 64
+bloků (souvislost brání zkratování obchůzky přes jezero na body protějšího
+břehu), vadný bod se přeskočí (`segmentAttempt`), každý bod se před
+použitím znovu ověří povrchovou sondou a částečný koridor (vyčerpaný
+rozpočet) se na svém konci přepočítá z aktuální pozice. Dokud koridor
+není spočítaný – a jako trvalý fallback – jede se postaru po přímce.
+Kill-switch `pathfinding.far-corridor`. Simulační kontrakt (fáze 19) má
+scénář obchůzky lávového pole 40×124 bloků: bot ho s koridorem fyzicky
+obejde severní stranou a nikdy nevkročí do hazardu.
+
+Hotovo ve fázi 21: cílové predikáty pathfindingu (`PathGoal`) a dav
+v simulačním kontraktu.
+
+- **PathGoal** – cíl hledání už není jen „dojdi na blok": predikát
+  dosažení + přípustná heuristika. Vestavěné cíle: `block` (dnešní
+  chování; jako jediný normalizuje cíl nad deskou a používá drift
+  throttle pohyblivých cílů), `near` (okruh – interakce s truhlou,
+  ponkem, entitou), `anyOf` (**nejbližší dosažitelný** z kandidátů –
+  strom/ruda/truhla se vybírá podle skutečné dosažitelnosti, ne
+  vzdušnou čarou; multi-target hledání zadarmo), `awayFrom` (plánovaný
+  útěk po pochozím terénu – žádné hrany, láva ani slepé kouty panického
+  přímého běhu; heuristika ×7/blok drží přípustnost i pro diagonální
+  úprky) a `yLevel` (těžební hladina; ×6/blok = nejlevnější svislý
+  pohyb, pád). Predikáty přijímá A* (`findPath(start, PathGoal, …)`),
+  NavigationService i Navigator (`navigateTo(from, PathGoal)`);
+  mezicíle segmentů zůstávají blokové a dálková logika se řídí kotvou
+  cíle (`anchor()`). Drift throttle pohyblivých cílů je zobecněný přes
+  `PathGoal.sameShape` – cíl téhož tvaru s posunutou kotvou (blok za
+  entitou, `near` se stejným poloměrem za jdoucím hráčem, `awayFrom`
+  před pohybující se hrozbou) starou cestu dojíždí a plný replán běží
+  nejvýš jednou za sekundu. První migrované goaly: `FollowPlayerGoal`
+  sleduje přes `near(hráč, 3)` (cesta legitimně končí kousek od hráče,
+  jako by šel člověk) a `SurviveGoal` má dvoustupňový útěk – okamžitá
+  přímočará panika drží bota v pohybu hned, a jakmile se dopočítá
+  plánovaný ústup `awayFrom` (po pochozím terénu, obchází lávu, hrany
+  i slepé kouty, respektuje DANGER paměť), převezme řízení navigace.
+  Ostatní goaly migrují postupně.
+- **Dav v simulačním kontraktu** – dva boti proti sobě (chodba šířky 2
+  i přesně čelní střet na volném poli) si každý tick předávají pozice
+  přes `TrackedEntity` a řídí se `CrowdAvoidance.steer` stejně jako
+  `BotImpl.tick`; oba musí fyzicky dorazit – deadlock z přetlačování je
+  selhání testu. Plus scénář plánovaného útěku: bot sevřený mezi
+  hrozbou a lávovým polem uteče na bezpečnou vzdálenost po pochozím
+  terénu a do lávy nikdy nevkročí.
+
+Hotovo ve fázi 22: osobnost v cenách cest (`PathCosts`).
+
+Styl cesty je deterministická funkce povahy – žádný šum, kmitání tras
+mezi replány by vypadalo stroze. Profil násobí jen **přirážky** nad
+základní cenou kroku: odvaha zlevňuje sprint-skoky přes mezery
+(0,5–1,5×), opatrnost zdražuje seskoky (1–1,8×), blízkost lávy
+(0,7–1,7×) a vodu (0,8–1,5×), lenost šplhání a výskoky (0,85–1,6×).
+Přípustnost heuristik drží podlahy: pád nikdy pod 6/blok (heuristika
+`yLevel`), šplh nikdy pod 0,85× (oktilová svislice 10 ≤ 12·0,85).
+Profil se odvozuje jednou v konstruktoru navigátoru a teče přes
+`NavigationService.request(…, PathCosts)` do A* (škálované ceny se
+předpočítají do instančních polí – vnitřní smyčka zůstává celočíselná).
+Neutrální profil je bit-shodný s chováním před personalizací. Test
+`odvaznySkaceOpatrnyObchazi`: nad stejnou roklí odvážný bot volí
+sprint-skok a opatrný obchůzku – dva boti, dvě trasy, viditelná
+individualita.
+
+Hotovo ve fázi 23: rozšíření parkouru. Sprint-skok nově zvládá mezeru
+**3 bloků** prázdna (vanilla dolet ~4 bloky; strop `MAX_GAP = 3`,
+4 bloky se korektně odmítají) a přes jednoblokovou díru umí bot
+**parkour výskok na římsu o blok výš** (jen kardinálně, letová dráha
+se ověřuje o buňku výš nad odrazem i mezerou). Exekuce rozšířila
+svislé meze skokového segmentu (−1.6 až +1.7 – rozestup waypointů ≥ 2
+zaručuje, že jde o naplánovaný skok). Oba pohyby prošly simulačním
+kontraktem: bot je fyzicky doskočí bez poškození – dolet je ověřený
+proti reálné fyzice, ne jen slíbený plánovačem.
+
+Hotovo ve fázi 24: kopací hrany v plánu cesty (`TerrainAction`,
+`PathOptions.WITH_DIGGING`).
+
+Dřív byl každý zásah do terénu reaktivní: bot došel k překážce, zasekl
+se (2,5 s), replánoval, eskaloval k assistu, vykopl 1–2 bloky a celý
+cyklus s plným A* se opakoval – dlouhý tunel nešel vůbec (strop 10
+cyklů). Nově se po selhání pěšího plánu cesta **přepočítá s kopacími
+hranami**: tunel 1×2, vylámaný schod vzhůru i dolů (nikdy kolmá šachta)
+jsou hrany grafu s cenou ~8 kroků chůze za blok – pěší obchůzka vyhrává,
+kdykoli rozumná existuje, a tunel je pak JEDEN souvislý plán.
+
+- **Bezpečnost kopání**: každý blok musí být pevný, mimo deny-list
+  chráněných materiálů (bedrock, obsidián, spawner a hlavně majetek –
+  truhly, pece, postele, ponky, kovadliny: bot si tunel neprorazí cizím
+  domem skrz vybavení) a bez tekutiny v 6-okolí (protržení by štolu
+  zatopilo). Deny-list testuje obsidiánový masiv, tekutinovou pojistku
+  vodní kapsa v ose tunelu – plánovač ji korektně obchází.
+- **Dvojí gate**: kopací hrany se aktivují jen po selhání čistě pěšího
+  plánu (empty path / marné replány po zaseknutí), jen s
+  `ai.terraforming` a kill-switchem `pathfinding.planned-actions`.
+  Reaktivní assist pipeline zůstává jako fallback pro vše, co plán
+  neumí (mosty přes lávu, pilíře, žebříky na stěny).
+- **Exekuce bez replánů**: `Path` nese mapu `TerrainAction` podle indexu
+  waypointu; navigátor u zablokovaného waypointu zásah ohlásí
+  (`actionNeeded`), `BotImpl` ho vykoná sekvencí `MineBlockTask`
+  (`TaskSequence`, per-blok equip nejlepšího nástroje) a po
+  `actionResolved` cesta pokračuje **beze změny** – validace cesty
+  záměrně zablokované waypointy přeskakuje, dokud nejsou vykopané.
+- **Simulační důkaz** (`prokopeTunelPodlePlanuBezReplanu`): bot se
+  bedrockem ohrazeným kamenným masivem tloušťky 3 prokope podle jednoho
+  plánu na ≤ 4 výpočty celkem. Půvabný vedlejší nález z ladění fixtur:
+  s kamennou ohradou si plánovač korektně spočítal, že levnější tunel
+  vede jednoblokovou boční stěnou ven a kolem – optimalizuje opravdu
+  přes celý prostor zásahů.
+- **Pokládací hrany** (druhá polovina fáze): most přes chybějící podlahu
+  (opěra pod cílovou buňku) a pilíř pod vlastní nohy (uzel o patro výš)
+  jako hrany grafu s cenou ~10 kroků chůze za blok. **Rozpočet
+  inventáře**: plán nikdy neslíbí víc bloků, než bot má
+  (`Navigator.placeBudget` ← `InventoryHelper.countBuildingBlocks`,
+  strop 12 na plán jako u BridgeTasku) – počet položených bloků se hlídá
+  podél celé cesty v uzlech A*. Pokládá se jen do čistě prázdných buněk,
+  nikdy do tekutin, a pod opěrou běží **hloubkový sken hazardu** (jako
+  u skoků): láva kdekoli v dohledné hloubce pod mostkem = žádný most,
+  ani o patro výš – lávová jezera zůstávají reaktivnímu BridgeTasku.
+  Nejhezčí emergentní chování: plánovač **míchá strategie jako hráč** –
+  přes mezeru 5 sloupců položí 2 opory a zbytek přeskočí sprint-skokem
+  z položeného decku, na plošinu +4 staví jen 3 bloky pilíře a poslední
+  patro vyskočí; simulace obojí fyzicky odehrála bez poškození
+  (`premostiPropastPodlePlanu`). A při ladění pojistky vymyslel boční
+  lávku o dráhu vedle lávového pruhu, kde pod oporami láva není –
+  testy dostaly bedrockové mantinely a pojistka hloubkový sken.

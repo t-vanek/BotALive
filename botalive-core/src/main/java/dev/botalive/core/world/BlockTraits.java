@@ -144,6 +144,22 @@ public record BlockTraits(
     }
 
     /**
+     * @return nejnižší začátek kolize v buňce ({@code Double.MAX_VALUE} bez
+     *         kolize) – pathfinding podle něj posuzuje, jestli buňka překáží
+     *         tělu v úrovni hlavy (horní poklop u stropu nevadí, deska ano)
+     */
+    public double lowestCollisionStart() {
+        if (boxes.length == 0) {
+            return Double.MAX_VALUE;
+        }
+        double min = Double.MAX_VALUE;
+        for (int i = 0; i < boxes.length; i += 6) {
+            min = Math.min(min, boxes[i + 1]);
+        }
+        return min;
+    }
+
+    /**
      * @param material materiál bloku
      * @return vlastnosti bloku podle materiálu (cachované)
      */

@@ -155,6 +155,13 @@ public final class ConfigLoader {
                 Math.max(3, c.getInt("end.max-fight-minutes", 15))
         );
 
+        var pathfinding = new BotAliveConfig.Pathfinding(
+                Math.max(500, c.getInt("pathfinding.node-budget", 8_000)),
+                Math.max(0, c.getInt("pathfinding.time-budget-ms", 25)),
+                c.getBoolean("pathfinding.far-corridor", true),
+                c.getBoolean("pathfinding.planned-actions", true)
+        );
+
         var performance = new BotAliveConfig.Performance(
                 c.getInt("performance.tick-threads", 0),
                 c.getInt("performance.pathfinding-threads", 0),
@@ -176,6 +183,7 @@ public final class ConfigLoader {
         );
 
         return new BotAliveConfig(network, bots, ai, chat, combat, economy, memory,
-                worlds, spawn, teleport, pvp, settlement, nether, end, performance, persistence);
+                worlds, spawn, teleport, pvp, settlement, nether, end, pathfinding,
+                performance, persistence);
     }
 }

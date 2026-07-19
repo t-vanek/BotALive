@@ -61,7 +61,11 @@ public final class FollowPlayerGoal extends AbstractGoal {
         double distance = target.position().distance(ctx.position());
         ctx.humanizer().lookAt(ctx.position().add(0, 1.62, 0), target.position().add(0, 1.62, 0));
         if (distance > 4) {
-            ctx.navigator().navigateTo(ctx.position(), target.position().toBlockPos());
+            // Cíl „do okruhu 3" místo přesného bloku: cesta legitimně končí
+            // kousek od hráče (jako by šel člověk) a drift throttle navigace
+            // ji při pohybu hráče dojíždí místo replánu při každém kroku.
+            ctx.navigator().navigateTo(ctx.position(), dev.botalive.core.pathfinding.PathGoal
+                    .near(target.position().toBlockPos(), 3));
         } else {
             ctx.navigator().stop();
         }

@@ -47,16 +47,17 @@ public final class BotAliveCommand implements TabExecutor {
 
     private static final List<String> ADMIN_SUBCOMMANDS = List.of(
             "create", "remove", "pause", "resume", "personality", "memory",
-            "goal", "stats", "role", "settlements", "end");
+            "goal", "stats", "role", "settlements", "end", "path");
     private static final List<String> SUBCOMMANDS = List.of(
             "create", "remove", "tp", "list", "pause", "resume",
-            "personality", "memory", "goal", "stats", "role", "settlements", "end");
+            "personality", "memory", "goal", "stats", "role", "settlements", "end", "path");
 
     private final BotManagerImpl botManager;
     private final GoalRegistryImpl goalRegistry;
     private final BotRepository repository;
     private final dev.botalive.core.config.BotAliveConfig config;
     private final dev.botalive.core.settlement.SettlementService settlements;
+    private final dev.botalive.core.pathfinding.NavigationService navigation;
     private final dev.botalive.core.teleport.TeleportCooldowns cooldowns;
 
     /**
@@ -65,16 +66,19 @@ public final class BotAliveCommand implements TabExecutor {
      * @param repository   repozitář (pro /botalive stats)
      * @param config       konfigurace (teleport sekce)
      * @param settlements  služba vesnic (pro /botalive settlements)
+     * @param navigation   pathfinding (metriky pro /botalive path)
      */
     public BotAliveCommand(BotManagerImpl botManager, GoalRegistryImpl goalRegistry,
                            BotRepository repository,
                            dev.botalive.core.config.BotAliveConfig config,
-                           dev.botalive.core.settlement.SettlementService settlements) {
+                           dev.botalive.core.settlement.SettlementService settlements,
+                           dev.botalive.core.pathfinding.NavigationService navigation) {
         this.botManager = botManager;
         this.goalRegistry = goalRegistry;
         this.repository = repository;
         this.config = config;
         this.settlements = settlements;
+        this.navigation = navigation;
         this.cooldowns = new dev.botalive.core.teleport.TeleportCooldowns(
                 config.teleport().playerCooldownSeconds());
     }
@@ -106,6 +110,7 @@ public final class BotAliveCommand implements TabExecutor {
             case "role" -> role(sender, args);
             case "settlements" -> settlements(sender);
             case "end" -> endPortal(sender, args);
+            case "path" -> path(sender, args);
             default -> help(sender);
         }
         return true;
@@ -538,6 +543,72 @@ public final class BotAliveCommand implements TabExecutor {
                                     target.wallet().balance()),
                     NamedTextColor.GRAY));
         });
+    }
+
+    /**
+     * {@code /botalive path <jméno>} – diagnostika navigace: cíl, segment,
+     * postup po waypointech, běžící výpočet a agregované metriky A*.
+     */
+    private void path(CommandSender sender, String[] args) {
+        Optional<Bot> bot = requireBot(sender, args);
+        if (bot.isEmpty()) {
+            return;
+        }
+        info(sender, "Navigace bota '" + bot.get().name() + "':");
+        if (bot.get() instanceof BotImpl impl) {
+            var snap = impl.navigator().debugSnapshot();
+            if (snap.destination() == null) {
+                sender.sendMessage(Component.text(" nenaviguje", NamedTextColor.GRAY));
+            } else {
+                dev.botalive.core.util.BlockPos feet = impl.position().toBlockPos();
+                sender.sendMessage(Component.text(
+                        " cíl: %s (vzdálenost %.1f m)".formatted(format(snap.destination()),
+                                Math.sqrt(feet.distanceSquared(snap.destination()))),
+                        NamedTextColor.GRAY));
+                if (snap.segmentGoal() != null) {
+                    sender.sendMessage(Component.text(
+                            " mezicíl segmentu: " + format(snap.segmentGoal()),
+                            NamedTextColor.GRAY));
+                }
+                if (snap.corridorCount() > 0) {
+                    sender.sendMessage(Component.text(
+                            " koridor: bod %d/%d".formatted(
+                                    Math.min(snap.corridorIndex() + 1, snap.corridorCount()),
+                                    snap.corridorCount()),
+                            NamedTextColor.GRAY));
+                }
+                String progress = snap.waypointCount() == 0 ? "bez cesty"
+                        : "waypoint %d/%d (%s)".formatted(
+                                Math.min(snap.waypointIndex() + 1, snap.waypointCount()),
+                                snap.waypointCount(),
+                                snap.pathComplete() ? "kompletní" : "částečná");
+                String state = snap.assistNeeded()
+                        ? "čeká na zásah do terénu (prokopání/most)"
+                        : snap.computing() ? progress + ", výpočet běží" : progress;
+                sender.sendMessage(Component.text(" stav: " + state, NamedTextColor.GRAY));
+                if (!snap.upcoming().isEmpty()) {
+                    sender.sendMessage(Component.text(" dál: " + snap.upcoming().stream()
+                            .map(BotAliveCommand::format)
+                            .collect(java.util.stream.Collectors.joining(" → ")),
+                            NamedTextColor.DARK_GRAY));
+                }
+            }
+        }
+        var s = navigation.stats().snapshot();
+        sender.sendMessage(Component.text(
+                (" A* celkem: %d výpočtů (%d úplných, %d částečných, %d prázdných), "
+                        + "%d timeout, %d zrušeno")
+                        .formatted(s.requests(), s.complete(), s.partial(), s.empty(),
+                                s.timedOut(), s.cancelled()),
+                NamedTextColor.GRAY));
+        sender.sendMessage(Component.text(
+                " průměr %.1f ms / %.0f uzlů na výpočet, max %.1f ms / %d uzlů"
+                        .formatted(s.avgMillis(), s.avgNodes(), s.maxMillis(), s.maxNodes()),
+                NamedTextColor.GRAY));
+    }
+
+    private static String format(dev.botalive.core.util.BlockPos pos) {
+        return pos.x() + " " + pos.y() + " " + pos.z();
     }
 
     // ------------------------------------------------------------- pomocníci
