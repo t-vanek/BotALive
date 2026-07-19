@@ -64,6 +64,13 @@ public final class AStarPathfinder {
     private static final int COST_WATER = 25;
     /** Přirážka za buňku s hlavou pod hladinou – podvodní tunely stojí dech. */
     private static final int COST_SUBMERGED = 30;
+    /**
+     * Strop souvislého plně potopeného úseku cesty (buňky). Vzduch vystačí
+     * na ~15 buněk plavání; 12 nechává rezervu na zpomalení v zatáčkách
+     * a je 2× délka simulačního podvodního tunelu. Delší úsek = cesta se
+     * odmítá (viz {@code toPath}).
+     */
+    private static final int MAX_SUBMERGED_RUN = 12;
     private static final int COST_CLIMB = 12;
     private static final int COST_DOOR = 15;
     private static final int COST_NEAR_HAZARD = 60;
@@ -486,6 +493,24 @@ public final class AStarPathfinder {
         private Path toPath(Node node, boolean complete) {
             java.util.Map<Integer, TerrainAction> actions = new java.util.HashMap<>();
             List<BlockPos> waypoints = reconstruct(node, actions);
+            // Dechový rozpočet: souvislý PLNĚ potopený úsek (nohy i hlava pod
+            // hladinou) delší než MAX_SUBMERGED_RUN se odmítá – vzduch stačí
+            // na ~15 buněk a plán skrz zapečetěný aquifer je rozsudek (bot se
+            // utopil přesně takhle: 20+ bloků vody bez kapsy). Plavání po
+            // hladině (hlava venku) se nepočítá; odmítnutí vrací prázdnou
+            // cestu → cíl si přes backoff vybere jinou práci.
+            int run = 0;
+            for (BlockPos wp : waypoints) {
+                // Potopený = nohy v tekutině a nad hlavou se nelze nadechnout
+                // (voda, nebo strop zatopené trubky – hlava „ve zdi").
+                BlockTraits head = traits(wp.up());
+                boolean underwater = traits(wp).liquid()
+                        && (head.liquid() || !head.lowProfile());
+                run = underwater ? run + 1 : 0;
+                if (run > MAX_SUBMERGED_RUN) {
+                    return new Path(List.of(), false, java.util.Map.of());
+                }
+            }
             return new Path(waypoints, complete,
                     actions.isEmpty() ? java.util.Map.of() : java.util.Map.copyOf(actions));
         }
