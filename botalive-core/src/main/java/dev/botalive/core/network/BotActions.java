@@ -24,7 +24,7 @@ import java.util.BitSet;
  * validuje stejně jako u lidského hráče. Vyšší vrstvy (tasky, cíle) tyto
  * primitivy skládají do smysluplného chování.</p>
  */
-public final class BotActions {
+public class BotActions {
 
     private final BotConnection connection;
     private final BotClientState state;

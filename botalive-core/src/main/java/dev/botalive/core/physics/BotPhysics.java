@@ -28,6 +28,8 @@ public final class BotPhysics {
     private static final double JUMP_VELOCITY = 0.42;
     private static final double STEP_HEIGHT = 0.6;
     private static final double WATER_DRAG = 0.8;
+    /** Síla snosu proudem tekoucí vody (vanilla ~0.014/tick). */
+    private static final double WATER_FLOW_PUSH = 0.014;
     /** Rychlost šplhání vzhůru po žebříku (vanilla 0.2 bloku/tick). */
     private static final double CLIMB_UP_SPEED = 0.2;
     /** Nejrychlejší pád po žebříku (vanilla −0.15). */
@@ -221,6 +223,14 @@ public final class BotPhysics {
             vy = input.jump() ? Math.min(vy + 0.04, 0.12) : (vy - 0.02) * WATER_DRAG;
             vx *= WATER_DRAG;
             vz *= WATER_DRAG;
+            // Proud: tekoucí voda bota snáší po směru gradientu hladin
+            // (vanilla ~0.014/tick; s dragem 0.8 vychází terminální snos
+            // ~0.056 bloku/tick ≈ 1,1 m/s). Zdrojová tůň proud nemá.
+            Vec3 flow = dev.botalive.core.world.WaterFlow.at(
+                    world::traitsAt, position.toBlockPos());
+            vx += flow.x() * WATER_FLOW_PUSH;
+            vy += flow.y() * WATER_FLOW_PUSH;
+            vz += flow.z() * WATER_FLOW_PUSH;
         } else if (inWeb) {
             // Pavučina: pohyb drasticky vázne v obou osách (vanilla stuck
             // multiplikátory), rychlost se mezi ticky neakumuluje.
@@ -248,8 +258,10 @@ public final class BotPhysics {
             vx = clamp(vx, -CLIMB_MAX_HORIZONTAL, CLIMB_MAX_HORIZONTAL);
             vz = clamp(vz, -CLIMB_MAX_HORIZONTAL, CLIMB_MAX_HORIZONTAL);
         } else {
+            boolean jumped = false;
             if (input.jump() && onGround) {
                 vy = JUMP_VELOCITY;
+                jumped = true;
                 if (input.sprint()) {
                     // sprint-jump boost ve směru pohybu (vanilla chování)
                     Vec3 boost = dir.mul(0.2);
@@ -257,7 +269,15 @@ public final class BotPhysics {
                     vz += boost.z();
                 }
             }
-            vy = (vy - GRAVITY) * AIR_DRAG_Y;
+            // V ticku odrazu se gravitace NEuplatní – vanilla pohne entitou
+            // o plných 0,42 a gravitaci sráží až od dalšího ticku. Dřívější
+            // srážení už v ticku odrazu snižovalo vrchol skoku na ~0,83 bloku
+            // (vanilla 1,25): výskok na +1 římsu maskoval step-up, ale pilíř
+            // (pokládka pod nohy vyžaduje světlost ≥ 1,0) byl potichu nemožný
+            // – odhalila to fyzická simulace PillarUpTasku.
+            if (!jumped) {
+                vy = (vy - GRAVITY) * AIR_DRAG_Y;
+            }
             vy = Math.max(vy, MAX_FALL_SPEED);
         }
 
@@ -376,11 +396,16 @@ public final class BotPhysics {
 
         boolean collidedHorizontally = dx != motion.x() || dz != motion.z();
 
-        // Step-up: pokud jsme narazili do zdi a jsme na zemi, zkusit posun o schod
+        // Step-up: pokud jsme narazili do zdi a jsme NA ZEMI, zkusit posun o schod
         // výš. Nikdy na žebříku/liáně – zbytková vodorovná rychlost při sestupu
         // šachtou by bota „vymantlovala" přes okraj ven (vanilla po žebřících
-        // taky nedovolí nedobrovolný výstup na hranu).
-        if (collidedHorizontally && !onClimbable && (onGround || motion.y() < 0)) {
+        // taky nedovolí nedobrovolný výstup na hranu). A nikdy ve vzduchu:
+        // dřívější povolení při klesání kompenzovalo slabý skok (vrchol 0,83
+        // před opravou gravitace v ticku odrazu) – s vanilla skokem 1,25 už
+        // dopady na římsy vycházejí z čisté kolize a vzdušný mantle uměl
+        // nelegálně přelézt plot (zbývajících 0,25 nad vrcholem skoku spadlo
+        // do výšky schodu).
+        if (collidedHorizontally && !onClimbable && onGround) {
             AABB stepBox = AABB.playerAt(position);
             double stepUp = clipAxis(stepBox, STEP_HEIGHT, Axis.Y);
             stepBox = stepBox.move(0, stepUp, 0);

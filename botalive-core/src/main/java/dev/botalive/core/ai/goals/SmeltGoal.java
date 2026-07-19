@@ -13,6 +13,7 @@ import org.geysermc.mcprotocollib.protocol.data.game.entity.object.Direction;
 
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import dev.botalive.core.pathfinding.PathGoal;
 
 /**
  * Tavení v peci – řemeslo kováře (vanilla furnace mechanika).
@@ -120,7 +121,7 @@ public final class SmeltGoal extends AbstractGoal {
             }
             case GO -> {
                 if (furnace.center().distanceSquared(ctx.position()) > 3.0 * 3.0) {
-                    ctx.navigator().navigateTo(ctx.position(), furnace);
+                    ctx.navigator().navigateTo(ctx.position(), PathGoal.near(furnace, 2));
                     if (!ctx.navigator().navigating()) {
                         finish(ctx, 1800);
                     }

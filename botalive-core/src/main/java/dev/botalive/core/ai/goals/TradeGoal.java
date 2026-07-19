@@ -15,6 +15,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import dev.botalive.core.pathfinding.PathGoal;
 
 /**
  * Obchodování s vesničany.
@@ -107,7 +108,7 @@ public final class TradeGoal extends AbstractGoal {
                 Vec3 pos = villager.get().position();
                 ctx.humanizer().lookAt(ctx.position().add(0, 1.62, 0), pos.add(0, 1.6, 0));
                 if (pos.distanceSquared(ctx.position()) > 2.5 * 2.5) {
-                    ctx.navigator().navigateTo(ctx.position(), pos.toBlockPos());
+                    ctx.navigator().navigateTo(ctx.position(), PathGoal.near(pos.toBlockPos(), 1));
                     if (!ctx.navigator().navigating()) {
                         finish(ctx, 1200);
                     }

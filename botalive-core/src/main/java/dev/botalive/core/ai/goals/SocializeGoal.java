@@ -10,6 +10,7 @@ import dev.botalive.core.entity.TrackedEntity;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import dev.botalive.core.pathfinding.PathGoal;
 
 /**
  * Sociální chování – bot vyhledá hráče (nebo jiného bota), přijde k němu,
@@ -72,7 +73,7 @@ public final class SocializeGoal extends AbstractGoal {
         ctx.humanizer().lookAt(ctx.position().add(0, 1.62, 0), player.position().add(0, 1.62, 0));
 
         if (distance > 3.5) {
-            ctx.navigator().navigateTo(ctx.position(), player.position().toBlockPos());
+            ctx.navigator().navigateTo(ctx.position(), PathGoal.near(player.position().toBlockPos(), 2));
             return;
         }
         ctx.navigator().stop();

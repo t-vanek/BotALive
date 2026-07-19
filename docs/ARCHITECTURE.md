@@ -804,3 +804,147 @@ kdykoli rozumná existuje, a tunel je pak JEDEN souvislý plán.
   (`premostiPropastPodlePlanu`). A při ladění pojistky vymyslel boční
   lávku o dráhu vedle lávového pruhu, kde pod oporami láva není –
   testy dostaly bedrockové mantinely a pojistka hloubkový sken.
+
+Hotovo ve fázi 25: preference cestiček (v2.3-G, poslední písmeno roadmapy
+pathfindingu v2) a migrace goalů na `near` cíle.
+
+- **Preference cestiček**: nový trait `BlockTraits.pathSurface` – udusaná
+  cestička (`DIRT_PATH`, DECORATE fáze ji lopatou vyrábí z trávy), štěrk
+  (vanilla vesnické silnice) a prkna (lávky, podlahy). Krok terénem HNED
+  VEDLE cestového povrchu nese přirážku +1, takže bot jdoucí podél
+  cestičky na ni uhne a vesnické pěšiny, které si boti sami udusávají,
+  se opravdu používají (zpětná vazba vesnice ↔ pathfinding). Návrh je
+  schválně dvakrát krotký: cesta nedostává slevu, okolí přirážku
+  (minimální cena kroku zůstává 10 → oktilová heuristika je dál
+  přípustná a trasy optimální), a daleko od cest se ceny nemění vůbec –
+  globální přirážka rozvolňovala heuristiku o ~10 % všude a bludišťový
+  benchmark (`PathfindingEfficiencyTest`) přestal stíhat uzlový rozpočet.
+  Sběr povrchu v okolí jede zadarmo v existujícím 3×3 hazard skenu
+  (nula nových dotazů do světa). Testy: cesta o řadu vedle přitáhne
+  (`drziSeCesticky`), vzdálená ne (`cestickaNestojiZaVelkouZajizdku`).
+- **Goaly chodí „do okruhu", ne „na blok"**: pec, ponk, kovadlina,
+  truhla, postel, kompostér, obohacovací stůl, ruda, plodina i cílové
+  entity (obchod, socializace, krocení, usmíření) migrovány
+  z `navigateTo(blok)` na `PathGoal.near(blok, r)` s poloměrem uvnitř
+  interakčního prahu goalu (vesměs r=2 pro prahy ~3, r=1 pro těsné
+  prahy 2,2–2,5). Důvod je výkonnostní i sémantický: cíl „přesně tento
+  blok" se u neprůchozího bloku (pec, truhla, ruda) nikdy nesplní –
+  A* pokaždé spálil celý uzlový rozpočet a vrátil částečnou cestu;
+  `near` končí vedle bloku za pár desítek expanzí
+  (`nearCilUNepruchozihoBlokuSetriRozpocet`). U pohyblivých cílů
+  (vesničan, zvíře, hráč) navíc `near` zapadá do drift throttlu
+  (`sameShape`) – replány se tlumí jako u followu. Kde je cíl záměrně
+  konkrétní pochozí buňka (rybářské stanoviště, stanoviště kopání,
+  sběr dropů pod nohama), zůstává blokový cíl.
+
+Hotovo ve fázi 26: pathfinding v3.0 – tři poslední známé rozpory plánu
+s kolizním systémem (analýza [docs/PATHFINDING_V3.md](PATHFINDING_V3.md)).
+
+- **Padavé bloky nad výkopem**: kopací hrana se odmítne, když má kopaná
+  buňka přímo nad sebou padavý blok (písek, štěrk, beton v prášku,
+  kovadlina, krápník) mimo vlastní výkop – sesyp by štolu zasypal
+  a rozbil „jeden souvislý plán" na smyčku replánů. Padavý blok smí být
+  sám cílem krumpáče (štěrk pod pevným stropem se kope normálně).
+- **Smrtící hloubka a void**: `dropDepth` skenuje dno do 24 bloků – láva
+  na dně zakazuje skok i tam, kam starý sken (8) neviděl, a stejnou
+  pojistku sdílí mostní opěry. Skok nad pádem smrtící hloubky (≥ 20)
+  nese příplatek škálovaný opatrností povahy, nad bezednem dvojnásobný:
+  bázlivý bot volí mezi ostrovy lávku, odvážný skáče – a mostění nad
+  bezednem zůstává povolené (ostrovy v Endu). Práh je záměrně „smrtící",
+  ne „bolestivý": rokle hloubky 12 nechává volbu na odvaze (přísnější
+  práh převracel chování odvážných, odhalil to osobnostní test).
+- **Dveře v letu a v rohu**: nový `flightClear` (průchozí bez ruky na
+  klice) hlídá rohy diagonál i letovou dráhu skoku – zavřené dveře už
+  neřežou roh (bot je při diagonále neotvírá a odíral se o kolizi)
+  a neskáče se skrz ně (letová dráha je dřív brala za průchozí jako
+  chůze). Otevřené dveře nevadí – jsou bez kolize.
+- **Dokončení `near` migrace (v3.1)**: zbylých 16 blokových cílů mimo
+  overworld přešlo na `near` s poloměrem uvnitř prahu goalu – dračí
+  souboj (střed ostrova, přiblížení ke krystalu na dostřel), End (rám
+  portálu, vzpomínka na portál, end stone), Nether (základna, těžený
+  blok, strukturní truhla, piglin k barteru), vozidla (vozík, loď,
+  kolej), hlídka, návrat domů a průzkum (bod expedice v koruně stromu
+  či jezeře už nepálí rozpočet). Záměrně blokové zůstávají cíle „stoupni
+  si přesně sem": sběr dropů, stanoviště kopání a rybaření, dekorace,
+  stavební buňky. Vzor „na neprůchozí blok se nedá dojít" je tím
+  vyřešený v celé kódové základně.
+- **`anyNear` – kandidáti podle dosažitelnosti (v3.2)**: nový predikát
+  „do okruhu nejbližšího dosažitelného kandidáta" (dosavadní `anyOf`
+  chce na kandidátní buňku došlápnout – pro neprůchozí rudu či postel
+  se nesplní nikdy). `MineGoal` skenuje až 6 nejbližších odkrytých
+  bloků (rudy i kmeny) a vytěží ten, ke kterému se skutečně došlo –
+  ruda za lávou už nestojí 300 ticků timeoutu s blacklistem, A* dojde
+  rovnou k dalšímu kandidátovi; žíla se dál sleduje sousedstvím.
+  `SleepGoal` sbírá všechny postele v okolí a uléhá do té, ke které
+  vede cesta (vlastní zapamatovaná postel má přednost jako jediný
+  cíl). Truhly (`StashGoal`, `StealGoal`) záměrně nemigrují – na
+  identitě truhly záleží (vlastnictví, sociální paměť) a `anyNear`
+  by cíl tiše zaměnil.
+- **Žebříkové hrany (v3.3)**: stěna výšky 2–8 s plným solidním čelem
+  je hrana grafu „přelez po žebříku" – `TerrainAction` nese směr
+  a výšku, rozpočet příček hlídá inventář (`PathOptions.maxLadders`
+  ← `Navigator.ladderBudget`, strop 8 jako `LadderTask.MAX_HEIGHT`).
+  Exekuci vlastní stávající reaktivní `LadderTask` (sloupec příček
+  z footholdu, verifikace, jeden plynulý výstup) – plán jen říká kde
+  a jak vysoko. Trigger akce má u žebříku širší svislé okno (waypoint
+  je NAD botem na vršku stěny) a těsnější vodorovné (task odvozuje
+  sloupec od živé pozice – bot musí stát na patě stěny). Simulace
+  `prelezeZedPoZebrikuPodlePlanu`: bot fyzicky vyšplhá přilepený
+  sloupec a seskočí za zdí bez poškození, vše jeden plán. Fixtures
+  chtěly bedrockovou podlahu – plánovač si jinak spočítal, že levnější
+  je zeď PODKOPAT (kopací hrany jsou při akčním plánování povolené),
+  což je korektní chování, ne chyba. Poslední kus parity plán ↔ assist;
+  z v3.3 zbývá BotTask-level simulace reaktivních tasků.
+- **BotTask simulace a vanilla skok (v3.3 dokončeno)**: `FakeBotContext`
+  – testovací dvojník kontextu (svět `FakeWorldView`, `useItemOn`
+  pokládá držený materiál rovnou do světa s vanilla pravidlem „pevný
+  blok se nepoloží do vlastního těla", inventář = počítadlo, nepoužité
+  subsystémy vyhazují) – a `ReactiveTaskSimulationTest`: pilíř, most
+  i žebřík se fyzicky vykonají proti `BotPhysics`. První běh odhalil
+  tři produkční chyby: (1) skok měl vrchol 0,83 bloku místo vanilla
+  1,2522 – gravitace se srážela už v ticku odrazu; výskoky na +1 římsu
+  maskoval step-up, ale pilíř (pokládka pod nohy chce světlost ≥ 1,0)
+  byl potichu nemožný. V ticku odrazu se teď gravitace neuplatní –
+  přesná vanilla trajektorie. (2) Vzdušný step-up při klesání
+  (kompenzace slabého skoku) uměl s opraveným skokem nelegálně přelézt
+  plot – vanilla steppuje jen na zemi, klauzule odstraněna a dopady na
+  římsy vychází z čisté kolize. (3) `PillarUpTask` rozhodoval ve
+  vzduchu – při okamžitém potvrzení bloku se kontrola cílové výšky
+  minula a pilíř rostl, dokud stačily bloky; mezi skoky se teď čeká
+  na dopad. Navíc `PlaceBlockTask` verifikuje přes traits místo
+  `Material.isAir` (to sahá na server Registry – vrstva tasků patří
+  nad `WorldView`). `BotActions` a `InventoryHelper` přestaly být
+  `final` kvůli dvojníkům.
+- **v3.4 výkon – uzavřeno měřením, přepis zamítnut**: ruční benchmark
+  (`PerfBenchTest`, @Disabled) ukázal ~252 uzlů/ms v adversariálním
+  bludišti a žádný dominantní hotspot (alokace ~2 %, prioritní fronta
+  ~12 %, zbytek memo dotazy rozprostřené po smyčce). Bucket queue by
+  přinesla ~12 % za riziko změny tie-breaku, long-přepis ~2 % za
+  čitelnost jádra – nevyplatí se. Časový rozpočet 25 ms správně ořezává
+  nejtěžší hledání a vzor „nedosažitelný cíl pálí celý rozpočet" řeší
+  migrace goalů na `near`/`anyNear`. Tím je roadmapa pathfindingu v3
+  kompletní (proudy vody zůstávají vědomě odložené).
+
+Hotovo ve fázi 27: proudy vody (P7 – poslední odložený bod analýzy v3).
+
+- **Světový model**: `BlockTraits.liquidLevel` – 0 zdroj, 1–7 tekoucí
+  (vyšší = tenčí), 8 padající sloupec, −1 ne-tekutina. Hladinu čte state
+  vrstva (`Levelled`, voda i láva nově state-sensitive); materiálová
+  úroveň a testové zdroje mají hladinu zdroje → nulový proud a chování
+  beze změny (jezera, oceány, všechny stávající vodní scénáře).
+- **`WaterFlow.at(traits, pos)`**: směr proudu z gradientu hladin
+  sousedů + přepad přes hrany + tah dolů v padajícím sloupci (vanilla
+  `FlowingFluid.getFlow` zjednodušeně). Bere lookup funkci – pathfinding
+  počítá proud nad svou memo cache (nula dotazů navíc), fyzika nad
+  živým světem.
+- **Fyzika**: tekoucí voda bota snáší ~0.014/tick po směru proudu
+  (terminální snos ~1,1 m/s, vanilla hodnota); test nečinného plavce
+  unášeného kanálem.
+- **Plánovač**: přirážka za horizontální plavání PROTI proudu
+  (`COST_AGAINST_CURRENT` 15) – jen přirážka, sleva po proudu by
+  rozbila přípustnost heuristiky (stejná lekce jako u preference
+  cestiček); zdrojová voda se odbaví bez výpočtu proudu. Test: bot
+  v koridoru volí klidnou řadu místo plavání proti proudu.
+- **Simulační kontrakt**: `preplaveTekouciRekuNapric` – řeka fyzicky
+  snáší plavajícího bota po směru toku a navigace kurz průběžně
+  koriguje; bot dorazí bez assistu. Analýza v3 je tím vyčerpaná celá.

@@ -52,19 +52,45 @@ class BotPhysicsTest {
     @Test
     void skokemPrekonaJedenBlok() {
         FakeWorldView world = new FakeWorldView(FLOOR);
-        // Schod výšky 1 na x=3.
-        for (int z = -2; z <= 2; z++) {
-            world.set(3, (int) FEET_Y, z, FakeWorldView.SOLID);
+        // Terasa výšky 1 od x=3 (širší než dolet – vanilla skok 1,25 umí
+        // jednoblokový schod rovnou přeletět a dopadnout za ním).
+        for (int x = 3; x <= 7; x++) {
+            for (int z = -2; z <= 2; z++) {
+                world.set(x, (int) FEET_Y, z, FakeWorldView.SOLID);
+            }
         }
         BotPhysics physics = new BotPhysics(world, new Vec3(0.5, FEET_Y, 0.5));
 
         for (int i = 0; i < 120 && physics.position().x() < 4.0; i++) {
             physics.step(MoveInput.of(new Vec3(1, 0, 0), false, physics.onGround()));
         }
+        // Vanilla skok (vrchol 1,25) nese přes hranu ještě ve vzduchu –
+        // před kontrolou výšky nechat bota dosednout.
+        for (int i = 0; i < 40 && !physics.onGround(); i++) {
+            physics.step(MoveInput.IDLE);
+        }
 
         assertTrue(physics.position().x() >= 4.0,
                 "bot má skokem vylézt na blok, x=" + physics.position().x());
         assertEquals(FEET_Y + 1, physics.position().y(), 0.05, "bot má stát na schodu");
+    }
+
+    @Test
+    void proudUnasiPlavajicihoBota() {
+        FakeWorldView world = new FakeWorldView(FLOOR);
+        // Kanál tekoucí vody podél +x: zdroj na x=0, hladiny řídnou k x=12.
+        world.set(0, (int) FEET_Y, 0, FakeWorldView.WATER);
+        for (int x = 1; x <= 12; x++) {
+            world.set(x, (int) FEET_Y, 0, FakeWorldView.flowing(Math.min(7, x)));
+        }
+        BotPhysics physics = new BotPhysics(world, new Vec3(2.5, FEET_Y, 0.5));
+
+        for (int i = 0; i < 60; i++) {
+            physics.step(MoveInput.IDLE); // bot nic nedělá – nese ho proud
+        }
+
+        assertTrue(physics.position().x() > 3.5,
+                "proud má bota unášet po gradientu: x=" + physics.position().x());
     }
 
     @Test

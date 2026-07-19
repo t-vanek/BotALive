@@ -18,6 +18,7 @@ import java.util.Deque;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import dev.botalive.core.pathfinding.PathGoal;
 
 /**
  * Těžba s účelem – bot ví, co potřebuje, a umí se k tomu prokopat.
@@ -65,6 +66,8 @@ public final class MineGoal extends AbstractGoal {
     private enum Mode { SURFACE, DIG_TO, STAIRCASE, TRAVEL }
 
     private BlockPos targetBlock;
+    /** Kandidáti posledního skenu – o pořadí rozhodne dosažitelnost (anyNear). */
+    private List<BlockPos> targetCandidates = List.of();
     private Material targetMaterial;
     private MineBlockTask task;
     private PlaceBlockTask torchTask;
@@ -115,6 +118,7 @@ public final class MineGoal extends AbstractGoal {
     @Override
     public void start(Bot bot) {
         targetBlock = null;
+        targetCandidates = List.of();
         task = null;
         torchTask = null;
         noTargetTicks = 0;
@@ -171,7 +175,7 @@ public final class MineGoal extends AbstractGoal {
                 travelTarget = null; // cesta se vleče – vzdát
                 cooldownTicks = 400;
             } else {
-                ctx.navigator().navigateTo(pos, travelTarget);
+                ctx.navigator().navigateTo(pos, PathGoal.near(travelTarget, 8));
                 if (!ctx.navigator().navigating()) {
                     travelTarget = null;
                     cooldownTicks = 400;
@@ -201,15 +205,24 @@ public final class MineGoal extends AbstractGoal {
             }
         }
 
-        // Dojít k bloku a začít kopat.
+        // Dojít k rudě a začít kopat. Cílem je okruh KTERÉHOKOLI kandidáta
+        // ze skenu – nejbližší vzdušnou čarou může být za lávou a o pořadí
+        // rozhoduje skutečná dosažitelnost (A* dojde k nejlevnějšímu).
         Vec3 pos = ctx.position();
-        double distSq = targetBlock.center().add(0, 0.5, 0).distanceSquared(pos.add(0, 1.62, 0));
-        if (distSq > 4.5 * 4.5) {
-            ctx.navigator().navigateTo(pos, targetBlock);
+        BlockPos inReach = candidateInReach(pos);
+        if (inReach == null) {
+            ctx.navigator().navigateTo(pos, targetCandidates.size() > 1
+                    ? PathGoal.anyNear(targetCandidates, 2)
+                    : PathGoal.near(targetBlock, 2));
             if (!ctx.navigator().navigating()) {
-                targetBlock = null; // nedosažitelné pěšky
+                targetBlock = null; // žádný kandidát není dosažitelný pěšky
+                targetCandidates = List.of();
             }
             return;
+        }
+        if (!inReach.equals(targetBlock)) {
+            targetBlock = inReach; // došlo se k jinému kandidátovi než nejbližšímu
+            targetMaterial = ctx.worldView().materialAt(inReach);
         }
         ctx.navigator().stop();
         ctx.inventory().equipBestTool(ctx.serverView().latest(), targetMaterial);
@@ -276,26 +289,26 @@ public final class MineGoal extends AbstractGoal {
         boolean preferLogs = dev.botalive.core.role.RoleProfiles.prefersLogs(bot.role())
                 || (!needs.hasWood() && needs.pickaxeTier() == 0);
 
-        // 1) Odkrytý blok z wishlistu (jen co bot skutečně vytěží).
-        BlockPos found = scanExposed(ctx, m -> wishlist.contains(m) && needs.canHarvest(m));
-        if (found != null) {
+        // 1) Odkryté bloky z wishlistu (jen co bot skutečně vytěží).
+        List<BlockPos> found = scanExposedAll(ctx, m -> wishlist.contains(m) && needs.canHarvest(m));
+        if (!found.isEmpty()) {
             setTarget(ctx, found, needs);
             return;
         }
         // 2) Dřevo, když ho bot potřebuje/preferuje.
         if (preferLogs) {
-            found = scanExposed(ctx, LOGS::contains);
-            if (found != null) {
+            found = scanExposedAll(ctx, LOGS::contains);
+            if (!found.isEmpty()) {
                 setTarget(ctx, found, needs);
                 return;
             }
         }
         // 3) Jakákoli hodnotná ruda, kterou umí vytěžit.
-        found = scanExposed(ctx, m -> ORE_VALUES.containsKey(m) && needs.canHarvest(m));
-        if (found == null && !preferLogs) {
-            found = scanExposed(ctx, LOGS::contains);
+        found = scanExposedAll(ctx, m -> ORE_VALUES.containsKey(m) && needs.canHarvest(m));
+        if (found.isEmpty() && !preferLogs) {
+            found = scanExposedAll(ctx, LOGS::contains);
         }
-        if (found != null) {
+        if (!found.isEmpty()) {
             setTarget(ctx, found, needs);
             return;
         }
@@ -347,9 +360,16 @@ public final class MineGoal extends AbstractGoal {
 
     private void setTarget(BotContext ctx, BlockPos pos, BotNeeds needs) {
         targetBlock = pos;
+        targetCandidates = List.of(pos);
         targetMaterial = ctx.worldView().materialAt(pos);
         reason = targetMaterial != null ? needs.miningReason(targetMaterial) : null;
         mode = Mode.SURFACE;
+    }
+
+    /** Cíl s kandidáty: nejbližší je výchozí, o pořadí rozhodne dosažitelnost. */
+    private void setTarget(BotContext ctx, List<BlockPos> candidates, BotNeeds needs) {
+        setTarget(ctx, candidates.getFirst(), needs);
+        targetCandidates = List.copyOf(candidates);
     }
 
     // ==================================================================
@@ -485,6 +505,7 @@ public final class MineGoal extends AbstractGoal {
 
         BlockPos mined = targetBlock;
         targetBlock = null;
+        targetCandidates = List.of();
 
         // Výkop pokračuje (blok byl součástí plánu).
         if (digTaskInPlan) {
@@ -521,6 +542,7 @@ public final class MineGoal extends AbstractGoal {
                             && BotNeeds.oreFamily(material).equals(family)
                             && !DigPlanner.unsafeToBreak(world, next)) {
                         targetBlock = next;
+                        targetCandidates = List.of(next);
                         targetMaterial = material;
                         return true;
                     }
@@ -537,6 +559,53 @@ public final class MineGoal extends AbstractGoal {
     /** Nejbližší odkrytý blok vyhovující filtru (r=10, ±4 na výšku). */
     private BlockPos scanExposed(BotContext ctx, java.util.function.Predicate<Material> filter) {
         return scan(ctx, filter, true, 10);
+    }
+
+    /** Strop kandidátů z jednoho skenu (víc nemá smysl – sken se opakuje). */
+    private static final int CANDIDATE_LIMIT = 6;
+
+    /** Až {@link #CANDIDATE_LIMIT} nejbližších odkrytých bloků dle filtru. */
+    private List<BlockPos> scanExposedAll(BotContext ctx,
+                                          java.util.function.Predicate<Material> filter) {
+        WorldView world = ctx.worldView();
+        if (world == null) {
+            return List.of();
+        }
+        BlockPos center = ctx.position().toBlockPos();
+        java.util.ArrayList<BlockPos> found = new java.util.ArrayList<>();
+        for (int dx = -10; dx <= 10; dx++) {
+            for (int dy = -4; dy <= 4; dy++) {
+                for (int dz = -10; dz <= 10; dz++) {
+                    BlockPos pos = center.offset(dx, dy, dz);
+                    Material material = world.materialAt(pos);
+                    if (material == null || !filter.test(material)) {
+                        continue;
+                    }
+                    if (!DigPlanner.isExposed(world, pos)) {
+                        continue;
+                    }
+                    found.add(pos);
+                }
+            }
+        }
+        found.sort(java.util.Comparator.comparingDouble(p -> p.distanceSquared(center)));
+        return found.size() > CANDIDATE_LIMIT
+                ? List.copyOf(found.subList(0, CANDIDATE_LIMIT)) : List.copyOf(found);
+    }
+
+    /** Nejbližší kandidát na dokopnutí (oko ≤ 4,5 bloku od středu bloku). */
+    private BlockPos candidateInReach(Vec3 pos) {
+        Vec3 eye = pos.add(0, 1.62, 0);
+        BlockPos best = null;
+        double bestDist = 4.5 * 4.5;
+        for (BlockPos candidate : targetCandidates) {
+            double dist = candidate.center().add(0, 0.5, 0).distanceSquared(eye);
+            if (dist <= bestDist) {
+                bestDist = dist;
+                best = candidate;
+            }
+        }
+        return best;
     }
 
     /** Nejbližší zasypaný blok vyhovující filtru (r=8) – cíl pro výkop. */

@@ -121,11 +121,15 @@ public final class Navigator {
 
     /** Strop položených bloků na jeden plán (zrcadlí strop BridgeTasku). */
     private static final int MAX_PLAN_PLACEMENTS = 12;
+    /** Strop žebříkových příček na jeden plán (zrcadlí strop LadderTasku). */
+    private static final int MAX_PLAN_LADDERS = 8;
 
     /** Zásahy do terénu povolené konfigurací bota ({@code ai.terraforming}). */
     private boolean terraformingAllowed;
     /** Dodavatel počtu stavebních bloků v inventáři (rozpočet pokládání). */
     private java.util.function.IntSupplier placeBudget = () -> 0;
+    /** Dodavatel počtu žebříků v inventáři (rozpočet žebříkových hran). */
+    private java.util.function.IntSupplier ladderBudget = () -> 0;
     /** Aktuální navigace už plánuje s kopacími hranami (po selhání pěšího plánu). */
     private boolean actionsEnabled;
     /** Zásah čekající na vykonání (bot stojí u zablokovaného waypointu). */
@@ -188,6 +192,16 @@ public final class Navigator {
      */
     public void placeBudget(java.util.function.IntSupplier supplier) {
         this.placeBudget = supplier;
+    }
+
+    /**
+     * Nastaví dodavatele počtu žebříků v inventáři – plán s akcemi nikdy
+     * neslíbí vyšší žebříkový výstup, než na kolik má bot příček.
+     *
+     * @param supplier počet dostupných žebříků
+     */
+    public void ladderBudget(java.util.function.IntSupplier supplier) {
+        this.ladderBudget = supplier;
     }
 
     /**
@@ -571,7 +585,15 @@ public final class Navigator {
         // cesta pokračuje bez replánu.
         TerrainAction action = path.actions().get(waypointIndex);
         if (action != null && !resolvedActions.contains(waypointIndex)) {
-            if (delta.horizontalLength() < 3.0 && Math.abs(delta.y()) < 2.5) {
+            // Žebříkový waypoint leží NAD botem (vršek stěny): svislé okno se
+            // roztahuje o výšku stěny a vodorovné se naopak utahuje – LadderTask
+            // odvozuje sloupec příček od živé pozice, bot musí stát na patě
+            // (waypoint před akcí), ne o dvě buňky dřív.
+            double verticalWindow = action.ladder() != null
+                    ? action.ladder().height() + 1.5 : 2.5;
+            double horizontalWindow = action.ladder() != null ? 1.5 : 3.0;
+            if (delta.horizontalLength() < horizontalWindow
+                    && Math.abs(delta.y()) < verticalWindow) {
                 pendingAction = action;
                 pendingActionIndex = waypointIndex;
                 return MoveInput.IDLE;
@@ -842,7 +864,9 @@ public final class Navigator {
         PathGoal requestGoal = segmentGoal != null || goalSpec == null
                 ? PathGoal.block(target) : goalSpec;
         PathOptions options = actionsEnabled
-                ? PathOptions.withActions(Math.min(MAX_PLAN_PLACEMENTS, placeBudget.getAsInt()))
+                ? PathOptions.withActions(
+                        Math.min(MAX_PLAN_PLACEMENTS, placeBudget.getAsInt()),
+                        Math.min(MAX_PLAN_LADDERS, ladderBudget.getAsInt()))
                 : PathOptions.WALK_ONLY;
         pendingPath = service.request(world, from.toBlockPos(), requestGoal, 0, dangers,
                 costs, options);

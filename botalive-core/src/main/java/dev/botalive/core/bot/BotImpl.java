@@ -232,6 +232,7 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
                 rng, personality);
         this.navigator.terraforming(config.ai().terraforming());
         this.navigator.placeBudget(this::buildingBlockBudget);
+        this.navigator.ladderBudget(this::ladderBudget);
         this.navigator.dangerSupplier(this::dangerMemories);
         this.inventoryHelper = new InventoryHelper(actions);
         this.inventoryHelper.puller(this::pullToHotbar);
@@ -1198,9 +1199,11 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
                 // po téže cestě (kopací hrany – náhrada assist eskalace).
                 obstacleTask = plannedActionSequence(navigator.actionNeeded());
                 actionTaskRunning = obstacleTask != null;
-                LOG.debug("[{}] [nav] zásah z plánu: {} kopat, {} položit", name,
+                LOG.debug("[{}] [nav] zásah z plánu: {} kopat, {} položit, žebřík {}", name,
                         navigator.actionNeeded().digs().size(),
-                        navigator.actionNeeded().places().size());
+                        navigator.actionNeeded().places().size(),
+                        navigator.actionNeeded().ladder() != null
+                                ? navigator.actionNeeded().ladder().height() : 0);
                 if (obstacleTask == null) {
                     navigator.actionResolved(); // prázdný zásah – jen pokračovat
                 }
@@ -1464,6 +1467,12 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
                 .countBuildingBlocks(serverView.latest());
     }
 
+    /** Počet žebříků v inventáři (rozpočet žebříkových hran plánu). */
+    private int ladderBudget() {
+        return dev.botalive.core.inventory.InventoryHelper
+                .countItem(serverView.latest(), org.bukkit.Material.LADDER);
+    }
+
     /**
      * Sestaví sekvenci vykonání jednoho zásahu z plánu cesty
      * ({@link dev.botalive.core.pathfinding.TerrainAction}): vykopání bloků
@@ -1529,6 +1538,13 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
                     }
                 }
             });
+        }
+        if (action.ladder() != null) {
+            // Žebříkový výstup: LadderTask nalepí sloupec příček z footholdu
+            // a vyleze jedním tahem – plán nese jen směr a výšku, mechaniku
+            // (míření, verifikace, plynulý šplh) vlastní task.
+            steps.add(new dev.botalive.core.tasks.LadderTask(
+                    action.ladder().sx(), action.ladder().sz()));
         }
         return steps.isEmpty() ? null : new dev.botalive.core.tasks.TaskSequence(steps);
     }

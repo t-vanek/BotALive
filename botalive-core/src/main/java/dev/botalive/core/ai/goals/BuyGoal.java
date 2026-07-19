@@ -11,6 +11,7 @@ import dev.botalive.core.inventory.InventoryHelper;
 import dev.botalive.core.util.BlockPos;
 
 import java.util.Optional;
+import dev.botalive.core.pathfinding.PathGoal;
 
 /**
  * Nákup na trhu – když je jednodušší si věc koupit než vyrobit.
@@ -138,7 +139,7 @@ public final class BuyGoal extends AbstractGoal {
             phase = Phase.PICKUP;
             return;
         }
-        ctx.navigator().navigateTo(ctx.position(), sellerPos);
+        ctx.navigator().navigateTo(ctx.position(), PathGoal.near(sellerPos, 2));
         if (!ctx.navigator().navigating()) {
             cooldownTicks = 2400;
             phase = Phase.DONE;

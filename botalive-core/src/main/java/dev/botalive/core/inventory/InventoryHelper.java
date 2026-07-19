@@ -14,7 +14,7 @@ import java.util.Locale;
  * a vykonává přes klientské pakety (přepnutí hotbar slotu). Nástroj se vybírá
  * podle kategorie cílového bloku a tieru nástroje (netherite &gt; diamant &gt; ...).</p>
  */
-public final class InventoryHelper {
+public class InventoryHelper {
 
     /**
      * Přitažení itemu z hlavního inventáře do hotbaru (kliky ve vlastním okně).
@@ -414,6 +414,32 @@ public final class InventoryHelper {
         for (int i = 0; i < snapshot.mainInventory().length; i++) {
             if (snapshot.mainInventory()[i] != null
                     && isBuildingBlock(snapshot.mainInventory()[i])) {
+                count += Math.max(1, snapshot.mainCounts()[i]);
+            }
+        }
+        return count;
+    }
+
+    /**
+     * Spočítá kusy daného materiálu v inventáři (hotbar + hlavní inventář)
+     * – např. žebříky pro rozpočet žebříkových hran plánovače.
+     *
+     * @param snapshot server-side snapshot ({@code null} = 0)
+     * @param material hledaný materiál
+     * @return celkový počet kusů
+     */
+    public static int countItem(ServerSideView.Snapshot snapshot, Material material) {
+        if (snapshot == null) {
+            return 0;
+        }
+        int count = 0;
+        for (int i = 0; i < snapshot.hotbar().length; i++) {
+            if (snapshot.hotbar()[i] == material) {
+                count += Math.max(1, snapshot.hotbarCounts()[i]);
+            }
+        }
+        for (int i = 0; i < snapshot.mainInventory().length; i++) {
+            if (snapshot.mainInventory()[i] == material) {
                 count += Math.max(1, snapshot.mainCounts()[i]);
             }
         }

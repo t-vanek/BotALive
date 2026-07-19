@@ -24,8 +24,16 @@ public final class FakeWorldView implements WorldView {
     /** Láva (hazard). */
     public static final BlockTraits HAZARD = BlockTraits.simple(false, false, true, false, false, true, false, false, false);
 
-    /** Voda. */
+    /** Voda (zdrojový blok – bez proudu). */
     public static final BlockTraits WATER = BlockTraits.simple(false, false, true, false, false, false, false, false, false);
+
+    /**
+     * Tekoucí voda dané hladiny (1–7, vyšší = tenčí = dál od zdroje;
+     * 8 = padající sloupec). Proud vzniká z gradientu hladin sousedů.
+     */
+    public static BlockTraits flowing(int level) {
+        return WATER.withLiquidLevel(level);
+    }
 
     /** Žebřík/liána – průchozí a šplhatelný, bez kolize. */
     public static final BlockTraits CLIMBABLE = BlockTraits.simple(true, false, false, true, false, false, false, false, false);
@@ -51,26 +59,26 @@ public final class FakeWorldView implements WorldView {
 
     /** Pavučina – bez kolize, ale pathfinding se jí vyhýbá a fyzika v ní vázne. */
     public static final BlockTraits WEB = new BlockTraits(true, false, false, false, false, false,
-            false, false, false, false, 0, 1.0, BlockTraits.DEFAULT_SLIPPERINESS, true, false,
+            false, false, false, false, 0, 1.0, BlockTraits.DEFAULT_SLIPPERINESS, true, false, false, -1,
             BlockTraits.NO_BOXES);
 
     /** Led – kluzký povrch. */
     public static final BlockTraits ICE = new BlockTraits(false, true, false, false, false, false,
-            false, false, false, false, 1.0, 1.0, 0.98, false, false, BlockTraits.FULL_BOXES);
+            false, false, false, false, 1.0, 1.0, 0.98, false, false, false, -1, BlockTraits.FULL_BOXES);
 
     /** Soul sand – pevný blok se zpomalenou chůzí. */
     public static final BlockTraits SOUL_SAND = new BlockTraits(false, true, false, false, false, false,
-            false, false, false, false, 1.0, 0.4, BlockTraits.DEFAULT_SLIPPERINESS, false, false,
+            false, false, false, false, 1.0, 0.4, BlockTraits.DEFAULT_SLIPPERINESS, false, false, false, -1,
             BlockTraits.FULL_BOXES);
 
     /** Zavřené dveře – fyzicky blokují, pathfinding prochází přes interakci. */
     public static final BlockTraits DOOR_CLOSED = new BlockTraits(false, false, false, false, true, false,
-            true, false, false, false, 1.0, 1.0, BlockTraits.DEFAULT_SLIPPERINESS, false, false,
+            true, false, false, false, 1.0, 1.0, BlockTraits.DEFAULT_SLIPPERINESS, false, false, false, -1,
             BlockTraits.FULL_BOXES);
 
     /** Otevřené dveře – průchozí, bez interakce. */
     public static final BlockTraits DOOR_OPEN = new BlockTraits(true, false, false, false, false, false,
-            true, false, false, false, 0, 1.0, BlockTraits.DEFAULT_SLIPPERINESS, false, false,
+            true, false, false, false, 0, 1.0, BlockTraits.DEFAULT_SLIPPERINESS, false, false, false, -1,
             BlockTraits.NO_BOXES);
 
     /** Šest vrstev sněhu – pochozí plocha v 0.625 bloku. */
@@ -78,8 +86,11 @@ public final class FakeWorldView implements WorldView {
 
     /** Portálový blok (nether portál) – průchozí, pathfinding penalizuje. */
     public static final BlockTraits PORTAL = new BlockTraits(true, false, false, false, false, false,
-            false, false, false, true, 0, 1.0, BlockTraits.DEFAULT_SLIPPERINESS, false, false,
+            false, false, false, true, 0, 1.0, BlockTraits.DEFAULT_SLIPPERINESS, false, false, false, -1,
             BlockTraits.NO_BOXES);
+
+    /** Cestový povrch (udusaná cestička, štěrk, prkna) – pevný blok s preferencí. */
+    public static final BlockTraits PATH = SOLID.asPathSurface();
 
     /** Vzduch – pro přepsání dřívějšího override (např. díra ve zdi). */
     public static final BlockTraits AIRLIKE = BlockTraits.AIR;

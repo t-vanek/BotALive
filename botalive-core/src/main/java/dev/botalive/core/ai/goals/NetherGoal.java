@@ -33,6 +33,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import dev.botalive.core.pathfinding.PathGoal;
 
 /**
  * Výprava do Netheru – vrchol dobrodružné progrese bota.
@@ -334,7 +335,7 @@ public final class NetherGoal extends AbstractGoal {
             phase = afterGo;
             return;
         }
-        ctx.navigator().navigateTo(ctx.position(), goTarget);
+        ctx.navigator().navigateTo(ctx.position(), PathGoal.near(goTarget, 1));
         // Dlouhé cesty (vzpomínka na portál přes půl mapy) potřebují čas –
         // limit je štědrý, ale konečný; selhání pathfindingu hlásí navigátor
         // asynchronně, proto nedojití hlídá jen časový rozpočet.
@@ -850,7 +851,7 @@ public final class NetherGoal extends AbstractGoal {
     private void approachAndMine(BotContext ctx) {
         double distSq = targetBlock.center().distanceSquared(ctx.position());
         if (distSq > 4.2 * 4.2) {
-            ctx.navigator().navigateTo(ctx.position(), targetBlock);
+            ctx.navigator().navigateTo(ctx.position(), PathGoal.near(targetBlock, 2));
             // Nedosažitelné cíle (ruda za lávovým jezerem, glowstone u stropu)
             // hlídá časový rozpočet – navigátor selhání hlásí asynchronně, ne
             // stavem – a vzdaný cíl jde na černou listinu, jinak by ho další
@@ -1029,7 +1030,7 @@ public final class NetherGoal extends AbstractGoal {
         }
         double distSq = lootChest.center().distanceSquared(ctx.position());
         if (distSq > 3.0 * 3.0) {
-            ctx.navigator().navigateTo(ctx.position(), lootChest);
+            ctx.navigator().navigateTo(ctx.position(), PathGoal.near(lootChest, 2));
             return;
         }
         ctx.navigator().stop();
@@ -1062,7 +1063,7 @@ public final class NetherGoal extends AbstractGoal {
         Vec3 target = piglin.get().position();
         double distSq = target.distanceSquared(ctx.position());
         if (distSq > 4 * 4) {
-            ctx.navigator().navigateTo(ctx.position(), target.toBlockPos());
+            ctx.navigator().navigateTo(ctx.position(), PathGoal.near(target.toBlockPos(), 2));
             return true;
         }
         ctx.navigator().stop();

@@ -12,6 +12,7 @@ import org.geysermc.mcprotocollib.protocol.data.game.entity.object.Direction;
 
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import dev.botalive.core.pathfinding.PathGoal;
 
 /**
  * Krádež z beznadějе – hladový bot bez prostředků si „půjčí" z cizí truhly.
@@ -120,7 +121,7 @@ public final class StealGoal extends AbstractGoal {
             case GO -> {
                 double distSq = chest.center().distanceSquared(ctx.position());
                 if (distSq > 3.0 * 3.0) {
-                    ctx.navigator().navigateTo(ctx.position(), chest);
+                    ctx.navigator().navigateTo(ctx.position(), PathGoal.near(chest, 2));
                     if (!ctx.navigator().navigating()) {
                         cooldownTicks = 1200;
                         phase = Phase.DONE;

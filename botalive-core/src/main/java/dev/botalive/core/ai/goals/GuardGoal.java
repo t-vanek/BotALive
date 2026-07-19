@@ -8,6 +8,7 @@ import dev.botalive.core.chat.PhraseCategory;
 import dev.botalive.core.settlement.SettlementService;
 import dev.botalive.core.util.BlockPos;
 import dev.botalive.core.world.WorldView;
+import dev.botalive.core.pathfinding.PathGoal;
 
 /**
  * Noční hlídka – lovec nespí, obchází vesnici po perimetru.
@@ -105,7 +106,7 @@ public final class GuardGoal extends AbstractGoal {
             nextWaypoint(ctx); // stanoviště nedostupné – jde se na další
             return;
         }
-        ctx.navigator().navigateTo(ctx.position(), target);
+        ctx.navigator().navigateTo(ctx.position(), PathGoal.near(target, 2));
         if (!ctx.navigator().navigating() && !ctx.navigator().hasPath()) {
             travelTicks += 20; // cesta selhala – po pár pokusech přeskočit
         }

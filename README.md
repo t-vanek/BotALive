@@ -27,11 +27,15 @@ inventář a historii; po restartu serveru pokračuje tam, kde skončil.
   nebezpečí, smrti, domov… v SQLite (výchozí) nebo PostgreSQL, s write-behind
   ukládáním a slučováním blízkých vzpomínek.
 - **Vlastní A\* pathfinding** – asynchronní, s cenami za vodu a seskoky, tvrdým
-  zákazem lávy/propastí, skoky, šplháním, otevíráním dveří i branek a detekcí
-  zaseknutí. Když cesta nevede, bot to nevzdá: **eskaluje jako hráč** –
+  zákazem lávy/propastí (láva na dně rokle zakazuje skok do hloubky 24 bloků
+  a skok nad smrtícím pádem či voidem si bázlivý bot připlatí), skoky,
+  šplháním, otevíráním dveří i branek a detekcí zaseknutí. Tunel se nikdy
+  nekope pod padavým stropem (písek, štěrk – sesyp by plán rozbil). Když cesta nevede, bot to nevzdá: **eskaluje jako hráč** –
   replanning → **kopací plán** (tunel 1×2 a vylámané schody jako hrany grafu –
   jeden souvislý plán s tekutinovou pojistkou a deny-listem majetku, nikdy
-  skrz truhly, pece či postele) → reaktivní assist (mosty, pilíře, žebříky).
+  skrz truhly, pece či postele; mosty, pilíře i **žebříky na stěny** jsou
+  hrany grafu s rozpočtem z inventáře) → reaktivní assist (mosty přes lávu,
+  pilíře, žebříky).
   Zásahy do terénu respektují `ai.terraforming` a mají strop na jednu cestu. Výpočty mají
   uzlový i časový rozpočet (`pathfinding.*`), jsou kooperativně zrušitelné
   a memo cache drží dotazy do světa na minimu; sledování pohyblivého cíle
@@ -41,10 +45,15 @@ inventář a historii; po restartu serveru pokračuje tam, kde skončil.
   přímková segmentace krátká, a nenačteným terénem procházejí optimisticky
   (`pathfinding.far-corridor`). Cíl nemusí být jen blok: **predikáty**
   (okruh kolem bloku, útěk od hrozby, těžební hladina, nejbližší
-  dosažitelný z kandidátů) plánuje A* přímo. Styl cesty nese **povahu**:
+  dosažitelný z kandidátů) plánuje A* přímo – k peci, ponku, truhle či
+  rudě se chodí „do okruhu“ (na neprůchozí blok se dojít nedá a takový
+  cíl dřív pálil celý rozpočet uzlů) a ruda či postel se vybírá podle
+  skutečné dosažitelnosti, ne vzdušnou čarou. Styl cesty nese **povahu**:
   odvážný bot rokli přeskočí sprintem, opatrný ji obejde a drží větší
-  odstup od lávy, líný se vyhýbá šplhání. Diagnostika a metriky:
-  `/botalive path <bot>`.
+  odstup od lávy, líný se vyhýbá šplhání. A boti se drží **cestiček** –
+  šlapat trávu hned vedle udusané pěšiny, štěrku či prken nese drobnou
+  přirážku, takže cestičky, které si ve vesnici sami udusávají, opravdu
+  používají. Diagnostika a metriky: `/botalive path <bot>`.
 - **Lidský projev** – omezená rychlost otáčení hlavy s easingem a šumem, trvalá
   chyba míření, log-normální reakční latence, mikro-rozhlížení, pauzy,
   rozfázované ticky. Chat s přemýšlením, rychlostí psaní, překlepy (QWERTZ
@@ -205,7 +214,9 @@ inventář a historii; po restartu serveru pokračuje tam, kde skončil.
   vyplavou, u břehu se výskokem vyhoupnou na souš („water hop") a
   pathfinding vodou počítá – plavou svisle vodním sloupcem, přeplavávají
   jezera a z výšky smí seskočit do hluboké vody (2+ bloky), nikdy do
-  mělčiny nebo lávy.
+  mělčiny nebo lávy. Tekoucí voda má **proud**: řeka bota fyzicky snáší
+  po směru toku (navigace kurz koriguje) a plavání proti proudu se
+  v plánu prodražuje, takže bot radši volí klidnou vodu či břeh.
 - **Láva a propasti** – lávě se cesty vyhýbají obloukem; když ale jiná
   cesta není, bot si přes lávové jezero **postaví most** (blok po bloku,
   jako hráč) a úzký pruh zvládne přeskočit sprintem. Krátkou díru

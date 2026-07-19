@@ -14,6 +14,7 @@ import org.geysermc.mcprotocollib.protocol.data.game.entity.type.EntityType;
 
 import java.util.Map;
 import java.util.Optional;
+import dev.botalive.core.pathfinding.PathGoal;
 
 /**
  * Jízda minecartem.
@@ -90,7 +91,7 @@ public final class MinecartRideGoal extends AbstractGoal {
                 }
                 Vec3 cartPos = cart.get().position();
                 if (cartPos.distanceSquared(ctx.position()) > 2.5 * 2.5) {
-                    ctx.navigator().navigateTo(ctx.position(), cartPos.toBlockPos());
+                    ctx.navigator().navigateTo(ctx.position(), PathGoal.near(cartPos.toBlockPos(), 1));
                     if (!ctx.navigator().navigating()) {
                         finish(ctx, 1200);
                     }
@@ -191,7 +192,7 @@ public final class MinecartRideGoal extends AbstractGoal {
         }
         double distSq = rail.center().distanceSquared(ctx.position());
         if (distSq > 3.0 * 3.0) {
-            ctx.navigator().navigateTo(ctx.position(), rail);
+            ctx.navigator().navigateTo(ctx.position(), PathGoal.near(rail, 2));
             if (!ctx.navigator().navigating()) {
                 finish(ctx, 1200);
             }
