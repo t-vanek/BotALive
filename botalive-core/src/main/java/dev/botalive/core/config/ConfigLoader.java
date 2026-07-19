@@ -41,6 +41,18 @@ public final class ConfigLoader {
                 )
         );
 
+        var gateway = new BotAliveConfig.Gateway(
+                c.getBoolean("gateway.enabled", true),
+                c.getBoolean("gateway.enforce-prelogin", true),
+                c.getBoolean("gateway.restrict-source", true),
+                c.getBoolean("gateway.http.enabled", false),
+                c.getString("gateway.http.bind", "127.0.0.1"),
+                c.getInt("gateway.http.port", 41000),
+                Math.max(5, c.getInt("gateway.token-ttl-seconds", 120)),
+                c.getBoolean("gateway.client-auth", false),
+                c.getString("gateway.secret", "")
+        );
+
         var bots = new BotAliveConfig.Bots(
                 c.getInt("bots.max-count", 50),
                 c.getBoolean("bots.auto-spawn.enabled", false),
@@ -182,7 +194,7 @@ public final class ConfigLoader {
                 c.getInt("persistence.flush-seconds", 15)
         );
 
-        return new BotAliveConfig(network, bots, ai, chat, combat, economy, memory,
+        return new BotAliveConfig(network, gateway, bots, ai, chat, combat, economy, memory,
                 worlds, spawn, teleport, pvp, settlement, nether, end, pathfinding,
                 performance, persistence);
     }

@@ -60,6 +60,9 @@ public final class CompositionRoot {
 
     private final ServiceContainer container = new ServiceContainer();
 
+    /** Vestavěná HTTP gateway (jen když je zapnutá); {@code null} jinak. */
+    private dev.botalive.core.gateway.MojangGatewayServer gatewayServer;
+
     /**
      * Sestaví všechny služby pluginu.
      *
@@ -68,6 +71,29 @@ public final class CompositionRoot {
      */
     public CompositionRoot(JavaPlugin plugin, BotAliveConfig config) {
         container.register(BotAliveConfig.class, config);
+
+        // Vlastní ověřovací proces botů: autorita vydává a ověřuje pověření.
+        // Vzniká vždy (levné) – vypínače v gateway konfiguraci řídí chování.
+        byte[] gatewaySecret = dev.botalive.core.gateway.GatewaySecret.resolve(
+                config.gateway().secret(), plugin.getDataFolder());
+        dev.botalive.core.gateway.CredentialAuthority authority = container.register(
+                dev.botalive.core.gateway.CredentialAuthority.class,
+                new dev.botalive.core.gateway.CredentialAuthority(gatewaySecret,
+                        config.gateway().tokenTtlMs(), true));
+        // Volitelná HTTP gateway ve tvaru Mojang session API (online-mode/proxy/fleet).
+        if (config.gateway().enabled() && config.gateway().httpEnabled()) {
+            dev.botalive.core.gateway.MojangGatewayServer server =
+                    new dev.botalive.core.gateway.MojangGatewayServer(
+                            config.gateway().bind(), config.gateway().port(), authority);
+            try {
+                server.start();
+                this.gatewayServer = server;
+            } catch (java.io.IOException e) {
+                LOG.warn("HTTP gateway se nepodařilo spustit ({}:{}): {} – server-side pojistka "
+                        + "loginu funguje i bez ní.", config.gateway().bind(),
+                        config.gateway().port(), e.toString());
+            }
+        }
 
         // Infrastruktura.
         MainThreadBridge bridge = container.register(MainThreadBridge.class,
@@ -184,7 +210,7 @@ public final class CompositionRoot {
         BotImpl.SharedServices services = new BotImpl.SharedServices(
                 config, worldViews, bridge, tickEngine, navigation, repository,
                 phrases, stateMapper, itemMapper, crimeLog, settlements,
-                socialGraph, market);
+                socialGraph, market, authority);
         BotManagerImpl botManager = container.register(BotManagerImpl.class,
                 new BotManagerImpl(config, repository, goalRegistry, services));
         pvp.attach(botManager);
@@ -200,6 +226,9 @@ public final class CompositionRoot {
         // Bukkit integrace.
         container.register(ServerEventListener.class,
                 new ServerEventListener(worldViews, botManager, pvp));
+        // Server-side pojistka proti zneužití identity bota při přihlášení.
+        container.register(dev.botalive.core.gateway.BotLoginGuard.class,
+                new dev.botalive.core.gateway.BotLoginGuard(botManager, authority, config.gateway()));
         container.register(BotAliveCommand.class,
                 new BotAliveCommand(botManager, goalRegistry, repository, config, settlements,
                         navigation));
@@ -282,6 +311,10 @@ public final class CompositionRoot {
      * Řízené vypnutí – v opačném pořadí závislostí.
      */
     public void shutdown() {
+        if (gatewayServer != null) {
+            gatewayServer.stop();
+            gatewayServer = null;
+        }
         get(BotManagerImpl.class).shutdownAll();
         // Až po odpojení všech botů: řízené vypnutí sdíleného netty event-loopu
         // (daemon skupina pluginu) – bez něj by ne-daemon vlákna knihovny držela

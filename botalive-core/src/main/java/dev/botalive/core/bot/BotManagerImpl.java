@@ -123,11 +123,15 @@ public final class BotManagerImpl implements BotManager {
                     "Bot se jménem '" + spec.name() + "' už existuje"));
         }
         // Online-mode kontrola dává smysl jen při připojování na tento server;
-        // u cizího serveru o jeho režimu nic nevíme (rozhodne login).
-        if (isLocalTarget() && Bukkit.getOnlineMode()) {
+        // u cizího serveru o jeho režimu nic nevíme (rozhodne login). Výjimka:
+        // s gateway.client-auth se boti umí ověřit i proti online-mode serveru
+        // nasměrovanému na vlastní gateway – pak refusal neplatí (opt-in admina).
+        if (isLocalTarget() && Bukkit.getOnlineMode() && !config.gateway().clientAuth()) {
             return CompletableFuture.failedFuture(new IllegalStateException(
                     "Server běží v online-mode – boti se připojují jako offline klienti. "
-                            + "Použijte offline-mode server nebo proxy (Velocity) s offline backendem."));
+                            + "Použijte offline-mode server, proxy (Velocity) s offline backendem, "
+                            + "nebo zapněte gateway.client-auth a nasměrujte session host serveru "
+                            + "na vlastní gateway BotAlive."));
         }
         // Kompatibilita verzí: běží-li server na jiném protokolu než klient botů,
         // musí překládat ViaVersion/ViaBackwards – bez nich by login stejně selhal,

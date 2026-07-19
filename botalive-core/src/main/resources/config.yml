@@ -29,6 +29,48 @@ network:
     delay-max-ms: 15000
     max-attempts: 10
 
+# ----------------------------------------------------------------------------
+#  Gateway a ověřování botů (ochrana proti zneužití)
+# ----------------------------------------------------------------------------
+# Na offline-mode serveru se kdokoli může připojit pod libovolným jménem –
+# včetně jmen vašich botů. Gateway to řeší vlastním ověřovacím procesem:
+# BotAlive každému botu vydá krátkodobé podepsané pověření a server-side
+# pojistka odmítne přihlášení pod jménem bota bez platného ověření.
+gateway:
+  # Hlavní vypínač. Vypnuté = chování jako dřív (žádné ověřování).
+  enabled: true
+  # Odmítat přihlášení pod jménem spravovaného bota bez platné čekající
+  # autorizace vydané BotAlive těsně před připojením daného bota. Přihlášení
+  # hráčů s vlastními jmény se nedotýká. Pojistka je fail-open: neočekávaná
+  # chyba přihlášení nikdy nerozbije (jen zaloguje) – odmítá se jen zjevné
+  # zneužití identity. Když vám ověřování brání v legitimním připojení, dejte
+  # false.
+  enforce-prelogin: true
+  # Navíc vyžadovat, aby přihlášení pod jménem bota přišlo z lokálního zdroje
+  # (loopback/LAN). Veřejné internetové adresy = typický vektor zneužití.
+  # Vypněte, pokud boti míří na server přes veřejnou IP.
+  restrict-source: true
+  # Platnost vydaného pověření (s). Bot se připojí ihned po vydání, takže
+  # krátká hodnota stačí; delší přidá rezervu pomalým handshakům.
+  token-ttl-seconds: 120
+  # Sdílený tajný klíč HMAC. Prázdné = vygenerovat a uložit do
+  # plugins/BotAlive/gateway-secret.key. Vyplňte stejným klíčem na více
+  # serverech, pokud sdílejí fleet botů a jednu online-mode gateway.
+  secret: ""
+  # Vestavěná HTTP gateway ve tvaru Mojang session API (join/hasJoined/profile).
+  # Potřeba jen pro POKROČILÁ nasazení: online-mode server nebo proxy
+  # nasměrované na tuto gateway (session host), případně ověřování z jiných
+  # strojů. Pro běžný offline server ji nechte vypnutou – chrání i bez ní.
+  http:
+    enabled: false
+    bind: "127.0.0.1"
+    port: 41000
+  # Boti se ověřují ONLINE-MODE proti gateway (ne proti Mojangu). Vyžaduje:
+  # (1) online-mode server, (2) session host serveru nasměrovaný na tuto
+  # gateway, např. -Dminecraft.api.session.host=http://127.0.0.1:41000,
+  # (3) http.enabled: true. Pokročilé – pro běžný offline server nechte false.
+  client-auth: false
+
 bots:
   # Tvrdý strop počtu botů.
   max-count: 50

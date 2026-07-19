@@ -217,7 +217,8 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
         this.packetWorlds = config.network().packetWorldModel()
                 ? new dev.botalive.core.world.PacketWorldManager(services.stateMapper())
                 : null;
-        this.connection = new BotConnection(name, id, config.network(),
+        this.connection = new BotConnection(name, id, config.network(), config.gateway(),
+                services.authority(),
                 new BotSessionListener(name, clientState, entities, clientInventory,
                         containerTracker, this, packetWorlds));
         this.containerClicker = new dev.botalive.core.container.ContainerClicker(
@@ -889,7 +890,8 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
             dev.botalive.core.social.CrimeLog crimeLog,
             dev.botalive.core.settlement.SettlementService settlements,
             dev.botalive.core.social.SocialGraph socialGraph,
-            dev.botalive.core.economy.MarketBoard market
+            dev.botalive.core.economy.MarketBoard market,
+            dev.botalive.core.gateway.CredentialAuthority authority
     ) {
     }
 
