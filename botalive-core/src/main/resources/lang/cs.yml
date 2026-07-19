@@ -283,6 +283,12 @@ phrases:
     - "u nás chyběl {name}, tak to beru já"
     - "vesnice potřebuje, aby tu byl {name} – hlásím se"
     - "měním řemeslo, {name} tady prostě scházel"
+
+  camp-setup:
+    - "domů je to daleko, rozdělám si tady oheň a přečkám noc"
+    - "na noční pochod to nevidím, táborím tady"
+    - "tak dneska pod širákem. aspoň bude ohýnek"
+    - "tma jak v pytli a domov v nedohlednu – stavím tábor"
     - "kde je {name}, tam je i moje parcela"
     - "balím to tady, jdu za kamarády"
   recover-run:
