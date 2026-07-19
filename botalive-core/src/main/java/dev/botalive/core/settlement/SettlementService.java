@@ -203,6 +203,8 @@ public final class SettlementService {
         final BlockPos origin;
         final Cardinal facing;
         UUID builder;
+        /** Kdy si stavitel projekt zamluvil – starý claim expiruje. */
+        long claimedAt;
         boolean done;
 
         Project(ProjectKind kind, int plotIndex, BlockPos origin, Cardinal facing,
@@ -214,6 +216,9 @@ public final class SettlementService {
             this.done = done;
         }
     }
+
+    /** Po jaké době bez dokončení expiruje zamluvení projektu (stavitel zmizel). */
+    private static final long PROJECT_CLAIM_TTL_MS = 10 * 60_000L;
 
     private final BotAliveConfig.Settlement config;
     private final BotRepository repository;
@@ -721,10 +726,19 @@ public final class SettlementService {
             settlement.unusablePlots.put(index, Long.MAX_VALUE);
             persistProject(settlement, project);
         }
-        if (project.builder != null && !project.builder.equals(botId)) {
+        if (activeBuilder(project) != null && !botId.equals(project.builder)) {
             return Optional.empty(); // už na tom dělá někdo jiný
         }
         return Optional.of(projectInfo(settlement, project));
+    }
+
+    /** @return stavitel projektu, nebo {@code null} po expiraci zamluvení */
+    private UUID activeBuilder(Project project) {
+        if (project.builder != null
+                && clock.getAsLong() - project.claimedAt > PROJECT_CLAIM_TTL_MS) {
+            project.builder = null; // stavitel zmizel – projekt je zase volný
+        }
+        return project.builder;
     }
 
     /**
@@ -736,10 +750,11 @@ public final class SettlementService {
         Settlement settlement = settlements.get(settlementId);
         Project project = settlement == null ? null : settlement.projects.get(kind);
         if (project == null || project.done
-                || (project.builder != null && !project.builder.equals(botId))) {
+                || (activeBuilder(project) != null && !botId.equals(project.builder))) {
             return false;
         }
         project.builder = botId;
+        project.claimedAt = clock.getAsLong();
         return true;
     }
 

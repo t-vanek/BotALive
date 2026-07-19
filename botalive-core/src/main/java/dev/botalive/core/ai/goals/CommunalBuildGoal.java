@@ -72,7 +72,9 @@ public final class CommunalBuildGoal extends AbstractGoal {
             return 0;
         }
         double helpfulness = bot.personality().trait(Trait.HELPFULNESS);
-        return 9 + helpfulness * 9;
+        // Závazek: kdo si stavbu zamluvil, drží se jí – bez bonusu si stavitelé
+        // rozdělanou studnu přebírali po pár vteřinách (utility kolotoč).
+        return 9 + helpfulness * 9 + (claimed ? 10 : 0);
     }
 
     @Override
@@ -131,8 +133,7 @@ public final class CommunalBuildGoal extends AbstractGoal {
         }
         ctx.navigator().navigateTo(ctx.position(), stand);
         if (!ctx.navigator().navigating()) {
-            cooldownTicks = 1200; // staveniště nedostupné – zkusit jindy
-            phase = Phase.DONE;
+            giveUp(ctx, 1200); // staveniště nedostupné – uvolnit a zkusit jindy
         }
     }
 
@@ -246,13 +247,11 @@ public final class CommunalBuildGoal extends AbstractGoal {
 
     @Override
     public void stop(Bot bot) {
-        BotContext ctx = ctx(bot);
-        if (claimed && project != null && phase != Phase.DONE) {
-            ctx.settlements().releaseProject(project.settlementId(), project.kind(),
-                    bot.id());
-            claimed = false;
-        }
-        ctx.navigator().stop();
+        // Zamluvení se při přepnutí cíle DRŽÍ (závazek + bonus utility) –
+        // stavitel se ke studni vrátí; kdyby nadobro zmizel, zamluvení ve
+        // službě expiruje a projekt si vezme soused. start() naváže tam,
+        // kde stavba skončila (položené bloky se přeskakují).
+        ctx(bot).navigator().stop();
         current = null;
     }
 
