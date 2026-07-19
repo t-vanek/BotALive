@@ -47,10 +47,10 @@ public final class BotAliveCommand implements TabExecutor {
 
     private static final List<String> ADMIN_SUBCOMMANDS = List.of(
             "create", "remove", "pause", "resume", "personality", "memory",
-            "goal", "stats", "role", "settlements", "end", "path");
+            "goal", "stats", "role", "settlements", "end", "path", "overview");
     private static final List<String> SUBCOMMANDS = List.of(
-            "create", "remove", "tp", "list", "pause", "resume",
-            "personality", "memory", "goal", "stats", "role", "settlements", "end", "path");
+            "create", "remove", "tp", "list", "pause", "resume", "personality",
+            "memory", "goal", "stats", "role", "settlements", "end", "path", "overview");
 
     private final BotManagerImpl botManager;
     private final GoalRegistryImpl goalRegistry;
@@ -111,6 +111,7 @@ public final class BotAliveCommand implements TabExecutor {
             case "settlements" -> settlements(sender);
             case "end" -> endPortal(sender, args);
             case "path" -> path(sender, args);
+            case "overview" -> overview(sender);
             default -> help(sender);
         }
         return true;
@@ -314,6 +315,52 @@ public final class BotAliveCommand implements TabExecutor {
                     .append(Component.text("  cíl: " + (snapshot.currentGoal() == null
                             ? "-" : snapshot.currentGoal()), NamedTextColor.YELLOW)));
         }
+    }
+
+    /**
+     * {@code /botalive overview} – flotilový přehled na jednu obrazovku:
+     * histogram aktivních cílů, podezřele nehybní boti (okno včasného varování
+     * před 30s zásahem watchdogu) a souhrn A* metrik.
+     */
+    private void overview(CommandSender sender) {
+        var bots = botManager.all();
+        long online = bots.stream().filter(b -> b.snapshot().online()).count();
+        info(sender, "Přehled (" + bots.size() + " botů, " + online + " online):");
+
+        java.util.Map<String, Integer> goals = new java.util.HashMap<>();
+        for (Bot bot : bots) {
+            String goal = bot.snapshot().currentGoal();
+            goals.merge(goal == null ? "-" : goal, 1, Integer::sum);
+        }
+        String histogram = goals.entrySet().stream()
+                .sorted(java.util.Map.Entry.<String, Integer>comparingByValue().reversed()
+                        .thenComparing(java.util.Map.Entry.comparingByKey()))
+                .map(e -> e.getKey() + " " + e.getValue())
+                .collect(java.util.stream.Collectors.joining(" · "));
+        sender.sendMessage(Component.text(" cíle: " + histogram, NamedTextColor.YELLOW));
+
+        List<String> still = new ArrayList<>();
+        for (Bot bot : bots) {
+            if (bot instanceof BotImpl impl && impl.ticksWithoutMovement() >= 300) {
+                var snapshot = bot.snapshot();
+                still.add("%s (%s, %.0f/%.0f/%.0f, %d s)".formatted(bot.name(),
+                        snapshot.currentGoal() == null ? "-" : snapshot.currentGoal(),
+                        snapshot.x(), snapshot.y(), snapshot.z(),
+                        impl.ticksWithoutMovement() / 20));
+            }
+        }
+        sender.sendMessage(still.isEmpty()
+                ? Component.text(" bez pohybu 15+ s: nikdo", NamedTextColor.GREEN)
+                : Component.text(" bez pohybu 15+ s: " + String.join(", ", still),
+                        NamedTextColor.RED));
+
+        var s = navigation.stats().snapshot();
+        long requests = Math.max(1, s.requests());
+        sender.sendMessage(Component.text(
+                " A*: %d výpočtů, %d %% prázdných, %d %% timeout".formatted(
+                        s.requests(), s.empty() * 100 / requests,
+                        s.timedOut() * 100 / requests),
+                NamedTextColor.GRAY));
     }
 
     /** {@code /botalive settlements} – přehled vesnic botů. */

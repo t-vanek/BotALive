@@ -410,6 +410,54 @@ class PathExecutionSimulationTest {
     }
 
     @Test
+    void uveznenehoVeDverichOsvobodiUnikovyReflex() {
+        FakeWorldView world = new FakeWorldView(FLOOR);
+        // Bot začíná UVNITŘ zavřených dveří – zavřely se za průchodu, nebo mu
+        // je údržba domu osadila na hlavu (provozní nález: bot 18 minut vězněm
+        // vlastních dveří). Klik navigátoru míří jen na waypoint před botem;
+        // osvobodit ho musí únikový reflex vlastní buňky.
+        for (int z = -4; z <= 4; z++) {
+            if (z != 0) {
+                world.wall(3, FEET, FEET + 1, z);
+            }
+        }
+        world.set(3, FEET, 0, FakeWorldView.DOOR_CLOSED);
+        world.set(3, FEET + 1, 0, FakeWorldView.DOOR_CLOSED);
+        DoorOpener opener = door -> {
+            world.set(door.x(), FEET, door.z(), FakeWorldView.DOOR_OPEN);
+            world.set(door.x(), FEET + 1, door.z(), FakeWorldView.DOOR_OPEN);
+        };
+        simulate(world, new Vec3(3.5, FEET, 0.5), new BlockPos(7, FEET, 0), 600, opener);
+    }
+
+    @Test
+    void zaseknutiBezPostupuNikdyNepadaNaNull() {
+        FakeWorldView world = new FakeWorldView(FLOOR);
+        // Regrese NPE: detekce zaseknutí uprostřed ticku zahodila cestu
+        // (replán/kopací plán/assist) a zbytek ticku dereferencoval null
+        // (Navigator.tick:719, 206 pádů za 25 minut provozu). Bot se rozejde
+        // (waypointIndex > 0) a pak je „přišpendlený" – fyzika se nevolá,
+        // pozice stojí – zatímco navigace eskaluje. Tick nesmí nikdy spadnout.
+        Navigator navigator = new Navigator(service, null, new BotRandom(5), personality());
+        navigator.world(world);
+        BotPhysics physics = new BotPhysics(world, at(0));
+        navigator.navigateTo(at(0), new BlockPos(20, FEET, 0));
+        for (int tick = 0; tick < 60; tick++) {
+            if (navigator.navigating() && !navigator.hasPath()) {
+                sleep(1);
+            }
+            physics.step(navigator.tick(physics.position(), physics.onGround(),
+                    physics.inWater()));
+        }
+        for (int tick = 0; tick < 600; tick++) {
+            if (navigator.navigating() && !navigator.hasPath()) {
+                sleep(1);
+            }
+            navigator.tick(physics.position(), physics.onGround(), physics.inWater());
+        }
+    }
+
+    @Test
     void projdeNizkymTunelem() {
         FakeWorldView world = new FakeWorldView(FLOOR);
         // Tunel vysoký 2 (strop ve FEET+2): skoky jsou zakázané, chůze musí stačit.
@@ -862,6 +910,24 @@ class PathExecutionSimulationTest {
                 1500);
     }
 
+    @Test
+    void dvaBotiSeProtahnouJednoblokovymPruchodem() {
+        FakeWorldView world = new FakeWorldView(FLOOR);
+        // Průchod šířky 1 (dveřní otvor) – úkrok do strany nemá kam, prosté
+        // přetlačování je deadlock (provozní nález: dva boti ve dveřích domu,
+        // 10+ minut). Řeší deterministický ústup: nižší id couvne z hrdla,
+        // vyšší projde, pak se rozejdou standardním úkrokem.
+        for (int z = -4; z <= 4; z++) {
+            if (z != 0) {
+                world.wall(7, FEET, FEET + 1, z);
+            }
+        }
+        simulateTwoBots(world,
+                new Vec3(0.5, FEET, 0.5), new BlockPos(14, FEET, 0),
+                new Vec3(14.5, FEET, 0.5), new BlockPos(0, FEET, 0),
+                2000);
+    }
+
     /**
      * Dva boti ve sdíleném světě, každý vidí druhého jako entitu davu –
      * tick zrcadlí {@code BotImpl}: navigace → CrowdAvoidance → reflexy →
@@ -909,7 +975,7 @@ class PathExecutionSimulationTest {
                                 int selfId, dev.botalive.core.entity.TrackedEntity neighbor) {
         MoveInput input = navigator.tick(physics.position(), physics.onGround(), physics.inWater());
         Vec3 steered = dev.botalive.core.physics.CrowdAvoidance.steer(
-                physics.position(), selfId, java.util.List.of(neighbor), input.direction());
+                physics.position(), selfId, java.util.List.of(neighbor), input.direction(), world);
         if (!steered.equals(input.direction())) {
             input = new MoveInput(steered, input.sprint(), input.jump(), input.sneak());
         }

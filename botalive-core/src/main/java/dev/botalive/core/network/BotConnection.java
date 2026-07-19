@@ -15,6 +15,7 @@ import java.net.InetSocketAddress;
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Jedno klientské připojení bota k serveru (MCProtocolLib).
@@ -40,6 +41,9 @@ public final class BotConnection {
 
     private volatile ClientNetworkSession session;
     private volatile ExecutorService packetExecutor;
+    /** Reference zavíraného spojení pro {@link #awaitQuiesce} (vypnutí pluginu). */
+    private volatile ClientNetworkSession closingSession;
+    private volatile ExecutorService closingExecutor;
 
     /**
      * @param botName  jméno bota (login jméno)
@@ -125,6 +129,9 @@ public final class BotConnection {
     private void disconnectQuietly(String reason) {
         ClientNetworkSession current = session;
         session = null;
+        if (current != null) {
+            closingSession = current;
+        }
         if (current != null && current.isConnected()) {
             try {
                 current.disconnect(reason);
@@ -135,7 +142,45 @@ public final class BotConnection {
         ExecutorService executor = packetExecutor;
         packetExecutor = null;
         if (executor != null) {
+            closingExecutor = executor;
             executor.shutdown();
+        }
+    }
+
+    /**
+     * Počká, až odpojené spojení skutečně zhasne – session zavřená a paketový
+     * executor ukončený. Volá se při vypnutí pluginu PŘED návratem z
+     * {@code onDisable}: Paper pak zavře plugin classloader a síťová vlákna,
+     * která ještě dobíhají, by líně donačítala (relokované) třídy ze
+     * zavřeného jaru – shutdown zaplaví „zip file error" a může utnout i
+     * poslední write-behind zápis.
+     *
+     * @param millis maximální čekání
+     */
+    public void awaitQuiesce(long millis) {
+        long deadline = System.currentTimeMillis() + millis;
+        ClientNetworkSession closing = closingSession;
+        closingSession = null;
+        while (closing != null && closing.isConnected()
+                && System.currentTimeMillis() < deadline) {
+            try {
+                Thread.sleep(20);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return;
+            }
+        }
+        ExecutorService executor = closingExecutor;
+        closingExecutor = null;
+        if (executor != null) {
+            try {
+                long remaining = Math.max(50, deadline - System.currentTimeMillis());
+                if (!executor.awaitTermination(remaining, TimeUnit.MILLISECONDS)) {
+                    executor.shutdownNow();
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
         }
     }
 }

@@ -1,7 +1,9 @@
 package dev.botalive.core.physics;
 
 import dev.botalive.core.entity.TrackedEntity;
+import dev.botalive.core.util.BlockPos;
 import dev.botalive.core.util.Vec3;
+import dev.botalive.core.world.WorldView;
 
 import java.util.List;
 
@@ -39,6 +41,8 @@ public final class CrowdAvoidance {
 
     /**
      * Upraví směr chůze tak, aby se bot odpuzoval od blízkých hráčů/botů.
+     * Varianta bez znalosti světa – úkrok při čelním střetu se nekontroluje
+     * proti zdem (chování před zavedením ústupu v úzkých průchodech).
      *
      * @param self      pozice bota (nohy)
      * @param selfId    entity id bota (rozbití symetrie při přesném překryvu)
@@ -47,8 +51,25 @@ public final class CrowdAvoidance {
      * @return upravený jednotkový vodorovný směr, nebo {@link Vec3#ZERO}
      */
     public static Vec3 steer(Vec3 self, int selfId, List<TrackedEntity> neighbors, Vec3 desired) {
+        return steer(self, selfId, neighbors, desired, null);
+    }
+
+    /**
+     * Upraví směr chůze tak, aby se bot odpuzoval od blízkých hráčů/botů.
+     *
+     * @param self      pozice bota (nohy)
+     * @param selfId    entity id bota (rozbití symetrie při přesném překryvu)
+     * @param neighbors okolní entity (volající je filtruje na hráče/boty)
+     * @param desired   žádaný jednotkový vodorovný směr chůze, nebo {@link Vec3#ZERO}
+     * @param world     svět pro kontrolu průchodnosti úkroku; {@code null} = bez kontroly
+     * @return upravený jednotkový vodorovný směr, nebo {@link Vec3#ZERO}
+     */
+    public static Vec3 steer(Vec3 self, int selfId, List<TrackedEntity> neighbors, Vec3 desired,
+                             WorldView world) {
         Vec3 push = Vec3.ZERO;
         int count = 0;
+        int nearestId = -1;
+        double nearestSq = Double.MAX_VALUE;
         for (TrackedEntity neighbor : neighbors) {
             Vec3 other = neighbor.position();
             if (other == null) {
@@ -59,6 +80,10 @@ public final class CrowdAvoidance {
             double distSq = dx * dx + dz * dz;
             if (distSq > RADIUS_SQ) {
                 continue;
+            }
+            if (distSq < nearestSq) {
+                nearestSq = distSq;
+                nearestId = neighbor.entityId();
             }
             double dist = Math.sqrt(distSq);
             // Lineární útlum: 1 v těsném kontaktu, 0 na okraji poloměru.
@@ -88,11 +113,31 @@ public final class CrowdAvoidance {
             if (dot < -0.75) {
                 double side = (selfId & 1) == 0 ? 1 : -1;
                 Vec3 slide = new Vec3(-d.z() * side, 0, d.x() * side);
+                if (world != null && !sideOpen(world, self, slide)) {
+                    if (sideOpen(world, self, slide.mul(-1))) {
+                        // Paritní strana míří do zdi – volná je ta druhá.
+                        slide = slide.mul(-1);
+                    } else if (selfId < nearestId) {
+                        // Průchod šířky 1 (dveře, tunel): úkrok nemá kam a oba
+                        // by se věčně přetlačovali. Role deterministicky z id –
+                        // nižší couvá a uvolní průchod, vyšší prochází; oba
+                        // vidí tutéž dvojici, takže se role nikdy nepřehodí.
+                        return d.mul(-1);
+                    } else {
+                        return d; // protějšek couvá – projít, dokud ustupuje
+                    }
+                }
                 return d.mul(0.4).add(slide).horizontal().normalized();
             }
         }
         Vec3 separation = push.normalized().mul(SEPARATION_WEIGHT);
         Vec3 blended = desired.add(separation);
         return blended.horizontalLength() < EPS ? Vec3.ZERO : blended.horizontal().normalized();
+    }
+
+    /** Buňka o krok stranou je průchozí pro tělo (nohy i hlava). */
+    private static boolean sideOpen(WorldView world, Vec3 self, Vec3 slide) {
+        BlockPos cell = self.add(slide).toBlockPos();
+        return world.traitsAt(cell).lowProfile() && world.traitsAt(cell.up()).lowProfile();
     }
 }

@@ -175,7 +175,7 @@ public final class BotSessionListener extends SessionAdapter {
                         .ClientboundSetTimePacket p -> handleTime(p);
                 case org.geysermc.mcprotocollib.protocol.packet.ingame.clientbound.level
                         .ClientboundGameEventPacket p -> handleGameEvent(p);
-                case ClientboundPlayerChatPacket p -> handleChat(p);
+                case ClientboundPlayerChatPacket p -> handleChat(session, p);
                 // Klientský world model (jen v režimu packet).
                 case org.geysermc.mcprotocollib.protocol.packet.configuration.clientbound
                         .ClientboundRegistryDataPacket p -> {
@@ -364,7 +364,14 @@ public final class BotSessionListener extends SessionAdapter {
         }
     }
 
-    private void handleChat(ClientboundPlayerChatPacket packet) {
+    private void handleChat(Session session, ClientboundPlayerChatPacket packet) {
+        // Chat acknowledgementy ZÁMĚRNĚ neřešíme: server (Paper 26.1, offline)
+        // bota při přetečení okna 20 zpráv vzácně kickne (~1× za 15 min pod
+        // hustým chatem, reconnect to samoléčí). Tři modely klientských acků
+        // (počítat vše / jen podepsané / vše kromě vlastního echa) shodně
+        // vedly k jiné validační chybě a kickům ČASTĚJŠÍM než původní stav –
+        // sémantika okna tu neodpovídá vanille a bez packet capture je další
+        // pokus hádání. Viz backlog.
         String content = packet.getContent();
         if (content == null && packet.getUnsignedContent() != null) {
             content = PLAIN.serialize(packet.getUnsignedContent());
