@@ -143,8 +143,8 @@ public final class CompositionRoot {
         dev.botalive.core.inventory.AnvilService anvils = container.register(
                 dev.botalive.core.inventory.AnvilService.class,
                 new dev.botalive.core.inventory.AnvilService(bridge));
-        registerBuiltInGoals(goalRegistry, crafting, containers, trades, furnaces,
-                enchanting, smithing, pvp, taming, anvils, market, socialGraph);
+        // Registrace cílů proběhne níže – až po vzniku služeb sídel a diplomacie,
+        // které některé cíle dostávají v konstruktoru.
 
         // Block-state a item mappery pro klientský world model (jen režim
         // packet): přesné tabulky z registrů hostitelského serveru jsou správné
@@ -181,14 +181,23 @@ public final class CompositionRoot {
                 new dev.botalive.core.settlement.SettlementService(
                         config.settlement(), repository));
         settlements.load();
+        dev.botalive.core.settlement.DiplomacyService diplomacy = container.register(
+                dev.botalive.core.settlement.DiplomacyService.class,
+                new dev.botalive.core.settlement.DiplomacyService(
+                        config.settlement().war(), config.pvp(), settlements, repository));
+        diplomacy.load();
+        registerBuiltInGoals(goalRegistry, crafting, containers, trades, furnaces,
+                enchanting, smithing, pvp, taming, anvils, market, socialGraph,
+                diplomacy);
         BotImpl.SharedServices services = new BotImpl.SharedServices(
                 config, worldViews, bridge, tickEngine, navigation, repository,
                 phrases, stateMapper, itemMapper, crimeLog, settlements,
-                socialGraph, market);
+                diplomacy, socialGraph, market);
         BotManagerImpl botManager = container.register(BotManagerImpl.class,
                 new BotManagerImpl(config, repository, goalRegistry, services));
         pvp.attach(botManager);
         settlements.attach(botManager);
+        diplomacy.attach(botManager);
         market.attach(botManager);
         socialGraph.attach(botManager);
 
@@ -199,10 +208,10 @@ public final class CompositionRoot {
 
         // Bukkit integrace.
         container.register(ServerEventListener.class,
-                new ServerEventListener(worldViews, botManager, pvp));
+                new ServerEventListener(worldViews, botManager, pvp, diplomacy));
         container.register(BotAliveCommand.class,
                 new BotAliveCommand(botManager, goalRegistry, repository, config, settlements,
-                        navigation));
+                        diplomacy, navigation));
     }
 
     /** Vestavěná sada cílů – každý bot dostává vlastní instance. */
@@ -217,7 +226,8 @@ public final class CompositionRoot {
                                              dev.botalive.core.tame.TameService taming,
                                              dev.botalive.core.inventory.AnvilService anvils,
                                              dev.botalive.core.economy.MarketBoard market,
-                                             dev.botalive.core.social.SocialGraph socialGraph) {
+                                             dev.botalive.core.social.SocialGraph socialGraph,
+                                             dev.botalive.core.settlement.DiplomacyService diplomacy) {
         registry.register("idle", bot -> new IdleGoal());
         registry.register("wander", bot -> new WanderGoal());
         registry.register("explore", bot -> new ExploreGoal());
@@ -240,7 +250,7 @@ public final class CompositionRoot {
         registry.register("craft", bot -> new CraftGoal(crafting));
         registry.register("farm", bot -> new FarmGoal());
         registry.register("sleep", bot -> new SleepGoal());
-        registry.register("stash", bot -> new StashGoal(containers));
+        registry.register("stash", bot -> new StashGoal(containers, diplomacy));
         registry.register("steal", bot -> new dev.botalive.core.ai.goals.StealGoal(containers));
         registry.register("rob", bot -> new dev.botalive.core.ai.goals.RobGoal(pvp));
         registry.register("repair", bot -> new dev.botalive.core.ai.goals.RepairGoal(anvils));
@@ -254,6 +264,8 @@ public final class CompositionRoot {
         registry.register("enchant", bot -> new EnchantGoal(enchanting));
         registry.register("smith", bot -> new dev.botalive.core.ai.goals.SmithGoal(smithing));
         registry.register("pvp", bot -> new dev.botalive.core.ai.goals.PvpGoal(pvp));
+        registry.register("war-raid",
+                bot -> new dev.botalive.core.ai.goals.WarRaidGoal(diplomacy, pvp));
         registry.register("tame", bot -> new dev.botalive.core.ai.goals.TameGoal(taming));
         registry.register("recover", bot -> new dev.botalive.core.ai.goals.RecoverItemsGoal());
         registry.register("maintain", bot -> new dev.botalive.core.ai.goals.MaintainHomeGoal());

@@ -289,12 +289,51 @@ public record BotAliveConfig(
      * @param grudgeWindowHours     jak čerstvá (hodiny) musí být zášť, aby
      *                              kvůli ní bot opustil vesnici – druhá
      *                              polovina knobu {@code grudgeThreshold}
+     * @param war                   války a diplomacie mezi vesnicemi
      */
     public record Settlement(boolean enabled, int plotSpacing, int maxMembers,
                              int joinRadius, int minVillageDistance,
                              double lonerSociability, double grudgeThreshold,
                              int changeCooldownMinutes, boolean lighting,
-                             boolean paths, int ghostDays, int grudgeWindowHours) {
+                             boolean paths, int ghostDays, int grudgeWindowHours,
+                             War war) {
+    }
+
+    /**
+     * Války a diplomacie mezi vesnicemi botů.
+     *
+     * <p>Křivdy mezi členy různých vesnic (odhalené krádeže, napadení) zvedají
+     * napětí mezi vesnicemi. Když napětí přeteče práh a starosta má dost
+     * bojovné povahy, vyhlásí válku: vesnice posílají nájezdy, obránce svolává
+     * stávající PvP mašinerie a padlí zvyšují únavu z války, dokud starostové
+     * nedojednají příměří. Vše je čistě mezi boty – hráčů se války netýkají –
+     * a nájezdy respektují sekci {@code pvp} (bez {@code pvp.enabled}
+     * a {@code pvp.attack-bots} se válčí jen studeně, beze zbraní).</p>
+     *
+     * @param enabled              hlavní vypínač válek (vypnuto = napětí se
+     *                             neměří a války se nevyhlašují)
+     * @param declareThreshold     napětí, při kterém starosta zvažuje válku
+     * @param theftWeight          napětí za odhalenou krádež mezi vesnicemi
+     * @param assaultWeight        napětí za napadení člena cizí vesnice
+     * @param decayPerHour         samovolný pokles napětí za hodinu klidu
+     * @param minMembers           minimální počet členů obou vesnic – malé
+     *                             osady války nevedou
+     * @param raidSize             kolik nejbojovnějších členů vyráží na nájezd
+     * @param raidCooldownMinutes  rozestup nájezdů jedné války (minuty)
+     * @param wearinessDeaths      padlí na vlastní straně, po kterých starosta
+     *                             žádá o příměří
+     * @param maxWarHours          tvrdý strop délky války (hodiny) – pak se
+     *                             uzavře příměří bez ohledu na ztráty
+     * @param truceHours           délka příměří (hodiny); napětí mezitím klesá
+     * @param reparations          poražená strana (více padlých) platí při
+     *                             příměří reparace z peněženky starosty
+     * @param reparationsMax       strop reparací (interní měna / Vault)
+     */
+    public record War(boolean enabled, double declareThreshold, double theftWeight,
+                      double assaultWeight, double decayPerHour, int minMembers,
+                      int raidSize, int raidCooldownMinutes, int wearinessDeaths,
+                      int maxWarHours, int truceHours, boolean reparations,
+                      double reparationsMax) {
     }
 
     /**

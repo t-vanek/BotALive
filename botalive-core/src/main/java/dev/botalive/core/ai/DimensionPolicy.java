@@ -48,7 +48,8 @@ public final class DimensionPolicy {
             Map.entry("explore", 0.5),   // opatrně, kolem je void
             Map.entry("end-travel", 0.0), // už tam je
             Map.entry("nether", 0.0),     // výprava do Netheru se plánuje doma
-            Map.entry("smith", 0.0)       // kovářský stůl do Endu nepatří
+            Map.entry("smith", 0.0),      // kovářský stůl do Endu nepatří
+            Map.entry("war-raid", 0.0)    // vesnice (a jejich války) jsou doma
     );
 
     /**
@@ -74,7 +75,8 @@ public final class DimensionPolicy {
             Map.entry("dragon-fight", 0.0),
             Map.entry("end-harvest", 0.0),
             Map.entry("end-return", 0.0),
-            Map.entry("enchant", 0.0)
+            Map.entry("enchant", 0.0),
+            Map.entry("war-raid", 0.0)
     );
 
     /** Cíle, které mají smysl jen v Endu. */

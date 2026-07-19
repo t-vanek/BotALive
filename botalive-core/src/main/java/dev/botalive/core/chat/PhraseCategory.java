@@ -143,6 +143,16 @@ public enum PhraseCategory {
     PORTAL_FOUND,
     /** Vkládání očí Enderu do rámu portálu (aktivace strongholdu). */
     END_EYES,
+    /** Starosta vyhlašuje válku ({name} = nepřátelská vesnice). */
+    WAR_DECLARED,
+    /** Nájezdník vyráží na nepřátelskou vesnici ({name} = cíl nájezdu). */
+    WAR_RAID_DEPART,
+    /** Pokřik po skolení nepřítele v nájezdu ({name} = nepřátelská vesnice). */
+    WAR_RAID_TAUNTS,
+    /** Starosta unavený válkou navrhuje příměří ({name} = protistrana). */
+    WAR_TRUCE_OFFER,
+    /** Příměří uzavřeno ({name} = protistrana). */
+    WAR_TRUCE_AGREED,
     /** Smajlíky přidávané podle stylu psaní. */
     EMOJIS;
 

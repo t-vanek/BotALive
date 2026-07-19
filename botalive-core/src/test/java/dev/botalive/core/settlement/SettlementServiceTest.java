@@ -39,7 +39,11 @@ class SettlementServiceTest {
     }
 
     private static BotAliveConfig.Settlement config() {
-        return new BotAliveConfig.Settlement(true, 12, 8, 200, 150, 0.30, 0.60, 30, true, true, 0, 2);
+        return new BotAliveConfig.Settlement(true, 12, 8, 200, 150, 0.30, 0.60, 30, true, true, 0, 2, war());
+    }
+
+    private static BotAliveConfig.War war() {
+        return new BotAliveConfig.War(false, 6.0, 1.5, 0.75, 0.5, 3, 3, 20, 4, 6, 12, true, 40.0);
     }
 
     private SocialView view(UUID botId, BlockPos position, double sociability,
@@ -274,7 +278,7 @@ class SettlementServiceTest {
 
     @Test
     void plnaVesniceNoveClenyNebere() {
-        var config = new BotAliveConfig.Settlement(true, 12, 2, 200, 150, 0.30, 0.60, 30, true, true, 0, 2);
+        var config = new BotAliveConfig.Settlement(true, 12, 2, 200, 150, 0.30, 0.60, 30, true, true, 0, 2, war());
         service = new SettlementService(config, null, () -> now);
         var village = foundVillage();
         assertTrue(service.join(village.id(),
@@ -420,7 +424,7 @@ class SettlementServiceTest {
 
     @Test
     void vypnuteVesniceNicNedelaji() {
-        var config = new BotAliveConfig.Settlement(false, 12, 8, 200, 150, 0.30, 0.60, 30, true, true, 0, 2);
+        var config = new BotAliveConfig.Settlement(false, 12, 8, 200, 150, 0.30, 0.60, 30, true, true, 0, 2, war());
         service = new SettlementService(config, null, () -> now);
         assertEquals(SettlementService.HomePlan.Kind.SOLO,
                 service.planHome(plainView(founder, 0.9)).kind());

@@ -47,16 +47,19 @@ public final class BotAliveCommand implements TabExecutor {
 
     private static final List<String> ADMIN_SUBCOMMANDS = List.of(
             "create", "remove", "pause", "resume", "personality", "memory",
-            "goal", "stats", "role", "settlements", "end", "path", "overview");
+            "goal", "stats", "role", "settlements", "diplomacy", "end", "path",
+            "overview");
     private static final List<String> SUBCOMMANDS = List.of(
             "create", "remove", "tp", "list", "pause", "resume", "personality",
-            "memory", "goal", "stats", "role", "settlements", "end", "path", "overview");
+            "memory", "goal", "stats", "role", "settlements", "diplomacy", "end",
+            "path", "overview");
 
     private final BotManagerImpl botManager;
     private final GoalRegistryImpl goalRegistry;
     private final BotRepository repository;
     private final dev.botalive.core.config.BotAliveConfig config;
     private final dev.botalive.core.settlement.SettlementService settlements;
+    private final dev.botalive.core.settlement.DiplomacyService diplomacy;
     private final dev.botalive.core.pathfinding.NavigationService navigation;
     private final dev.botalive.core.teleport.TeleportCooldowns cooldowns;
 
@@ -66,18 +69,21 @@ public final class BotAliveCommand implements TabExecutor {
      * @param repository   repozitář (pro /botalive stats)
      * @param config       konfigurace (teleport sekce)
      * @param settlements  služba vesnic (pro /botalive settlements)
+     * @param diplomacy    diplomacie sídel (pro /botalive diplomacy)
      * @param navigation   pathfinding (metriky pro /botalive path)
      */
     public BotAliveCommand(BotManagerImpl botManager, GoalRegistryImpl goalRegistry,
                            BotRepository repository,
                            dev.botalive.core.config.BotAliveConfig config,
                            dev.botalive.core.settlement.SettlementService settlements,
+                           dev.botalive.core.settlement.DiplomacyService diplomacy,
                            dev.botalive.core.pathfinding.NavigationService navigation) {
         this.botManager = botManager;
         this.goalRegistry = goalRegistry;
         this.repository = repository;
         this.config = config;
         this.settlements = settlements;
+        this.diplomacy = diplomacy;
         this.navigation = navigation;
         this.cooldowns = new dev.botalive.core.teleport.TeleportCooldowns(
                 config.teleport().playerCooldownSeconds());
@@ -109,6 +115,7 @@ public final class BotAliveCommand implements TabExecutor {
             case "stats" -> stats(sender, args);
             case "role" -> role(sender, args);
             case "settlements" -> settlements(sender);
+            case "diplomacy" -> diplomacy(sender);
             case "end" -> endPortal(sender, args);
             case "path" -> path(sender, args);
             case "overview" -> overview(sender);
@@ -408,6 +415,55 @@ public final class BotAliveCommand implements TabExecutor {
                                 + project.origin().z()
                                 + (project.done() ? " (hotovo)" : " (staví se)"),
                         NamedTextColor.DARK_AQUA));
+            }
+            List<String> enemies = diplomacy.atWarWith(settlement.id());
+            if (!enemies.isEmpty()) {
+                sender.sendMessage(Component.text("   ⚔ ve válce s: "
+                        + String.join(", ", enemies), NamedTextColor.RED));
+            }
+        }
+    }
+
+    /** {@code /botalive diplomacy} – napětí, války a příměří mezi vesnicemi. */
+    private void diplomacy(CommandSender sender) {
+        var relations = diplomacy.allRelations();
+        if (relations.isEmpty()) {
+            info(sender, "Mezi vesnicemi panuje klid – žádné napětí, žádné války.");
+            return;
+        }
+        info(sender, "Diplomacie vesnic (" + relations.size() + "):");
+        long now = System.currentTimeMillis();
+        for (var relation : relations) {
+            String pair = relation.aName() + " ↔ " + relation.bName();
+            switch (relation.state()) {
+                case WAR -> {
+                    long hours = Math.max(0, (now - relation.stateSince()) / 3_600_000);
+                    sender.sendMessage(Component.text(" ⚔ ", NamedTextColor.RED)
+                            .append(Component.text(pair, NamedTextColor.AQUA))
+                            .append(Component.text("  VÁLKA (" + hours + " h)",
+                                    NamedTextColor.RED))
+                            .append(Component.text("  padlí " + relation.deathsA()
+                                            + ":" + relation.deathsB(),
+                                    NamedTextColor.GRAY)));
+                }
+                case TRUCE -> {
+                    long hours = Math.max(0, (relation.truceUntil() - now) / 3_600_000);
+                    sender.sendMessage(Component.text(" ✋ ", NamedTextColor.GOLD)
+                            .append(Component.text(pair, NamedTextColor.AQUA))
+                            .append(Component.text("  příměří (ještě " + hours + " h)",
+                                    NamedTextColor.GOLD))
+                            .append(Component.text("  napětí "
+                                            + String.format(Locale.ROOT, "%.1f",
+                                                    relation.tension()),
+                                    NamedTextColor.GRAY)));
+                }
+                case NEUTRAL -> sender.sendMessage(
+                        Component.text(" • ", NamedTextColor.DARK_GRAY)
+                                .append(Component.text(pair, NamedTextColor.AQUA))
+                                .append(Component.text("  napětí "
+                                                + String.format(Locale.ROOT, "%.1f",
+                                                        relation.tension()),
+                                        NamedTextColor.GRAY)));
             }
         }
     }

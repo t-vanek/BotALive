@@ -174,6 +174,7 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
     private int ticksSinceFlush;
     private int ticksSinceCohesion;
     private int ticksSinceWelcome;
+    private int ticksSinceDiplomacy;
     private long ambitionCompletedAt;
     private Vec3 lastDistancePos;
 
@@ -873,6 +874,7 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
      * @param itemMapper  překlad item ID (jen režim packet, jinak {@code null})
      * @param crimeLog    sdílená kniha zločinů
      * @param settlements sdílená služba vesnic
+     * @param diplomacy   diplomacie sídel (napětí, války, příměří)
      * @param socialGraph sociální adresář (bot vs. hráč, drby)
      * @param market      tržiště botů (prodej hráčům přes chat)
      */
@@ -888,6 +890,7 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
             dev.botalive.core.world.state.ItemMapper itemMapper,
             dev.botalive.core.social.CrimeLog crimeLog,
             dev.botalive.core.settlement.SettlementService settlements,
+            dev.botalive.core.settlement.DiplomacyService diplomacy,
             dev.botalive.core.social.SocialGraph socialGraph,
             dev.botalive.core.economy.MarketBoard market
     ) {
@@ -984,6 +987,9 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
                 (int) pos.x(), (int) pos.y(), (int) pos.z(), null,
                 Map.of("cause", deathMessage == null ? "" : deathMessage), 0.8);
         gainExperience(dev.botalive.core.personality.PersonalityEvolution.BotExperience.DEATH);
+        if (services.diplomacy() != null) {
+            services.diplomacy().noteDeath(id); // válečné ztráty (padne-li ve válce)
+        }
         new BotDiedEvent(this, worldName, (int) pos.x(), (int) pos.y(), (int) pos.z()).callEvent();
 
         // Humanizovaný respawn: 1.5–6 s „vzpamatovávání".
@@ -1166,6 +1172,15 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
                 && state.get() == BotLifecycleState.SPAWNED) {
             ticksSinceWelcome = 0;
             tickVillageWelcome();
+        }
+        // Diplomatická úvaha – řídce; skutečně rozhoduje jen starosta.
+        if (++ticksSinceDiplomacy >= 900 + (int) (Math.abs(id.getLeastSignificantBits()) % 400)
+                && !clientState.dead() && !paused.get()
+                && state.get() == BotLifecycleState.SPAWNED) {
+            ticksSinceDiplomacy = 0;
+            if (services.diplomacy() != null) {
+                services.diplomacy().maybeTick(this);
+            }
         }
 
         boolean alive = !clientState.dead();

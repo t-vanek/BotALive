@@ -439,6 +439,33 @@ phrases:
     - "pockets full, time to leave this emptiness"
     - "looking for the exit portal, home is calling"
     - "the End is nice and all, but home is home"
+  war-declared:
+    - "enough! We declare war on {name}!"
+    - "patience has run out – {name} has been asking for this"
+    - "that was the last straw. {name}, this means war!"
+    - "the folks of {name} thought they'd get away with it. They won't"
+    - "{name} stole our peace, so we'll take more back"
+  war-raid-depart:
+    - "let's go, everyone – target is {name}!"
+    - "heading out on a raid, {name} is in for a surprise"
+    - "sword's sharpened, {name} will see us up close"
+    - "for the village! Onward to {name}!"
+    - "mayor's orders – {name}, hold onto your hats"
+  war-raid-taunts:
+    - "tell that to the rest of {name}, if there's anyone left to tell"
+    - "another one from {name} down. Who's next?"
+    - "this one's for our chests!"
+    - "{name} will learn today who they picked a fight with"
+  war-truce-offer:
+    - "enough blood... {name}, how about a truce?"
+    - "this war costs us too much. I'm offering {name} peace"
+    - "sending {name} a truce offer, the dying has to stop"
+    - "pride aside – I propose {name} lay down arms"
+  war-truce-agreed:
+    - "truce with {name} sealed. May it hold"
+    - "the war with {name} is over, weapons go back in the chest"
+    - "peace with {name}. Won't bring back the fallen, but at least it's quiet"
+    - "so we shook hands with {name}. The fighting ends"
   emojis:
     - ":D"
     - ":)"

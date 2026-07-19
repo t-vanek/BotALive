@@ -216,6 +216,43 @@ settlement:
   # opustil vesnici. Starší křivdy doutnají v PvP paměti, ale nestěhuje se.
   grudge-window-hours: 2
 
+  # Války a diplomacie mezi vesnicemi. Křivdy mezi členy různých vesnic
+  # (odhalené krádeže, napadení) zvedají napětí; když přeteče práh a starosta
+  # má bojovnou povahu, vyhlásí válku. Války znamenají nájezdy na cizí náves,
+  # obranu svolává stávající PvP mašinerie a padlí zvyšují únavu z války,
+  # dokud starostové nedojednají příměří (poražený platí reparace).
+  # Vše je čistě mezi boty – hráčů se války nikdy netýkají. Nájezdy respektují
+  # sekci pvp: bez pvp.enabled a pvp.attack-bots se válčí jen "studeně"
+  # (napětí a vyhlášení, ale žádné boje).
+  war:
+    # Hlavní vypínač válek (vypnuto = napětí se neměří, nic se nevyhlašuje).
+    enabled: false
+    # Napětí, při kterém starosta zvažuje vyhlášení války.
+    declare-threshold: 6.0
+    # Napětí za odhalenou krádež mezi vesnicemi.
+    theft-weight: 1.5
+    # Napětí za napadení člena cizí vesnice.
+    assault-weight: 0.75
+    # Samovolný pokles napětí za hodinu klidu (staré křivdy blednou).
+    decay-per-hour: 0.5
+    # Minimální počet členů obou vesnic – malé osady války nevedou.
+    min-members: 3
+    # Kolik nejbojovnějších členů vyráží na jeden nájezd.
+    raid-size: 3
+    # Rozestup nájezdů jedné války (minuty).
+    raid-cooldown-minutes: 20
+    # Padlí na vlastní straně, po kterých starosta žádá o příměří.
+    weariness-deaths: 4
+    # Tvrdý strop délky války (hodiny) – pak se uzavře příměří tak jako tak.
+    max-war-hours: 6
+    # Délka příměří (hodiny). Napětí mezitím dál klesá.
+    truce-hours: 12
+    # Poražená strana (více padlých) platí při příměří reparace
+    # z peněženky starosty vítězi.
+    reparations: true
+    # Strop reparací (interní měna / Vault).
+    reparations-max: 40.0
+
 nether:
   # Výpravy do Netheru: bot s výbavou si postaví (nebo najde) portál, projde
   # jím, v Netheru těží quartz, nether zlato, glowstone a starodávné trosky

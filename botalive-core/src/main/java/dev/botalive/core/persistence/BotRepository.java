@@ -533,6 +533,95 @@ public final class BotRepository {
     }
 
     /**
+     * Řádek diplomatického vztahu dvou sídel. Dvojice je uspořádaná
+     * ({@code settlementA < settlementB}), padlí se počítají po stranách.
+     *
+     * @param settlementA  menší id dvojice
+     * @param settlementB  větší id dvojice
+     * @param tension      aktuální napětí
+     * @param state        název {@code DiplomacyService.WarState}
+     * @param stateSince   od kdy stav platí (epoch ms)
+     * @param truceUntil   konec příměří (epoch ms; 0 mimo příměří)
+     * @param deathsA      padlí strany A v běžící/poslední válce
+     * @param deathsB      padlí strany B
+     */
+    public record SettlementRelationRow(long settlementA, long settlementB,
+                                        double tension, String state, long stateSince,
+                                        long truceUntil, int deathsA, int deathsB) {
+    }
+
+    /**
+     * Načte všechny diplomatické vztahy sídel.
+     */
+    public CompletableFuture<List<SettlementRelationRow>> loadSettlementRelations() {
+        return db.async(connection -> {
+            List<SettlementRelationRow> result = new ArrayList<>();
+            try (PreparedStatement ps = connection.prepareStatement(
+                    "SELECT settlement_a, settlement_b, tension, state, state_since, "
+                            + "truce_until, deaths_a, deaths_b FROM ba_settlement_relations");
+                 ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    result.add(new SettlementRelationRow(rs.getLong(1), rs.getLong(2),
+                            rs.getDouble(3), rs.getString(4), rs.getLong(5),
+                            rs.getLong(6), rs.getInt(7), rs.getInt(8)));
+                }
+                return result;
+            } catch (SQLException e) {
+                throw new IllegalStateException(e);
+            }
+        });
+    }
+
+    /**
+     * Uloží/aktualizuje diplomatický vztah dvou sídel.
+     */
+    public CompletableFuture<Void> upsertSettlementRelation(SettlementRelationRow row) {
+        String sql = "INSERT INTO ba_settlement_relations(settlement_a, settlement_b, "
+                + "tension, state, state_since, truce_until, deaths_a, deaths_b, updated_at) "
+                + "VALUES (?,?,?,?,?,?,?,?,?)"
+                + db.dialect().upsertSuffix("settlement_a, settlement_b",
+                "tension=excluded.tension, state=excluded.state, "
+                        + "state_since=excluded.state_since, truce_until=excluded.truce_until, "
+                        + "deaths_a=excluded.deaths_a, deaths_b=excluded.deaths_b, "
+                        + "updated_at=excluded.updated_at");
+        return db.async(connection -> {
+            try (PreparedStatement ps = connection.prepareStatement(sql)) {
+                ps.setLong(1, row.settlementA());
+                ps.setLong(2, row.settlementB());
+                ps.setDouble(3, row.tension());
+                ps.setString(4, row.state());
+                ps.setLong(5, row.stateSince());
+                ps.setLong(6, row.truceUntil());
+                ps.setInt(7, row.deathsA());
+                ps.setInt(8, row.deathsB());
+                ps.setLong(9, System.currentTimeMillis());
+                ps.executeUpdate();
+                return null;
+            } catch (SQLException e) {
+                throw new IllegalStateException(e);
+            }
+        });
+    }
+
+    /**
+     * Smaže všechny vztahy, ve kterých sídlo figuruje (zaniklé sídlo).
+     */
+    public CompletableFuture<Void> deleteSettlementRelations(long settlementId) {
+        return db.async(connection -> {
+            try (PreparedStatement ps = connection.prepareStatement(
+                    "DELETE FROM ba_settlement_relations "
+                            + "WHERE settlement_a = ? OR settlement_b = ?")) {
+                ps.setLong(1, settlementId);
+                ps.setLong(2, settlementId);
+                ps.executeUpdate();
+                return null;
+            } catch (SQLException e) {
+                throw new IllegalStateException(e);
+            }
+        });
+    }
+
+    /**
      * Načte všechny vesnice.
      */
     public CompletableFuture<List<SettlementRow>> loadSettlements() {

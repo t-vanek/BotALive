@@ -454,6 +454,33 @@ phrases:
     - "kapsy plný, čas zmizet z týhle prázdnoty"
     - "hledám výstupní portál, domov volá"
     - "End je hezkej, ale doma je doma"
+  war-declared:
+    - "dost bylo křivd! Vyhlašujeme válku vesnici {name}!"
+    - "trpělivost došla – {name} si o válku koledovala dost dlouho"
+    - "tohle byla poslední kapka. {name}, tohle je válka!"
+    - "sousedi z vesnice {name} si mysleli, že jim to projde. Nepřojde"
+    - "vesnice {name} nám ukradla klid. Tak jí vezmeme víc"
+  war-raid-depart:
+    - "jdeme na to, chlapi – cíl je {name}!"
+    - "vyrážím na nájezd, {name} se má na co těšit"
+    - "meč nabroušenej, {name} nás uvidí zblízka"
+    - "za vesnici! Na {name}!"
+    - "starosta velí, já jdu – {name}, držte si klobouky"
+  war-raid-taunts:
+    - "tak to vyřiďte ve vesnici {name}, jestli se máte komu vrátit"
+    - "další z vesnice {name} k zemi. Kdo dál?"
+    - "tohle je za naše truhly!"
+    - "{name} dneska pochopí, s kým si začala"
+  war-truce-offer:
+    - "dost bylo krve... {name}, co takhle příměří?"
+    - "tahle válka nás stojí moc. Nabízím vesnici {name} mír"
+    - "posílám do vesnice {name} nabídku příměří, ať se přestane umírat"
+    - "hrdost stranou – navrhuju vesnici {name} složit zbraně"
+  war-truce-agreed:
+    - "příměří s vesnicí {name} uzavřeno. Ať vydrží"
+    - "válka s vesnicí {name} končí, zbraně jdou do truhly"
+    - "mír s vesnicí {name}. Padlé nevrátí, ale aspoň klid"
+    - "tak jsme si s vesnicí {name} plácli. Konec bojů"
   emojis:
     - ":D"
     - ":)"

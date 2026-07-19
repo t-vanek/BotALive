@@ -123,6 +123,22 @@ public final class ConfigLoader {
                 Math.max(1, c.getInt("pvp.max-attackers-per-target", 2))
         );
 
+        var war = new BotAliveConfig.War(
+                c.getBoolean("settlement.war.enabled", false),
+                Math.max(1.0, c.getDouble("settlement.war.declare-threshold", 6.0)),
+                Math.max(0, c.getDouble("settlement.war.theft-weight", 1.5)),
+                Math.max(0, c.getDouble("settlement.war.assault-weight", 0.75)),
+                Math.max(0, c.getDouble("settlement.war.decay-per-hour", 0.5)),
+                Math.max(2, c.getInt("settlement.war.min-members", 3)),
+                Math.max(1, c.getInt("settlement.war.raid-size", 3)),
+                Math.max(5, c.getInt("settlement.war.raid-cooldown-minutes", 20)),
+                Math.max(1, c.getInt("settlement.war.weariness-deaths", 4)),
+                Math.max(1, c.getInt("settlement.war.max-war-hours", 6)),
+                Math.max(1, c.getInt("settlement.war.truce-hours", 12)),
+                c.getBoolean("settlement.war.reparations", true),
+                Math.max(0, c.getDouble("settlement.war.reparations-max", 40.0))
+        );
+
         var settlement = new BotAliveConfig.Settlement(
                 c.getBoolean("settlement.enabled", true),
                 Math.max(8, c.getInt("settlement.plot-spacing", 12)),
@@ -135,7 +151,8 @@ public final class ConfigLoader {
                 c.getBoolean("settlement.lighting", true),
                 c.getBoolean("settlement.paths", true),
                 Math.max(0, c.getInt("settlement.ghost-days", 7)),
-                Math.max(1, c.getInt("settlement.grudge-window-hours", 2))
+                Math.max(1, c.getInt("settlement.grudge-window-hours", 2)),
+                war
         );
 
         var nether = new BotAliveConfig.Nether(
