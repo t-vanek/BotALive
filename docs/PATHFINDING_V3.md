@@ -172,6 +172,27 @@ plán ↔ assist.
 > podlahu: kopací hrany jsou při akčním plánování povolené a plánovač
 > zeď jinak korektně PODKOPAL. Z v3.3 zbývá BotTask-level simulace
 > reaktivních tasků (Pillar/Bridge/Ladder proti fyzice).
+>
+> **Stav: v3.3 KOMPLETNÍ – BotTask simulace implementována a hned
+> zaplatila nájem.** `FakeBotContext` (testovací dvojník: svět
+> `FakeWorldView`, `useItemOn` pokládá držený materiál rovnou do světa
+> s vanilla pravidlem „pevný blok se nepoloží do vlastního těla",
+> inventář = počítadlo) + `ReactiveTaskSimulationTest`: pilíř, most
+> i žebřík se fyzicky VYKONAJÍ proti `BotPhysics`. První spuštění
+> odhalilo tři skutečné chyby: (1) **skok měl vrchol 0,83 bloku místo
+> vanilla 1,2522** – gravitace se srážela už v ticku odrazu; výskoky
+> na +1 římsu to maskoval step-up, ale pilíř (pokládka pod nohy chce
+> světlost ≥ 1,0) byl potichu nemožný v simulaci i proti reálnému
+> serveru. Opraveno: v ticku odrazu se gravitace neuplatní (přesná
+> vanilla trajektorie). (2) **Vzdušný step-up při klesání** – kompenzace
+> slabého skoku – uměl s opraveným skokem nelegálně přelézt plot
+> (zbývajících 0,25 nad vrcholem spadlo do výšky schodu); vanilla
+> steppuje jen na zemi, klauzule odstraněna. (3) **PillarUpTask
+> rozhodoval ve vzduchu**: při rychlém potvrzení bloku (lokální server,
+> simulace) se kontrola cílové výšky vždy minula a pilíř rostl, dokud
+> stačily bloky – plán teď mezi skoky čeká na dopad. Navíc
+> `PlaceBlockTask` verifikace přešla z `Material.isAir` (sahá na server
+> Registry) na traits – vrstva tasků zůstává nad `WorldView` abstrakcí.
 
 ## 2. Doporučené fázování
 
@@ -180,7 +201,7 @@ plán ↔ assist.
 | **v3.0 korektnost** ✅ | P1 gravity guard kopání, P2 hluboký sken + příplatek za skok nad pádem/voidem (škálovaný opatrností), P5 roh bez dveří | S | nízké | plán a kolize se přestanou rozcházet v posledních známých místech |
 | **v3.1 dokončení migrace** ✅ | P3 zbylé `near` cíle (End/Nether/drak/vozidla/průzkum) | S | nízké | konec pálení rozpočtu, drift throttle všude |
 | **v3.2 kvalita výběru** ✅ | P4 `anyNear` v goalech s kandidáty (ruda/kmen/postel; truhly záměrně ne – identita) + zpětná vazba „který kandidát vyšel" | M | střední | méně marných výpočtů a blacklist smyček, přirozenější volby |
-| **v3.3 parita akcí** (hrany ✅) | P8 žebříkové hrany ✅ + BotTask-level simulace | M | střední | poslední reaktivní eskalace pod kontraktem |
+| **v3.3 parita akcí** ✅ | P8 žebříkové hrany ✅ + BotTask-level simulace ✅ (odhalila a opravila slabý skok, vzdušný mantle a vzdušné plánování pilíře) | M | střední | poslední reaktivní eskalace pod kontraktem |
 | **v3.4 výkon** | P6 bucket queue / long smyčka – jen po benchmarku | M | střední | až 2× rychlejší jádro, ale nejdřív důkaz |
 | odloženo | P7 proudy vody | L | vyšší | malý viditelný zisk |
 

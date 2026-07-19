@@ -103,7 +103,14 @@ public final class PillarUpTask implements BotTask {
 
     /** Rozhodne další krok: hotovo / další skok s pokládkou. */
     private void plan(BotContext ctx, BlockPos feet) {
-        if (ctx.onGround() && feet.y() >= targetY) {
+        // Mezi skoky počkat na dopad – rozhodovat (úspěch, další pokládka)
+        // se smí až na pevné zemi. Bez čekání by rychlé potvrzení bloku
+        // (lokální server, simulace) přehodilo plán do vzduchu, kontrola
+        // cílové výšky by se minula a pilíř by rostl, dokud stačí bloky.
+        if (!ctx.onGround()) {
+            return;
+        }
+        if (feet.y() >= targetY) {
             succeeded = true;
             phase = Phase.DONE;
             return;

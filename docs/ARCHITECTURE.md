@@ -895,3 +895,23 @@ s kolizním systémem (analýza [docs/PATHFINDING_V3.md](PATHFINDING_V3.md)).
   je zeď PODKOPAT (kopací hrany jsou při akčním plánování povolené),
   což je korektní chování, ne chyba. Poslední kus parity plán ↔ assist;
   z v3.3 zbývá BotTask-level simulace reaktivních tasků.
+- **BotTask simulace a vanilla skok (v3.3 dokončeno)**: `FakeBotContext`
+  – testovací dvojník kontextu (svět `FakeWorldView`, `useItemOn`
+  pokládá držený materiál rovnou do světa s vanilla pravidlem „pevný
+  blok se nepoloží do vlastního těla", inventář = počítadlo, nepoužité
+  subsystémy vyhazují) – a `ReactiveTaskSimulationTest`: pilíř, most
+  i žebřík se fyzicky vykonají proti `BotPhysics`. První běh odhalil
+  tři produkční chyby: (1) skok měl vrchol 0,83 bloku místo vanilla
+  1,2522 – gravitace se srážela už v ticku odrazu; výskoky na +1 římsu
+  maskoval step-up, ale pilíř (pokládka pod nohy chce světlost ≥ 1,0)
+  byl potichu nemožný. V ticku odrazu se teď gravitace neuplatní –
+  přesná vanilla trajektorie. (2) Vzdušný step-up při klesání
+  (kompenzace slabého skoku) uměl s opraveným skokem nelegálně přelézt
+  plot – vanilla steppuje jen na zemi, klauzule odstraněna a dopady na
+  římsy vychází z čisté kolize. (3) `PillarUpTask` rozhodoval ve
+  vzduchu – při okamžitém potvrzení bloku se kontrola cílové výšky
+  minula a pilíř rostl, dokud stačily bloky; mezi skoky se teď čeká
+  na dopad. Navíc `PlaceBlockTask` verifikuje přes traits místo
+  `Material.isAir` (to sahá na server Registry – vrstva tasků patří
+  nad `WorldView`). `BotActions` a `InventoryHelper` přestaly být
+  `final` kvůli dvojníkům.

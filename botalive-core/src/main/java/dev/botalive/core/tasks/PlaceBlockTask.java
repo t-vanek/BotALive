@@ -53,8 +53,11 @@ public final class PlaceBlockTask implements BotTask {
                 phase = Phase.VERIFY;
             }
             case VERIFY -> {
-                var material = ctx.worldView() == null ? null : ctx.worldView().materialAt(target);
-                if (material != null && !material.isAir()) {
+                // Ověření přes traits (kolize se objevila), ne Material.isAir –
+                // materiálové API sahá na server Registry a vrstva tasků má
+                // zůstat nad WorldView abstrakcí.
+                if (ctx.worldView() != null
+                        && !ctx.worldView().traitsAt(target).noCollision()) {
                     ctx.stats().addPlaced();
                     phase = Phase.DONE;
                 } else if (++verifyTicks > 20) {

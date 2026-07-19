@@ -248,8 +248,10 @@ public final class BotPhysics {
             vx = clamp(vx, -CLIMB_MAX_HORIZONTAL, CLIMB_MAX_HORIZONTAL);
             vz = clamp(vz, -CLIMB_MAX_HORIZONTAL, CLIMB_MAX_HORIZONTAL);
         } else {
+            boolean jumped = false;
             if (input.jump() && onGround) {
                 vy = JUMP_VELOCITY;
+                jumped = true;
                 if (input.sprint()) {
                     // sprint-jump boost ve směru pohybu (vanilla chování)
                     Vec3 boost = dir.mul(0.2);
@@ -257,7 +259,15 @@ public final class BotPhysics {
                     vz += boost.z();
                 }
             }
-            vy = (vy - GRAVITY) * AIR_DRAG_Y;
+            // V ticku odrazu se gravitace NEuplatní – vanilla pohne entitou
+            // o plných 0,42 a gravitaci sráží až od dalšího ticku. Dřívější
+            // srážení už v ticku odrazu snižovalo vrchol skoku na ~0,83 bloku
+            // (vanilla 1,25): výskok na +1 římsu maskoval step-up, ale pilíř
+            // (pokládka pod nohy vyžaduje světlost ≥ 1,0) byl potichu nemožný
+            // – odhalila to fyzická simulace PillarUpTasku.
+            if (!jumped) {
+                vy = (vy - GRAVITY) * AIR_DRAG_Y;
+            }
             vy = Math.max(vy, MAX_FALL_SPEED);
         }
 
@@ -376,11 +386,16 @@ public final class BotPhysics {
 
         boolean collidedHorizontally = dx != motion.x() || dz != motion.z();
 
-        // Step-up: pokud jsme narazili do zdi a jsme na zemi, zkusit posun o schod
+        // Step-up: pokud jsme narazili do zdi a jsme NA ZEMI, zkusit posun o schod
         // výš. Nikdy na žebříku/liáně – zbytková vodorovná rychlost při sestupu
         // šachtou by bota „vymantlovala" přes okraj ven (vanilla po žebřících
-        // taky nedovolí nedobrovolný výstup na hranu).
-        if (collidedHorizontally && !onClimbable && (onGround || motion.y() < 0)) {
+        // taky nedovolí nedobrovolný výstup na hranu). A nikdy ve vzduchu:
+        // dřívější povolení při klesání kompenzovalo slabý skok (vrchol 0,83
+        // před opravou gravitace v ticku odrazu) – s vanilla skokem 1,25 už
+        // dopady na římsy vycházejí z čisté kolize a vzdušný mantle uměl
+        // nelegálně přelézt plot (zbývajících 0,25 nad vrcholem skoku spadlo
+        // do výšky schodu).
+        if (collidedHorizontally && !onClimbable && onGround) {
             AABB stepBox = AABB.playerAt(position);
             double stepUp = clipAxis(stepBox, STEP_HEIGHT, Axis.Y);
             stepBox = stepBox.move(0, stepUp, 0);

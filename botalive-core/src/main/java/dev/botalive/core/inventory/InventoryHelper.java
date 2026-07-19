@@ -14,7 +14,7 @@ import java.util.Locale;
  * a vykonává přes klientské pakety (přepnutí hotbar slotu). Nástroj se vybírá
  * podle kategorie cílového bloku a tieru nástroje (netherite &gt; diamant &gt; ...).</p>
  */
-public final class InventoryHelper {
+public class InventoryHelper {
 
     /**
      * Přitažení itemu z hlavního inventáře do hotbaru (kliky ve vlastním okně).
