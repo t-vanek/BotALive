@@ -1047,6 +1047,35 @@ class AStarPathfinderTest {
     }
 
     @Test
+    void anyNearVybereDosazitelnehoKandidata() {
+        FakeWorldView world = new FakeWorldView(FLOOR);
+        // Bližší „ruda" je zazděná (žádná pochozí buňka v okruhu 2),
+        // vzdálenější stojí volně – o pořadí rozhoduje dosažitelnost.
+        BlockPos sealed = new BlockPos(4, FEET, 0);
+        BlockPos open = new BlockPos(10, FEET, 4);
+        world.set(10, FEET, 4, FakeWorldView.SOLID);
+        for (int x = 2; x <= 6; x++) {
+            for (int z = -2; z <= 2; z++) {
+                for (int y = FEET - 1; y <= FEET + 2; y++) {
+                    world.set(x, y, z, FakeWorldView.SOLID);
+                }
+            }
+        }
+
+        AStarPathfinder.Result blocked = new AStarPathfinder(world).findPath(
+                new BlockPos(0, FEET, 0), PathGoal.near(sealed, 2), 2000, 0L, null);
+        assertFalse(blocked.path().complete(), "zazděná ruda není dosažitelná");
+
+        AStarPathfinder.Result any = new AStarPathfinder(world).findPath(
+                new BlockPos(0, FEET, 0),
+                PathGoal.anyNear(java.util.List.of(sealed, open), 2), 2000, 0L, null);
+        assertTrue(any.path().complete(), "anyNear má dojít k volné rudě");
+        BlockPos last = any.path().waypoints().getLast();
+        assertTrue(last.distanceSquared(open) <= 2 * 2,
+                "cesta má končit u dosažitelného kandidáta: " + last);
+    }
+
+    @Test
     void nekopeTunelPodPadavymStropem() {
         FakeWorldView world = massif();
         // Horní dvě patra masivu jsou písek: jakýkoli tunel (i vylámaný

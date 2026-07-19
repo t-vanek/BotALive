@@ -140,6 +140,20 @@ plán ↔ assist.
 > Záměrně blokové zůstávají: sběr dropů po barteru, stanoviště kopání
 > a rybaření, dekorace, stavební buňky. Tím je vzor „na neprůchozí blok
 > se nedá dojít" vyřešený v celé kódové základně.
+>
+> **Stav: v3.2 implementováno.** Nový predikát `PathGoal.anyNear(targets,
+> r)` – „do okruhu nejbližšího **dosažitelného** kandidáta" (dosavadní
+> `anyOf` vyžaduje došlápnutí na kandidátní buňku, pro neprůchozí rudu,
+> truhlu či postel se nikdy nesplní). `MineGoal`: sken vrací až 6
+> nejbližších odkrytých bloků (rudy i kmeny), navigace jede `anyNear`
+> a vytěží se kandidát, ke kterému se skutečně došlo – ruda za lávou už
+> nestojí 300 ticků timeoutu a blacklist, A* rovnou dojde k dalšímu
+> (`anyNearVybereDosazitelnehoKandidata`). `SleepGoal`: sken sbírá
+> všechny postele v okolí a uléhá se do té, ke které cesta vede
+> (zapamatovaná vlastní postel má dál přednost jako jediný cíl).
+> Truhly (`StashGoal`, `StealGoal`) záměrně NEmigrují: u vlastní
+> základny i krádeže na identitě truhly záleží (vlastnictví, sociální
+> paměť) – anyNear by cíl tiše zaměnil za jinou truhlu.
 
 ## 2. Doporučené fázování
 
@@ -147,7 +161,7 @@ plán ↔ assist.
 |---|---|---|---|---|
 | **v3.0 korektnost** ✅ | P1 gravity guard kopání, P2 hluboký sken + příplatek za skok nad pádem/voidem (škálovaný opatrností), P5 roh bez dveří | S | nízké | plán a kolize se přestanou rozcházet v posledních známých místech |
 | **v3.1 dokončení migrace** ✅ | P3 zbylé `near` cíle (End/Nether/drak/vozidla/průzkum) | S | nízké | konec pálení rozpočtu, drift throttle všude |
-| **v3.2 kvalita výběru** | P4 `anyOf` v goalech s kandidáty (strom/ruda/truhla/postel) + zpětná vazba „který kandidát vyšel" | M | střední | méně marných výpočtů a blacklist smyček, přirozenější volby |
+| **v3.2 kvalita výběru** ✅ | P4 `anyNear` v goalech s kandidáty (ruda/kmen/postel; truhly záměrně ne – identita) + zpětná vazba „který kandidát vyšel" | M | střední | méně marných výpočtů a blacklist smyček, přirozenější volby |
 | **v3.3 parita akcí** | P8 žebříkové hrany + BotTask-level simulace | M | střední | poslední reaktivní eskalace pod kontraktem |
 | **v3.4 výkon** | P6 bucket queue / long smyčka – jen po benchmarku | M | střední | až 2× rychlejší jádro, ale nejdřív důkaz |
 | odloženo | P7 proudy vody | L | vyšší | malý viditelný zisk |

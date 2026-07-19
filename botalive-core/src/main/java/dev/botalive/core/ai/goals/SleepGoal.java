@@ -25,6 +25,8 @@ public final class SleepGoal extends AbstractGoal {
 
     private Phase phase = Phase.FIND;
     private BlockPos bed;
+    /** Kandidátní postele posledního hledání – uléhá se do té, ke které se došlo. */
+    private java.util.List<BlockPos> beds = java.util.List.of();
     private int retryTicks;
     private int attempts;
     private int cooldownTicks;
@@ -60,6 +62,7 @@ public final class SleepGoal extends AbstractGoal {
     public void start(Bot bot) {
         phase = Phase.FIND;
         bed = null;
+        beds = java.util.List.of();
         attempts = 0;
     }
 
@@ -68,23 +71,38 @@ public final class SleepGoal extends AbstractGoal {
         BotContext ctx = ctx(bot);
         switch (phase) {
             case FIND -> {
-                bed = findBed(ctx, bot);
-                if (bed == null) {
+                beds = findBeds(ctx, bot);
+                if (beds.isEmpty()) {
                     cooldownTicks = 1200; // žádná postel – zkusit za minutu
                     phase = Phase.DONE;
                     return;
                 }
+                bed = beds.getFirst();
                 phase = Phase.GO;
             }
             case GO -> {
-                double distSq = bed.center().distanceSquared(ctx.position());
-                if (distSq > 2.5 * 2.5) {
-                    ctx.navigator().navigateTo(ctx.position(), PathGoal.near(bed, 1));
+                // Uléhá se do postele, ke které se skutečně došlo – nejbližší
+                // vzdušnou čarou může být za zdí či plotem (anyNear nechá
+                // o pořadí rozhodnout dosažitelnost).
+                BlockPos reachable = null;
+                double bestDist = 2.5 * 2.5;
+                for (BlockPos candidate : beds) {
+                    double dist = candidate.center().distanceSquared(ctx.position());
+                    if (dist <= bestDist) {
+                        bestDist = dist;
+                        reachable = candidate;
+                    }
+                }
+                if (reachable == null) {
+                    ctx.navigator().navigateTo(ctx.position(), beds.size() > 1
+                            ? PathGoal.anyNear(beds, 1)
+                            : PathGoal.near(bed, 1));
                     if (!ctx.navigator().navigating()) {
                         phase = Phase.FIND;
                     }
                     return;
                 }
+                bed = reachable;
                 ctx.navigator().stop();
                 phase = Phase.LIE_DOWN;
                 retryTicks = 0;
@@ -135,14 +153,14 @@ public final class SleepGoal extends AbstractGoal {
         }
     }
 
-    /** Najde postel: nejdřív v paměti (HOME/bed), pak skenem okolí. */
-    private BlockPos findBed(BotContext ctx, Bot bot) {
+    /** Najde postele: nejdřív v paměti (HOME/bed), pak skenem okolí. */
+    private java.util.List<BlockPos> findBeds(BotContext ctx, Bot bot) {
         WorldView world = ctx.worldView();
         if (world == null) {
-            return null;
+            return java.util.List.of();
         }
         BlockPos center = ctx.position().toBlockPos();
-        // Paměť: dům s postelí.
+        // Paměť: dům s postelí – vlastní postel má přednost před cizími.
         var remembered = bot.memory().recall(MemoryKind.HOME).stream()
                 .filter(r -> "bed".equals(r.data().get("type")))
                 .filter(r -> world.worldName().equals(r.world()))
@@ -150,22 +168,25 @@ public final class SleepGoal extends AbstractGoal {
                 .findFirst();
         if (remembered.isPresent()) {
             var r = remembered.get();
-            return new BlockPos(r.x(), r.y(), r.z());
+            return java.util.List.of(new BlockPos(r.x(), r.y(), r.z()));
         }
-        // Sken okolí.
+        // Sken okolí – všechny postele, seřazené podle vzdálenosti.
         int radius = 12;
+        java.util.ArrayList<BlockPos> found = new java.util.ArrayList<>();
         for (int dx = -radius; dx <= radius; dx++) {
             for (int dy = -3; dy <= 3; dy++) {
                 for (int dz = -radius; dz <= radius; dz++) {
                     BlockPos pos = center.offset(dx, dy, dz);
                     var material = world.materialAt(pos);
                     if (material != null && material.name().endsWith("_BED")) {
-                        return pos;
+                        found.add(pos);
                     }
                 }
             }
         }
-        return null;
+        found.sort(java.util.Comparator.comparingDouble(p -> p.distanceSquared(center)));
+        return found.size() > 4 ? java.util.List.copyOf(found.subList(0, 4))
+                : java.util.List.copyOf(found);
     }
 
     @Override

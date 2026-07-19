@@ -45,7 +45,8 @@ inventář a historii; po restartu serveru pokračuje tam, kde skončil.
   (okruh kolem bloku, útěk od hrozby, těžební hladina, nejbližší
   dosažitelný z kandidátů) plánuje A* přímo – k peci, ponku, truhle či
   rudě se chodí „do okruhu“ (na neprůchozí blok se dojít nedá a takový
-  cíl dřív pálil celý rozpočet uzlů). Styl cesty nese **povahu**:
+  cíl dřív pálil celý rozpočet uzlů) a ruda či postel se vybírá podle
+  skutečné dosažitelnosti, ne vzdušnou čarou. Styl cesty nese **povahu**:
   odvážný bot rokli přeskočí sprintem, opatrný ji obejde a drží větší
   odstup od lávy, líný se vyhýbá šplhání. A boti se drží **cestiček** –
   šlapat trávu hned vedle udusané pěšiny, štěrku či prken nese drobnou

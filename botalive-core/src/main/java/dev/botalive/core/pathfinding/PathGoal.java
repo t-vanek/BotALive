@@ -96,6 +96,21 @@ public interface PathGoal {
     }
 
     /**
+     * @param targets kandidátní bloky (klidně neprůchozí – ruda, truhla,
+     *                postel), aspoň jeden
+     * @param radius  poloměr dosažení kolem kandidáta (bloky, 3D)
+     * @return cíl „do okruhu nejbližšího dosažitelného kandidáta" – výběr
+     *         rudy/truhly/postele podle skutečné dosažitelnosti; hledání
+     *         skončí u prvního kandidáta, ke kterému vede nejlevnější cesta
+     */
+    static PathGoal anyNear(List<BlockPos> targets, int radius) {
+        if (targets.isEmpty()) {
+            throw new IllegalArgumentException("anyNear vyžaduje aspoň jednoho kandidáta");
+        }
+        return new AnyNear(List.copyOf(targets), Math.max(0, radius));
+    }
+
+    /**
      * @param threat      místo hrozby
      * @param minDistance minimální bezpečná vzdálenost (bloky, vodorovně)
      * @return cíl „uteč aspoň na danou vzdálenost" – plánovaný útěk po
@@ -197,6 +212,33 @@ public interface PathGoal {
                 best = Math.min(best, octile(p, target));
             }
             return best;
+        }
+
+        @Override
+        public BlockPos anchor() {
+            return targets.getFirst();
+        }
+    }
+
+    /** Okruh kolem nejbližšího dosažitelného z kandidátů. */
+    record AnyNear(List<BlockPos> targets, int radius) implements PathGoal {
+        @Override
+        public boolean reached(BlockPos p) {
+            for (BlockPos target : targets) {
+                if (p.distanceSquared(target) <= (double) radius * radius) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        @Override
+        public int heuristic(BlockPos p) {
+            int best = Integer.MAX_VALUE;
+            for (BlockPos target : targets) {
+                best = Math.min(best, octile(p, target));
+            }
+            return Math.max(0, best - radius * 10);
         }
 
         @Override

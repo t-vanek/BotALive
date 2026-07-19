@@ -868,3 +868,15 @@ s kolizním systémem (analýza [docs/PATHFINDING_V3.md](PATHFINDING_V3.md)).
   si přesně sem": sběr dropů, stanoviště kopání a rybaření, dekorace,
   stavební buňky. Vzor „na neprůchozí blok se nedá dojít" je tím
   vyřešený v celé kódové základně.
+- **`anyNear` – kandidáti podle dosažitelnosti (v3.2)**: nový predikát
+  „do okruhu nejbližšího dosažitelného kandidáta" (dosavadní `anyOf`
+  chce na kandidátní buňku došlápnout – pro neprůchozí rudu či postel
+  se nesplní nikdy). `MineGoal` skenuje až 6 nejbližších odkrytých
+  bloků (rudy i kmeny) a vytěží ten, ke kterému se skutečně došlo –
+  ruda za lávou už nestojí 300 ticků timeoutu s blacklistem, A* dojde
+  rovnou k dalšímu kandidátovi; žíla se dál sleduje sousedstvím.
+  `SleepGoal` sbírá všechny postele v okolí a uléhá do té, ke které
+  vede cesta (vlastní zapamatovaná postel má přednost jako jediný
+  cíl). Truhly (`StashGoal`, `StealGoal`) záměrně nemigrují – na
+  identitě truhly záleží (vlastnictví, sociální paměť) a `anyNear`
+  by cíl tiše zaměnil.
