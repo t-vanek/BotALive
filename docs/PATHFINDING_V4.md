@@ -153,6 +153,20 @@ problémy v provozu.
 > Z v4 zůstává vědomě odloženo: P5 čluny (chce BoatPhysics) a P6
 > drobnosti.
 
+> **Stav: P6 drobnosti implementovány – z celé série zbývá jen P5
+> (čluny za BoatPhysics gate).** FarPlanner dostal danger body:
+> koridorové buňky v okolí 12 bloků od špatné vzpomínky či živé hrozby
+> nesou přirážku 60, takže hrubá trasa zóny smrti obchází
+> (`zonuSmrtiKoridorObchazi`); Navigator je předává z téhož
+> `dangerSupplier` jako low-level plán (včetně živých hostilů z v4.1).
+> Proudy na koridorové hrubosti 8×8 záměrně nemodelujeme – lokální
+> gradient hladin nemá na volbě 8blokové buňky co říct, vodní buňky
+> nesou ×2 už dnes. `FarmGoal` a `EndHarvestGoal` přešly na kandidáty
+> s `anyNear` (plodiny strop 6, end stone/chorus strop 4) – sklízí
+> a těží se to, k čemu skutečně vede cesta, po vzoru MineGoal/SleepGoal.
+> Krajní případ „žebříkový trigger v davu" vyřešila už v4.1 (dav
+> ustupuje přesným taskům – trigger i task běží bez strkání).
+
 ## 2. Doporučené fázování
 
 | Fáze | Obsah | Náročnost | Riziko | Přínos |
@@ -160,7 +174,8 @@ problémy v provozu.
 | **v4.0 boj × navigace** ✅ | P1: hybridní přiblížení (LOS gate → `near`), plánovaný ústup `awayFrom`, kiting + ústupový sim scénář (+ oprava latentního deadlocku dvoustupňového útěku) | M | střední | konec kitingu, ústup přestane být sebevražedný – největší viditelná díra spolupráce |
 | **v4.1 ohleduplnost** ✅ | P2 dav ustoupí přesným taskům + P3 živé hrozby do dangerSupplier | S | nízké | pilíře/žebříky v davu, trasy obcházejí moby |
 | **v4.2 perturbační kontrakt** ✅ | P4: kategorie simulací s rušením (zotavení prošlo bez oprav – trvalá stráž) | M | nízké | očekávané nálezy v exekuci pod tlakem |
-| odloženo | P5 čluny (chce BoatPhysics), P6 drobnosti | M–L | – | nízká frekvence užití |
+| ~~odloženo~~ P6 ✅ | FarPlanner dangers, FarmGoal/EndHarvest anyNear (žebřík v davu vyřešila v4.1) | S | nízké | koridory obchází zóny smrti, sklizeň podle dosažitelnosti |
+| odloženo | P5 čluny (chce BoatPhysics) | M–L | – | nízká frekvence užití |
 
 ## 3. Shrnutí
 

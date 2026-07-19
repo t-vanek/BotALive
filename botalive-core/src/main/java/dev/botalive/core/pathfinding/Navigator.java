@@ -478,7 +478,9 @@ public final class Navigator {
         if (!service.farCorridors() || world == null || destination == null) {
             return;
         }
-        pendingCorridor = service.planCorridor(world, from, destination);
+        java.util.List<BlockPos> corridorDangers = dangerSupplier != null
+                ? dangerSupplier.get() : java.util.List.of();
+        pendingCorridor = service.planCorridor(world, from, destination, corridorDangers);
     }
 
     /**

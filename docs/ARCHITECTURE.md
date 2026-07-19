@@ -999,3 +999,12 @@ Hotovo ve fázi 28: boj × navigace (v4.0 – analýza
   projekce, validace, reflexy, replán) obstály bez oprav – vrstva teď
   hlídá regrese trvale. Roadmapa v4 je tím kompletní (čluny a drobnosti
   vědomě odloženy).
+- **P6 drobnosti (dokončení série)**: FarPlanner zná danger body –
+  koridorové buňky do 12 bloků od špatné vzpomínky či živé hrozby nesou
+  přirážku a hrubá trasa zóny smrti obchází (`zonuSmrtiKoridorObchazi`);
+  Navigator je bere z téhož `dangerSupplier` jako low-level plán.
+  Proudy na hrubosti 8×8 záměrně nemodelujeme (lokální gradient nemá
+  na volbě buňky co říct, voda nese ×2). `FarmGoal` (plodiny, strop 6)
+  a `EndHarvestGoal` (end stone/chorus, strop 4) přešly na kandidáty
+  s `anyNear` – sklízí se to, k čemu skutečně vede cesta. Z celé série
+  analýz v2–v4 zbývá jediné vědomé odložení: čluny (BoatPhysics gate).

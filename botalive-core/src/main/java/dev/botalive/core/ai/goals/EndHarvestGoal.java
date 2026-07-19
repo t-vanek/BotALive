@@ -139,15 +139,15 @@ public final class EndHarvestGoal extends AbstractGoal {
 
         // 2) End stone do zásoby (mosty přes void, stavění).
         if (wantsEndStone(ctx, snapshot)) {
-            BlockPos stone = scanFor(ctx, m -> m == Material.END_STONE, 8);
-            if (stone != null && approachAndMine(ctx, stone, "těžím end stone na mosty")) {
+            java.util.List<BlockPos> stone = scanAllFor(ctx, m -> m == Material.END_STONE, 8);
+            if (!stone.isEmpty() && approachAndMine(ctx, stone, "těžím end stone na mosty")) {
                 return;
             }
         }
 
         // 3) Chorus: jídlo z Endu (vnější ostrovy, custom mapy).
-        BlockPos chorus = findChorus(ctx);
-        if (chorus != null && approachAndMine(ctx, chorus, "sklízím chorus ovoce")) {
+        java.util.List<BlockPos> chorus = findChorus(ctx);
+        if (!chorus.isEmpty() && approachAndMine(ctx, chorus, "sklízím chorus ovoce")) {
             return;
         }
 
@@ -172,24 +172,38 @@ public final class EndHarvestGoal extends AbstractGoal {
     }
 
     /** Dojde k bloku a pustí se do kopání; {@code false} = nedosažitelný. */
-    private boolean approachAndMine(BotContext ctx, BlockPos block, String why) {
+    /** Dojde k NEJBLIŽŠÍMU DOSAŽITELNÉMU z kandidátů a kopne do něj;
+     *  {@code false} = žádný není dosažitelný. */
+    private boolean approachAndMine(BotContext ctx, java.util.List<BlockPos> candidates,
+                                    String why) {
         Vec3 pos = ctx.position();
-        double distSq = block.center().add(0, 0.5, 0).distanceSquared(pos.add(0, 1.62, 0));
-        if (distSq > 4.5 * 4.5) {
+        Vec3 eye = pos.add(0, 1.62, 0);
+        BlockPos inReach = null;
+        double bestDist = 4.5 * 4.5;
+        for (BlockPos candidate : candidates) {
+            double dist = candidate.center().add(0, 0.5, 0).distanceSquared(eye);
+            if (dist <= bestDist) {
+                bestDist = dist;
+                inReach = candidate;
+            }
+        }
+        if (inReach == null) {
             if (++approachTicks > 600) {
                 approachTicks = 0;
-                return false; // k bloku se nejde dostat – zkusit něco jiného
+                return false; // k žádnému kandidátovi se nejde dostat
             }
-            ctx.navigator().navigateTo(pos, PathGoal.near(block, 2));
+            ctx.navigator().navigateTo(pos, candidates.size() > 1
+                    ? PathGoal.anyNear(candidates, 2)
+                    : PathGoal.near(candidates.getFirst(), 2));
             activity = why;
             return true;
         }
         approachTicks = 0;
         ctx.navigator().stop();
-        Material material = ctx.worldView().materialAt(block);
+        Material material = ctx.worldView().materialAt(inReach);
         ctx.inventory().equipBestTool(ctx.serverView().latest(),
                 material != null ? material : Material.STONE);
-        task = new MineBlockTask(block);
+        task = new MineBlockTask(inReach);
         activity = why;
         return true;
     }
@@ -236,20 +250,20 @@ public final class EndHarvestGoal extends AbstractGoal {
         });
     }
 
-    private BlockPos findChorus(BotContext ctx) {
-        return scanFor(ctx, m -> m == Material.CHORUS_PLANT || m == Material.CHORUS_FLOWER, 10);
+    private java.util.List<BlockPos> findChorus(BotContext ctx) {
+        return scanAllFor(ctx, m -> m == Material.CHORUS_PLANT || m == Material.CHORUS_FLOWER, 10);
     }
 
-    /** Nejbližší odkrytý blok dle filtru (jako sken v MineGoal, menší dosah). */
-    private BlockPos scanFor(BotContext ctx, java.util.function.Predicate<Material> filter,
-                             int radius) {
+    /** Až 4 nejbližší odkryté bloky dle filtru – o pořadí rozhodne
+     *  dosažitelnost (anyNear), ne vzdušná čára. */
+    private java.util.List<BlockPos> scanAllFor(BotContext ctx,
+            java.util.function.Predicate<Material> filter, int radius) {
         WorldView world = ctx.worldView();
         if (world == null) {
-            return null;
+            return java.util.List.of();
         }
         BlockPos center = ctx.position().toBlockPos();
-        BlockPos best = null;
-        double bestDist = Double.MAX_VALUE;
+        java.util.ArrayList<BlockPos> found = new java.util.ArrayList<>();
         for (int dx = -radius; dx <= radius; dx++) {
             for (int dy = -4; dy <= 4; dy++) {
                 for (int dz = -radius; dz <= radius; dz++) {
@@ -259,15 +273,13 @@ public final class EndHarvestGoal extends AbstractGoal {
                             || !exposed(world, pos)) {
                         continue;
                     }
-                    double dist = pos.distanceSquared(center);
-                    if (dist < bestDist) {
-                        bestDist = dist;
-                        best = pos;
-                    }
+                    found.add(pos);
                 }
             }
         }
-        return best;
+        found.sort(java.util.Comparator.comparingDouble(p -> p.distanceSquared(center)));
+        return found.size() > 4 ? java.util.List.copyOf(found.subList(0, 4))
+                : java.util.List.copyOf(found);
     }
 
     /** Zasypaný blok nemá smysl – kope se jen to, k čemu se dá došlápnout. */

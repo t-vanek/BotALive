@@ -56,6 +56,29 @@ class FarPlannerTest {
     }
 
     @Test
+    void zonuSmrtiKoridorObchazi() {
+        FakeWorldView world = new FakeWorldView(FLOOR);
+        // Terén je celý průchozí – jen uprostřed přímé trasy leží shluk
+        // špatných vzpomínek (smrti). Koridor je má obejít obloukem,
+        // aby low-level plán nebojoval se segmentovými mezicíli uvnitř zóny.
+        java.util.List<BlockPos> dangers = java.util.List.of(
+                new BlockPos(48, FEET, -4), new BlockPos(52, FEET, 0),
+                new BlockPos(48, FEET, 4));
+        FarPlanner.Corridor corridor = FarPlanner.plan(world,
+                new BlockPos(0, FEET, 0), new BlockPos(100, FEET, 0), dangers);
+
+        assertTrue(corridor.complete(), "obchůzka po rovině vždy existuje");
+        for (BlockPos point : corridor.points()) {
+            for (BlockPos danger : dangers) {
+                boolean near = Math.abs(point.x() - danger.x()) <= 8
+                        && Math.abs(point.z() - danger.z()) <= 8;
+                assertFalse(near, "bod koridoru nemá ležet v zóně smrti: "
+                        + point + " u " + danger);
+            }
+        }
+    }
+
+    @Test
     void vodaJePruchoziAleDrazsi() {
         FakeWorldView world = new FakeWorldView(FLOOR);
         // Vodní pás napříč (x 20..28) – bez suché obchůzky se plave.
