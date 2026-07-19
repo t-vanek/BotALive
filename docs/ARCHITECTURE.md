@@ -990,3 +990,12 @@ Hotovo ve fázi 28: boj × navigace (v4.0 – analýza
   mechanismus, místo spoléhání na paniku uprostřed cesty. Aktuální cíl
   boje se vynechává (k němu se přibližovat má). Dav dál záměrně uhýbá
   jen hráčům/botům.
+- **Perturbační kontrakt (v4.2)**: `PerturbationSimulationTest` – exekuce
+  cest pod rušením přes produkční knockback kanál
+  (`BotPhysics.setVelocity`). Opakované strkání při chůzi, sražení do
+  příkopu, strčení uprostřed sprint-skoku nad jámou s vodním dnem
+  i srážení ze žebříku: bot se pokaždé vzpamatuje a dorazí bez poškození
+  a bez eskalace k terraformingu. Mechanismy zotavení z v2/v3 (catch-up
+  projekce, validace, reflexy, replán) obstály bez oprav – vrstva teď
+  hlídá regrese trvale. Roadmapa v4 je tím kompletní (čluny a drobnosti
+  vědomě odloženy).

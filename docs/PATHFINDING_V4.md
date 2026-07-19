@@ -138,13 +138,28 @@ problémy v provozu.
 > a mobům v chůzi by změnilo vyladěné chování stád a není součástí
 > tohoto nálezu.
 
+> **Stav: v4.2 implementováno – roadmapa v4 je KOMPLETNÍ.**
+> `PerturbationSimulationTest`: exekuce cest pod rušením přes produkční
+> knockback kanál (`BotPhysics.setVelocity` – stejná cesta jako
+> SetEntityMotion od serveru). Čtyři scénáře s deterministickými rozvrhy
+> a důkazem, že strčení proběhla: opakované strkání při chůzi, sražení
+> do mělkého příkopu (vyskáče a dojde), strčení přesně uprostřed
+> sprint-skoku nad jámou (dopad jistí voda na dně, vyplave, vyhoupne se
+> a doskáče) a opakované srážení ze žebříku v šachtě (znovu vyleze).
+> Kontrakt: bot se vzpamatuje a dorazí, poškození z pádů nula, žádná
+> eskalace k terraformingu. Výsledek: mechanismy zotavení z v2/v3
+> (catch-up projekce vyhlazení, validace, reflexy, replán) rušení
+> zvládají bez oprav – vrstva teď kontrakt hlídá trvale proti regresím.
+> Z v4 zůstává vědomě odloženo: P5 čluny (chce BoatPhysics) a P6
+> drobnosti.
+
 ## 2. Doporučené fázování
 
 | Fáze | Obsah | Náročnost | Riziko | Přínos |
 |---|---|---|---|---|
 | **v4.0 boj × navigace** ✅ | P1: hybridní přiblížení (LOS gate → `near`), plánovaný ústup `awayFrom`, kiting + ústupový sim scénář (+ oprava latentního deadlocku dvoustupňového útěku) | M | střední | konec kitingu, ústup přestane být sebevražedný – největší viditelná díra spolupráce |
 | **v4.1 ohleduplnost** ✅ | P2 dav ustoupí přesným taskům + P3 živé hrozby do dangerSupplier | S | nízké | pilíře/žebříky v davu, trasy obcházejí moby |
-| **v4.2 perturbační kontrakt** | P4: kategorie simulací s rušením | M | nízké | očekávané nálezy v exekuci pod tlakem |
+| **v4.2 perturbační kontrakt** ✅ | P4: kategorie simulací s rušením (zotavení prošlo bez oprav – trvalá stráž) | M | nízké | očekávané nálezy v exekuci pod tlakem |
 | odloženo | P5 čluny (chce BoatPhysics), P6 drobnosti | M–L | – | nízká frekvence užití |
 
 ## 3. Shrnutí
