@@ -385,6 +385,8 @@ public final class BotAliveCommand implements TabExecutor {
             }
             sender.sendMessage(Component.text(" • ", NamedTextColor.DARK_GRAY)
                     .append(Component.text(settlement.name(), NamedTextColor.AQUA))
+                    .append(Component.text(" [" + settlement.tier().displayName() + "]",
+                            NamedTextColor.GOLD))
                     .append(Component.text("  " + settlement.world() + " "
                                     + settlement.center().x() + "/" + settlement.center().y()
                                     + "/" + settlement.center().z(),
@@ -392,7 +394,8 @@ public final class BotAliveCommand implements TabExecutor {
                     .append(Component.text("  zakladatel: " + founderName,
                             NamedTextColor.LIGHT_PURPLE))
                     .append(Component.text("  členů: " + settlement.members().size()
-                            + " (parcel: " + houses + ")", NamedTextColor.GRAY)));
+                            + " (parcel: " + houses + ", domů: " + settlement.houses() + ")",
+                            NamedTextColor.GRAY)));
             sender.sendMessage(Component.text("   " + String.join(", ", memberNames),
                     NamedTextColor.GRAY));
         }

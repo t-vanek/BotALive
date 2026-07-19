@@ -161,6 +161,19 @@ public final class SchemaMigrator {
                         """,
                         "CREATE INDEX IF NOT EXISTS idx_ba_settlement_members_sid "
                                 + "ON ba_settlement_members(settlement_id)"
+                ),
+                // v4 – růst osad: dostavěné domy členů (substance pro odvození
+                // stupně sídla) a poslední ohlášený stupeň (potlačí opakované
+                // hlášky po restartu).
+                List.of(
+                        "ALTER TABLE ba_settlement_members "
+                                + "ADD COLUMN house_done INTEGER NOT NULL DEFAULT 0",
+                        "ALTER TABLE ba_settlements ADD COLUMN announced_tier TEXT",
+                        // Backfill existujících světů: zabraná parcela ≈ stojící
+                        // dům (rozestavěný se stejně dostaví a znovu ohlásí).
+                        // Bez toho by zavedené vesnice startovaly na „domů: 0".
+                        "UPDATE ba_settlement_members SET house_done = 1 "
+                                + "WHERE plot_x IS NOT NULL"
                 )
         );
     }

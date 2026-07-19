@@ -68,6 +68,9 @@ public enum PhraseCategory {
     SETTLEMENT_SPLINTER,
     /** Stěhování za kamarádem do jiné vesnice ({name} = kamarád). */
     SETTLEMENT_FOLLOW,
+
+    /** Sídlo dorostlo na vesnici ({@code {name}} = jméno sídla). */
+    SETTLEMENT_VILLAGE_UP,
     /** Běh pro věci po smrti – vyrážím. */
     RECOVER_RUN,
     /** Věci po smrti zachráněné. */

@@ -262,6 +262,12 @@ phrases:
     - "jdu bydlet za {name:7}, tady už to není ono"
     - "stěhuju se, kámoši jsou jinde"
     - "{name} teď bydlí jinde, tak jdu taky"
+
+  settlement-village-up:
+    - "z naší osady je už opravdová vesnice! {name} roste"
+    - "tak už nás tu bydlí dost, {name} je vesnice jak se patří"
+    - "koukám, {name} se nám rozrostla. tomu už říkám vesnice!"
+    - "další dům hotový a {name} už není jen pár chalup"
     - "kde je {name}, tam je i moje parcela"
     - "balím to tady, jdu za kamarády"
   recover-run:
