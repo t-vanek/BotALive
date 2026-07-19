@@ -10,6 +10,7 @@ import java.util.List;
  * zbytek kódu pracuje s typy a výchozími hodnotami.</p>
  *
  * @param network     síťové nastavení klientů botů
+ * @param gateway     vlastní Mojang API gateway a ověřování botů (proti zneužití)
  * @param bots        limity a automatický spawn botů
  * @param ai          chování AI (frekvence rozhodování, obtížnost)
  * @param chat        nastavení chatu botů
@@ -29,6 +30,7 @@ import java.util.List;
  */
 public record BotAliveConfig(
         Network network,
+        Gateway gateway,
         Bots bots,
         Ai ai,
         Chat chat,
@@ -93,6 +95,50 @@ public record BotAliveConfig(
      * @param maxAttempts maximum pokusů v řadě, než to bot vzdá
      */
     public record Reconnect(boolean enabled, long delayMinMs, long delayMaxMs, int maxAttempts) {
+    }
+
+    /**
+     * Vlastní Mojang API gateway a ověřovací proces botů (ochrana proti zneužití).
+     *
+     * <p>Na offline-mode serveru se kdokoli může připojit pod libovolným jménem –
+     * včetně jmen botů. Gateway to řeší: BotAlive vydává každému botu krátkodobé
+     * podepsané pověření a server-side pojistka odmítne přihlášení pod jménem
+     * bota bez platného ověření.</p>
+     *
+     * @param enabled         hlavní vypínač – vydávat pověření a provozovat autoritu
+     * @param enforcePreLogin odmítat přihlášení pod jménem bota bez platné autorizace
+     *                        (server-side pojistka {@code BotLoginGuard})
+     * @param restrictSource  navíc vyžadovat, aby přihlášení pod jménem bota přišlo
+     *                        z lokálního zdroje (loopback/LAN) – veřejné adresy jsou
+     *                        typický vektor zneužití
+     * @param httpEnabled     spustit vestavěnou HTTP gateway (tvar Mojang session API);
+     *                        potřeba jen pro online-mode nasazení nebo proxy/fleet
+     * @param bind            adresa, na které HTTP gateway naslouchá (typicky 127.0.0.1)
+     * @param port            port HTTP gateway (0 = přidělí OS)
+     * @param tokenTtlSeconds platnost vydaného pověření v sekundách
+     * @param clientAuth      boti se ověřují online-mode přes gateway (vyžaduje
+     *                        online-mode server nasměrovaný na gateway) – pokročilé
+     * @param secret          tajný klíč HMAC; prázdný = vygenerovat a uložit do
+     *                        {@code gateway-secret.key} (sdílený klíč pro fleet)
+     */
+    public record Gateway(boolean enabled, boolean enforcePreLogin, boolean restrictSource,
+                          boolean httpEnabled, String bind, int port, int tokenTtlSeconds,
+                          boolean clientAuth, String secret) {
+
+        /** @return platnost pověření v ms (spodní strop 5 s) */
+        public long tokenTtlMs() {
+            return Math.max(5, tokenTtlSeconds) * 1000L;
+        }
+
+        /**
+         * @return základní URL, na které se klient (bot) dovolá gateway; wildcard
+         *         bind ({@code 0.0.0.0}/{@code ::}) se překládá na loopback
+         */
+        public String clientBaseUrl() {
+            String h = bind == null || bind.isBlank() || bind.equals("0.0.0.0") || bind.equals("::")
+                    ? "127.0.0.1" : bind;
+            return "http://" + h + ":" + port;
+        }
     }
 
     /**

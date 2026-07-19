@@ -146,8 +146,12 @@ důležitost záznamu místo duplikace), statistiky se flushují jako delty.
 Bot dostává UUID `OfflinePlayer:<jméno>` – stejné schéma jako server
 v offline režimu. Identita je tak stabilní napříč restarty (paměť, statistiky
 i serverová playerdata se správně párují). Online-mode server plugin detekuje
-a vytvoření bota odmítne se srozumitelnou chybou (řešení: offline server nebo
-Velocity proxy s offline backendem).
+a vytvoření bota odmítne se srozumitelnou chybou (řešení: offline server,
+Velocity proxy s offline backendem, nebo vlastní gateway s `client-auth`).
+
+Offline režim má ale i stinnou stránku: bez ověření se kdokoli může připojit
+pod libovolným jménem, včetně jmen botů. Tuto zranitelnost řeší vlastní
+ověřovací proces a Mojang API gateway – viz fáze 29.
 
 ## Výkonnostní vlastnosti
 
@@ -1008,3 +1012,58 @@ Hotovo ve fázi 28: boj × navigace (v4.0 – analýza
   a `EndHarvestGoal` (end stone/chorus, strop 4) přešly na kandidáty
   s `anyNear` – sklízí se to, k čemu skutečně vede cesta. Z celé série
   analýz v2–v4 zbývá jediné vědomé odložení: čluny (BoatPhysics gate).
+
+Hotovo ve fázi 29: vlastní Mojang API gateway a ověřování botů
+(`core/gateway`) – ochrana proti zneužití offline identity (viz §8).
+
+**Problém.** Boti jsou offline klienti a server běží v `online-mode=false`
+(§8). V offline režimu ale server nikoho neověřuje – kdokoli se může připojit
+pod libovolným jménem, tedy i pod jménem bota (a získat jeho serverová
+playerdata, pozici, roli, majetek), nebo zaplavit server falešnými „boty".
+Klasické řešení (authlib-injector, cizí Yggdrasil server) je těžké nasazení
+mimo dosah pluginu. BotAlive proto přináší vlastní autoritu.
+
+**Vlastní ověřovací proces** (`CredentialAuthority`). Autorita vydává každému
+připojení bota krátkodobé, na jedno použití určené pověření: token
+`payload '.' HMAC_SHA256(secret, payload)`, kde payload nese `botId`, jméno,
+časy a nonce (Base64URL, oddělovač `.` se v abecedě nevyskytuje). Klíč se
+generuje a ukládá do `gateway-secret.key` (nebo se sdílí konfigurací mezi
+servery jednoho fleetu). Autorita je čistá (bez závislosti na Bukkitu i na
+síťové knihovně), hodiny se injektují a je plně jednotkově testovaná
+(`CredentialAuthorityTest`) – ověření podpisu je konstantní v čase
+(`MessageDigest.isEqual`), padělaný i vypršelý token se odmítne.
+
+Dvě nezávislé cesty ověření:
+
+- **Offline cesta** (výchozí, žádná změna serveru). Token se offline
+  handshakem neposílá (nemá pole), autorita si proto při vydání zapamatuje
+  *čekající autorizaci*. Server-side pojistka `BotLoginGuard`
+  (`AsyncPlayerPreLoginEvent`) u každého přihlášení pod jménem spravovaného
+  bota vyžaduje živou čekající autorizaci (a dle konfigurace i lokální zdroj
+  spojení). Přihlášení hráčů s vlastními jmény propouští beze změny.
+  Pověření se vydává v `BotConnection.connect` těsně před navázáním spojení
+  (i při reconnectu), takže při vlastním přihlášení bota autorizace vždy
+  existuje; impersonátor ji nezpůsobí a je odmítnut. Pojistka je záměrně
+  **fail-open**: neočekávaná chyba přihlašování na serveru nikdy nerozbije
+  (jen zaloguje), odmítá se jen explicitní selhání ověření.
+- **Online cesta** (volitelná, `gateway.client-auth`). Vestavěná HTTP gateway
+  (`MojangGatewayServer`, JDK `com.sun.net.httpserver` + Gson) reimplementuje
+  tvar Mojang session API: `POST /session/minecraft/join`,
+  `GET /session/minecraft/hasJoined`, `GET /session/minecraft/profile/{id}`
+  a `GET /botalive/health`. Bot v online-mode handshaku pošle token na `/join`
+  (klientský `SessionService` má URL Mojangu zadrátované, proto ho přepisuje
+  `GatewaySessionService` přes flag `SESSION_SERVICE_KEY`), server pak profil
+  vyzvedne přes `hasJoined`. Token se ověří kryptograficky (bez stavu).
+  Nasazení: online-mode server (nebo proxy) nasměrovaný na gateway, např.
+  `-Dminecraft.api.session.host=http://127.0.0.1:41000`. Kolotoč join →
+  hasJoined je otestován reálným HTTP kolotočem (`MojangGatewayServerTest`).
+
+**Bezpečnostní model.** Hlavní strukturální obranou proti nejběžnějšímu
+vektoru (vzdálený útočník předstírající bota) je zdrojová politika:
+přihlášení pod jménem bota z veřejné adresy se odmítne (loopback/LAN je OK).
+Jednorázové podepsané pověření přidává obranu do hloubky – i lokální pokus
+bez čerstvě vydaného tokenu neprojde. Obojí řídí sekce `gateway.*`; hlavní
+vypínač `gateway.enabled`, vynucení `enforce-prelogin`, zdrojová politika
+`restrict-source`. Výchozí stav chrání běžný offline server hned a bez
+nutnosti cokoli na serveru přenastavovat; HTTP gateway a `client-auth`
+zůstávají pro pokročilá nasazení vypnuté.
