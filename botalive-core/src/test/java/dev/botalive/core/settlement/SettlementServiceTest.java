@@ -117,6 +117,23 @@ class SettlementServiceTest {
     }
 
     @Test
+    void starostaJeNejzakotvenejsiClen() {
+        var village = foundVillage();
+        var joinView = view(joiner, HOME_SITE.offset(30, 0, 0), 0.7, null,
+                Map.of(founder, 0.6), Map.of(), Map.of());
+        assertTrue(service.join(village.id(), joinView));
+        // Bez dat o vazbách je starostou zakladatel.
+        assertEquals(founder, service.settlementOf(founder).orElseThrow().mayor());
+        // Zakotvenost ze sousedských úvah: joiner má silnější vazby.
+        service.noteTies(view(founder, HOME_SITE, 0.7, HOME_SITE,
+                Map.of(joiner, 0.3), Map.of(), Map.of()));
+        service.noteTies(view(joiner, HOME_SITE, 0.7, null,
+                Map.of(founder, 0.8), Map.of(), Map.of()));
+        assertEquals(joiner, service.settlementOf(founder).orElseThrow().mayor(),
+                "starostou je člen s nejsilnějšími vazbami na sousedy");
+    }
+
+    @Test
     void parcelaProjektuSeDomumNenabizi() {
         var village = villageWithFourHouses();
         var project = service.neededProject(founder).orElseThrow();

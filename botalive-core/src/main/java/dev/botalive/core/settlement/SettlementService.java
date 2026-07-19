@@ -68,10 +68,11 @@ public final class SettlementService {
      *
      * @param houses počet dostavěných domů členů (substance stupně)
      * @param tier   odvozený stupeň sídla (osada/vesnice/město)
+     * @param mayor  starosta – nejzakotvenější člen ({@code null} bez dat)
      */
     public record SettlementInfo(long id, String name, String world, BlockPos center,
                                  UUID founder, List<MemberInfo> members,
-                                 int houses, SettlementTier tier) {
+                                 int houses, SettlementTier tier, UUID mayor) {
     }
 
     /**
@@ -160,6 +161,12 @@ public final class SettlementService {
         SettlementTier announcedTier = SettlementTier.OSADA;
         /** Společné stavby sídla (studna, později sýpka/tržiště). */
         final Map<ProjectKind, Project> projects = new HashMap<>();
+        /**
+         * Součet FRIEND vazeb člena k ostatním členům – plní se oportunisticky
+         * ze sousedských úvah ({@code checkCohesion}); nejlépe zakotvený člen
+         * je STAROSTA (odvozený, nevolený – jako stupeň sídla).
+         */
+        final Map<UUID, Double> memberTies = new HashMap<>();
 
         Settlement(long id, String name, String world, BlockPos center,
                    UUID founder, long createdAt) {
@@ -785,6 +792,48 @@ public final class SettlementService {
         return maybeAnnounceTier(settlement);
     }
 
+    /**
+     * Zaznamená zakotvenost člena (Σ FRIEND vazeb k ostatním členům) pro
+     * odvození starosty. Volá se ze sousedské úvahy; oddělené kvůli
+     * testovatelnosti bez vedlejších efektů {@code checkCohesion}.
+     */
+    synchronized void noteTies(SocialView view) {
+        Long id = memberIndex.get(view.botId());
+        Settlement settlement = id == null ? null : settlements.get(id);
+        if (settlement == null) {
+            return;
+        }
+        double ties = 0;
+        for (Member member : settlement.members.values()) {
+            if (!member.botId().equals(view.botId())) {
+                ties += view.friend(member.botId());
+            }
+        }
+        settlement.memberTies.put(view.botId(), ties);
+    }
+
+    /**
+     * @return starosta sídla: nejzakotvenější člen (nejvyšší Σ FRIEND vazeb
+     *         k sousedům); bez dat zakladatel, je-li dosud členem
+     */
+    private UUID mayorOf(Settlement settlement) {
+        UUID best = null;
+        double bestTies = 0;
+        for (Member member : settlement.members.values()) {
+            Double ties = settlement.memberTies.get(member.botId());
+            if (ties != null && ties > bestTies) {
+                bestTies = ties;
+                best = member.botId();
+            }
+        }
+        if (best != null) {
+            return best;
+        }
+        return settlement.founder != null
+                && settlement.members.containsKey(settlement.founder)
+                ? settlement.founder : null;
+    }
+
     /** @return první parcela nezabraná členem ani zákazem, nebo {@code null} */
     private Integer freePlotIndex(Settlement settlement) {
         for (int index = 1; index <= MAX_PLOT_INDEX; index++) {
@@ -862,6 +911,7 @@ public final class SettlementService {
         if (!config.enabled() || view.world() == null) {
             return Optional.empty();
         }
+        noteTies(view);
         long now = clock.getAsLong();
         long cooldown = config.changeCooldownMinutes() * 60_000L;
         long sinceChange = now - lastChangeAt.getOrDefault(view.botId(), 0L);
@@ -1165,6 +1215,6 @@ public final class SettlementService {
         }
         return new SettlementInfo(settlement.id, settlement.name, settlement.world,
                 settlement.center, settlement.founder, List.copyOf(members),
-                houses(settlement), tierOf(settlement));
+                houses(settlement), tierOf(settlement), mayorOf(settlement));
     }
 }
