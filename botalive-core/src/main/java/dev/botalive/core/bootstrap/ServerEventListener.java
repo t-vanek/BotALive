@@ -36,20 +36,24 @@ public final class ServerEventListener implements Listener {
     private final BotManagerImpl botManager;
     private final dev.botalive.core.pvp.PvpCoordinator pvp;
     private final dev.botalive.core.settlement.DiplomacyService diplomacy;
+    private final dev.botalive.core.economy.EmploymentService employment;
 
     /**
      * @param worldViews registr pohledů na světy
      * @param botManager manager botů
      * @param pvp        PvP koordinátor (hrozby, volání o pomoc)
      * @param diplomacy  diplomacie sídel (napadení mezi vesnicemi zvedá napětí)
+     * @param employment najímání botů (poplach bodyguardům zaměstnavatele)
      */
     public ServerEventListener(WorldViewRegistry worldViews, BotManagerImpl botManager,
                                dev.botalive.core.pvp.PvpCoordinator pvp,
-                               dev.botalive.core.settlement.DiplomacyService diplomacy) {
+                               dev.botalive.core.settlement.DiplomacyService diplomacy,
+                               dev.botalive.core.economy.EmploymentService employment) {
         this.worldViews = worldViews;
         this.botManager = botManager;
         this.pvp = pvp;
         this.diplomacy = diplomacy;
+        this.employment = employment;
     }
 
     // ------------------------------------------------------ invalidace bloků
@@ -95,6 +99,17 @@ public final class ServerEventListener implements Listener {
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onBotDamaged(EntityDamageByEntityEvent event) {
         if (!(event.getEntity() instanceof Player victim)) {
+            return;
+        }
+        if (botManager.byId(victim.getUniqueId()).isEmpty()) {
+            // Skutečný hráč: je-li něčí zaměstnavatel, poplach bodyguardům.
+            Entity aggressor = event.getDamager();
+            if (aggressor instanceof Projectile projectile
+                    && projectile.getShooter() instanceof Entity shooter) {
+                aggressor = shooter;
+            }
+            employment.onEmployerAttacked(victim.getUniqueId(),
+                    aggressor.getUniqueId(), aggressor.getEntityId());
             return;
         }
         botManager.byId(victim.getUniqueId()).ifPresent(bot -> {

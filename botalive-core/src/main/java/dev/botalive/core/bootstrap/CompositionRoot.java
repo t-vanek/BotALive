@@ -186,13 +186,18 @@ public final class CompositionRoot {
                 new dev.botalive.core.settlement.DiplomacyService(
                         config.settlement().war(), config.pvp(), settlements, repository));
         diplomacy.load();
+        dev.botalive.core.economy.EmploymentService employmentService = container.register(
+                dev.botalive.core.economy.EmploymentService.class,
+                new dev.botalive.core.economy.EmploymentService(
+                        config.economy().employment(), repository));
+        employmentService.load();
         registerBuiltInGoals(goalRegistry, crafting, containers, trades, furnaces,
                 enchanting, smithing, pvp, taming, anvils, market, socialGraph,
-                diplomacy);
+                diplomacy, employmentService);
         BotImpl.SharedServices services = new BotImpl.SharedServices(
                 config, worldViews, bridge, tickEngine, navigation, repository,
                 phrases, stateMapper, itemMapper, crimeLog, settlements,
-                diplomacy, socialGraph, market);
+                diplomacy, socialGraph, market, employmentService);
         BotManagerImpl botManager = container.register(BotManagerImpl.class,
                 new BotManagerImpl(config, repository, goalRegistry, services));
         pvp.attach(botManager);
@@ -200,6 +205,7 @@ public final class CompositionRoot {
         diplomacy.attach(botManager);
         market.attach(botManager);
         socialGraph.attach(botManager);
+        employmentService.attach(botManager);
 
         // Veřejné API.
         BotAliveApi api = container.register(BotAliveApi.class, new BotAliveApiImpl(
@@ -208,10 +214,11 @@ public final class CompositionRoot {
 
         // Bukkit integrace.
         container.register(ServerEventListener.class,
-                new ServerEventListener(worldViews, botManager, pvp, diplomacy));
+                new ServerEventListener(worldViews, botManager, pvp, diplomacy,
+                        employmentService));
         container.register(BotAliveCommand.class,
                 new BotAliveCommand(botManager, goalRegistry, repository, config, settlements,
-                        diplomacy, navigation));
+                        diplomacy, employmentService, navigation));
     }
 
     /** Vestavěná sada cílů – každý bot dostává vlastní instance. */
@@ -227,7 +234,8 @@ public final class CompositionRoot {
                                              dev.botalive.core.inventory.AnvilService anvils,
                                              dev.botalive.core.economy.MarketBoard market,
                                              dev.botalive.core.social.SocialGraph socialGraph,
-                                             dev.botalive.core.settlement.DiplomacyService diplomacy) {
+                                             dev.botalive.core.settlement.DiplomacyService diplomacy,
+                                             dev.botalive.core.economy.EmploymentService employment) {
         registry.register("idle", bot -> new IdleGoal());
         registry.register("wander", bot -> new WanderGoal());
         registry.register("explore", bot -> new ExploreGoal());
@@ -266,6 +274,10 @@ public final class CompositionRoot {
         registry.register("pvp", bot -> new dev.botalive.core.ai.goals.PvpGoal(pvp));
         registry.register("war-raid",
                 bot -> new dev.botalive.core.ai.goals.WarRaidGoal(diplomacy, pvp));
+        registry.register("bodyguard",
+                bot -> new dev.botalive.core.ai.goals.BodyguardGoal(employment, pvp));
+        registry.register("deliver-work",
+                bot -> new dev.botalive.core.ai.goals.WorkDeliveryGoal(employment));
         registry.register("tame", bot -> new dev.botalive.core.ai.goals.TameGoal(taming));
         registry.register("recover", bot -> new dev.botalive.core.ai.goals.RecoverItemsGoal());
         registry.register("maintain", bot -> new dev.botalive.core.ai.goals.MaintainHomeGoal());

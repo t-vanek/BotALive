@@ -143,6 +143,20 @@ public enum PhraseCategory {
     PORTAL_FOUND,
     /** Vkládání očí Enderu do rámu portálu (aktivace strongholdu). */
     END_EYES,
+    /** Najatý bot si říká o mzdu předem ({name} = cena). */
+    HIRE_PAY_REQUEST,
+    /** Bot přijímá práci ({name} = zaměstnavatel). */
+    HIRE_ACCEPT,
+    /** Bot ruší nabídku – platba nedorazila ({name} = zaměstnavatel). */
+    HIRE_DECLINE,
+    /** Smlouva vypršela ({name} = zaměstnavatel). */
+    HIRE_EXPIRED,
+    /** Bot dává výpověď – zaměstnavatel ho napadl ({name} = zaměstnavatel). */
+    HIRE_QUIT,
+    /** Dělník předává výtěžek ({name} = zaměstnavatel). */
+    HIRE_DELIVER,
+    /** Bodyguard se vrhá do obrany ({name} = zaměstnavatel). */
+    GUARD_DEFEND,
     /** Starosta vyhlašuje válku ({name} = nepřátelská vesnice). */
     WAR_DECLARED,
     /** Nájezdník vyráží na nepřátelskou vesnici ({name} = cíl nájezdu). */

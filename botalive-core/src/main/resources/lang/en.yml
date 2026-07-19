@@ -439,6 +439,38 @@ phrases:
     - "pockets full, time to leave this emptiness"
     - "looking for the exit portal, home is calling"
     - "the End is nice and all, but home is home"
+  hire-pay-request:
+    - "deal. Send me {name} via /pay and we're on"
+    - "I'll do it for {name} – payment up front, /pay and we go"
+    - "agreed, that's {name}. The moment it arrives, I start"
+    - "{name} up front via /pay, I'm not a charity"
+  hire-accept:
+    - "on the clock, {name}! Where do we start?"
+    - "payment received, {name} is my new boss"
+    - "working for {name} now. Go easy on me"
+    - "alright, {name}, I'm your man"
+  hire-decline:
+    - "no payment came... never mind, {name}, offer's off"
+    - "waited for the money in vain. Forget it"
+    - "no pay, no work, {name}. Back to my own business"
+  hire-expired:
+    - "shift for {name} is over. It's been an honour!"
+    - "contract's up, {name}. You know where to find me"
+    - "that was the last shift for {name}. Clocking out!"
+  hire-quit:
+    - "you're hitting ME?! I quit, {name}, no boss does that!"
+    - "I resign! {name} found a punching bag, but not me"
+    - "not like this, {name}. Goodbye – and no refunds"
+  hire-deliver:
+    - "boss, bringing you the earnings! Catch"
+    - "delivery for {name}, freshly earned"
+    - "here's your share, {name}. Honest work"
+    - "payday in kind, {name} – take it while I'm carrying it"
+  guard-defend:
+    - "hands off the boss!"
+    - "you touch {name}, you deal with me!"
+    - "bodyguard on duty – nobody gets the boss!"
+    - "oh no you don't, that's my paycheck you're hitting!"
   war-declared:
     - "enough! We declare war on {name}!"
     - "patience has run out – {name} has been asking for this"

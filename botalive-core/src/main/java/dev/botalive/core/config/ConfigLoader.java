@@ -80,12 +80,22 @@ public final class ConfigLoader {
                 c.getBoolean("combat.shield-use", true)
         );
 
+        var employment = new BotAliveConfig.Employment(
+                c.getBoolean("economy.employment.enabled", true),
+                c.getBoolean("economy.employment.require-payment", true),
+                Math.max(1, c.getInt("economy.employment.max-bots-per-player", 2)),
+                Math.max(1, c.getInt("economy.employment.max-days", 7)),
+                Math.max(0, c.getDouble("economy.employment.worker-wage-per-day", 12.0)),
+                Math.max(0, c.getDouble("economy.employment.guard-wage-per-day", 18.0))
+        );
+
         var economy = new BotAliveConfig.Economy(
                 c.getBoolean("economy.enabled", true),
                 c.getDouble("economy.starting-balance", 100.0),
                 c.getBoolean("economy.vault", true),
                 c.getBoolean("economy.bot-trade", true),
-                c.getBoolean("economy.player-trade", true)
+                c.getBoolean("economy.player-trade", true),
+                employment
         );
 
         var memory = new BotAliveConfig.Memory(

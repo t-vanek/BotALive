@@ -213,6 +213,8 @@ public final class Brain {
             // Životní ambice táhne související cíle (dokud není splněná).
             if (bot instanceof dev.botalive.core.bot.BotImpl impl) {
                 utility *= impl.ambitionWeight(goal.id());
+                // Zaměstnání: dělník se soustředí na práci a míň se fláká.
+                utility *= impl.employmentWeight(goal.id());
             }
             // Hystereze aktivního cíle + drobný rozhodovací šum.
             if (goal == current) {

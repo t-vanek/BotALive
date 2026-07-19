@@ -52,7 +52,7 @@ public final class BotAliveCommand implements TabExecutor {
     private static final List<String> SUBCOMMANDS = List.of(
             "create", "remove", "tp", "list", "pause", "resume", "personality",
             "memory", "goal", "stats", "role", "settlements", "diplomacy", "end",
-            "path", "overview");
+            "path", "overview", "hire", "dismiss");
 
     private final BotManagerImpl botManager;
     private final GoalRegistryImpl goalRegistry;
@@ -60,6 +60,7 @@ public final class BotAliveCommand implements TabExecutor {
     private final dev.botalive.core.config.BotAliveConfig config;
     private final dev.botalive.core.settlement.SettlementService settlements;
     private final dev.botalive.core.settlement.DiplomacyService diplomacy;
+    private final dev.botalive.core.economy.EmploymentService employment;
     private final dev.botalive.core.pathfinding.NavigationService navigation;
     private final dev.botalive.core.teleport.TeleportCooldowns cooldowns;
 
@@ -70,6 +71,7 @@ public final class BotAliveCommand implements TabExecutor {
      * @param config       konfigurace (teleport sekce)
      * @param settlements  služba vesnic (pro /botalive settlements)
      * @param diplomacy    diplomacie sídel (pro /botalive diplomacy)
+     * @param employment   najímání botů (pro /botalive hire a dismiss)
      * @param navigation   pathfinding (metriky pro /botalive path)
      */
     public BotAliveCommand(BotManagerImpl botManager, GoalRegistryImpl goalRegistry,
@@ -77,6 +79,7 @@ public final class BotAliveCommand implements TabExecutor {
                            dev.botalive.core.config.BotAliveConfig config,
                            dev.botalive.core.settlement.SettlementService settlements,
                            dev.botalive.core.settlement.DiplomacyService diplomacy,
+                           dev.botalive.core.economy.EmploymentService employment,
                            dev.botalive.core.pathfinding.NavigationService navigation) {
         this.botManager = botManager;
         this.goalRegistry = goalRegistry;
@@ -84,6 +87,7 @@ public final class BotAliveCommand implements TabExecutor {
         this.config = config;
         this.settlements = settlements;
         this.diplomacy = diplomacy;
+        this.employment = employment;
         this.navigation = navigation;
         this.cooldowns = new dev.botalive.core.teleport.TeleportCooldowns(
                 config.teleport().playerCooldownSeconds());
@@ -116,6 +120,8 @@ public final class BotAliveCommand implements TabExecutor {
             case "role" -> role(sender, args);
             case "settlements" -> settlements(sender);
             case "diplomacy" -> diplomacy(sender);
+            case "hire" -> hire(sender, args);
+            case "dismiss" -> dismiss(sender, args);
             case "end" -> endPortal(sender, args);
             case "path" -> path(sender, args);
             case "overview" -> overview(sender);
@@ -422,6 +428,146 @@ public final class BotAliveCommand implements TabExecutor {
                         + String.join(", ", enemies), NamedTextColor.RED));
             }
         }
+    }
+
+    /** Rozjednané najmutí čekající na potvrzení hráčem. */
+    private record PendingHire(String botName, dev.botalive.core.economy.EmploymentService.Kind kind,
+                               int days, double price, long expiresAtMs) {
+    }
+
+    private final java.util.Map<java.util.UUID, PendingHire> pendingHires =
+            new java.util.concurrent.ConcurrentHashMap<>();
+
+    /**
+     * {@code /botalive hire <bot> <worker|guard> [dny]} – nabídka mzdy;
+     * {@code /botalive hire <bot> confirm} – potvrzení (pak bot čeká na /pay).
+     */
+    private void hire(CommandSender sender, String[] args) {
+        if (!(sender instanceof org.bukkit.entity.Player player)) {
+            error(sender, "Najímat boty může jen hráč ve hře");
+            return;
+        }
+        if (!config.economy().employment().enabled()) {
+            error(sender, "Najímání botů je na tomto serveru vypnuté");
+            return;
+        }
+        if (args.length < 3) {
+            error(sender, "Použití: /botalive hire <bot> <worker|guard> [dny] "
+                    + "a pak /botalive hire <bot> confirm");
+            return;
+        }
+        Optional<Bot> found = botManager.byName(args[1]);
+        if (found.isEmpty()) {
+            error(sender, "Bot '" + args[1] + "' neexistuje");
+            return;
+        }
+        Bot bot = found.get();
+        var snapshot = bot.snapshot();
+        boolean nearby = snapshot.online()
+                && player.getWorld().getName().equals(snapshot.worldName())
+                && player.getLocation().distanceSquared(new org.bukkit.Location(
+                        player.getWorld(), snapshot.x(), snapshot.y(), snapshot.z())) <= 16 * 16;
+        if (!nearby) {
+            error(sender, "Dojdi za botem – najímá se osobně (do 16 bloků)");
+            return;
+        }
+        var employmentService = this.employment;
+        if (args[2].equalsIgnoreCase("confirm")) {
+            PendingHire pending = pendingHires.get(player.getUniqueId());
+            if (pending == null || !pending.botName().equalsIgnoreCase(bot.name())
+                    || System.currentTimeMillis() > pending.expiresAtMs()) {
+                error(sender, "Není co potvrzovat – nejdřív si řekni o nabídku: "
+                        + "/botalive hire " + bot.name() + " <worker|guard> [dny]");
+                return;
+            }
+            pendingHires.remove(player.getUniqueId());
+            var quote = employmentService.beginHire(bot, player.getUniqueId(),
+                    player.getName(), pending.kind(), pending.days());
+            if (quote.decline() != dev.botalive.core.economy.EmploymentService.Decline.NONE) {
+                error(sender, declineMessage(bot.name(), quote.decline()));
+                return;
+            }
+            if (config.economy().employment().requirePayment()) {
+                success(sender, bot.name() + " kývnul – pošli mzdu: /pay "
+                        + bot.name() + " " + dev.botalive.core.economy.EmploymentService
+                                .priceLabel(quote.price())
+                        + " (do 3 minut, jinak nabídka padá)");
+            } else {
+                success(sender, bot.name() + " nastupuje do služby ("
+                        + kindLabel(pending.kind()) + ", " + quote.days() + " d)");
+            }
+            return;
+        }
+        dev.botalive.core.economy.EmploymentService.Kind kind;
+        switch (args[2].toLowerCase(Locale.ROOT)) {
+            case "worker" -> kind = dev.botalive.core.economy.EmploymentService.Kind.WORKER;
+            case "guard" -> kind = dev.botalive.core.economy.EmploymentService.Kind.GUARD;
+            default -> {
+                error(sender, "Druh práce je worker (dělník) nebo guard (bodyguard)");
+                return;
+            }
+        }
+        int days = 1;
+        if (args.length >= 4) {
+            try {
+                days = Integer.parseInt(args[3]);
+            } catch (NumberFormatException e) {
+                error(sender, "Počet dní musí být číslo");
+                return;
+            }
+        }
+        var quote = employmentService.quote(bot, player.getUniqueId(), kind, days);
+        if (quote.decline() != dev.botalive.core.economy.EmploymentService.Decline.NONE) {
+            error(sender, declineMessage(bot.name(), quote.decline()));
+            return;
+        }
+        pendingHires.put(player.getUniqueId(), new PendingHire(bot.name(), kind,
+                quote.days(), quote.price(), System.currentTimeMillis() + 60_000));
+        info(sender, bot.name() + " si za " + kindLabel(kind) + " na "
+                + quote.days() + " d řekne "
+                + dev.botalive.core.economy.EmploymentService.priceLabel(quote.price())
+                + ". Potvrď: /botalive hire " + bot.name() + " confirm");
+    }
+
+    /** {@code /botalive dismiss <bot>} – výpověď najatému botovi. */
+    private void dismiss(CommandSender sender, String[] args) {
+        if (!(sender instanceof org.bukkit.entity.Player player)) {
+            error(sender, "Propouštět může jen hráč ve hře");
+            return;
+        }
+        if (args.length < 2) {
+            error(sender, "Použití: /botalive dismiss <bot>");
+            return;
+        }
+        Optional<Bot> found = botManager.byName(args[1]);
+        if (found.isEmpty()) {
+            error(sender, "Bot '" + args[1] + "' neexistuje");
+            return;
+        }
+        if (employment.dismiss(found.get().id(), player.getUniqueId())) {
+            success(sender, found.get().name() + " propuštěn ze služby "
+                    + "(mzda se nevrací)");
+        } else {
+            error(sender, found.get().name() + " pro tebe nepracuje");
+        }
+    }
+
+    private static String kindLabel(dev.botalive.core.economy.EmploymentService.Kind kind) {
+        return kind == dev.botalive.core.economy.EmploymentService.Kind.WORKER
+                ? "dělníka" : "bodyguarda";
+    }
+
+    private static String declineMessage(String botName,
+                                         dev.botalive.core.economy.EmploymentService.Decline decline) {
+        return switch (decline) {
+            case DISABLED -> "Najímání botů je vypnuté";
+            case ALREADY_EMPLOYED -> botName + " už práci má (nebo čeká na platbu)";
+            case EMPLOYER_LIMIT -> "Víc botů už najato mít nemůžeš";
+            case ENEMY -> botName + " s tebou po tom všem nechce nic mít";
+            case UNWILLING -> botName + " se do práce nehrne – zkus jiného bota";
+            case AWAY -> botName + " je na výpravě, teď se nenajímá";
+            case NONE -> "";
+        };
     }
 
     /** {@code /botalive diplomacy} – napětí, války a příměří mezi vesnicemi. */
@@ -804,6 +950,7 @@ public final class BotAliveCommand implements TabExecutor {
         for (String sub : SUBCOMMANDS) {
             boolean visible = switch (sub) {
                 case "tp", "list" -> canTeleport;
+                case "hire", "dismiss" -> true;
                 default -> admin;
             };
             if (visible) {
@@ -851,12 +998,15 @@ public final class BotAliveCommand implements TabExecutor {
             List<String> visible = SUBCOMMANDS.stream()
                     .filter(sub -> switch (sub) {
                         case "tp", "list" -> canTeleport;
+                        case "hire", "dismiss" -> true;
                         default -> admin;
                     })
                     .toList();
             return filter(visible, args[0]);
         }
-        if (!admin && !canTeleport) {
+        boolean playerFacing = args[0].equalsIgnoreCase("hire")
+                || args[0].equalsIgnoreCase("dismiss");
+        if (!admin && !canTeleport && !playerFacing) {
             return List.of();
         }
         if (args.length == 2) {
@@ -877,6 +1027,7 @@ public final class BotAliveCommand implements TabExecutor {
         if (args.length == 3) {
             return switch (args[0].toLowerCase(Locale.ROOT)) {
                 case "goal" -> filter(List.of("set", "clear"), args[2]);
+                case "hire" -> filter(List.of("worker", "guard", "confirm"), args[2]);
                 case "memory" -> filter(Stream.of(MemoryKind.values())
                         .map(k -> k.name().toLowerCase(Locale.ROOT)).toList(), args[2]);
                 case "tp" -> filter(List.of("here"), args[2]);
@@ -893,6 +1044,10 @@ public final class BotAliveCommand implements TabExecutor {
         }
         if (args.length == 4 && args[0].equalsIgnoreCase("goal") && args[2].equalsIgnoreCase("set")) {
             return filter(goalRegistry.registeredIds(), args[3]);
+        }
+        if (args.length == 4 && args[0].equalsIgnoreCase("hire")
+                && !args[2].equalsIgnoreCase("confirm")) {
+            return filter(List.of("1", "3", "7"), args[3]);
         }
         if (args.length == 6 && args[0].equalsIgnoreCase("end")) {
             return filter(Bukkit.getWorlds().stream()

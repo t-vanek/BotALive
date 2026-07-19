@@ -182,9 +182,36 @@ public record BotAliveConfig(
      *                        („beru!"), zaplatí přes {@code /pay} a bot mu
      *                        předá zboží; funguje jen s Vault ekonomikou
      *                        (bez ní nelze ověřit příchozí platbu)
+     * @param employment      najímání botů hráči (dělník, bodyguard)
      */
     public record Economy(boolean enabled, double startingBalance, boolean vault,
-                          boolean botTrade, boolean playerTrade) {
+                          boolean botTrade, boolean playerTrade,
+                          Employment employment) {
+    }
+
+    /**
+     * Najímání botů hráči ({@code /botalive hire}).
+     *
+     * <p>Hráč si najme bota jako <b>dělníka</b> (bot se soustředí na
+     * produktivní práci a výtěžek pravidelně nosí zaměstnavateli) nebo
+     * <b>bodyguarda</b> (chodí s hráčem a brání ho před moby; proti hráčům
+     * a botům jen v mezích sekce {@code pvp}). Mzdu si bot řekne podle
+     * povahy – lakomí a líní jsou dražší, kamarádi dávají slevu – a platí
+     * se předem přes {@code /pay} (vyžaduje Vault). Zaměstnavatel, který
+     * svého bota napadne, o něj přijde bez náhrady.</p>
+     *
+     * @param enabled          hlavní vypínač najímání
+     * @param requirePayment   vyžadovat platbu předem přes Vault {@code /pay};
+     *                         vypnuto = boti pracují „za kamarádství"
+     *                         (servery bez ekonomiky)
+     * @param maxBotsPerPlayer kolik botů smí mít jeden hráč najato současně
+     * @param maxDays          strop délky smlouvy ve dnech
+     * @param workerWagePerDay základní denní mzda dělníka (před povahou/slevou)
+     * @param guardWagePerDay  základní denní mzda bodyguarda
+     */
+    public record Employment(boolean enabled, boolean requirePayment,
+                             int maxBotsPerPlayer, int maxDays,
+                             double workerWagePerDay, double guardWagePerDay) {
     }
 
     /**

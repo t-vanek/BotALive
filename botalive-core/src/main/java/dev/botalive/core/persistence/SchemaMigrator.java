@@ -213,6 +213,23 @@ public final class SchemaMigrator {
                             PRIMARY KEY (settlement_a, settlement_b)
                         )
                         """
+                ),
+                // v7 – najímání botů hráči: aktivní smlouva bota (jedna na
+                // bota – PK je bot_id). Nezaplacené nabídky se nepersistují,
+                // restart je korektně zahodí (hráč platbu zopakuje).
+                List.of(
+                        """
+                        CREATE TABLE IF NOT EXISTS ba_employment (
+                            bot_id TEXT PRIMARY KEY,
+                            employer TEXT NOT NULL,
+                            employer_name TEXT NOT NULL,
+                            kind TEXT NOT NULL,
+                            wage DOUBLE PRECISION NOT NULL,
+                            hired_at BIGINT NOT NULL,
+                            paid_until BIGINT NOT NULL,
+                            last_delivery BIGINT NOT NULL DEFAULT 0
+                        )
+                        """
                 )
         );
     }

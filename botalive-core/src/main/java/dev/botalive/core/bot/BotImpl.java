@@ -175,6 +175,7 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
     private int ticksSinceCohesion;
     private int ticksSinceWelcome;
     private int ticksSinceDiplomacy;
+    private int ticksSinceEmployment;
     private long ambitionCompletedAt;
     private Vec3 lastDistancePos;
 
@@ -642,6 +643,18 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
         return current.weight(goalId, progress.complete());
     }
 
+    /**
+     * Násobič utility podle pracovní smlouvy (najatý dělník se soustředí
+     * na práci, bodyguard se drží šéfa). Bez smlouvy 1.0.
+     *
+     * @param goalId id cíle
+     * @return násobič
+     */
+    public double employmentWeight(String goalId) {
+        var employment = services.employment();
+        return employment == null ? 1.0 : employment.weight(id, goalId);
+    }
+
     /** @return řádka „životní cíl" pro příkazy, nebo {@code null} */
     public String ambitionLine() {
         var current = ambition;
@@ -877,6 +890,7 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
      * @param diplomacy   diplomacie sídel (napětí, války, příměří)
      * @param socialGraph sociální adresář (bot vs. hráč, drby)
      * @param market      tržiště botů (prodej hráčům přes chat)
+     * @param employment  najímání botů hráči (smlouvy, mzdy)
      */
     public record SharedServices(
             BotAliveConfig config,
@@ -892,7 +906,8 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
             dev.botalive.core.settlement.SettlementService settlements,
             dev.botalive.core.settlement.DiplomacyService diplomacy,
             dev.botalive.core.social.SocialGraph socialGraph,
-            dev.botalive.core.economy.MarketBoard market
+            dev.botalive.core.economy.MarketBoard market,
+            dev.botalive.core.economy.EmploymentService employment
     ) {
     }
 
@@ -1180,6 +1195,15 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
             ticksSinceDiplomacy = 0;
             if (services.diplomacy() != null) {
                 services.diplomacy().maybeTick(this);
+            }
+        }
+        // Pracovní smlouvy – častěji (čeká se na příchozí /pay platbu).
+        if (++ticksSinceEmployment >= 200 + (int) (Math.abs(id.getMostSignificantBits()) % 100)
+                && !clientState.dead() && !paused.get()
+                && state.get() == BotLifecycleState.SPAWNED) {
+            ticksSinceEmployment = 0;
+            if (services.employment() != null) {
+                services.employment().tick(this);
             }
         }
 

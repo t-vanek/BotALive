@@ -127,6 +127,26 @@ economy:
   # sám vypne (interní peněženka neumí přijmout /pay).
   player-trade: true
 
+  # Najímání botů hráči (/botalive hire <bot> <worker|guard> [dny]).
+  # Dělník (worker) se soustředí na produktivní práci a výtěžek pravidelně
+  # nosí zaměstnavateli; bodyguard (guard) chodí s hráčem a brání ho před
+  # moby (na hráče a boty sahá jen v mezích sekce pvp). Mzdu si bot řekne
+  # podle povahy – lakomí a líní jsou dražší, kamarádi mají slevu – a platí
+  # se předem přes /pay. Zaměstnavatel, který svého bota napadne, o něj
+  # přijde bez náhrady (a bot si to pamatuje).
+  employment:
+    enabled: true
+    # Vyžadovat platbu předem přes Vault /pay. Vypnuto = boti pracují
+    # zadarmo „za kamarádství" (servery bez ekonomiky).
+    require-payment: true
+    # Kolik botů smí mít jeden hráč najato současně.
+    max-bots-per-player: 2
+    # Strop délky smlouvy ve dnech (reálný čas).
+    max-days: 7
+    # Základní denní mzdy před úpravou povahou a kamarádskou slevou.
+    worker-wage-per-day: 12.0
+    guard-wage-per-day: 18.0
+
 memory:
   # Časový rozpad vztahů: přátelství i zášť bez kontaktu slábnou. Bez
   # rozpadu vztahy jen rostou (+0.05 za interakci) – po pár týdnech provozu

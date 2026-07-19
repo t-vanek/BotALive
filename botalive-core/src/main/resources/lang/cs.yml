@@ -454,6 +454,38 @@ phrases:
     - "kapsy plný, čas zmizet z týhle prázdnoty"
     - "hledám výstupní portál, domov volá"
     - "End je hezkej, ale doma je doma"
+  hire-pay-request:
+    - "beru to. Pošli mi {name} přes /pay a plácnem si"
+    - "za {name} to udělám – peníze předem, /pay a jedeme"
+    - "domluveno, dělá to {name}. Až přijde platba, nastupuju"
+    - "{name} předem přes /pay, nejsem charita"
+  hire-accept:
+    - "tak jsem ve službě, {name}! Kdy začínáme?"
+    - "platba sedí, {name} je můj novej šéf"
+    - "makám pro {name}. Snad si mě nevydřete"
+    - "dobrá, {name}, jsem tvůj člověk"
+  hire-decline:
+    - "platba nikde... tak nic, {name}, nabídka padá"
+    - "čekal jsem na peníze marně. Zapomeňte na to"
+    - "bez peněz žádná práce, {name}. Jdu si po svým"
+  hire-expired:
+    - "šichta u hráče {name} skončila. Bylo mi ctí!"
+    - "smlouva vypršela, {name}. Kdyžtak víš, kde mě najdeš"
+    - "tak to byla poslední směna pro hráče {name}. Padla!"
+  hire-quit:
+    - "ty mě mlátíš?! Končím, {name}, tohle si šéf nedovoluje!"
+    - "výpověď! {name} si našel boxovací pytel, ale beze mě"
+    - "tak takhle ne, {name}. Sbohem – a prachy nevracím"
+  hire-deliver:
+    - "šéfe, nesu ti výdělek! Chytej"
+    - "dodávka pro hráče {name}, čerstvě vyděláno"
+    - "tady je tvůj podíl, {name}. Poctivá práce"
+    - "výplata naturáliích, {name} – ber, dokud to nesu"
+  guard-defend:
+    - "ruce pryč od šéfa!"
+    - "kdo sahá na hráče {name}, má co do činění se mnou!"
+    - "bodyguard v akci – šéfa nedám!"
+    - "tak to ne, na chleba mi nesahej!"
   war-declared:
     - "dost bylo křivd! Vyhlašujeme válku vesnici {name}!"
     - "trpělivost došla – {name} si o válku koledovala dost dlouho"
