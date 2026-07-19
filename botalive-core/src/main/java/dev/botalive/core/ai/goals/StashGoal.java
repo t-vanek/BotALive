@@ -13,6 +13,7 @@ import org.geysermc.mcprotocollib.protocol.data.game.entity.object.Direction;
 
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import dev.botalive.core.pathfinding.PathGoal;
 
 /**
  * Ukládání přebytků do truhly.
@@ -122,7 +123,7 @@ public final class StashGoal extends AbstractGoal {
             case GO -> {
                 double distSq = chest.center().distanceSquared(ctx.position());
                 if (distSq > 3.0 * 3.0) {
-                    ctx.navigator().navigateTo(ctx.position(), chest);
+                    ctx.navigator().navigateTo(ctx.position(), PathGoal.near(chest, 2));
                     if (!ctx.navigator().navigating()) {
                         phase = Phase.FIND;
                     }

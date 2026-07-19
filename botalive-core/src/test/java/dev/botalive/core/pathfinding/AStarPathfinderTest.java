@@ -954,4 +954,59 @@ class AStarPathfinderTest {
         BlockPos last = path.waypoints().getLast();
         assertTrue(last.x() > 10, "částečná cesta má postoupit k cíli: " + last);
     }
+
+    @Test
+    void nearCilUNepruchozihoBlokuSetriRozpocet() {
+        FakeWorldView world = new FakeWorldView(FLOOR);
+        // Pec/ponk/truhla: neprůchozí blok. Cíl „přesně tento blok" se nikdy
+        // nesplní – A* spálí celý rozpočet a vrátí částečnou cestu. Cíl
+        // near(blok, 2) končí vedle bloku a rozpočet nechá na pokoji – proto
+        // goaly s interakcí u bloku navigují přes near.
+        BlockPos furnace = new BlockPos(8, FEET, 0);
+        world.set(8, FEET, 0, FakeWorldView.SOLID);
+
+        AStarPathfinder.Result blocked = new AStarPathfinder(world).findPath(
+                new BlockPos(0, FEET, 0), PathGoal.block(furnace), 2000, 0L, null);
+        AStarPathfinder.Result near = new AStarPathfinder(world).findPath(
+                new BlockPos(0, FEET, 0), PathGoal.near(furnace, 2), 2000, 0L, null);
+
+        assertFalse(blocked.path().complete(), "na neprůchozí blok se nedá dojít");
+        assertTrue(near.path().complete(), "okolí bloku dojít jde");
+        assertTrue(near.expandedNodes() * 10 < blocked.expandedNodes(),
+                "near cíl nemá pálit rozpočet: near=" + near.expandedNodes()
+                        + " vs block=" + blocked.expandedNodes());
+    }
+
+    @Test
+    void drziSeCesticky() {
+        FakeWorldView world = new FakeWorldView(FLOOR);
+        // Udusaná cestička běží o řadu vedle přímé spojnice start–cíl.
+        for (int x = 0; x <= 15; x++) {
+            world.set(x, FLOOR, 1, FakeWorldView.PATH);
+        }
+        Path path = new AStarPathfinder(world)
+                .findPath(new BlockPos(0, FEET, 0), new BlockPos(15, FEET, 0), 0);
+
+        assertTrue(path.complete());
+        // Preference: většina cesty má vést po cestičce (z = 1), ne trávou (z = 0).
+        long onPath = path.waypoints().stream().filter(p -> p.z() == 1).count();
+        assertTrue(onPath >= 10, "cesta má držet cestičku, po ní šlo jen "
+                + onPath + " waypointů: " + path.waypoints());
+    }
+
+    @Test
+    void cestickaNestojiZaVelkouZajizdku() {
+        FakeWorldView world = new FakeWorldView(FLOOR);
+        // Stejná cestička, ale daleko stranou – přirážka ~10 % za krok mimo
+        // cestu nesmí ospravedlnit zajížďku o šest řad tam a zpět.
+        for (int x = 0; x <= 15; x++) {
+            world.set(x, FLOOR, 6, FakeWorldView.PATH);
+        }
+        Path path = new AStarPathfinder(world)
+                .findPath(new BlockPos(0, FEET, 0), new BlockPos(15, FEET, 0), 0);
+
+        assertTrue(path.complete());
+        assertTrue(path.waypoints().stream().allMatch(p -> p.z() == 0),
+                "vzdálená cestička nemá cestu přitáhnout: " + path.waypoints());
+    }
 }

@@ -17,6 +17,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Predicate;
+import dev.botalive.core.pathfinding.PathGoal;
 
 /**
  * Ochočování zvířat – vanilla taming mechaniky.
@@ -136,7 +137,7 @@ public final class TameGoal extends AbstractGoal {
                 Vec3 pos = animal.get().position();
                 ctx.humanizer().lookAt(ctx.position().add(0, 1.62, 0), pos.add(0, 0.6, 0));
                 if (pos.distanceSquared(ctx.position()) > 2.2 * 2.2) {
-                    ctx.navigator().navigateTo(ctx.position(), pos.toBlockPos());
+                    ctx.navigator().navigateTo(ctx.position(), PathGoal.near(pos.toBlockPos(), 1));
                     if (!ctx.navigator().navigating()) {
                         finish(ctx, 1200);
                     }

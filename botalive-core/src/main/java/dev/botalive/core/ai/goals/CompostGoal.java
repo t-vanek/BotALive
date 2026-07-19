@@ -6,6 +6,7 @@ import dev.botalive.core.ai.BotContext;
 import dev.botalive.core.util.BlockPos;
 import org.bukkit.Material;
 import org.geysermc.mcprotocollib.protocol.data.game.entity.object.Direction;
+import dev.botalive.core.pathfinding.PathGoal;
 
 /**
  * Kompostování přebytků – ze semínek a sazenic je hnojivo.
@@ -98,7 +99,7 @@ public final class CompostGoal extends AbstractGoal {
             }
             case GO -> {
                 if (composter.center().distanceSquared(ctx.position()) > 3.0 * 3.0) {
-                    ctx.navigator().navigateTo(ctx.position(), composter);
+                    ctx.navigator().navigateTo(ctx.position(), PathGoal.near(composter, 2));
                     if (!ctx.navigator().navigating()) {
                         cooldownTicks = 1200;
                         phase = Phase.DONE;

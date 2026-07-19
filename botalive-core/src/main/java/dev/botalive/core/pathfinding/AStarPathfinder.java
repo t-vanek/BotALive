@@ -68,6 +68,17 @@ public final class AStarPathfinder {
     private static final int COST_NEAR_HAZARD = 60;
     /** Přirážka za pomalý povrch (soul sand, med) – vyplatí se obejít. */
     private static final int COST_SLOW_SURFACE = 15;
+    /**
+     * Přirážka za šlapání terénu HNED VEDLE cestového povrchu (udusaná
+     * cestička, štěrk, prkna). Preference cestiček je schválně dvakrát krotká:
+     * (1) cesta nedostává slevu, okolí přirážku – minimální cena kroku zůstává
+     * {@link #COST_STRAIGHT} a oktilová heuristika je dál přípustná;
+     * (2) platí se jen s cestičkou v okolí 1 bloku – daleko od cest se ceny
+     * nemění vůbec, takže vzdálené trasy nezdraží a hledání neexpanduje víc
+     * uzlů (globální přirážka rozvolňovala heuristiku o ~10 % všude).
+     * Efekt: bot jdoucí podél cestičky na ni uhne, přes louku jde volně.
+     */
+    private static final int COST_OFF_PATH = 1;
     /** Přirážka za svislý záběr při plavání (stoupání je dřina). */
     private static final int COST_SWIM_VERTICAL = 6;
     /**
@@ -982,14 +993,25 @@ public final class AStarPathfinder {
             if (support.speedFactor() < 0.99) {
                 penalty += COST_SLOW_SURFACE;
             }
-            // Hazard v okolí 1 bloku → vysoká penalizace (bot se drží dál od lávy).
+            // Hazard v okolí 1 bloku → vysoká penalizace (bot se drží dál od
+            // lávy). Stejný sken zadarmo sbírá i cestový povrch v okolí pro
+            // preferenci cestiček.
+            boolean pathNearby = support.pathSurface();
             for (int dx = -1; dx <= 1; dx++) {
                 for (int dz = -1; dz <= 1; dz++) {
-                    if (traits(feet.offset(dx, 0, dz)).hazard()
-                            || traits(feet.offset(dx, -1, dz)).hazard()) {
+                    BlockTraits at = traits(feet.offset(dx, 0, dz));
+                    BlockTraits below = traits(feet.offset(dx, -1, dz));
+                    if (at.hazard() || below.hazard()) {
                         return penalty + costNearHazard;
                     }
+                    pathNearby |= at.pathSurface() || below.pathSurface();
                 }
+            }
+            // Preference cestiček: šlapat terén HNED VEDLE cestového povrchu
+            // nese drobnou přirážku – bot jdoucí podél cestičky na ni uhne.
+            // Daleko od cest se ceny nemění (přípustnost i rozpočty hledání).
+            if (pathNearby && !support.pathSurface()) {
+                penalty += COST_OFF_PATH;
             }
             return penalty;
         }

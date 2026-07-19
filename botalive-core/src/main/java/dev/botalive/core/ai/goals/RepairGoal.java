@@ -9,6 +9,7 @@ import org.bukkit.Material;
 import org.geysermc.mcprotocollib.protocol.data.game.entity.object.Direction;
 
 import java.util.concurrent.CompletableFuture;
+import dev.botalive.core.pathfinding.PathGoal;
 
 /**
  * Oprava opotřebených nástrojů u kovadliny.
@@ -104,7 +105,7 @@ public final class RepairGoal extends AbstractGoal {
             }
             case GO -> {
                 if (anvil.center().distanceSquared(ctx.position()) > 3.0 * 3.0) {
-                    ctx.navigator().navigateTo(ctx.position(), anvil);
+                    ctx.navigator().navigateTo(ctx.position(), PathGoal.near(anvil, 2));
                     if (!ctx.navigator().navigating()) {
                         cooldownTicks = 1200;
                         phase = Phase.DONE;

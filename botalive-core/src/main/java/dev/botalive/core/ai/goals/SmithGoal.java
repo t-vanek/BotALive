@@ -10,6 +10,7 @@ import org.bukkit.Material;
 import org.geysermc.mcprotocollib.protocol.data.game.entity.object.Direction;
 
 import java.util.concurrent.CompletableFuture;
+import dev.botalive.core.pathfinding.PathGoal;
 
 /**
  * Povýšení diamantové výbavy na netherit u kovářského stolu – vrchol
@@ -97,7 +98,7 @@ public final class SmithGoal extends AbstractGoal {
             }
             case GO -> {
                 if (table.center().distanceSquared(ctx.position()) > 3.0 * 3.0) {
-                    ctx.navigator().navigateTo(ctx.position(), table);
+                    ctx.navigator().navigateTo(ctx.position(), PathGoal.near(table, 2));
                     // navigating() je po navigateTo vždy true – nedojití
                     // hlídá časový rozpočet, ne stav navigátoru.
                     if (++goTicks > 600) {

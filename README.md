@@ -41,10 +41,14 @@ inventář a historii; po restartu serveru pokračuje tam, kde skončil.
   přímková segmentace krátká, a nenačteným terénem procházejí optimisticky
   (`pathfinding.far-corridor`). Cíl nemusí být jen blok: **predikáty**
   (okruh kolem bloku, útěk od hrozby, těžební hladina, nejbližší
-  dosažitelný z kandidátů) plánuje A* přímo. Styl cesty nese **povahu**:
+  dosažitelný z kandidátů) plánuje A* přímo – k peci, ponku, truhle či
+  rudě se chodí „do okruhu“ (na neprůchozí blok se dojít nedá a takový
+  cíl dřív pálil celý rozpočet uzlů). Styl cesty nese **povahu**:
   odvážný bot rokli přeskočí sprintem, opatrný ji obejde a drží větší
-  odstup od lávy, líný se vyhýbá šplhání. Diagnostika a metriky:
-  `/botalive path <bot>`.
+  odstup od lávy, líný se vyhýbá šplhání. A boti se drží **cestiček** –
+  šlapat trávu hned vedle udusané pěšiny, štěrku či prken nese drobnou
+  přirážku, takže cestičky, které si ve vesnici sami udusávají, opravdu
+  používají. Diagnostika a metriky: `/botalive path <bot>`.
 - **Lidský projev** – omezená rychlost otáčení hlavy s easingem a šumem, trvalá
   chyba míření, log-normální reakční latence, mikro-rozhlížení, pauzy,
   rozfázované ticky. Chat s přemýšlením, rychlostí psaní, překlepy (QWERTZ

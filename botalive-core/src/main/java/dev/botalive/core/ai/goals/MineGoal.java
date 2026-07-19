@@ -18,6 +18,7 @@ import java.util.Deque;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import dev.botalive.core.pathfinding.PathGoal;
 
 /**
  * Těžba s účelem – bot ví, co potřebuje, a umí se k tomu prokopat.
@@ -171,7 +172,7 @@ public final class MineGoal extends AbstractGoal {
                 travelTarget = null; // cesta se vleče – vzdát
                 cooldownTicks = 400;
             } else {
-                ctx.navigator().navigateTo(pos, travelTarget);
+                ctx.navigator().navigateTo(pos, PathGoal.near(travelTarget, 8));
                 if (!ctx.navigator().navigating()) {
                     travelTarget = null;
                     cooldownTicks = 400;
@@ -205,7 +206,7 @@ public final class MineGoal extends AbstractGoal {
         Vec3 pos = ctx.position();
         double distSq = targetBlock.center().add(0, 0.5, 0).distanceSquared(pos.add(0, 1.62, 0));
         if (distSq > 4.5 * 4.5) {
-            ctx.navigator().navigateTo(pos, targetBlock);
+            ctx.navigator().navigateTo(pos, PathGoal.near(targetBlock, 2));
             if (!ctx.navigator().navigating()) {
                 targetBlock = null; // nedosažitelné pěšky
             }

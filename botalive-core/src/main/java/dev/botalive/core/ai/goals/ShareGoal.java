@@ -10,6 +10,7 @@ import dev.botalive.core.inventory.InventoryHelper;
 import dev.botalive.core.util.Vec3;
 
 import java.util.Optional;
+import dev.botalive.core.pathfinding.PathGoal;
 
 /**
  * Sdílení přebytků – ochotný bot rozdává jídlo lidem kolem sebe.
@@ -119,7 +120,7 @@ public final class ShareGoal extends AbstractGoal {
                     finish(ctx); // utekl – nehonit přes půl mapy
                     return;
                 }
-                ctx.navigator().navigateTo(ctx.position(), targetPos.toBlockPos());
+                ctx.navigator().navigateTo(ctx.position(), PathGoal.near(targetPos.toBlockPos(), 2));
                 if (!ctx.navigator().navigating()) {
                     finish(ctx);
                 }

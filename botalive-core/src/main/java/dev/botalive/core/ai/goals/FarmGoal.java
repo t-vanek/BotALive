@@ -13,6 +13,7 @@ import org.bukkit.block.data.BlockData;
 import org.geysermc.mcprotocollib.protocol.data.game.entity.object.Direction;
 
 import java.util.Map;
+import dev.botalive.core.pathfinding.PathGoal;
 
 /**
  * Farmaření – sklizeň zralých plodin a přesazení.
@@ -97,7 +98,7 @@ public final class FarmGoal extends AbstractGoal {
             case GO -> {
                 double distSq = crop.center().distanceSquared(ctx.position());
                 if (distSq > 3.5 * 3.5) {
-                    ctx.navigator().navigateTo(ctx.position(), crop);
+                    ctx.navigator().navigateTo(ctx.position(), PathGoal.near(crop, 2));
                     if (!ctx.navigator().navigating()) {
                         phase = Phase.FIND; // nedosažitelné – hledat jinde
                     }

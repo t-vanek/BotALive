@@ -13,6 +13,7 @@ import org.geysermc.mcprotocollib.protocol.data.game.entity.object.Direction;
 
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import dev.botalive.core.pathfinding.PathGoal;
 
 /**
  * Očarovávání výbavy u enchantovacího stolu.
@@ -79,7 +80,7 @@ public final class EnchantGoal extends AbstractGoal {
             }
             case GO -> {
                 if (table.center().distanceSquared(ctx.position()) > 3.0 * 3.0) {
-                    ctx.navigator().navigateTo(ctx.position(), table);
+                    ctx.navigator().navigateTo(ctx.position(), PathGoal.near(table, 2));
                     if (!ctx.navigator().navigating()) {
                         finish(ctx, 2400);
                     }

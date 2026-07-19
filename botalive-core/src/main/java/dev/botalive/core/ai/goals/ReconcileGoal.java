@@ -14,6 +14,7 @@ import org.bukkit.Material;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import dev.botalive.core.pathfinding.PathGoal;
 
 /**
  * Usmíření – slušný zloděj nese oběti dar a prosí o odpuštění.
@@ -144,7 +145,7 @@ public final class ReconcileGoal extends AbstractGoal {
             phase = Phase.GIVE;
             return;
         }
-        ctx.navigator().navigateTo(ctx.position(), victimPos);
+        ctx.navigator().navigateTo(ctx.position(), PathGoal.near(victimPos, 2));
         if (!ctx.navigator().navigating()) {
             cooldownTicks = 2400;
             phase = Phase.DONE;

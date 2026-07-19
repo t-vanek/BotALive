@@ -804,3 +804,35 @@ kdykoli rozumná existuje, a tunel je pak JEDEN souvislý plán.
   (`premostiPropastPodlePlanu`). A při ladění pojistky vymyslel boční
   lávku o dráhu vedle lávového pruhu, kde pod oporami láva není –
   testy dostaly bedrockové mantinely a pojistka hloubkový sken.
+
+Hotovo ve fázi 25: preference cestiček (v2.3-G, poslední písmeno roadmapy
+pathfindingu v2) a migrace goalů na `near` cíle.
+
+- **Preference cestiček**: nový trait `BlockTraits.pathSurface` – udusaná
+  cestička (`DIRT_PATH`, DECORATE fáze ji lopatou vyrábí z trávy), štěrk
+  (vanilla vesnické silnice) a prkna (lávky, podlahy). Krok terénem HNED
+  VEDLE cestového povrchu nese přirážku +1, takže bot jdoucí podél
+  cestičky na ni uhne a vesnické pěšiny, které si boti sami udusávají,
+  se opravdu používají (zpětná vazba vesnice ↔ pathfinding). Návrh je
+  schválně dvakrát krotký: cesta nedostává slevu, okolí přirážku
+  (minimální cena kroku zůstává 10 → oktilová heuristika je dál
+  přípustná a trasy optimální), a daleko od cest se ceny nemění vůbec –
+  globální přirážka rozvolňovala heuristiku o ~10 % všude a bludišťový
+  benchmark (`PathfindingEfficiencyTest`) přestal stíhat uzlový rozpočet.
+  Sběr povrchu v okolí jede zadarmo v existujícím 3×3 hazard skenu
+  (nula nových dotazů do světa). Testy: cesta o řadu vedle přitáhne
+  (`drziSeCesticky`), vzdálená ne (`cestickaNestojiZaVelkouZajizdku`).
+- **Goaly chodí „do okruhu", ne „na blok"**: pec, ponk, kovadlina,
+  truhla, postel, kompostér, obohacovací stůl, ruda, plodina i cílové
+  entity (obchod, socializace, krocení, usmíření) migrovány
+  z `navigateTo(blok)` na `PathGoal.near(blok, r)` s poloměrem uvnitř
+  interakčního prahu goalu (vesměs r=2 pro prahy ~3, r=1 pro těsné
+  prahy 2,2–2,5). Důvod je výkonnostní i sémantický: cíl „přesně tento
+  blok" se u neprůchozího bloku (pec, truhla, ruda) nikdy nesplní –
+  A* pokaždé spálil celý uzlový rozpočet a vrátil částečnou cestu;
+  `near` končí vedle bloku za pár desítek expanzí
+  (`nearCilUNepruchozihoBlokuSetriRozpocet`). U pohyblivých cílů
+  (vesničan, zvíře, hráč) navíc `near` zapadá do drift throttlu
+  (`sameShape`) – replány se tlumí jako u followu. Kde je cíl záměrně
+  konkrétní pochozí buňka (rybářské stanoviště, stanoviště kopání,
+  sběr dropů pod nohama), zůstává blokový cíl.

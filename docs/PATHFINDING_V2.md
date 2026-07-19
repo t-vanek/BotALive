@@ -314,13 +314,30 @@ by vypadalo stroze), dva boti volí různé trasy = viditelná individualita.
 > lávových jezer zůstává záměrně reaktivnímu `BridgeTask`. Z roadmapy
 > zbývá jen v2.3-G (preference cestiček, vědomě odloženo kvůli
 > přípustnosti heuristiky). Detaily viz ARCHITECTURE.md, fáze 24.
+>
+> **Stav: v2.3-G implementováno – roadmapa v2 je kompletní.** Preference
+> cestiček: nový trait `BlockTraits.pathSurface` (udusaná cestička, štěrk,
+> prkna) a přirážka +1 za krok terénem HNED VEDLE cestového povrchu.
+> Obojí schválně krotce, aby heuristika zůstala přípustná a levná:
+> (1) cesta nedostává slevu, okolí přirážku – minimální cena kroku je
+> pořád 10; (2) daleko od cest se ceny nemění vůbec – globální varianta
+> přirážky rozvolňovala heuristiku o ~10 % všude a bludišťový benchmark
+> přestal stíhat uzlový rozpočet, lokální varianta sbírá povrch zadarmo
+> v existujícím 3×3 hazard skenu. Bot jdoucí podél cestičky na ni uhne;
+> přes louku jde volně. Navíc mimo písmena roadmapy: goaly s interakcí
+> u bloku (pec, ponk, kovadlina, truhla, postel, kompostér, ruda, cíl
+> cesty k dolu) migrovány z cíle „přesně tento blok" na `near(blok, r)`
+> s poloměrem uvnitř interakčního prahu – blokový cíl v neprůchozím
+> bloku se nikdy nesplní a pálil celý rozpočet uzlů při každém plánu
+> (`nearCilUNepruchozihoBlokuSetriRozpocet`). Detaily viz
+> ARCHITECTURE.md, fáze 25.
 
 | Fáze | Obsah | Náročnost | Riziko | Hlavní přínos |
 |---|---|---|---|---|
 | **v2.0 jádro** ✅ | A (memo, čas, cancel, tie-break, partial-best, konfig+metriky+debug) + B (throttle, splice, validace) | M | nízké | 5–10× levnější výpočty, konec replan bouří u followu, měřitelnost |
 | **v2.1 dálka** ✅ | C (region graf, koridory, optimistické UNKNOWN, prefetch navázaný na výpočet) | M–L | střední | kilometrové trasy bez slepých ramen a stop-and-go |
 | **v2.2 akce** ✅ | D (dig/place hrany za flagem, sjednocení s assist eskalací) ✅ + F (predikáty – lze i dřív, je nezávislé) ✅ | L | vyšší | tunely/mosty jako plán, plánovaný útěk, multi-target |
-| **v2.3 šmrnc** (E ✅ H ✅) | E (nové skoky) ✅ + G (silnice) + H (osobnost) ✅ | S | nízké | lidskost a individualita tras |
+| **v2.3 šmrnc** ✅ | E (nové skoky) ✅ + G (silnice) ✅ + H (osobnost) ✅ | S | nízké | lidskost a individualita tras |
 
 Pořadí není náhodné: **A je prerekvizita všeho** (bez metrik a levné smyčky
 se C ani D nedá odladit ani zaplatit), B je nejlepší poměr cena/užitek pro

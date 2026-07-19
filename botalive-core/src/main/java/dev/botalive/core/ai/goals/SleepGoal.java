@@ -9,6 +9,7 @@ import dev.botalive.core.world.WorldView;
 import org.geysermc.mcprotocollib.protocol.data.game.entity.object.Direction;
 
 import java.util.Map;
+import dev.botalive.core.pathfinding.PathGoal;
 
 /**
  * Spánek – v noci bot vyhledá postel a vyspí se.
@@ -78,7 +79,7 @@ public final class SleepGoal extends AbstractGoal {
             case GO -> {
                 double distSq = bed.center().distanceSquared(ctx.position());
                 if (distSq > 2.5 * 2.5) {
-                    ctx.navigator().navigateTo(ctx.position(), bed);
+                    ctx.navigator().navigateTo(ctx.position(), PathGoal.near(bed, 1));
                     if (!ctx.navigator().navigating()) {
                         phase = Phase.FIND;
                     }

@@ -60,6 +60,9 @@ import java.util.concurrent.ConcurrentHashMap;
  *                    se jí vyhýbá, fyzika v ní „vázne"
  * @param stepFriendly kolize tvoří schůdky ≤ 0.6 (schody) – výstup o celý blok
  *                     zvládne step-up fyzika bez skoku
+ * @param pathSurface  „cestový" povrch – udusaná cestička, štěrk, prkna;
+ *                     pathfinding chůzi mimo tyto povrchy mírně přirazí,
+ *                     takže boti viditelně drží vesnické cestičky
  * @param boxes       kolizní boxy v lokálních souřadnicích buňky, po šesticích
  *                    {@code minX,minY,minZ,maxX,maxY,maxZ}; prázdné pole = bez kolize
  */
@@ -79,6 +82,7 @@ public record BlockTraits(
         double slipperiness,
         boolean web,
         boolean stepFriendly,
+        boolean pathSurface,
         double[] boxes
 ) {
 
@@ -119,7 +123,7 @@ public record BlockTraits(
                                      boolean door, boolean hazard, boolean openable, boolean softLanding,
                                      boolean powderSnow) {
         return new BlockTraits(passable, solid, liquid, climbable, door, hazard, openable, softLanding,
-                powderSnow, false, solid ? 1.0 : 0.0, 1.0, DEFAULT_SLIPPERINESS, false, false,
+                powderSnow, false, solid ? 1.0 : 0.0, 1.0, DEFAULT_SLIPPERINESS, false, false, false,
                 solid ? FULL_BOXES : NO_BOXES);
     }
 
@@ -127,7 +131,14 @@ public record BlockTraits(
     public BlockTraits withBoxes(double[] newBoxes) {
         return new BlockTraits(passable, solid, liquid, climbable, door, hazard, openable, softLanding,
                 powderSnow, portal, floorOf(newBoxes), speedFactor, slipperiness, web, stepFriendlyOf(newBoxes),
-                newBoxes);
+                pathSurface, newBoxes);
+    }
+
+    /** @return kopie označená jako „cestový" povrch (pro testy) */
+    public BlockTraits asPathSurface() {
+        return new BlockTraits(passable, solid, liquid, climbable, door, hazard, openable, softLanding,
+                powderSnow, portal, floorHeight, speedFactor, slipperiness, web, stepFriendly,
+                true, boxes);
     }
 
     /** @return {@code true} pokud blok nemá žádnou kolizi (tělo jím projde) */
@@ -233,13 +244,19 @@ public record BlockTraits(
         double speed = m == Material.SOUL_SAND || m == Material.HONEY_BLOCK ? 0.4 : 1.0;
         double slip = slipperinessOf(m);
 
+        // Cestové povrchy: udusaná cestička (DECORATE fáze vesnice ji lopatou
+        // vyrábí z trávy), štěrk (vanilla vesnické silnice) a prkna (lávky,
+        // mosty, podlahy). Chůze mimo ně nese v pathfindingu drobnou přirážku.
+        boolean pathSurface = m == Material.DIRT_PATH || m == Material.GRAVEL
+                || Tag.PLANKS.isTagged(m);
+
         double[] boxes = materialBoxes(m, solid, handOpenable);
         return new BlockTraits(passable, solid, liquid, climbable,
                 // Materiálová úroveň nezná otevřenost – dveře/vrata se berou jako
                 // zavřené (bot je před průchodem otevře; otevřený stav zjemní
                 // až computeState).
                 handOpenable, hazard, openable, softLanding, powderSnow, portal,
-                floorOf(boxes), speed, slip, web, stepFriendlyOf(boxes), boxes);
+                floorOf(boxes), speed, slip, web, stepFriendlyOf(boxes), pathSurface, boxes);
     }
 
     /** Kolizní boxy odhadnuté z materiálu (bez znalosti stavu). */
@@ -295,7 +312,7 @@ public record BlockTraits(
         return new BlockTraits(passable, base.solid(), liquid, base.climbable(), door,
                 base.hazard(), base.openable(), base.softLanding(), base.powderSnow(),
                 base.portal(), floor, base.speedFactor(), base.slipperiness(), base.web(),
-                stepFriendlyOf(boxes), boxes);
+                stepFriendlyOf(boxes), base.pathSurface(), boxes);
     }
 
     /** Kolizní boxy pro konkrétní stav – přesné z registrů serveru, jinak heuristika. */
