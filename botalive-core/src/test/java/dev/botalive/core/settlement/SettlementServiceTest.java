@@ -112,7 +112,37 @@ class SettlementServiceTest {
         var info = service.settlementOf(founder).orElseThrow();
         assertEquals(SettlementTier.VESNICE, info.tier());
         assertEquals(4, info.houses());
-        // Po studně už sídlo žádný projekt nepotřebuje (sýpka je fáze B2).
+        // Po studně sídlo se 4 domy nic dalšího nepotřebuje – sýpka je až
+        // od 8 domů (příprava města).
+        assertTrue(service.neededProject(founder).isEmpty());
+    }
+
+    @Test
+    void sypkaSeNabiziAzPoStudneAOsmiDomech() {
+        var village = foundVillage();
+        service.houseFinished(founder);
+        for (int i = 2; i <= 8; i++) {
+            UUID settler = new UUID(0, i);
+            var settlerView = view(settler, HOME_SITE.offset(30, 0, 0), 0.7, null,
+                    Map.of(founder, 0.6), Map.of(), Map.of());
+            assertTrue(service.join(village.id(), settlerView));
+            var slot = service.suggestPlots(village.id(), 1).getFirst();
+            assertTrue(service.claimPlot(village.id(), settler, slot));
+            service.houseFinished(settler);
+        }
+        // 8 domů bez studny → pořád se nabízí studna, ne sýpka.
+        assertEquals(SettlementService.ProjectKind.WELL,
+                service.neededProject(founder).orElseThrow().kind());
+        service.claimProject(village.id(), SettlementService.ProjectKind.WELL, founder);
+        service.projectFinished(village.id(), SettlementService.ProjectKind.WELL);
+        // Se studnou a 8 domy přichází na řadu sýpka.
+        assertEquals(SettlementService.ProjectKind.GRANARY,
+                service.neededProject(founder).orElseThrow().kind());
+        assertTrue(service.granaryOf(village.id()).isEmpty());
+        service.claimProject(village.id(), SettlementService.ProjectKind.GRANARY, founder);
+        service.projectFinished(village.id(), SettlementService.ProjectKind.GRANARY);
+        assertTrue(service.granaryOf(village.id()).isPresent(),
+                "hotová sýpka je dohledatelná pro normy sdílení");
         assertTrue(service.neededProject(founder).isEmpty());
     }
 

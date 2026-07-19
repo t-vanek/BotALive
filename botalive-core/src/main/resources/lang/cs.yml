@@ -279,6 +279,16 @@ phrases:
     - "tak, {name} má studnu. kdo nenosil kámen, nepije!"
     - "hotovo, studna stojí. pojďte se podívat na náves"
 
+  settlement-granary-start:
+    - "domů máme dost, {name} potřebuje sýpku na společné zásoby"
+    - "beru prkna a truhly, stavím sýpku pro {name:4}"
+    - "velká vesnice chce společnou špajzku – jdu na to"
+
+  settlement-granary-done:
+    - "sýpka stojí! zásoby {name:2} už nebudou po kapsách"
+    - "hotovo, {name} má sýpku. noste přebytky, ať přečkáme zimu"
+    - "sýpka hotová, kdo má hlad, ví kam jít"
+
   settlement-role-taken:
     - "u nás chyběl {name}, tak to beru já"
     - "vesnice potřebuje, aby tu byl {name} – hlásím se"

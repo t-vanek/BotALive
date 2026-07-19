@@ -186,8 +186,9 @@ public final class SettlementService {
 
     /** Druh společné stavby sídla. */
     public enum ProjectKind {
-        WELL
-        // GRANARY a MARKET_STALL přibudou ve fázích B2/D růstové roadmapy.
+        WELL,
+        GRANARY
+        // MARKET_STALL přibude ve fázi D růstové roadmapy.
     }
 
     /**
@@ -714,12 +715,11 @@ public final class SettlementService {
         if (settlement == null) {
             return Optional.empty();
         }
-        // Zatím jediný motor růstu: studna dělá z osady vesnici.
-        if (houses(settlement) < SettlementTier.VILLAGE_HOUSES
-                || projectDone(settlement, ProjectKind.WELL)) {
+        ProjectKind needed = nextProjectKind(settlement);
+        if (needed == null) {
             return Optional.empty();
         }
-        Project project = settlement.projects.get(ProjectKind.WELL);
+        Project project = settlement.projects.get(needed);
         if (project == null) {
             Integer index = freePlotIndex(settlement);
             if (index == null) {
@@ -727,9 +727,9 @@ public final class SettlementService {
             }
             BlockPos origin = PlotLayout.plotOrigin(settlement.center, index,
                     config.plotSpacing());
-            project = new Project(ProjectKind.WELL, index, origin,
+            project = new Project(needed, index, origin,
                     PlotLayout.facingToward(origin, settlement.center), false);
-            settlement.projects.put(ProjectKind.WELL, project);
+            settlement.projects.put(needed, project);
             settlement.unusablePlots.put(index, Long.MAX_VALUE);
             persistProject(settlement, project);
         }
@@ -737,6 +737,37 @@ public final class SettlementService {
             return Optional.empty(); // už na tom dělá někdo jiný
         }
         return Optional.of(projectInfo(settlement, project));
+    }
+
+    /**
+     * @return další společná stavba, kterou sídlo pro růst potřebuje:
+     *         studna dělá z osady vesnici, sýpka (od 8 domů) připravuje
+     *         město a otevírá sdílení jídla; {@code null} = nic netřeba
+     */
+    private ProjectKind nextProjectKind(Settlement settlement) {
+        int houses = houses(settlement);
+        if (houses >= SettlementTier.VILLAGE_HOUSES
+                && !projectDone(settlement, ProjectKind.WELL)) {
+            return ProjectKind.WELL;
+        }
+        if (houses >= SettlementTier.TOWN_HOUSES
+                && projectDone(settlement, ProjectKind.WELL)
+                && !projectDone(settlement, ProjectKind.GRANARY)) {
+            return ProjectKind.GRANARY;
+        }
+        return null;
+    }
+
+    /**
+     * @param settlementId sídlo
+     * @return origin dokončené sýpky – pro normy sdílení jídla (fáze C)
+     */
+    public synchronized Optional<BlockPos> granaryOf(long settlementId) {
+        Settlement settlement = settlements.get(settlementId);
+        Project granary = settlement == null
+                ? null : settlement.projects.get(ProjectKind.GRANARY);
+        return granary != null && granary.done
+                ? Optional.of(granary.origin) : Optional.empty();
     }
 
     /** @return stavitel projektu, nebo {@code null} po expiraci zamluvení */
