@@ -262,6 +262,43 @@ phrases:
     - "jdu bydlet za {name:7}, tady už to není ono"
     - "stěhuju se, kámoši jsou jinde"
     - "{name} teď bydlí jinde, tak jdu taky"
+
+  settlement-village-up:
+    - "z naší osady je už opravdová vesnice! {name} roste"
+    - "tak už nás tu bydlí dost, {name} je vesnice jak se patří"
+    - "koukám, {name} se nám rozrostla. tomu už říkám vesnice!"
+    - "další dům hotový a {name} už není jen pár chalup"
+
+  settlement-well-start:
+    - "jdu postavit studnu na návsi, {name} si ji zaslouží"
+    - "beru kameny, {name} potřebuje pořádnou studnu"
+    - "domů už máme dost, teď studnu pro {name:4}"
+
+  settlement-well-done:
+    - "studna hotová! náves {name:2} vypadá konečně k světu"
+    - "tak, {name} má studnu. kdo nenosil kámen, nepije!"
+    - "hotovo, studna stojí. pojďte se podívat na náves"
+
+  settlement-granary-start:
+    - "domů máme dost, {name} potřebuje sýpku na společné zásoby"
+    - "beru prkna a truhly, stavím sýpku pro {name:4}"
+    - "velká vesnice chce společnou špajzku – jdu na to"
+
+  settlement-granary-done:
+    - "sýpka stojí! zásoby {name:2} už nebudou po kapsách"
+    - "hotovo, {name} má sýpku. noste přebytky, ať přečkáme zimu"
+    - "sýpka hotová, kdo má hlad, ví kam jít"
+
+  settlement-role-taken:
+    - "u nás chyběl {name}, tak to beru já"
+    - "vesnice potřebuje, aby tu byl {name} – hlásím se"
+    - "měním řemeslo, {name} tady prostě scházel"
+
+  camp-setup:
+    - "domů je to daleko, rozdělám si tady oheň a přečkám noc"
+    - "na noční pochod to nevidím, táborím tady"
+    - "tak dneska pod širákem. aspoň bude ohýnek"
+    - "tma jak v pytli a domov v nedohlednu – stavím tábor"
     - "kde je {name}, tam je i moje parcela"
     - "balím to tady, jdu za kamarády"
   recover-run:

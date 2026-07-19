@@ -54,6 +54,20 @@ public final class SettlementAnnouncer {
         sayWithName(chat, PhraseCategory.SETTLEMENT_FOUNDED, settlementName);
     }
 
+    /**
+     * Ohlásí povýšení sídla na nový stupeň (odvozený z dostavěných domů).
+     *
+     * @param chat           chat bota, jehož dům povýšení dovršil
+     * @param tier           nově dosažený stupeň
+     * @param settlementName jméno sídla
+     */
+    public static void sayTierUp(ChatEngine chat, SettlementTier tier, String settlementName) {
+        if (tier == SettlementTier.VESNICE) {
+            sayWithName(chat, PhraseCategory.SETTLEMENT_VILLAGE_UP, settlementName);
+        }
+        // MĚSTO ohlásí fáze B růstové roadmapy spolu s infrastrukturou.
+    }
+
     private static void sayWithName(ChatEngine chat, PhraseCategory category, String name) {
         if (name != null) {
             chat.sayFrom(category, name);

@@ -175,10 +175,12 @@ public final class PvpGoal extends AbstractGoal {
         if (pvpMove == null) {
             return; // přiblížení/ústup řídí navigace
         }
-        if (ctx.dimension() == dev.botalive.core.world.WorldDimension.END) {
-            pvpMove = dev.botalive.core.physics.EdgeGuard.apply(
-                    ctx.worldView(), ctx.position(), pvpMove);
-        }
+        // End chrání každou hranu (void), overworld jen smrtící pády.
+        pvpMove = ctx.dimension() == dev.botalive.core.world.WorldDimension.END
+                ? dev.botalive.core.physics.EdgeGuard.apply(
+                        ctx.worldView(), ctx.position(), pvpMove)
+                : dev.botalive.core.physics.EdgeGuard.applyLethal(
+                        ctx.worldView(), ctx.position(), pvpMove);
         ctx.requestMove(pvpMove);
     }
 

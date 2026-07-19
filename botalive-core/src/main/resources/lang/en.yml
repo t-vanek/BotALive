@@ -248,6 +248,43 @@ phrases:
     - "relocating, my friends live elsewhere"
     - "{name} lives elsewhere now, so I'm going too"
     - "where {name} is, that's where my plot is"
+
+  settlement-village-up:
+    - "our little hamlet is a proper village now! {name} is growing"
+    - "enough of us live here now, {name} is a real village"
+    - "look at {name} grow. that's a village if I ever saw one!"
+    - "one more house done and {name} is no longer just a few shacks"
+
+  settlement-well-start:
+    - "off to build a well on the square, {name} deserves one"
+    - "grabbing stone, {name} needs a proper well"
+    - "we have enough houses, time for a well in {name}"
+
+  settlement-well-done:
+    - "well's done! the square in {name} finally looks like something"
+    - "there, {name} has a well. no stone carried, no water!"
+    - "finished, the well stands. come see the square"
+
+  settlement-granary-start:
+    - "houses we have, {name} needs a granary for shared stores"
+    - "grabbing planks and chests, building a granary for {name}"
+    - "a big village wants a common pantry – on it"
+
+  settlement-granary-done:
+    - "granary's up! the stores of {name} won't live in pockets anymore"
+    - "done, {name} has a granary. bring your surplus, winter is coming"
+    - "granary finished, the hungry know where to go now"
+
+  settlement-role-taken:
+    - "nobody here worked as {name}, so I'm taking it up"
+    - "the village needs a {name} around – that's me now"
+    - "changing trades, we simply had no {name} here"
+
+  camp-setup:
+    - "home is far away, I'll light a fire here and wait out the night"
+    - "not marching through the night, making camp here"
+    - "sleeping rough tonight then. at least there'll be a fire"
+    - "pitch dark and home is nowhere near – setting up camp"
     - "packing up, following my friends"
   recover-run:
     - "my stuff! hope it's still there"

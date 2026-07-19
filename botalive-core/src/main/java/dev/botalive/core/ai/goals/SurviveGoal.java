@@ -97,9 +97,12 @@ public final class SurviveGoal extends AbstractGoal {
                 // slepá zatáčka podél hrany umí vrátit bota k hrozbě.
                 Vec3 away = pos.sub(threatPos).horizontal().normalized();
                 MoveInput flee = MoveInput.of(away, true, ctx.onGround() && ctx.rng().chance(0.2));
-                if (ctx.dimension() == dev.botalive.core.world.WorldDimension.END) {
-                    flee = dev.botalive.core.physics.EdgeGuard.apply(ctx.worldView(), pos, flee);
-                }
+                // End chrání každou hranu; overworld jen smrtící pády – slepá
+                // zatáčka podél malé hrany by bota vracela k hrozbě, ale útěk
+                // do propasti/lávy je horší než hrozba za zády.
+                flee = ctx.dimension() == dev.botalive.core.world.WorldDimension.END
+                        ? dev.botalive.core.physics.EdgeGuard.apply(ctx.worldView(), pos, flee)
+                        : dev.botalive.core.physics.EdgeGuard.applyLethal(ctx.worldView(), pos, flee);
                 ctx.requestMove(flee);
                 if (flee.direction().horizontalLength() > 1.0E-4) {
                     ctx.humanizer().lookAlong(flee.direction());

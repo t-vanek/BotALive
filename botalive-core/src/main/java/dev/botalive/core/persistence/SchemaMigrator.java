@@ -161,6 +161,37 @@ public final class SchemaMigrator {
                         """,
                         "CREATE INDEX IF NOT EXISTS idx_ba_settlement_members_sid "
                                 + "ON ba_settlement_members(settlement_id)"
+                ),
+                // v4 – růst osad: dostavěné domy členů (substance pro odvození
+                // stupně sídla) a poslední ohlášený stupeň (potlačí opakované
+                // hlášky po restartu).
+                List.of(
+                        "ALTER TABLE ba_settlement_members "
+                                + "ADD COLUMN house_done INTEGER NOT NULL DEFAULT 0",
+                        "ALTER TABLE ba_settlements ADD COLUMN announced_tier TEXT",
+                        // Backfill existujících světů: zabraná parcela ≈ stojící
+                        // dům (rozestavěný se stejně dostaví a znovu ohlásí).
+                        // Bez toho by zavedené vesnice startovaly na „domů: 0".
+                        "UPDATE ba_settlement_members SET house_done = 1 "
+                                + "WHERE plot_x IS NOT NULL"
+                ),
+                // v5 – společné stavby sídel (studna, později sýpka/tržiště).
+                // Stavitel se nepersistuje: restart uvolní rozdělaný projekt
+                // dalšímu zájemci (fyzická stavba je autorita, plán jen cache).
+                List.of(
+                        """
+                        CREATE TABLE IF NOT EXISTS ba_settlement_projects (
+                            settlement_id BIGINT NOT NULL,
+                            kind TEXT NOT NULL,
+                            plot_index INTEGER NOT NULL,
+                            x INTEGER NOT NULL,
+                            y INTEGER NOT NULL,
+                            z INTEGER NOT NULL,
+                            facing TEXT NOT NULL,
+                            done INTEGER NOT NULL DEFAULT 0,
+                            PRIMARY KEY (settlement_id, kind)
+                        )
+                        """
                 )
         );
     }

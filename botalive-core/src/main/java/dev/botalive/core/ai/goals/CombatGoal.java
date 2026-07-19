@@ -121,10 +121,13 @@ public final class CombatGoal extends AbstractGoal {
         if (combatMove == null) {
             return; // přiblížení/ústup řídí navigace
         }
-        if (ctx.dimension() == dev.botalive.core.world.WorldDimension.END) {
-            combatMove = dev.botalive.core.physics.EdgeGuard.apply(
-                    ctx.worldView(), ctx.position(), combatMove);
-        }
+        // End chrání každou hranu (void), overworld jen smrtící pády – malé
+        // seskoky ke strafingu patří (fáze 18 vs. provozní pády v jeskyních).
+        combatMove = ctx.dimension() == dev.botalive.core.world.WorldDimension.END
+                ? dev.botalive.core.physics.EdgeGuard.apply(
+                        ctx.worldView(), ctx.position(), combatMove)
+                : dev.botalive.core.physics.EdgeGuard.applyLethal(
+                        ctx.worldView(), ctx.position(), combatMove);
         ctx.requestMove(combatMove);
     }
 

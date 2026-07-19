@@ -532,6 +532,35 @@ class AStarPathfinderTest {
     }
 
     @Test
+    void dlouhyZatopenyTunelSeOdmita() {
+        FakeWorldView world = new FakeWorldView(FLOOR);
+        // Uzavřený koridor, uvnitř masiv s jedinou cestou: plně potopená
+        // trubka délky 14 (> dechový rozpočet 12 buněk). Plán skrz je
+        // rozsudek utopením – musí se odmítnout (provozní nález: bot utonul
+        // v aquiferu bez vzduchové kapsy do 16 bloků). Krátký tunel
+        // (6, simulační scénář) dál prochází.
+        for (int x = -1; x <= 18; x++) {
+            world.wall(x, FEET, FEET + 2, -1);
+            world.wall(x, FEET, FEET + 2, 1);
+        }
+        for (int z = -1; z <= 1; z++) {
+            world.wall(-1, FEET, FEET + 2, z);
+            world.wall(18, FEET, FEET + 2, z);
+        }
+        for (int x = 2; x <= 15; x++) {
+            world.wall(x, FEET, FEET + 2, 0);
+            world.set(x, FEET, 0, FakeWorldView.WATER);
+        }
+        Path path = new AStarPathfinder(world)
+                .findPath(new BlockPos(0, FEET, 0), new BlockPos(17, FEET, 0), 0);
+
+        assertTrue(!path.complete(),
+                "plán skrz 14 potopených buněk nesmí být kompletní: " + path.waypoints());
+        assertTrue(path.waypoints().stream().allMatch(p -> p.x() <= 2),
+                "cesta nesmí vést potopenou trubkou: " + path.waypoints());
+    }
+
+    @Test
     void pomalemuPovrchuSeVyhne() {
         FakeWorldView world = new FakeWorldView(FLOOR);
         // Soul sand v podlaze přímo v lajně – úkrok o buňku vedle je levnější

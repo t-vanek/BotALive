@@ -68,6 +68,27 @@ public enum PhraseCategory {
     SETTLEMENT_SPLINTER,
     /** Stěhování za kamarádem do jiné vesnice ({name} = kamarád). */
     SETTLEMENT_FOLLOW,
+
+    /** Sídlo dorostlo na vesnici ({@code {name}} = jméno sídla). */
+    SETTLEMENT_VILLAGE_UP,
+
+    /** Bot začíná stavět studnu sídla ({@code {name}} = jméno sídla). */
+    SETTLEMENT_WELL_START,
+
+    /** Studna sídla dokončena ({@code {name}} = jméno sídla). */
+    SETTLEMENT_WELL_DONE,
+
+    /** Bot začíná stavět sýpku sídla ({@code {name}} = jméno sídla). */
+    SETTLEMENT_GRANARY_START,
+
+    /** Sýpka sídla dokončena ({@code {name}} = jméno sídla). */
+    SETTLEMENT_GRANARY_DONE,
+
+    /** Nový člen převzal chybějící řemeslo ({@code {name}} = název role). */
+    SETTLEMENT_ROLE_TAKEN,
+
+    /** Bot daleko od domova si na noc rozdělává tábor (bez placeholderu). */
+    CAMP_SETUP,
     /** Běh pro věci po smrti – vyrážím. */
     RECOVER_RUN,
     /** Věci po smrti zachráněné. */

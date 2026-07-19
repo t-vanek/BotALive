@@ -292,6 +292,14 @@ public final class BuildHouseGoal extends AbstractGoal {
             }
             dev.botalive.core.settlement.SettlementAnnouncer.sayJoined(ctx.chat(),
                     plan.settlementName());
+            // Univerzál převezme řemeslo, které v sídle chybí (fáze C).
+            if (bot.role() == dev.botalive.api.role.BotRole.NONE) {
+                settlements.missingCoreRole(settlementId).ifPresent(needed -> {
+                    bot.role(needed);
+                    ctx.chat().sayFrom(dev.botalive.core.chat.PhraseCategory
+                            .SETTLEMENT_ROLE_TAKEN, needed.displayName());
+                });
+            }
             plan = new SettlementService.HomePlan(SettlementService.HomePlan.Kind.MEMBER,
                     settlementId, plan.settlementName(), null);
         }
@@ -807,6 +815,14 @@ public final class BuildHouseGoal extends AbstractGoal {
             ctx.chat().say(settlementName == null
                     ? "hotovo! mam vlastni dum :)"
                     : "hotovo! mam dum v " + settlementName + " :)");
+        }
+        // Dostavěný dům je substance sídla – může ho povýšit (osada→vesnice).
+        if (settlements != null) {
+            settlements.houseFinished(bot.id()).ifPresent(tier ->
+                    dev.botalive.core.settlement.SettlementAnnouncer.sayTierUp(ctx.chat(),
+                            tier, settlements.settlementOf(bot.id())
+                                    .map(SettlementService.SettlementInfo::name)
+                                    .orElse(settlementName)));
         }
         ctx.gainExperience(dev.botalive.core.personality.PersonalityEvolution
                 .BotExperience.HOUSE_BUILT);

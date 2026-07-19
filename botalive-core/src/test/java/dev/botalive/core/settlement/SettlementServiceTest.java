@@ -62,6 +62,157 @@ class SettlementServiceTest {
         return info.get();
     }
 
+    // ------------------------------------------------------------- růst sídla
+
+    /** Postaví osadu se 4 dostavěnými domy (zakladatel + 3 osadníci). */
+    private SettlementService.SettlementInfo villageWithFourHouses() {
+        var village = foundVillage();
+        service.houseFinished(founder);
+        UUID[] settlers = {joiner, third, new UUID(0, 4)};
+        for (UUID settler : settlers) {
+            var settlerView = view(settler, HOME_SITE.offset(30, 0, 0), 0.7, null,
+                    Map.of(founder, 0.6), Map.of(), Map.of());
+            assertTrue(service.join(village.id(), settlerView));
+            var slot = service.suggestPlots(village.id(), 1).getFirst();
+            assertTrue(service.claimPlot(village.id(), settler, slot));
+            assertTrue(service.houseFinished(settler).isEmpty(),
+                    "bez studny domy samy nepovyšují");
+        }
+        return village;
+    }
+
+    @Test
+    void studnaDovrsiVesnici() {
+        var village = villageWithFourHouses();
+        // Čtyři domy bez studny = pořád osada; sídlo ale už studnu nabízí.
+        assertEquals(SettlementTier.OSADA,
+                service.settlementOf(founder).orElseThrow().tier());
+        var project = service.neededProject(founder);
+        assertTrue(project.isPresent());
+        assertEquals(SettlementService.ProjectKind.WELL, project.get().kind());
+
+        // První bere; druhému se projekt nenabízí, dokud ho stavitel drží.
+        assertTrue(service.claimProject(village.id(),
+                SettlementService.ProjectKind.WELL, founder));
+        assertTrue(service.neededProject(joiner).isEmpty(),
+                "rozdělaný projekt cizího stavitele se nenabízí");
+        assertFalse(service.claimProject(village.id(),
+                SettlementService.ProjectKind.WELL, joiner));
+
+        // Uvolnění (přerušený cíl) → převezme soused; dokončení povyšuje.
+        service.releaseProject(village.id(), SettlementService.ProjectKind.WELL, founder);
+        assertTrue(service.claimProject(village.id(),
+                SettlementService.ProjectKind.WELL, joiner));
+        assertEquals(Optional.of(SettlementTier.VESNICE),
+                service.projectFinished(village.id(), SettlementService.ProjectKind.WELL),
+                "hotová studna dělá z osady vesnici");
+        // Jednorázovost hlášky i dokončení.
+        assertTrue(service.projectFinished(village.id(),
+                SettlementService.ProjectKind.WELL).isEmpty());
+        var info = service.settlementOf(founder).orElseThrow();
+        assertEquals(SettlementTier.VESNICE, info.tier());
+        assertEquals(4, info.houses());
+        // Po studně sídlo se 4 domy nic dalšího nepotřebuje – sýpka je až
+        // od 8 domů (příprava města).
+        assertTrue(service.neededProject(founder).isEmpty());
+    }
+
+    @Test
+    void sypkaSeNabiziAzPoStudneAOsmiDomech() {
+        var village = foundVillage();
+        service.houseFinished(founder);
+        for (int i = 2; i <= 8; i++) {
+            UUID settler = new UUID(0, i);
+            var settlerView = view(settler, HOME_SITE.offset(30, 0, 0), 0.7, null,
+                    Map.of(founder, 0.6), Map.of(), Map.of());
+            assertTrue(service.join(village.id(), settlerView));
+            var slot = service.suggestPlots(village.id(), 1).getFirst();
+            assertTrue(service.claimPlot(village.id(), settler, slot));
+            service.houseFinished(settler);
+        }
+        // 8 domů bez studny → pořád se nabízí studna, ne sýpka.
+        assertEquals(SettlementService.ProjectKind.WELL,
+                service.neededProject(founder).orElseThrow().kind());
+        service.claimProject(village.id(), SettlementService.ProjectKind.WELL, founder);
+        service.projectFinished(village.id(), SettlementService.ProjectKind.WELL);
+        // Se studnou a 8 domy přichází na řadu sýpka.
+        assertEquals(SettlementService.ProjectKind.GRANARY,
+                service.neededProject(founder).orElseThrow().kind());
+        assertTrue(service.granaryOf(village.id()).isEmpty());
+        service.claimProject(village.id(), SettlementService.ProjectKind.GRANARY, founder);
+        service.projectFinished(village.id(), SettlementService.ProjectKind.GRANARY);
+        assertTrue(service.granaryOf(village.id()).isPresent(),
+                "hotová sýpka je dohledatelná pro normy sdílení");
+        assertTrue(service.neededProject(founder).isEmpty());
+    }
+
+    @Test
+    void starostaJeNejzakotvenejsiClen() {
+        var village = foundVillage();
+        var joinView = view(joiner, HOME_SITE.offset(30, 0, 0), 0.7, null,
+                Map.of(founder, 0.6), Map.of(), Map.of());
+        assertTrue(service.join(village.id(), joinView));
+        // Bez dat o vazbách je starostou zakladatel.
+        assertEquals(founder, service.settlementOf(founder).orElseThrow().mayor());
+        // Zakotvenost ze sousedských úvah: joiner má silnější vazby.
+        service.noteTies(view(founder, HOME_SITE, 0.7, HOME_SITE,
+                Map.of(joiner, 0.3), Map.of(), Map.of()));
+        service.noteTies(view(joiner, HOME_SITE, 0.7, null,
+                Map.of(founder, 0.8), Map.of(), Map.of()));
+        assertEquals(joiner, service.settlementOf(founder).orElseThrow().mayor(),
+                "starostou je člen s nejsilnějšími vazbami na sousedy");
+    }
+
+    @Test
+    void chybejiciRemesloSeNabiziVPoradiNalehavosti() {
+        var village = foundVillage();
+        // Nikdo nic nedělá → nejnaléhavější je farmář.
+        assertEquals(Optional.of(dev.botalive.api.role.BotRole.FARMER),
+                service.missingCoreRole(village.id(),
+                        id -> dev.botalive.api.role.BotRole.NONE));
+        // Farmář pokrytý zakladatelem → další v řadě je lovec.
+        assertEquals(Optional.of(dev.botalive.api.role.BotRole.HUNTER),
+                service.missingCoreRole(village.id(),
+                        id -> id.equals(founder)
+                                ? dev.botalive.api.role.BotRole.FARMER
+                                : dev.botalive.api.role.BotRole.NONE));
+    }
+
+    @Test
+    void pokryteSidloRemesloNenabizi() {
+        var village = villageWithFourHouses();
+        Map<UUID, dev.botalive.api.role.BotRole> roles = Map.of(
+                founder, dev.botalive.api.role.BotRole.FARMER,
+                joiner, dev.botalive.api.role.BotRole.HUNTER,
+                third, dev.botalive.api.role.BotRole.BLACKSMITH,
+                new UUID(0, 4), dev.botalive.api.role.BotRole.BUILDER);
+        assertEquals(Optional.empty(),
+                service.missingCoreRole(village.id(),
+                        id -> roles.getOrDefault(id, dev.botalive.api.role.BotRole.NONE)));
+    }
+
+    @Test
+    void parcelaProjektuSeDomumNenabizi() {
+        var village = villageWithFourHouses();
+        var project = service.neededProject(founder).orElseThrow();
+        for (var slot : service.suggestPlots(village.id(), 50)) {
+            assertFalse(slot.origin().equals(project.origin()),
+                    "parcela studny nesmí být nabídnuta na dům");
+        }
+    }
+
+    @Test
+    void uvolneniParcelySnizujeSubstanci() {
+        foundVillage();
+        service.houseFinished(founder);
+        assertEquals(1, service.settlementOf(founder).orElseThrow().houses());
+        // Dům zanikl (zatopený, zbořený) – parcela se vrací, substance klesá,
+        // stupeň se tiše přepočítá (zánik se neslaví hláškou).
+        service.releasePlot(founder);
+        assertEquals(0, service.settlementOf(founder).orElseThrow().houses());
+        assertEquals(SettlementTier.OSADA, service.settlementOf(founder).orElseThrow().tier());
+    }
+
     // ------------------------------------------------------------- planHome
 
     @Test

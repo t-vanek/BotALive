@@ -23,8 +23,14 @@ public final class LiquidReflex {
 
     /** Poloměr hledání bezpečného bloku při úniku z lávy. */
     private static final int ESCAPE_RADIUS = 5;
-    /** Poloměr hledání vzduchové kapsy při docházejícím dechu. */
-    private static final int AIR_RADIUS = 8;
+    /**
+     * Poloměr hledání vzduchové kapsy při docházejícím dechu. Vzduch stačí
+     * na ~15 bloků plavání – 8 nechávalo boty topit se v kapsách, jejichž
+     * východ byl kousek za hranicí (utopení v zatopené jeskyni na y=52).
+     */
+    private static final int AIR_RADIUS = 16;
+    /** Strop navštívených buněk BFS – zapečetěný aquifer nesmí semlít tick. */
+    private static final int AIR_BFS_LIMIT = 3000;
     /** Od kolika ticků pod hladinou se bot začne bát o dech (vanilla ~300). */
     private static final int LOW_AIR_TICKS = 150;
     private static final double EPS = 1.0E-4;
@@ -99,7 +105,7 @@ public final class LiquidReflex {
         java.util.HashSet<Long> visited = new java.util.HashSet<>();
         queue.add(feet);
         visited.add(feet.asLong());
-        while (!queue.isEmpty()) {
+        while (!queue.isEmpty() && visited.size() < AIR_BFS_LIMIT) {
             BlockPos cell = queue.poll();
             if (breathable(world, cell) && !cell.equals(feet)) {
                 return cell;

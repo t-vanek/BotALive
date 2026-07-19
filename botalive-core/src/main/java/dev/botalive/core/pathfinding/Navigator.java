@@ -119,6 +119,37 @@ public final class Navigator {
     private boolean assistNeeded;
     private int assistCycles;
 
+    /** První backoff nedosažitelného cíle (ms); s dalšími selháními se zdvojnásobuje. */
+    private static final long UNREACHABLE_BASE_MS = 30_000L;
+    /** Strop backoffu nedosažitelného cíle (ms). */
+    private static final long UNREACHABLE_MAX_MS = 300_000L;
+    /** Přesun bota (bloky²), který nedosažitelnost maže – z jiného místa cesta být může. */
+    private static final double UNREACHABLE_RESET_SQ = 16 * 16;
+
+    /**
+     * Cíle, ke kterým se opakovaně nepodařilo najít cestu (kotva → backoff).
+     * Bez toho jeskynní bot s povrchovým cílem mele prázdné A* výpočty
+     * donekonečna – v provozu 44 % všech výpočtů prázdných, 24 % timeout.
+     * Tick-confined per bot, bez zámků.
+     */
+    private final java.util.Map<Long, Unreachable> unreachable = new java.util.HashMap<>();
+
+    /** Záznam marného cíle. */
+    private static final class Unreachable {
+        int failures;
+        long retryAt;
+        BlockPos origin;
+    }
+
+    /**
+     * Běžecký pás částečných cest: partial k nedosažitelnému cíli (bot hluboko
+     * pod povrchovým domovem) „dojede" po pár blocích a doplánuje se znovu,
+     * donekonečna – bez definitivního vzdání, takže backoff sám nezabere.
+     * Tři po sobě jdoucí doplánování s posunem < 2 bloky = nedosažitelný cíl.
+     */
+    private BlockPos lastPartialReplanPos;
+    private int futilePartials;
+
     /** Strop položených bloků na jeden plán (zrcadlí strop BridgeTasku). */
     private static final int MAX_PLAN_PLACEMENTS = 12;
     /** Strop žebříkových příček na jeden plán (zrcadlí strop LadderTasku). */
@@ -249,6 +280,9 @@ public final class Navigator {
         if (goal.equals(goalSpec) && (hasPath() || pendingPath != null || assistNeeded)) {
             return; // už tam jdeme (nebo čekáme na odblokování terénu)
         }
+        if (isUnreachable(from, to)) {
+            return; // cíl v backoffu po marných výpočtech – nepálit další
+        }
         // Pohyblivý cíl (follow, eskorta, útěk před pohybující se hrozbou):
         // malý posun kotvy u cíle stejného tvaru rozpracovanou cestu
         // nezahazuje – stará končí pár bloků od nového cíle a dojede se;
@@ -280,6 +314,8 @@ public final class Navigator {
         assistCycles = 0;
         segmentGoal = null;
         segmentAttempt = 0;
+        futilePartials = 0;
+        lastPartialReplanPos = null;
         corridor = null;
         corridorIndex = 0;
         pendingCorridor = null;
@@ -345,6 +381,7 @@ public final class Navigator {
     /** Zásah do terénu není možný – navigaci vzdát (cíl si vybere jinak). */
     public void assistFailed() {
         assistNeeded = false;
+        markUnreachable(lastProgressPos);
         stop();
     }
 
@@ -495,6 +532,22 @@ public final class Navigator {
         if (driftReplanCooldown > 0) {
             driftReplanCooldown--;
         }
+        if (doorClickCooldown > 0) {
+            doorClickCooldown--;
+        }
+        // Únikový reflex: bot stojí UVNITŘ zavřených dveří/vrat – zavřely se
+        // za průchodu, nebo mu je údržba domu osadila na hlavu. Klik níže míří
+        // jen na waypoint před botem a vlastní buňku nikdy netrefí; bez tohohle
+        // je bot uvězněný natrvalo (kolize ho nepustí žádným směrem).
+        if (actions != null && world != null && doorClickCooldown == 0) {
+            BlockPos feet = position.toBlockPos();
+            BlockPos inDoor = world.traitsAt(feet).door() ? feet
+                    : world.traitsAt(feet.up()).door() ? feet.up() : null;
+            if (inDoor != null) {
+                actions.open(inDoor);
+                doorClickCooldown = 8;
+            }
+        }
         // Během čekání na zásah do terénu bot stojí.
         if (assistNeeded) {
             return MoveInput.IDLE;
@@ -558,6 +611,7 @@ public final class Navigator {
                     assistNeeded = true;
                     return MoveInput.IDLE;
                 }
+                markUnreachable(position);
                 stop();
             }
         }
@@ -633,6 +687,21 @@ public final class Navigator {
                         && (goalSpec == null || !goalSpec.reached(feet))
                         && currentObjective() != null
                         && feet.distanceSquared(currentObjective()) > 4) {
+                    // Běžecký pás: doplánování bez postupu od minula se počítá,
+                    // třetí marné za sebou cíl uzavře do backoffu.
+                    if (lastPartialReplanPos != null
+                            && feet.distanceSquared(lastPartialReplanPos) < 4) {
+                        if (++futilePartials >= 3) {
+                            futilePartials = 0;
+                            lastPartialReplanPos = null;
+                            markUnreachable(position);
+                            stop();
+                            return MoveInput.IDLE;
+                        }
+                    } else {
+                        futilePartials = 0;
+                    }
+                    lastPartialReplanPos = feet;
                     requestPath(position); // částečná cesta – doplánovat
                 } else if (segmentGoal != null && destination != null) {
                     // Kompletní cesta skončila kus od mezicíle (normalizace
@@ -659,13 +728,15 @@ public final class Navigator {
         }
 
         detectStuck(position);
+        if (path == null) {
+            // Zaseknutí právě zahodilo cestu (replán/kopací plán/assist) –
+            // zbytek ticku by dereferencoval null; nový plán dorazí asynchronně.
+            return MoveInput.IDLE;
+        }
 
         // Zavřené dveře před nosem → otevřít. Traits znají stav dveří, takže
         // klik padne jen na zavřené; cooldown kryje zpoždění block-update
         // paketu, aby bot dveře omylem nepřepínal tam a zpět.
-        if (doorClickCooldown > 0) {
-            doorClickCooldown--;
-        }
         if (world.traitsAt(waypoint).door() && doorClickCooldown == 0 && actions != null) {
             actions.open(waypoint);
             doorClickCooldown = 8;
@@ -784,6 +855,15 @@ public final class Navigator {
         smoothBase = waypointIndex;
         smoothCooldown = 4;
         smoothIndex = PathSmoother.smoothTarget(world, position, path.waypoints(), waypointIndex);
+        // Dveřní buňky se nevyhlazují: zkratka šikmo přes roh dveří vede tělem
+        // do panelu či futer (a přeskočený dveřní waypoint by nikdy nedostal
+        // klik) – dveřmi se prochází středem, waypoint po waypointu.
+        for (int i = waypointIndex + 1; i <= smoothIndex; i++) {
+            if (world.traitsAt(path.waypoints().get(i)).openable()) {
+                smoothIndex = Math.max(waypointIndex, i - 1);
+                break;
+            }
+        }
         return smoothIndex;
     }
 
@@ -842,8 +922,66 @@ public final class Navigator {
             assistNeeded = true;
             path = null;
         } else {
+            markUnreachable(position);
             stop(); // vzdáváme to – cíl si vybere něco jiného
         }
+    }
+
+    /**
+     * Čistý dotaz pro rozhodovací vrstvu (např. únik na povrch): je cíl
+     * aktuálně v backoffu nedosažitelnosti? Na rozdíl od interní kontroly
+     * nemaže záznam při přesunu bota.
+     *
+     * @param anchor kotva cíle
+     * @return {@code true} pokud je cíl v backoffu
+     */
+    public boolean recentlyUnreachable(BlockPos anchor) {
+        Unreachable entry = unreachable.get(anchor.asLong());
+        return entry != null && System.currentTimeMillis() < entry.retryAt;
+    }
+
+    /**
+     * @param from   aktuální pozice bota
+     * @param anchor kotva zamýšleného cíle
+     * @return {@code true} pokud je cíl v backoffu po opakovaně marných
+     *         výpočtech; přesun bota o 16+ bloků od místa selhání záznam maže
+     *         (z jiného místa cesta existovat může)
+     */
+    private boolean isUnreachable(Vec3 from, BlockPos anchor) {
+        Unreachable entry = unreachable.get(anchor.asLong());
+        if (entry == null) {
+            return false;
+        }
+        if (from.toBlockPos().distanceSquared(entry.origin) > UNREACHABLE_RESET_SQ) {
+            unreachable.remove(anchor.asLong());
+            return false;
+        }
+        return System.currentTimeMillis() < entry.retryAt;
+    }
+
+    /**
+     * Zaznamená definitivně marný cíl (vyčerpané replány, kopací plán
+     * i assist) – další {@code navigateTo} na něj se odmítne s exponenciálním
+     * backoffem. Volat PŘED {@link #stop()} (ten nuluje destination).
+     */
+    private void markUnreachable(Vec3 position) {
+        if (destination == null) {
+            return;
+        }
+        if (unreachable.size() > 64) {
+            long now = System.currentTimeMillis();
+            unreachable.values().removeIf(e -> now >= e.retryAt);
+        }
+        Unreachable entry = unreachable.computeIfAbsent(
+                destination.asLong(), k -> new Unreachable());
+        entry.failures++;
+        long backoff = Math.min(UNREACHABLE_MAX_MS,
+                UNREACHABLE_BASE_MS << Math.min(4, entry.failures - 1));
+        entry.retryAt = System.currentTimeMillis() + backoff;
+        entry.origin = position.toBlockPos();
+        org.slf4j.LoggerFactory.getLogger(Navigator.class).debug(
+                "[nav] cíl {} nedosažitelný ({}×) – backoff {} s",
+                destination, entry.failures, backoff / 1000);
     }
 
     /**
