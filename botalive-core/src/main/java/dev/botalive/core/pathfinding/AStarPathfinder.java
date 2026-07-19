@@ -141,6 +141,8 @@ public final class AStarPathfinder {
      * než čas kopání a most se staví, jen když obchůzka reálně neexistuje.
      */
     private static final int COST_PLACE = 100;
+    /** Nejvyšší stěna přelezitelná žebříkem (= {@code LadderTask.MAX_HEIGHT}). */
+    private static final int MAX_LADDER = 8;
 
     /** Ceny za blízkost místa, kde bot zemřel / poznal nebezpečí. */
     private static final int COST_DANGER_NEAR = 80;
@@ -580,6 +582,9 @@ public final class AStarPathfinder {
             if (options.maxPlacements() > 0 && Math.abs(curFeet - pos.y()) <= 0.05) {
                 tryPlaceEdges(current);
             }
+            if (options.maxLadders() > 0 && Math.abs(curFeet - pos.y()) <= 0.05) {
+                tryLadderEdges(current);
+            }
 
             // Plavání svisle: ve vodním sloupci se bot může vynořit i potopit.
             BlockTraits here = traits(pos);
@@ -935,6 +940,53 @@ public final class AStarPathfinder {
             }
         }
 
+        /**
+         * Žebříkový výstup: stěna výšky 2–{@link #MAX_LADDER} v kardinálním
+         * směru, na kterou se z footholdu nalepí sloupec příček (exekuci
+         * obstará {@code LadderTask}). Stěna musí mít po celé výšce plné
+         * solidní čelo (žebřík se přichytává na plný blok – desky, schody,
+         * ploty i truhly vypadnou samy tvarem), botův vlastní sloupec musí
+         * být průchozí a suchý až nad hranu a nahoře musí být pochozí dosed.
+         * Jednoblokovou stěnu řeší obyčejný výskok, vyšší než strop assist.
+         */
+        private void tryLadderEdges(Node current) {
+            BlockPos pos = current.pos;
+            for (int dir = 0; dir < 4; dir++) {
+                int dx = dir == 0 ? 1 : dir == 1 ? -1 : 0;
+                int dz = dir == 2 ? 1 : dir == 3 ? -1 : 0;
+                // Výška stěny: souvislé plné solidní čelo od úrovně nohou.
+                int height = 0;
+                while (height < MAX_LADDER) {
+                    BlockTraits wall = traits(pos.offset(dx, height, dz));
+                    if (!wall.solid() || wall.stepFriendly()
+                            || Math.abs(wall.floorHeight() - 1.0) > EPS) {
+                        break;
+                    }
+                    height++;
+                }
+                if (height < 2 || current.ladderCount + height > options.maxLadders()) {
+                    continue; // nízká stěna (stačí skok), nebo málo žebříků
+                }
+                // Vlastní sloupec bota: průchozí a suchý po celé výšce
+                // stěny + hlava nad hranou (příčky se lepí do těchto buněk).
+                boolean clear = true;
+                for (int k = 1; k <= height + 1 && clear; k++) {
+                    BlockPos cell = pos.offset(0, k, 0);
+                    clear = transitClear(cell) && !traits(cell).liquid();
+                }
+                if (!clear) {
+                    continue;
+                }
+                // Dosed na vršku stěny.
+                BlockPos top = new BlockPos(pos.x() + dx, pos.y() + height, pos.z() + dz);
+                if (traits(top).liquid() || Double.isNaN(feetHeight(top))) {
+                    continue;
+                }
+                int cost = height * (COST_PLACE + costClimb) + terrainPenalty(top);
+                tryAdd(current, top, cost, TerrainAction.ladderClimb(dx, dz, height));
+            }
+        }
+
         /** Čistě prázdná buňka, do které lze položit blok. */
         private boolean placeable(BlockPos cell) {
             BlockTraits t = traits(cell);
@@ -969,13 +1021,19 @@ public final class AStarPathfinder {
             if (placeCount > options.maxPlacements()) {
                 return; // rozpočet bloků na cestu vyčerpán
             }
+            int ladderCount = parent.ladderCount
+                    + (action == null || action.ladder() == null ? 0 : action.ladder().height());
+            if (ladderCount > options.maxLadders()) {
+                return; // rozpočet žebříků na cestu vyčerpán
+            }
             long key = pos.asLong();
             int g = parent.g + moveCost + dangerPenalty(pos);
             Node existing = visited.get(key);
             if (existing != null && existing.g <= g) {
                 return;
             }
-            Node node = new Node(pos, parent, g, goal.heuristic(pos), action, placeCount);
+            Node node = new Node(pos, parent, g, goal.heuristic(pos), action,
+                    placeCount, ladderCount);
             visited.put(key, node);
             open.add(node);
         }
@@ -1112,19 +1170,23 @@ public final class AStarPathfinder {
         final TerrainAction action;
         /** Bloky položené na cestě od startu k uzlu (rozpočet inventáře). */
         final int placeCount;
+        /** Žebříkové příčky spotřebované na cestě od startu (rozpočet inventáře). */
+        final int ladderCount;
         boolean closed;
 
         Node(BlockPos pos, Node parent, int g, int h) {
-            this(pos, parent, g, h, null, 0);
+            this(pos, parent, g, h, null, 0, 0);
         }
 
-        Node(BlockPos pos, Node parent, int g, int h, TerrainAction action, int placeCount) {
+        Node(BlockPos pos, Node parent, int g, int h, TerrainAction action,
+             int placeCount, int ladderCount) {
             this.pos = pos;
             this.parent = parent;
             this.g = g;
             this.h = h;
             this.action = action;
             this.placeCount = placeCount;
+            this.ladderCount = ladderCount;
         }
 
         @Override

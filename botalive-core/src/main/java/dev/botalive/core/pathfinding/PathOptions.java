@@ -16,20 +16,32 @@ package dev.botalive.core.pathfinding;
  *                      z inventáře bota – plán nikdy neslibuje víc bloků,
  *                      než bot má. Do tekutin se nepokládá (lávová jezera
  *                      řeší reaktivní {@code BridgeTask})
+ * @param maxLadders    strop žebříkových příček na jednu cestu (výstup na
+ *                      stěnu vyšší než skok); 0 = žebříky vypnuté. Odvozuje
+ *                      se z počtu žebříků v inventáři
  */
-public record PathOptions(boolean digThrough, int maxPlacements) {
+public record PathOptions(boolean digThrough, int maxPlacements, int maxLadders) {
 
     /** Čistě pěší plánování (výchozí). */
-    public static final PathOptions WALK_ONLY = new PathOptions(false, 0);
+    public static final PathOptions WALK_ONLY = new PathOptions(false, 0, 0);
 
     /** Plánování s kopáním bez pokládání (kompat zkratka pro testy). */
-    public static final PathOptions WITH_DIGGING = new PathOptions(true, 0);
+    public static final PathOptions WITH_DIGGING = new PathOptions(true, 0, 0);
 
     /**
      * @param placements strop položených bloků (z inventáře bota)
-     * @return plné akční plánování – kopání i pokládání
+     * @return akční plánování – kopání a pokládání, bez žebříků
      */
     public static PathOptions withActions(int placements) {
-        return new PathOptions(true, Math.max(0, placements));
+        return new PathOptions(true, Math.max(0, placements), 0);
+    }
+
+    /**
+     * @param placements strop položených bloků (z inventáře bota)
+     * @param ladders    strop žebříkových příček (z inventáře bota)
+     * @return plné akční plánování – kopání, pokládání i žebříky
+     */
+    public static PathOptions withActions(int placements, int ladders) {
+        return new PathOptions(true, Math.max(0, placements), Math.max(0, ladders));
     }
 }

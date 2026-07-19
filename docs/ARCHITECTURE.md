@@ -880,3 +880,18 @@ s kolizním systémem (analýza [docs/PATHFINDING_V3.md](PATHFINDING_V3.md)).
   cíl). Truhly (`StashGoal`, `StealGoal`) záměrně nemigrují – na
   identitě truhly záleží (vlastnictví, sociální paměť) a `anyNear`
   by cíl tiše zaměnil.
+- **Žebříkové hrany (v3.3)**: stěna výšky 2–8 s plným solidním čelem
+  je hrana grafu „přelez po žebříku" – `TerrainAction` nese směr
+  a výšku, rozpočet příček hlídá inventář (`PathOptions.maxLadders`
+  ← `Navigator.ladderBudget`, strop 8 jako `LadderTask.MAX_HEIGHT`).
+  Exekuci vlastní stávající reaktivní `LadderTask` (sloupec příček
+  z footholdu, verifikace, jeden plynulý výstup) – plán jen říká kde
+  a jak vysoko. Trigger akce má u žebříku širší svislé okno (waypoint
+  je NAD botem na vršku stěny) a těsnější vodorovné (task odvozuje
+  sloupec od živé pozice – bot musí stát na patě stěny). Simulace
+  `prelezeZedPoZebrikuPodlePlanu`: bot fyzicky vyšplhá přilepený
+  sloupec a seskočí za zdí bez poškození, vše jeden plán. Fixtures
+  chtěly bedrockovou podlahu – plánovač si jinak spočítal, že levnější
+  je zeď PODKOPAT (kopací hrany jsou při akčním plánování povolené),
+  což je korektní chování, ne chyba. Poslední kus parity plán ↔ assist;
+  z v3.3 zbývá BotTask-level simulace reaktivních tasků.

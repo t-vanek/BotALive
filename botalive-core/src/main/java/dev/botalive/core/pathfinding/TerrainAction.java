@@ -16,8 +16,18 @@ import java.util.List;
  *
  * @param digs   bloky k vykopání v pořadí (shora dolů – strop dřív než podlaha)
  * @param places bloky k položení v pořadí (opora mostu, pilíř pod nohama)
+ * @param ladder žebříkový výstup na stěnu ({@code null} = žádný) – exekuce
+ *               běží přes {@code LadderTask} (sloupec příček z footholdu
+ *               a jeden plynulý výstup), plán nese jen směr a výšku
  */
-public record TerrainAction(List<BlockPos> digs, List<BlockPos> places) {
+public record TerrainAction(List<BlockPos> digs, List<BlockPos> places, Ladder ladder) {
+
+    /**
+     * Žebříkový výstup: stěna v kardinálním směru {@code (sx, sz)} od bota,
+     * {@code height} příček (= výška stěny).
+     */
+    public record Ladder(int sx, int sz, int height) {
+    }
 
     /**
      * Čistě kopací zásah.
@@ -25,6 +35,26 @@ public record TerrainAction(List<BlockPos> digs, List<BlockPos> places) {
      * @param digs bloky k vykopání
      */
     public TerrainAction(List<BlockPos> digs) {
-        this(digs, List.of());
+        this(digs, List.of(), null);
+    }
+
+    /**
+     * Kopací a pokládací zásah bez žebříku.
+     *
+     * @param digs   bloky k vykopání
+     * @param places bloky k položení
+     */
+    public TerrainAction(List<BlockPos> digs, List<BlockPos> places) {
+        this(digs, places, null);
+    }
+
+    /**
+     * @param sx     krok ke stěně po ose X (-1/0/1)
+     * @param sz     krok ke stěně po ose Z (-1/0/1)
+     * @param height počet příček (výška stěny)
+     * @return čistě žebříkový zásah
+     */
+    public static TerrainAction ladderClimb(int sx, int sz, int height) {
+        return new TerrainAction(List.of(), List.of(), new Ladder(sx, sz, height));
     }
 }

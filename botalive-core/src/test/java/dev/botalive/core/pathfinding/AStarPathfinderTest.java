@@ -908,7 +908,7 @@ class AStarPathfinderTest {
 
         // Jen pokládání (bez kopání) – deterministicky pilíř, ne schody do stěny.
         AStarPathfinder.Result pillared = new AStarPathfinder(world).findPath(
-                start, PathGoal.block(goal), 0, 0L, null, new PathOptions(false, 8));
+                start, PathGoal.block(goal), 0, 0L, null, new PathOptions(false, 8, 0));
         assertTrue(pillared.path().complete(), "pilíř má na plošinu vynést: "
                 + pillared.path().waypoints());
         int places = pillared.path().actions().values().stream()
@@ -1044,6 +1044,54 @@ class AStarPathfinderTest {
             }
             prev = next;
         }
+    }
+
+    /** Koridor s bedrockovou příčnou zdí výšky 3 (nejde přeskočit ani prokopat). */
+    private static FakeWorldView zedVKoridoru() {
+        FakeWorldView world = new FakeWorldView(FLOOR);
+        for (int x = -1; x <= 8; x++) {
+            for (int y = FEET; y <= FEET + 2; y++) {
+                world.set(x, y, -1, org.bukkit.Material.BEDROCK, FakeWorldView.SOLID);
+                world.set(x, y, 1, org.bukkit.Material.BEDROCK, FakeWorldView.SOLID);
+            }
+        }
+        for (int y = FEET; y <= FEET + 2; y++) {
+            world.set(-1, y, 0, org.bukkit.Material.BEDROCK, FakeWorldView.SOLID);
+            world.set(8, y, 0, org.bukkit.Material.BEDROCK, FakeWorldView.SOLID);
+            world.set(3, y, 0, org.bukkit.Material.BEDROCK, FakeWorldView.SOLID);
+        }
+        // Bedrocková podlaha – zeď nejde podkopat (kopací hrany jsou při
+        // akčním plánování povolené a kámen pod zdí by tunel legálně pustil).
+        for (int x = -1; x <= 8; x++) {
+            world.set(x, FLOOR, 0, org.bukkit.Material.BEDROCK, FakeWorldView.SOLID);
+        }
+        return world;
+    }
+
+    @Test
+    void prelezeZedPoZebrikuKdyzMaPricky() {
+        FakeWorldView world = zedVKoridoru();
+        BlockPos start = new BlockPos(0, FEET, 0);
+        PathGoal goal = PathGoal.block(new BlockPos(6, FEET, 0));
+
+        AStarPathfinder.Result walk = new AStarPathfinder(world).findPath(
+                start, goal, 2000, 0L, null, PathOptions.WALK_ONLY);
+        assertFalse(walk.path().complete(), "bedrock zeď výšky 3 pěšky nejde");
+
+        AStarPathfinder.Result laddered = new AStarPathfinder(world).findPath(
+                start, goal, 2000, 0L, null, PathOptions.withActions(0, 8));
+        assertTrue(laddered.path().complete(), "s žebříky se má zeď přelézt: "
+                + laddered.path().waypoints());
+        TerrainAction.Ladder ladder = laddered.path().actions().values().stream()
+                .map(TerrainAction::ladder)
+                .filter(java.util.Objects::nonNull)
+                .findFirst().orElse(null);
+        assertTrue(ladder != null && ladder.height() == 3,
+                "plán má nést žebříkový výstup výšky 3: " + laddered.path().actions());
+
+        AStarPathfinder.Result tight = new AStarPathfinder(world).findPath(
+                start, goal, 2000, 0L, null, PathOptions.withActions(0, 2));
+        assertFalse(tight.path().complete(), "2 příčky na zeď výšky 3 nestačí");
     }
 
     @Test

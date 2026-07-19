@@ -607,6 +607,85 @@ class PathExecutionSimulationTest {
     }
 
     @Test
+    void prelezeZedPoZebrikuPodlePlanu() {
+        // Bedrocková zeď výšky 2 napříč koridorem: neprokopatelná (deny-list),
+        // nepřeskočitelná, bez bloků na pilíř. Bot má žebříky → plán nese
+        // žebříkový výstup; test „lepí" příčky jako server (LadderTask
+        // v produkci), bot pak sloupec fyzicky vyšplhá a seskočí za zdí.
+        FakeWorldView world = new FakeWorldView(FLOOR);
+        for (int x = -1; x <= 10; x++) {
+            for (int y = FEET; y <= FEET + 2; y++) {
+                world.set(x, y, -1, org.bukkit.Material.BEDROCK, FakeWorldView.SOLID);
+                world.set(x, y, 1, org.bukkit.Material.BEDROCK, FakeWorldView.SOLID);
+            }
+            // Bedrocková podlaha – zeď nejde podkopat, jediná cesta je nahoru.
+            world.set(x, FLOOR, 0, org.bukkit.Material.BEDROCK, FakeWorldView.SOLID);
+        }
+        for (int y = FEET; y <= FEET + 2; y++) {
+            world.set(-1, y, 0, org.bukkit.Material.BEDROCK, FakeWorldView.SOLID);
+            world.set(10, y, 0, org.bukkit.Material.BEDROCK, FakeWorldView.SOLID);
+        }
+        // Příčná zeď výšky 2: na výskok moc, na žebřík akorát – a seskok
+        // za ní je i s přestřelem šplhu bezbolestný.
+        for (int y = FEET; y <= FEET + 1; y++) {
+            world.set(4, y, 0, org.bukkit.Material.BEDROCK, FakeWorldView.SOLID);
+        }
+        Navigator navigator = new Navigator(service, null, new BotRandom(7), personality());
+        navigator.world(world);
+        navigator.terraforming(true);
+        navigator.placeBudget(() -> 0);
+        navigator.ladderBudget(() -> 8);
+        BotPhysics physics = new BotPhysics(world, at(0));
+        BlockPos goal = new BlockPos(8, FEET, 0);
+        navigator.navigateTo(at(0), goal);
+
+        int applyDelay = 0;
+        boolean laddersApplied = false;
+        for (int tick = 0; tick < 3000; tick++) {
+            if (navigator.navigating() && !navigator.hasPath()) {
+                sleep(1);
+            }
+            TerrainAction action = navigator.actionNeeded();
+            if (action != null) {
+                if (++applyDelay >= 6) {
+                    if (action.ladder() != null) {
+                        // Server „přijal" položené příčky: sloupec šplhatelných
+                        // buněk od nohou po hranu stěny (jako LadderTask).
+                        BlockPos col = physics.position().toBlockPos();
+                        for (int k = 0; k < action.ladder().height(); k++) {
+                            world.set(col.x(), col.y() + k, col.z(), FakeWorldView.CLIMBABLE);
+                        }
+                        laddersApplied = true;
+                    }
+                    navigator.actionResolved();
+                    applyDelay = 0;
+                }
+                continue;
+            }
+            MoveInput input = navigator.tick(physics.position(), physics.onGround(), physics.inWater());
+            input = LiquidReflex.apply(input, navigator.hasPath(), physics.position(),
+                    physics.submergedTicks(), world);
+            input = FallReflex.apply(input, navigator.hasPath(), physics.onGround(),
+                    physics.fallDistance(), physics.position(), world);
+            physics.step(input);
+            if (physics.landedThisTick() && physics.lastFallDamage() > 0) {
+                throw new AssertionError("výstup neměl bolet (tick " + tick + ", poškození "
+                        + physics.lastFallDamage() + ")");
+            }
+            assertTrue(!navigator.needsAssist(),
+                    "žebřík z plánu měl assist nahradit (tick " + tick + ")");
+            if (arrived(physics.position(), goal)) {
+                assertTrue(laddersApplied, "cesta měla vést přes žebříkový výstup");
+                long requests = service.stats().snapshot().requests();
+                assertTrue(requests <= 4, "výstup má být jeden plán; výpočtů: " + requests);
+                return;
+            }
+        }
+        throw new AssertionError("bot zeď nepřelezl; skončil na " + physics.position()
+                + " (žebříky " + (laddersApplied ? "položené" : "nepoložené") + ")");
+    }
+
+    @Test
     void premostiPropastPodlePlanu() {
         // Propast šířky 5 přes celou krajinu (z ±100) – neskočitelná, obchůzka
         // dráž než most. Bot má bloky → most vzniká podle JEDNOHO plánu:

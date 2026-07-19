@@ -33,7 +33,9 @@ inventář a historii; po restartu serveru pokračuje tam, kde skončil.
   nekope pod padavým stropem (písek, štěrk – sesyp by plán rozbil). Když cesta nevede, bot to nevzdá: **eskaluje jako hráč** –
   replanning → **kopací plán** (tunel 1×2 a vylámané schody jako hrany grafu –
   jeden souvislý plán s tekutinovou pojistkou a deny-listem majetku, nikdy
-  skrz truhly, pece či postele) → reaktivní assist (mosty, pilíře, žebříky).
+  skrz truhly, pece či postele; mosty, pilíře i **žebříky na stěny** jsou
+  hrany grafu s rozpočtem z inventáře) → reaktivní assist (mosty přes lávu,
+  pilíře, žebříky).
   Zásahy do terénu respektují `ai.terraforming` a mají strop na jednu cestu. Výpočty mají
   uzlový i časový rozpočet (`pathfinding.*`), jsou kooperativně zrušitelné
   a memo cache drží dotazy do světa na minimu; sledování pohyblivého cíle

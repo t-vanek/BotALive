@@ -154,6 +154,24 @@ plán ↔ assist.
 > Truhly (`StashGoal`, `StealGoal`) záměrně NEmigrují: u vlastní
 > základny i krádeže na identitě truhly záleží (vlastnictví, sociální
 > paměť) – anyNear by cíl tiše zaměnil za jinou truhlu.
+>
+> **Stav: v3.3 implementováno (žebříkové hrany).** `TerrainAction` nese
+> žebříkový popisovač (směr + výška), A* generuje hranu „přelez stěnu
+> 2–8 po žebříku" (plné solidní čelo po celé výšce – desky, schody,
+> ploty i truhly vypadnou tvarem; vlastní sloupec průchozí a suchý;
+> rozpočet příček z inventáře přes `PathOptions.maxLadders`
+> a `Navigator.ladderBudget`). Exekuci vlastní stávající reaktivní
+> `LadderTask` (sloupec příček z footholdu + jeden plynulý výstup) –
+> plán jen říká kde a jak vysoko; trigger akce má u žebříku širší
+> svislé okno (waypoint je NAD botem na vršku stěny) a těsnější
+> vodorovné (task odvozuje sloupec od živé pozice, bot musí stát na
+> patě). Testy: plán s výškou 3 a rozpočtový útes
+> (`prelezeZedPoZebrikuKdyzMaPricky` – 2 příčky na zeď 3 nestačí),
+> fyzická simulace výstupu a seskoku za zdí
+> (`prelezeZedPoZebrikuPodlePlanu`). Fixtures potřebovaly bedrockovou
+> podlahu: kopací hrany jsou při akčním plánování povolené a plánovač
+> zeď jinak korektně PODKOPAL. Z v3.3 zbývá BotTask-level simulace
+> reaktivních tasků (Pillar/Bridge/Ladder proti fyzice).
 
 ## 2. Doporučené fázování
 
@@ -162,7 +180,7 @@ plán ↔ assist.
 | **v3.0 korektnost** ✅ | P1 gravity guard kopání, P2 hluboký sken + příplatek za skok nad pádem/voidem (škálovaný opatrností), P5 roh bez dveří | S | nízké | plán a kolize se přestanou rozcházet v posledních známých místech |
 | **v3.1 dokončení migrace** ✅ | P3 zbylé `near` cíle (End/Nether/drak/vozidla/průzkum) | S | nízké | konec pálení rozpočtu, drift throttle všude |
 | **v3.2 kvalita výběru** ✅ | P4 `anyNear` v goalech s kandidáty (ruda/kmen/postel; truhly záměrně ne – identita) + zpětná vazba „který kandidát vyšel" | M | střední | méně marných výpočtů a blacklist smyček, přirozenější volby |
-| **v3.3 parita akcí** | P8 žebříkové hrany + BotTask-level simulace | M | střední | poslední reaktivní eskalace pod kontraktem |
+| **v3.3 parita akcí** (hrany ✅) | P8 žebříkové hrany ✅ + BotTask-level simulace | M | střední | poslední reaktivní eskalace pod kontraktem |
 | **v3.4 výkon** | P6 bucket queue / long smyčka – jen po benchmarku | M | střední | až 2× rychlejší jádro, ale nejdřív důkaz |
 | odloženo | P7 proudy vody | L | vyšší | malý viditelný zisk |
 
