@@ -29,7 +29,7 @@ import java.util.Deque;
  */
 public final class CommunalBuildGoal extends AbstractGoal {
 
-    private enum Phase { CLAIM, GOTO, TERRAFORM, BUILD, FINISH, DONE }
+    private enum Phase { CLAIM, GOTO, TERRAFORM, STEP_IN, BUILD, FINISH, DONE }
 
     /** Rezerva bloků nad čistou spotřebu věnce (zásypy podlahy). */
     private static final int BLOCK_RESERVE = 8;
@@ -94,12 +94,18 @@ public final class CommunalBuildGoal extends AbstractGoal {
         switch (phase) {
             case CLAIM -> tickClaim(ctx, bot);
             case GOTO -> tickGoto(ctx);
-            case TERRAFORM -> tickTasks(ctx, Phase.BUILD);
+            case TERRAFORM -> tickTasks(ctx, Phase.STEP_IN);
+            case STEP_IN -> tickStepIn(ctx);
             case BUILD -> tickBuild(ctx);
             case FINISH -> tickFinish(ctx, bot);
             case DONE -> {
             }
         }
+    }
+
+    /** @return buňka šachty uprostřed věnce – stanoviště stavitele */
+    private BlockPos wellCenter() {
+        return project.origin().offset(WellBlueprint.SIZE / 2, 0, WellBlueprint.SIZE / 2);
     }
 
     private void tickClaim(BotContext ctx, Bot bot) {
@@ -124,16 +130,44 @@ public final class CommunalBuildGoal extends AbstractGoal {
     }
 
     private void tickGoto(BotContext ctx) {
-        BlockPos stand = WellBlueprint.standPoint(project.origin());
-        if (ctx.position().toBlockPos().distanceSquared(stand) <= 2) {
+        // K věnci se chodí „do okruhu" – pevné stanoviště umělo být zrovna
+        // nedostupné (křoví, soused) a stavba se zbytečně vzdávala.
+        BlockPos center = wellCenter();
+        if (ctx.position().toBlockPos().distanceSquared(center) <= 9) {
             ctx.navigator().stop();
             planWork(ctx);
-            phase = terraform.isEmpty() ? Phase.BUILD : Phase.TERRAFORM;
+            phase = terraform.isEmpty() ? Phase.STEP_IN : Phase.TERRAFORM;
             return;
         }
-        ctx.navigator().navigateTo(ctx.position(), stand);
+        ctx.navigator().navigateTo(ctx.position(),
+                dev.botalive.core.pathfinding.PathGoal.near(center, 2));
         if (!ctx.navigator().navigating()) {
             giveUp(ctx, 1200); // staveniště nedostupné – uvolnit a zkusit jindy
+        }
+    }
+
+    /**
+     * Po srovnání terénu si stavitel stoupne DO šachty (střed věnce zůstává
+     * volný) – odtud je celý věnec i pochodeň na dosah ruky; z boku byl
+     * protější roh na hraně dosahu.
+     */
+    private void tickStepIn(BotContext ctx) {
+        BlockPos center = wellCenter();
+        BlockPos feet = ctx.position().toBlockPos();
+        if (feet.equals(center)) {
+            ctx.navigator().stop();
+            // Rozpočet: vzdát se dřív, než zůstane věnec poloviční.
+            if (BotNeeds.assess(ctx.serverView().latest()).buildingBlocks()
+                    < placements.size()) {
+                giveUp(ctx, 2400);
+                return;
+            }
+            phase = Phase.BUILD;
+            return;
+        }
+        ctx.navigator().navigateTo(ctx.position(), center);
+        if (!ctx.navigator().navigating() && !ctx.navigator().hasPath()) {
+            giveUp(ctx, 1200);
         }
     }
 
