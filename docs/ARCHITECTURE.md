@@ -585,3 +585,37 @@ i netheritu, a na draka dojde, když je odvaha dominantní rys; `Ambition.progre
 portálu, trofej), gating `end.enabled` drží `BotImpl` (enum zůstává
 čistý). Ceník trhu zná `ender_pearl`, chorus ovoce je nouzové jídlo
 (`isEmergencyFood` – jí se až při hladu ≤ 8, teleport je menší zlo).
+
+Hotovo ve fázi 19: pathfinding v2.0 – evoluce jádra a chytřejší replanning
+(analýza a plán dalších fází: [docs/PATHFINDING_V2.md](PATHFINDING_V2.md)).
+
+- **Levné jádro A***: každý výpočet má vlastní memo cache traits a pochozích
+  výšek – jedna buňka se světa ptá jednou, sousední expanze ji čtou zadarmo
+  (dřív se každou buňku ptalo až 8 sousedních expanzí znovu; v bludišťovém
+  scénáři ~70× méně dotazů do světa, regresi hlídá
+  `PathfindingEfficiencyTest`). Tie-break open setu preferuje při shodném
+  f uzel s vyšším g (řeže plata expanzí na rovinách) a částečná cesta se
+  vybírá podle `h·16 + g` – ze stejně blízkých přiblížení vyhrává levněji
+  dosažené, hluboké zajížďky do drahých slepých kapes přestávají vítězit.
+  Danger penalizace má bounding-box early-out místo O(N) smyčky na uzel.
+- **Rozpočty a zrušení**: vedle uzlového rozpočtu i časový strop
+  (`pathfinding.time-budget-ms`, výchozí 25 ms) – garantovaná latence
+  i v členitém terénu, kde jsou uzly drahé; kontroluje se po blocích 128
+  expanzí spolu se signálem zrušení. `PathRequest.cancel()` ukončí běžící
+  výpočet kooperativně a `Navigator` ruší zahozené výpočty při `stop()`
+  i novém cíli – pool nemele mrtvou práci při každé změně plánu (boj, útěk).
+- **Replanning**: pohyblivý cíl (follow, eskorta) rozpracovanou cestu
+  nezahazuje – posun cíle ≤ 2 bloky se jen zapamatuje (stará cesta končí
+  u něj, zbytek se doplánuje při dokončení) a plný replán běží nejvýš
+  jednou za sekundu; dřív sledování spouštělo plný A* při každém kroku
+  cíle o blok. Cesta se navíc každých ~10 ticků levně validuje proti
+  změnám světa (`PathValidator`): rozbitý waypoint (zazděno, láva,
+  stržená podlaha) znamená replán hned, ne až fyzické zaseknutí o 2,5 s
+  později. Validace je záměrně konzervativní – zneplatňuje jen stavy,
+  které by odmítl i A* (jinak by se replán zacyklil), a UNKNOWN po
+  vypršení chunk cache nechává být (žádné replán bouře nad dlouhými
+  trasami).
+- **Observabilita**: `PathfindingStats` (počty výpočtů, úplné/částečné/
+  prázdné, timeouty, zrušení, průměr a maximum uzlů i ms) a příkaz
+  `/botalive path <bot>` – cíl, segment, postup po waypointech, běžící
+  výpočet a agregované metriky. Rozpočty ladí sekce `pathfinding.*`.

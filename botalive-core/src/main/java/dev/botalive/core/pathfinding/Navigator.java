@@ -10,8 +10,6 @@ import dev.botalive.core.util.Vec3;
 import dev.botalive.core.world.WorldView;
 import org.geysermc.mcprotocollib.protocol.data.game.entity.object.Direction;
 
-import java.util.concurrent.CompletableFuture;
-
 /**
  * Vykonavatel cest – převádí naplánovanou {@link Path} na pohybové vstupy.
  *
@@ -25,7 +23,14 @@ import java.util.concurrent.CompletableFuture;
  *       širší mezera vynucuje sprint,</li>
  *   <li>zavřené dveře v cestě bot otevře interakcí,</li>
  *   <li>detekce zaseknutí: bez postupu několik desítek ticků → požádá o novou cestu,</li>
- *   <li>replanning je asynchronní – bot mezitím dojíždí starou cestu,</li>
+ *   <li>replanning je asynchronní – bot mezitím dojíždí starou cestu; zahozený
+ *       výpočet se kooperativně ruší ({@link PathRequest#cancel()}),</li>
+ *   <li>pohyblivý cíl (follow, eskorta) rozpracovanou cestu nezahazuje: malý
+ *       posun cíle se jen zapamatuje (stará cesta končí u něj) a plný replán
+ *       běží nejvýš jednou za {@link #DRIFT_REPLAN_TICKS},</li>
+ *   <li>cesta se periodicky levně validuje proti změnám světa
+ *       ({@link PathValidator}) – rozbitý waypoint znamená okamžitý replán,
+ *       ne až zaseknutí o 2,5 s později,</li>
  *   <li>daleké cíle (za {@link #FAR_THRESHOLD}) se dělí na segmenty podél
  *       vzdušné čáry ({@link SegmentPlanner}) s prefetchem chunků po trase;
  *       neprůchodný segment zkouší laterální posuny, pak přímý částečný plán.</li>
@@ -38,6 +43,15 @@ public final class Navigator {
 
     /** Po kolika ticích bez postupu se považujeme za zaseknuté. */
     private static final int STUCK_TICKS = 50;
+
+    /** Posun cíle, který nezneplatní rozpracovanou cestu (bloky²). */
+    private static final double DRIFT_KEEP_SQ = 2.0 * 2.0;
+    /** Minimální rozestup plných replánů kvůli driftu pohyblivého cíle (ticky). */
+    private static final int DRIFT_REPLAN_TICKS = 20;
+    /** Perioda levné validace cesty proti změnám světa (ticky). */
+    private static final int VALIDATE_TICKS = 10;
+    /** Kolik nadcházejících waypointů se validuje. */
+    private static final int VALIDATE_WINDOW = 6;
 
     /** Od jaké vodorovné vzdálenosti se cíl dělí na segmenty (bloky). */
     private static final int FAR_THRESHOLD = 96;
@@ -63,7 +77,13 @@ public final class Navigator {
     private BlockPos segmentGoal;
     /** Index do {@link #SEGMENT_OFFSETS} při hledání průchodného segmentu. */
     private int segmentAttempt;
-    private CompletableFuture<Path> pendingPath;
+    private PathRequest pendingPath;
+    /** Cíl, ke kterému vede aktuální cesta/výpočet (drift pohyblivých cílů). */
+    private BlockPos pathTarget;
+    /** Cooldown plných replánů při driftu pohyblivého cíle (ticky). */
+    private int driftReplanCooldown;
+    /** Cooldown levné validace cesty proti změnám světa (ticky). */
+    private int validateCooldown;
 
     private Vec3 lastProgressPos = Vec3.ZERO;
     private int ticksWithoutProgress;
@@ -132,6 +152,28 @@ public final class Navigator {
         if (to.equals(destination) && (hasPath() || pendingPath != null || assistNeeded)) {
             return; // už tam jdeme (nebo čekáme na odblokování terénu)
         }
+        // Pohyblivý cíl (follow, eskorta, přiblížení k entitě): malý posun cíle
+        // rozpracovanou cestu nezahazuje – stará končí pár bloků od nového cíle
+        // a dojede se; plný replán se pouští nejvýš jednou za
+        // {@link #DRIFT_REPLAN_TICKS}. Bez throttlu by sledování spouštělo
+        // plný A* při každém kroku cíle o blok.
+        if (destination != null && segmentGoal == null && !assistNeeded
+                && (hasPath() || pendingPath != null)
+                && !isFar(from.toBlockPos(), to)) {
+            destination = to;
+            double driftSq = pathTarget == null
+                    ? Double.MAX_VALUE : to.distanceSquared(pathTarget);
+            if (driftSq <= DRIFT_KEEP_SQ) {
+                return; // konec cesty je pořád u cíle – dojet
+            }
+            if (driftReplanCooldown > 0) {
+                return; // replán počká; bot zatím dojíždí starou cestu
+            }
+            driftReplanCooldown = DRIFT_REPLAN_TICKS;
+            repathAttempts = 0;
+            requestPath(from);
+            return;
+        }
         destination = to;
         repathAttempts = 0;
         assistNeeded = false;
@@ -144,17 +186,27 @@ public final class Navigator {
         requestPath(from);
     }
 
-    /** Zruší navigaci. */
+    /** Zruší navigaci (včetně kooperativního zrušení běžícího výpočtu). */
     public void stop() {
+        cancelPending();
         path = null;
         waypointIndex = 0;
         destination = null;
         segmentGoal = null;
         segmentAttempt = 0;
-        pendingPath = null;
+        pathTarget = null;
+        driftReplanCooldown = 0;
         ticksWithoutProgress = 0;
         assistNeeded = false;
         assistCycles = 0;
+    }
+
+    /** Zruší běžící výpočet cesty (pool přestane mlít mrtvou práci). */
+    private void cancelPending() {
+        if (pendingPath != null) {
+            pendingPath.cancel();
+            pendingPath = null;
+        }
     }
 
     /**
@@ -252,6 +304,9 @@ public final class Navigator {
      * @return pohybový vstup pro fyziku (IDLE pokud není kam jít)
      */
     public MoveInput tick(Vec3 position, boolean onGround, boolean inWater) {
+        if (driftReplanCooldown > 0) {
+            driftReplanCooldown--;
+        }
         // Během čekání na zásah do terénu bot stojí.
         if (assistNeeded) {
             return MoveInput.IDLE;
@@ -267,6 +322,7 @@ public final class Navigator {
                 path = computed;
                 waypointIndex = 0;
                 smoothBase = -1;
+                validateCooldown = VALIDATE_TICKS;
                 // Sprint-skoky na rovinkách: odvážní a čilí boti si na cestu
                 // „zabunnyhopují", líní chodí. Rozhodnutí drží celou cestu.
                 sprintHopper = rng.next() < 0.25
@@ -296,6 +352,23 @@ public final class Navigator {
             return MoveInput.IDLE;
         }
 
+        // Levná validace: svět se pod naplánovanou cestou mění (výbuch,
+        // vykopnutý blok, postavená zeď). Rozbitý waypoint → okamžitý replán,
+        // ne až po fyzickém zaseknutí o 2,5 s později.
+        if (--validateCooldown <= 0) {
+            validateCooldown = VALIDATE_TICKS;
+            int limit = Math.min(waypointIndex + VALIDATE_WINDOW, path.waypoints().size() - 1);
+            for (int i = waypointIndex; i <= limit; i++) {
+                if (PathValidator.blocked(world, path.waypoints().get(i))) {
+                    org.slf4j.LoggerFactory.getLogger(Navigator.class).debug(
+                            "[nav] cesta rozbitá u {} – replán", path.waypoints().get(i));
+                    path = null;
+                    requestPath(position);
+                    return MoveInput.IDLE;
+                }
+            }
+        }
+
         BlockPos waypoint = path.waypoints().get(waypointIndex);
         Vec3 target = waypoint.center();
         Vec3 delta = target.sub(position);
@@ -320,6 +393,10 @@ public final class Navigator {
                     // cíle nad deskou apod.) → pokračovat dalším segmentem.
                     segmentAttempt = 0;
                     advanceSegment(feet);
+                    requestPath(position);
+                } else if (destination != null && feet.distanceSquared(destination) > 4) {
+                    // Cíl mezitím poodešel (drift pohyblivého cíle) – cesta
+                    // dojetá, doplánovat zbytek k aktuální pozici cíle.
                     requestPath(position);
                 } else {
                     stop();
@@ -485,8 +562,48 @@ public final class Navigator {
         if (world == null || target == null) {
             return;
         }
+        cancelPending();
         java.util.List<BlockPos> dangers = dangerSupplier != null
                 ? dangerSupplier.get() : java.util.List.of();
-        pendingPath = service.findPath(world, from.toBlockPos(), target, 0, dangers);
+        pathTarget = target;
+        pendingPath = service.request(world, from.toBlockPos(), target, 0, dangers);
+    }
+
+    /**
+     * Snímek stavu navigace pro diagnostiku ({@code /botalive path}) a testy.
+     * Čte se bez zámků z cizího vlákna – hodnoty jsou orientační.
+     *
+     * @param destination   konečný cíl navigace ({@code null} = nenaviguje)
+     * @param segmentGoal   mezicíl dlouhé trasy ({@code null} = přímý plán)
+     * @param computing     běží výpočet cesty
+     * @param assistNeeded  čeká se na zásah do terénu
+     * @param pathComplete  aktuální cesta vede až k cíli (ne částečná)
+     * @param waypointIndex index aktuálního waypointu
+     * @param waypointCount počet waypointů cesty
+     * @param upcoming      několik nejbližších waypointů (max 5)
+     */
+    public record DebugSnapshot(BlockPos destination, BlockPos segmentGoal,
+                                boolean computing, boolean assistNeeded, boolean pathComplete,
+                                int waypointIndex, int waypointCount,
+                                java.util.List<BlockPos> upcoming) {
+    }
+
+    /** @return snímek stavu navigace (orientační, bez zámků) */
+    public DebugSnapshot debugSnapshot() {
+        Path p = path;
+        int idx = waypointIndex;
+        int count = 0;
+        boolean complete = false;
+        java.util.List<BlockPos> upcoming = java.util.List.of();
+        if (p != null) {
+            count = p.waypoints().size();
+            complete = p.complete();
+            if (idx >= 0 && idx < count) {
+                upcoming = java.util.List.copyOf(
+                        p.waypoints().subList(idx, Math.min(idx + 5, count)));
+            }
+        }
+        return new DebugSnapshot(destination, segmentGoal, pendingPath != null,
+                assistNeeded, complete, idx, count, upcoming);
     }
 }

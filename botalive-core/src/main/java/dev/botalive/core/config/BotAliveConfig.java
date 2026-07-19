@@ -23,6 +23,7 @@ import java.util.List;
  * @param settlement  vesnice botů (společné stavění, parcely, roztržky)
  * @param nether      výpravy do Netheru (portály, těžba, netherit)
  * @param end         výpravy do dimenze End (drak, perly, návrat)
+ * @param pathfinding rozpočty výpočtu cest
  * @param performance výkonnostní laditelné parametry
  * @param persistence databáze
  */
@@ -41,6 +42,7 @@ public record BotAliveConfig(
         Settlement settlement,
         Nether nether,
         End end,
+        Pathfinding pathfinding,
         Performance performance,
         Persistence persistence
 ) {
@@ -343,6 +345,19 @@ public record BotAliveConfig(
     public record End(boolean enabled, boolean dragonFight, boolean huntEndermen,
                       int expeditionCooldownMinutes, double minCourage,
                       int maxFightMinutes) {
+    }
+
+    /**
+     * Rozpočty výpočtu cest (A*).
+     *
+     * @param nodeBudget   maximum expandovaných uzlů jednoho výpočtu; při
+     *                     vyčerpání se vrací nejlepší částečná cesta a bot
+     *                     doplánuje cestou
+     * @param timeBudgetMs časový strop jednoho výpočtu (ms); 0 = bez limitu –
+     *                     garantovaná latence i v členitém terénu (voda,
+     *                     jeskyně), kde jsou uzly drahé
+     */
+    public record Pathfinding(int nodeBudget, int timeBudgetMs) {
     }
 
     /**

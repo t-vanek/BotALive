@@ -545,4 +545,103 @@ class AStarPathfinderTest {
                         .anyMatch(p -> p.x() == 3 && p.y() == FEET),
                 "cesta má vést buňkou sněhu: " + path.waypoints());
     }
+
+    @Test
+    void vysledekNeseMetriky() {
+        FakeWorldView world = new FakeWorldView(FLOOR);
+        AStarPathfinder.Result result = new AStarPathfinder(world)
+                .findPath(new BlockPos(0, FEET, 0), new BlockPos(5, FEET, 0), 0, 0L, null);
+
+        assertTrue(result.path().complete(), "krátká rovná cesta má dorazit");
+        assertTrue(result.expandedNodes() > 0, "metriky mají nést počet uzlů");
+        assertTrue(result.elapsedNanos() > 0, "metriky mají nést dobu výpočtu");
+        assertFalse(result.timedOut());
+        assertFalse(result.cancelled());
+    }
+
+    @Test
+    void zruseniUkonciVypocetBrzy() {
+        FakeWorldView world = new FakeWorldView(FLOOR);
+        // Nedosažitelný cíl vysoko ve vzduchu nad nekonečnou plání – bez
+        // zrušení by výpočet semlel celý rozpočet uzlů.
+        BlockPos goal = new BlockPos(200, FEET + 50, 0);
+        java.util.concurrent.atomic.AtomicInteger checks = new java.util.concurrent.atomic.AtomicInteger();
+        AStarPathfinder.Result result = new AStarPathfinder(world).findPath(
+                new BlockPos(0, FEET, 0), goal, 100_000, 0L,
+                () -> checks.incrementAndGet() > 2);
+
+        assertTrue(result.cancelled(), "výpočet měl skončit zrušením");
+        assertFalse(result.path().complete());
+        assertTrue(result.expandedNodes() < 2_000,
+                "zrušení se kontroluje po blocích expanzí, expandováno: " + result.expandedNodes());
+    }
+
+    @Test
+    void casovyStropVratiCastecnouCestu() {
+        // Pomalý svět (každý dotaz na nový blok ~20 µs) + nedosažitelný cíl:
+        // časový strop musí výpočet utnout dávno před rozpočtem uzlů.
+        FakeWorldView world = new FakeWorldView(FLOOR);
+        dev.botalive.core.world.WorldView slow = new dev.botalive.core.world.WorldView() {
+            @Override
+            public org.bukkit.Material materialAt(BlockPos pos) {
+                return world.materialAt(pos);
+            }
+
+            @Override
+            public org.bukkit.block.data.BlockData blockDataAt(BlockPos pos) {
+                return world.blockDataAt(pos);
+            }
+
+            @Override
+            public dev.botalive.core.world.BlockTraits traitsAt(BlockPos pos) {
+                java.util.concurrent.locks.LockSupport.parkNanos(20_000);
+                return world.traitsAt(pos);
+            }
+
+            @Override
+            public boolean isAvailable(BlockPos pos) {
+                return world.isAvailable(pos);
+            }
+
+            @Override
+            public void prefetch(BlockPos center, int radiusChunks) {
+            }
+
+            @Override
+            public String worldName() {
+                return world.worldName();
+            }
+
+            @Override
+            public dev.botalive.core.world.WorldDimension dimension() {
+                return world.dimension();
+            }
+
+            @Override
+            public int minY() {
+                return world.minY();
+            }
+        };
+        AStarPathfinder.Result result = new AStarPathfinder(slow).findPath(
+                new BlockPos(0, FEET, 0), new BlockPos(300, FEET + 50, 0), 500_000, 5L, null);
+
+        assertTrue(result.timedOut(), "výpočet měl skončit časovým stropem");
+        assertFalse(result.path().complete());
+        assertTrue(result.expandedNodes() < 500_000,
+                "rozpočet uzlů se neměl stihnout vyčerpat: " + result.expandedNodes());
+    }
+
+    @Test
+    void castecnaCestaMiriKCili() {
+        FakeWorldView world = new FakeWorldView(FLOOR);
+        // Cíl nedosažitelný (ve vzduchu), malý rozpočet – částečná cesta se má
+        // aspoň přiblížit správným směrem.
+        Path path = new AStarPathfinder(world)
+                .findPath(new BlockPos(0, FEET, 0), new BlockPos(60, FEET + 40, 0), 500);
+
+        assertFalse(path.complete());
+        assertFalse(path.isEmpty(), "částečná cesta má obsahovat přiblížení");
+        BlockPos last = path.waypoints().getLast();
+        assertTrue(last.x() > 10, "částečná cesta má postoupit k cíli: " + last);
+    }
 }

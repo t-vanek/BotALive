@@ -75,7 +75,8 @@ public final class CompositionRoot {
         BotTickEngine tickEngine = container.register(BotTickEngine.class,
                 new BotTickEngine(config.performance().tickThreads()));
         NavigationService navigation = container.register(NavigationService.class,
-                new NavigationService(config.performance().pathfindingThreads()));
+                new NavigationService(config.performance().pathfindingThreads(),
+                        config.pathfinding().nodeBudget(), config.pathfinding().timeBudgetMs()));
         WorldViewRegistry worldViews = container.register(WorldViewRegistry.class,
                 new WorldViewRegistry(bridge, config.performance()));
 
@@ -198,7 +199,8 @@ public final class CompositionRoot {
         container.register(ServerEventListener.class,
                 new ServerEventListener(worldViews, botManager, pvp));
         container.register(BotAliveCommand.class,
-                new BotAliveCommand(botManager, goalRegistry, repository, config, settlements));
+                new BotAliveCommand(botManager, goalRegistry, repository, config, settlements,
+                        navigation));
     }
 
     /** Vestavěná sada cílů – každý bot dostává vlastní instance. */

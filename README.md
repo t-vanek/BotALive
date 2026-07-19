@@ -31,7 +31,11 @@ inventář a historii; po restartu serveru pokračuje tam, kde skončil.
   zaseknutí. Když cesta nevede, bot to nevzdá: **eskaluje jako hráč** –
   replanning → prokopání překážky (štola 1×2, schod vzhůru z jámy; s nástrojem
   a kontrolou tekutin) → přemostění mezery položeným blokem. Zásahy do terénu
-  respektují `ai.terraforming` a mají strop na jednu cestu.
+  respektují `ai.terraforming` a mají strop na jednu cestu. Výpočty mají
+  uzlový i časový rozpočet (`pathfinding.*`), jsou kooperativně zrušitelné
+  a memo cache drží dotazy do světa na minimu; sledování pohyblivého cíle
+  cestu nezahazuje (throttle replánů) a cesta se průběžně validuje proti
+  změnám světa. Diagnostika a metriky: `/botalive path <bot>`.
 - **Lidský projev** – omezená rychlost otáčení hlavy s easingem a šumem, trvalá
   chyba míření, log-normální reakční latence, mikro-rozhlížení, pauzy,
   rozfázované ticky. Chat s přemýšlením, rychlostí psaní, překlepy (QWERTZ
@@ -310,6 +314,7 @@ PostgreSQL driver – vše relokované do `dev.botalive.libs`).
 | `role <jméno> [role\|random]` | zobrazí/nastaví profesi bota |
 | `settlements` | přehled vesnic botů (jméno, náves, zakladatel, členové) |
 | `end portal <x> <y> <z> [svět]` | prozradí všem botům polohu portálu do Endu (drby ji šíří dál) |
+| `path <jméno>` | diagnostika navigace bota (cíl, waypointy, stav výpočtu) + metriky A* |
 
 Oprávnění:
 

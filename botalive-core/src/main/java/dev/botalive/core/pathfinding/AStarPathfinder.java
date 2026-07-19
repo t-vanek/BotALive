@@ -3,12 +3,14 @@ package dev.botalive.core.pathfinding;
 import dev.botalive.core.util.BlockPos;
 import dev.botalive.core.world.BlockTraits;
 import dev.botalive.core.world.WorldView;
+import it.unimi.dsi.fastutil.longs.Long2DoubleOpenHashMap;
 import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.PriorityQueue;
+import java.util.function.BooleanSupplier;
 
 /**
  * Vlastní A* pathfinder nad {@link WorldView}.
@@ -27,14 +29,30 @@ import java.util.PriorityQueue;
  * a blízkost hazardů (láva, oheň, kaktus), tvrdě zakazuje vstup do hazardu
  * a do nenačtených chunků.</p>
  *
- * <p>Výpočet má rozpočet expandovaných uzlů; při vyčerpání vrací částečnou
- * cestu k uzlu nejblíže cíli – bot se přiblíží a doplánuje. Pathfinder nemá
- * sdílený stav, jedna instance se smí používat z více vláken současně.</p>
+ * <p>Výpočet má rozpočet expandovaných uzlů a volitelně i časový strop;
+ * při vyčerpání vrací částečnou cestu k uzlu nejblíže cíli – bot se přiblíží
+ * a doplánuje. Běžící výpočet lze kooperativně zrušit (signál se kontroluje
+ * po blocích expanzí). Každý výpočet si drží vlastní memo cache traits
+ * a pochozích výšek – jedna buňka se světa ptá jen jednou, sousední expanze
+ * ji už čtou zadarmo (a v rámci výpočtu je pohled na svět konzistentní).
+ * Pathfinder nemá mutabilní sdílený stav, jedna instance se smí používat
+ * z více vláken současně.</p>
  */
 public final class AStarPathfinder {
 
     /** Maximální počet expandovaných uzlů na jeden výpočet. */
     private static final int DEFAULT_NODE_BUDGET = 8_000;
+
+    /** Po kolika expanzích se kontroluje časový strop a zrušení (mocnina 2). */
+    private static final int INTERRUPT_CHECK_INTERVAL = 128;
+
+    /**
+     * Váha vzdálenosti k cíli při výběru částečné cesty: minimalizuje se
+     * {@code h·16 + g}. Blízkost cíli dominuje, ale mezi stejně blízkými
+     * přiblíženími vyhrává to levněji dosažené – částečné cesty méně zabíhají
+     * do drahých slepých kapes (okolí hazardů, špatných vzpomínek, vody).
+     */
+    private static final int PARTIAL_H_WEIGHT = 16;
 
     /** Cena rovného kroku (fixed-point ×10 kvůli int aritmetice). */
     private static final int COST_STRAIGHT = 10;
@@ -81,15 +99,23 @@ public final class AStarPathfinder {
     private static final int COST_DANGER = 30;
     private static final int DANGER_NEAR_SQ = 3 * 3;
     private static final int DANGER_FAR_SQ = 6 * 6;
+    /** Dosah vlivu špatné vzpomínky (poloměr bounding boxu dangers). */
+    private static final int DANGER_RADIUS = 6;
+
+    /** Sentinel „ještě nespočítáno" v memo cache pochozích výšek. */
+    private static final double FEET_UNCOMPUTED = Double.MAX_VALUE;
 
     private final WorldView world;
-    private final java.util.List<BlockPos> dangers;
+    private final List<BlockPos> dangers;
+    /** Bounding box špatných vzpomínek (± {@link #DANGER_RADIUS}) – levný early-out. */
+    private final int dangerMinX, dangerMinY, dangerMinZ;
+    private final int dangerMaxX, dangerMaxY, dangerMaxZ;
 
     /**
      * @param world pohled na svět (thread-safe)
      */
     public AStarPathfinder(WorldView world) {
-        this(world, java.util.List.of());
+        this(world, List.of());
     }
 
     /**
@@ -98,9 +124,38 @@ public final class AStarPathfinder {
      *                jim vyhýbá, existuje-li rozumná obchůzka; průchod se
      *                zdražuje, nezakazuje (bot nesmí uvíznout)
      */
-    public AStarPathfinder(WorldView world, java.util.List<BlockPos> dangers) {
+    public AStarPathfinder(WorldView world, List<BlockPos> dangers) {
         this.world = world;
-        this.dangers = dangers == null ? java.util.List.of() : dangers;
+        this.dangers = dangers == null ? List.of() : dangers;
+        int minX = Integer.MAX_VALUE, minY = Integer.MAX_VALUE, minZ = Integer.MAX_VALUE;
+        int maxX = Integer.MIN_VALUE, maxY = Integer.MIN_VALUE, maxZ = Integer.MIN_VALUE;
+        for (BlockPos danger : this.dangers) {
+            minX = Math.min(minX, danger.x() - DANGER_RADIUS);
+            minY = Math.min(minY, danger.y() - DANGER_RADIUS);
+            minZ = Math.min(minZ, danger.z() - DANGER_RADIUS);
+            maxX = Math.max(maxX, danger.x() + DANGER_RADIUS);
+            maxY = Math.max(maxY, danger.y() + DANGER_RADIUS);
+            maxZ = Math.max(maxZ, danger.z() + DANGER_RADIUS);
+        }
+        this.dangerMinX = minX;
+        this.dangerMinY = minY;
+        this.dangerMinZ = minZ;
+        this.dangerMaxX = maxX;
+        this.dangerMaxY = maxY;
+        this.dangerMaxZ = maxZ;
+    }
+
+    /**
+     * Výsledek výpočtu s diagnostikou pro metriky.
+     *
+     * @param path          cesta (může být částečná či prázdná)
+     * @param expandedNodes počet expandovaných uzlů
+     * @param elapsedNanos  čistý čas výpočtu
+     * @param timedOut      {@code true} když výpočet ukončil časový strop
+     * @param cancelled     {@code true} když výpočet ukončilo zrušení
+     */
+    public record Result(Path path, int expandedNodes, long elapsedNanos,
+                         boolean timedOut, boolean cancelled) {
     }
 
     /**
@@ -112,303 +167,33 @@ public final class AStarPathfinder {
      * @return cesta (může být částečná), nebo prázdná cesta pokud start není pochozí
      */
     public Path findPath(BlockPos start, BlockPos goal, int nodeBudget) {
+        return findPath(start, goal, nodeBudget, 0L, null).path();
+    }
+
+    /**
+     * Naplánuje cestu s časovým stropem a možností zrušení.
+     *
+     * @param start        startovní blok (nohy bota)
+     * @param goal         cílový blok
+     * @param nodeBudget   maximum expandovaných uzlů; {@code <= 0} použije default
+     * @param timeBudgetMs časový strop výpočtu (ms); {@code <= 0} bez limitu
+     * @param cancelled    signál zrušení (smí být {@code null}); kontroluje se
+     *                     po blocích expanzí, zrušený výpočet vrací dosavadní
+     *                     nejlepší částečnou cestu
+     * @return výsledek s cestou a diagnostikou
+     */
+    public Result findPath(BlockPos start, BlockPos goal, int nodeBudget,
+                           long timeBudgetMs, BooleanSupplier cancelled) {
         int budget = nodeBudget > 0 ? nodeBudget : DEFAULT_NODE_BUDGET;
-        goal = normalizeGoal(goal);
-
-        Node startNode = new Node(start, null, 0, heuristic(start, goal));
-        PriorityQueue<Node> open = new PriorityQueue<>();
-        Long2ObjectOpenHashMap<Node> visited = new Long2ObjectOpenHashMap<>();
-        open.add(startNode);
-        visited.put(start.asLong(), startNode);
-
-        Node best = startNode;
-        int expanded = 0;
-
-        while (!open.isEmpty() && expanded < budget) {
-            Node current = open.poll();
-            if (current.closed) {
-                continue;
-            }
-            current.closed = true;
-            expanded++;
-
-            if (current.pos.equals(goal)) {
-                return new Path(reconstruct(current), true);
-            }
-            if (current.h < best.h) {
-                best = current;
-            }
-            expandNeighbors(current, goal, open, visited);
-        }
-        // Rozpočet vyčerpán – vrátit nejlepší částečnou cestu (pokud někam vede).
-        List<BlockPos> partial = reconstruct(best);
-        if (partial.size() <= 1) {
-            logDeadStart(start, goal, expanded);
-        }
-        return new Path(partial, false);
-    }
-
-    /**
-     * Cíl mířící „do vzduchu" nad částečným blokem (deska, sníh) se přesune
-     * o buňku níž – tam, kde bot skutečně skončí nohama.
-     */
-    private BlockPos normalizeGoal(BlockPos goal) {
-        if (Double.isNaN(feetHeight(goal)) && !Double.isNaN(feetHeight(goal.down()))) {
-            return goal.down();
-        }
-        return goal;
-    }
-
-    /** Diagnostika mrtvého startu: mapa traits okolí (S=solid W=liquid .=passable ?=unknown). */
-    private void logDeadStart(BlockPos start, BlockPos goal, int expanded) {
-        StringBuilder sb = new StringBuilder();
-        for (int dy = 2; dy >= -1; dy--) {
-            sb.append("y").append(dy >= 0 ? "+" : "").append(dy).append("[");
-            for (int dz = -1; dz <= 1; dz++) {
-                for (int dx = -1; dx <= 1; dx++) {
-                    BlockTraits t = world.traitsAt(start.offset(dx, dy, dz));
-                    sb.append(t == BlockTraits.UNKNOWN ? '?'
-                            : t.solid() ? 'S' : t.liquid() ? 'W' : t.passable() ? '.' : 'x');
-                }
-                sb.append(dz < 1 ? '|' : ']');
-            }
-            sb.append(' ');
-        }
-        org.slf4j.LoggerFactory.getLogger(AStarPathfinder.class).debug(
-                "[astar] mrtvý start {} → {} (expanded={}): {}", start, goal, expanded, sb);
-    }
-
-    /** Vygeneruje sousedy uzlu a zařadí je do open setu. */
-    private void expandNeighbors(Node current, BlockPos goal,
-                                 PriorityQueue<Node> open, Long2ObjectOpenHashMap<Node> visited) {
-        BlockPos pos = current.pos;
-        double curFeet = feetHeight(pos);
-        if (Double.isNaN(curFeet)) {
-            curFeet = pos.y(); // start uprostřed „nemožné" pozice – konzervativní základ
-        }
-
-        // Kardinální + diagonální pohyby.
-        for (int dx = -1; dx <= 1; dx++) {
-            for (int dz = -1; dz <= 1; dz++) {
-                if (dx == 0 && dz == 0) {
-                    continue;
-                }
-                boolean diagonal = dx != 0 && dz != 0;
-                if (diagonal && !canCutCorner(pos, dx, dz)) {
-                    continue;
-                }
-                stepTowards(current, curFeet, pos.offset(dx, 0, dz), diagonal, goal, open, visited);
-                tryGapJump(current, curFeet, dx, dz, goal, open, visited);
-            }
-        }
-
-        // Šplhání: žebřík/liána v aktuální pozici → pohyb nahoru/dolů.
-        if (world.traitsAt(pos).climbable()) {
-            tryAddStandable(current, pos.up(), COST_CLIMB, goal, open, visited);
-            tryAddStandable(current, pos.down(), COST_CLIMB, goal, open, visited);
-        }
-
-        // Plavání svisle: ve vodním sloupci se bot může vynořit i potopit.
-        BlockTraits here = world.traitsAt(pos);
-        if (here.liquid() && !here.hazard()) {
-            tryAddStandable(current, pos.up(), COST_WATER + COST_SWIM_VERTICAL, goal, open, visited);
-            tryAddStandable(current, pos.down(), COST_WATER, goal, open, visited);
-        }
-    }
-
-    /**
-     * Krok na sousední sloupec: rovně (i výstup na desku/schod v rámci
-     * step-up výšky), výskok o blok, nebo seskok až o {@link #MAX_DROP}.
-     */
-    private void stepTowards(Node current, double curFeet, BlockPos target, boolean diagonal,
-                             BlockPos goal, PriorityQueue<Node> open,
-                             Long2ObjectOpenHashMap<Node> visited) {
-        int base = diagonal ? COST_DIAGONAL : COST_STRAIGHT;
-
-        // Stejné patro: chůze, mini-schody (desky, schody), mini-seskoky.
-        double targetFeet = feetHeight(target);
-        if (!Double.isNaN(targetFeet)) {
-            double rise = targetFeet - curFeet;
-            if (rise <= STEP_UP + EPS) {
-                tryAdd(current, target, base + terrainPenalty(target), goal, open, visited);
-                return;
-            }
-            // Vyšší částečný blok ve stejné buňce (6–7 vrstev sněhu) – výskok.
-            if (!diagonal && rise <= JUMP_RISE + EPS
-                    && transitClear(current.pos.offset(0, 2, 0))) {
-                tryAdd(current, target, base + COST_JUMP + terrainPenalty(target), goal, open, visited);
-                return;
-            }
-        }
-
-        // Výskok o blok výš (jen ne-diagonálně, potřebuje volný strop nad hlavou).
-        if (!diagonal) {
-            BlockPos jumpCell = target.up();
-            double jumpFeet = feetHeight(jumpCell);
-            if (!Double.isNaN(jumpFeet)
-                    && jumpFeet - curFeet <= JUMP_RISE + EPS
-                    && transitClear(current.pos.offset(0, 2, 0))
-                    && transitClear(target.offset(0, 2, 0))) {
-                // Schodovité bloky zvládne step-up fyzika bez výskoku – bez přirážky.
-                boolean stairStep = world.traitsAt(target).stepFriendly();
-                int cost = base + (stairStep ? 2 : COST_JUMP) + terrainPenalty(jumpCell);
-                tryAdd(current, jumpCell, cost, goal, open, visited);
-                return;
-            }
-        }
-
-        // Seskok: sloupec pod cílem musí být průchozí až k dopadu. Do výšky
-        // MAX_DROP kamkoli; hlouběji jen do vody hluboké aspoň 2 (dopad do
-        // mělčiny nebo na zem by bota zranil či zabil).
-        if (transitClear(target) && transitClear(target.up())) {
-            BlockPos drop = target;
-            for (int depth = 1; depth <= MAX_WATER_DROP; depth++) {
-                drop = drop.down();
-                double dropFeet = feetHeight(drop);
-                if (!Double.isNaN(dropFeet)) {
-                    double fall = curFeet - dropFeet;
-                    if (fall <= STEP_UP) {
-                        return; // není seskok – řeší větev stejného patra
-                    }
-                    BlockTraits landing = world.traitsAt(drop);
-                    boolean deepWater = landing.liquid() && !landing.hazard()
-                            && world.traitsAt(drop.down()).liquid();
-                    if (fall > MAX_DROP + 0.51 && !deepWater) {
-                        return; // vysoký pád bez vodní jistoty – nejdeme
-                    }
-                    int fallBlocks = (int) Math.ceil(fall - 0.01);
-                    int cost = base + Math.min(fallBlocks, MAX_DROP + 2) * COST_FALL_PER_BLOCK
-                            + terrainPenalty(drop);
-                    tryAdd(current, drop, cost, goal, open, visited);
-                    return;
-                }
-                if (!transitClear(drop)) {
-                    return; // narazili jsme do zdi/hazardu – seskok nelze
-                }
-            }
-        }
-    }
-
-    /**
-     * Skok přes mezeru. Kardinálně 1–2 sloupce prázdna s dopadem ve stejné
-     * výšce nebo o blok níž; diagonálně jen rohová mezera 1 sloupce (delší let)
-     * se stejnou výškou dopadu. Letová dráha musí být průchozí v úrovni nohou,
-     * hlavy i nad hlavou – u diagonály včetně čtyř sloupců u rohů, přes které
-     * hitbox při letu zavadí. Mezisloupec nesmí být pochozí (jinak stačí
-     * obyčejný krok) a nad lávou/ohněm se neskáče – nepovedený skok by byl
-     * smrtelný. Odraz i dopad jen z „celých" výšek – z hrany desky se neskáče.
-     */
-    private void tryGapJump(Node current, double curFeet, int dx, int dz, BlockPos goal,
-                            PriorityQueue<Node> open, Long2ObjectOpenHashMap<Node> visited) {
-        BlockPos pos = current.pos;
-        boolean diagonal = dx != 0 && dz != 0;
-        // Odraz jen z celé výšky (ne z hrany desky) a s volným stropem.
-        if (Math.abs(curFeet - pos.y()) > 0.05 || !transitClear(pos.offset(0, 2, 0))) {
-            return;
-        }
-        int maxSpan = diagonal ? 2 : MAX_GAP + 1;
-        for (int span = 2; span <= maxSpan; span++) {
-            // Nový mezisloupec (poslední před dopadem pro tento rozpon).
-            BlockPos gap = pos.offset(dx * (span - 1), 0, dz * (span - 1));
-            if (!Double.isNaN(feetHeight(gap))) {
-                return; // není mezera – řeší obyčejný krok
-            }
-            if (!columnClear(gap)) {
-                return; // zeď/hazard v letové dráze
-            }
-            if (diagonal && !(columnClear(pos.offset(dx, 0, 0))
-                    && columnClear(pos.offset(0, 0, dz))
-                    && columnClear(gap.offset(dx, 0, 0))
-                    && columnClear(gap.offset(0, 0, dz)))) {
-                return; // rohové sloupce blokují letovou dráhu
-            }
-            if (hazardBelow(gap)) {
-                return; // láva na dně – radši obchůzka
-            }
-            int base = span * (diagonal ? COST_DIAGONAL : COST_STRAIGHT) + COST_GAP_JUMP
-                    + (span - 2) * COST_GAP_JUMP / 2   // širší mezera = větší riziko
-                    + (diagonal ? COST_GAP_JUMP / 2 : 0); // rohový let je delší a těsnější
-            BlockPos landing = pos.offset(dx * span, 0, dz * span);
-            double landFeet = feetHeight(landing);
-            if (flatLanding(landing, landFeet) && transitClear(landing.offset(0, 2, 0))
-                    && !world.traitsAt(landing).liquid()) {
-                tryAdd(current, landing, base + terrainPenalty(landing), goal, open, visited);
-                return;
-            }
-            // Dopad o blok níž (jen kardinálně): letí se dál a klesá, fyzikálně
-            // snazší než rovný dopad – ale dopadová plocha musí být volná i
-            // v celé letové výšce.
-            if (!diagonal) {
-                BlockPos lower = landing.down();
-                double lowerFeet = feetHeight(lower);
-                if (flatLanding(lower, lowerFeet) && transitClear(landing.up())
-                        && transitClear(landing.offset(0, 2, 0))
-                        && !world.traitsAt(lower).liquid()) {
-                    int cost = base + COST_FALL_PER_BLOCK + terrainPenalty(lower);
-                    tryAdd(current, lower, cost, goal, open, visited);
-                    return;
-                }
-            }
-        }
-    }
-
-    /** Dopadová plocha skoku: pochozí v celé výšce buňky (ne hrana desky). */
-    private static boolean flatLanding(BlockPos cell, double feet) {
-        return !Double.isNaN(feet) && Math.abs(feet - cell.y()) < 0.05;
-    }
-
-    /** Průchozí sloupec letové dráhy: úroveň nohou, hlavy i nad hlavou. */
-    private boolean columnClear(BlockPos feet) {
-        return transitClear(feet) && transitClear(feet.up()) && transitClear(feet.offset(0, 2, 0));
-    }
-
-    /** Je na dně sloupce (do {@link #GAP_HAZARD_SCAN} bloků) hazard – láva, oheň? */
-    private boolean hazardBelow(BlockPos top) {
-        BlockPos pos = top.down();
-        for (int depth = 1; depth <= GAP_HAZARD_SCAN; depth++) {
-            BlockTraits t = world.traitsAt(pos);
-            if (t.hazard()) {
-                return true;
-            }
-            if (!t.noCollision() || t.liquid()) {
-                return false; // pevné/vodní dno je bezpečné
-            }
-            pos = pos.down();
-        }
-        return false; // bezedno – pád je riziko skoku, ne hazard dna
-    }
-
-    /** Diagonála je povolená jen, když jsou oba přiléhající sloupce průchozí (žádné řezání rohů). */
-    private boolean canCutCorner(BlockPos pos, int dx, int dz) {
-        return transitClear(pos.offset(dx, 0, 0)) && transitClear(pos.offset(dx, 1, 0))
-                && transitClear(pos.offset(0, 0, dz)) && transitClear(pos.offset(0, 1, dz));
-    }
-
-    /** Přidá cíl, pokud je pochozí (pomocník pro šplhání/plavání). */
-    private void tryAddStandable(Node parent, BlockPos pos, int moveCost, BlockPos goal,
-                                 PriorityQueue<Node> open, Long2ObjectOpenHashMap<Node> visited) {
-        if (!Double.isNaN(feetHeight(pos))) {
-            tryAdd(parent, pos, moveCost, goal, open, visited);
-        }
-    }
-
-    /** Přidá uzel do open setu, pokud zlepšuje dosavadní cestu. */
-    private void tryAdd(Node parent, BlockPos pos, int moveCost, BlockPos goal,
-                        PriorityQueue<Node> open, Long2ObjectOpenHashMap<Node> visited) {
-        long key = pos.asLong();
-        int g = parent.g + moveCost + dangerPenalty(pos);
-        Node existing = visited.get(key);
-        if (existing != null && existing.g <= g) {
-            return;
-        }
-        Node node = new Node(pos, parent, g, heuristic(pos, goal));
-        visited.put(key, node);
-        open.add(node);
+        return new Search(budget, timeBudgetMs, cancelled).run(start, goal);
     }
 
     /** Přirážka za krok poblíž špatné vzpomínky (smrt, nebezpečí). */
     private int dangerPenalty(BlockPos pos) {
-        if (dangers.isEmpty()) {
+        if (dangers.isEmpty()
+                || pos.x() < dangerMinX || pos.x() > dangerMaxX
+                || pos.y() < dangerMinY || pos.y() > dangerMaxY
+                || pos.z() < dangerMinZ || pos.z() > dangerMaxZ) {
             return 0;
         }
         int penalty = 0;
@@ -433,55 +218,6 @@ public final class AStarPathfinder {
         return COST_DIAGONAL * min + COST_STRAIGHT * (max - min) + COST_STRAIGHT * dy;
     }
 
-    /**
-     * Absolutní výška chodidel bota stojícího v dané buňce, nebo {@code NaN}
-     * pokud v ní stát nelze.
-     *
-     * <p>Bot stojí: na částečném bloku v buňce (deska, sníh – chodidla na jeho
-     * stropě), na plném bloku pod buňkou, ve vodě (plavání), na žebříku, nebo
-     * v buňce dveří (otevře si je). Ploty a zídky (výška 1,5) oporou nejsou –
-     * nejde na ně vystoupit ani je překročit. Nad hlavou musí zbýt místo na
-     * tělo (1,8) – kontroluje se i buňka +2 při zvednutých chodidlech.</p>
-     */
-    private double feetHeight(BlockPos feet) {
-        BlockTraits t = world.traitsAt(feet);
-        BlockTraits head = world.traitsAt(feet.up());
-        if (t == BlockTraits.UNKNOWN || head == BlockTraits.UNKNOWN) {
-            return Double.NaN;
-        }
-        if (t.hazard() || head.hazard() || t.web() || head.web()) {
-            return Double.NaN;
-        }
-
-        boolean passThrough = t.liquid() || t.climbable() || t.door();
-        double fh = t.door() ? 0 : t.floorHeight();
-        if (!passThrough) {
-            if (fh >= 0.99) {
-                return Double.NaN; // plný blok / plot – tady se nestojí
-            }
-            if (fh <= 0) {
-                // Prázdná buňka – oporu musí dát plný blok pod ní.
-                BlockTraits below = world.traitsAt(feet.down());
-                if (below == BlockTraits.UNKNOWN
-                        || below.floorHeight() < 0.99 || below.floorHeight() > 1.01) {
-                    return Double.NaN;
-                }
-            }
-        } else if (fh >= 0.99) {
-            return Double.NaN; // vodou zalitý plný tvar – plave se v buňce nad ním
-        }
-
-        // Prostor pro tělo: hlava (celá buňka nad) a u zvednutých chodidel
-        // i spodek buňky +2.
-        if (!headClear(head, fh + 0.8)) {
-            return Double.NaN;
-        }
-        if (fh > 0.2 && !headClear(world.traitsAt(feet.offset(0, 2, 0)), fh - 0.2)) {
-            return Double.NaN;
-        }
-        return feet.y() + fh;
-    }
-
     /** Buňka hlavy nepřekáží tělu do dané lokální výšky (dveře si bot otevře). */
     private static boolean headClear(BlockTraits head, double clearance) {
         if (head == BlockTraits.UNKNOWN || head.hazard() || head.web()) {
@@ -490,70 +226,12 @@ public final class AStarPathfinder {
         if (head.door()) {
             return true;
         }
-        return lowestBoxStart(head) >= clearance - EPS;
+        return head.lowestCollisionStart() >= clearance - EPS;
     }
 
-    /** Nejnižší začátek kolize v buňce ({@code MAX_VALUE} bez kolize). */
-    private static double lowestBoxStart(BlockTraits t) {
-        double[] boxes = t.boxes();
-        if (boxes.length == 0) {
-            return Double.MAX_VALUE;
-        }
-        double min = Double.MAX_VALUE;
-        for (int i = 0; i < boxes.length; i += 6) {
-            min = Math.min(min, boxes[i + 1]);
-        }
-        return min;
-    }
-
-    /**
-     * Průchozí prostor pro tělo v letu/pádu: bez hazardu, pavučiny a kolize
-     * (nízký profil do 1/16 nevadí), bez „neznáma". Zavřené dveře si bot otevře.
-     */
-    private boolean transitClear(BlockPos pos) {
-        BlockTraits t = world.traitsAt(pos);
-        if (t == BlockTraits.UNKNOWN || t.hazard() || t.web()) {
-            return false;
-        }
-        return t.door() || t.lowProfile();
-    }
-
-    /** Penalizace terénu: voda (potápění zvlášť), dveře, pomalý povrch, hazard v okolí. */
-    private int terrainPenalty(BlockPos feet) {
-        int penalty = 0;
-        BlockTraits feetTraits = world.traitsAt(feet);
-        if (feetTraits.liquid()) {
-            penalty += COST_WATER;
-            // Hlava taky pod vodou → bot se tu nenadechne. Dlouhé podvodní
-            // úseky se prodraží a cesta drží hladinu, kde to jde.
-            if (world.traitsAt(feet.up()).liquid()) {
-                penalty += COST_SUBMERGED;
-            }
-        }
-        if (feetTraits.door()) {
-            penalty += COST_DOOR;
-        }
-        // Portálový blok – neprocházet omylem (změna dimenze); záměrnému
-        // vstupu (portál je cílem cesty) konstanta nebrání.
-        if (feetTraits.portal() || world.traitsAt(feet.up()).portal()) {
-            penalty += COST_PORTAL;
-        }
-        // Pomalý povrch pod nohama (soul sand, med) – chůze po něm se vleče.
-        BlockTraits support = feetTraits.floorHeight() > 0
-                ? feetTraits : world.traitsAt(feet.down());
-        if (support.speedFactor() < 0.99) {
-            penalty += COST_SLOW_SURFACE;
-        }
-        // Hazard v okolí 1 bloku → vysoká penalizace (bot se drží dál od lávy).
-        for (int dx = -1; dx <= 1; dx++) {
-            for (int dz = -1; dz <= 1; dz++) {
-                if (world.traitsAt(feet.offset(dx, 0, dz)).hazard()
-                        || world.traitsAt(feet.offset(dx, -1, dz)).hazard()) {
-                    return penalty + COST_NEAR_HAZARD;
-                }
-            }
-        }
-        return penalty;
+    /** Dopadová plocha skoku: pochozí v celé výšce buňky (ne hrana desky). */
+    private static boolean flatLanding(BlockPos cell, double feet) {
+        return !Double.isNaN(feet) && Math.abs(feet - cell.y()) < 0.05;
     }
 
     /** Zrekonstruuje cestu od cílového uzlu ke startu. */
@@ -567,6 +245,470 @@ public final class AStarPathfinder {
             path.removeFirst(); // startovní pozici bot už má
         }
         return path;
+    }
+
+    /**
+     * Jeden výpočet cesty: open/visited set, memo cache traits a pochozích
+     * výšek, rozpočty a signál zrušení. Instance žije jen po dobu výpočtu –
+     * sdílené {@link AStarPathfinder} pole zůstává nemutabilní.
+     */
+    private final class Search {
+
+        private final int nodeBudget;
+        private final long deadlineNanos;
+        private final BooleanSupplier cancelSignal;
+        private final long startNanos = System.nanoTime();
+
+        private final PriorityQueue<Node> open = new PriorityQueue<>();
+        private final Long2ObjectOpenHashMap<Node> visited = new Long2ObjectOpenHashMap<>();
+        /** Memo traits – jedna buňka se světa ptá jednou za výpočet. */
+        private final Long2ObjectOpenHashMap<BlockTraits> traitsMemo =
+                new Long2ObjectOpenHashMap<>(1024);
+        /** Memo pochozí výšky ({@code NaN} = nestojí se tu). */
+        private final Long2DoubleOpenHashMap feetMemo = new Long2DoubleOpenHashMap(512);
+
+        private BlockPos goal;
+        private int expanded;
+        private boolean timedOut;
+        private boolean cancelled;
+
+        Search(int nodeBudget, long timeBudgetMs, BooleanSupplier cancelSignal) {
+            this.nodeBudget = nodeBudget;
+            this.deadlineNanos = timeBudgetMs > 0 ? startNanos + timeBudgetMs * 1_000_000L : 0L;
+            this.cancelSignal = cancelSignal;
+            feetMemo.defaultReturnValue(FEET_UNCOMPUTED);
+        }
+
+        Result run(BlockPos start, BlockPos rawGoal) {
+            goal = normalizeGoal(rawGoal);
+
+            Node startNode = new Node(start, null, 0, heuristic(start, goal));
+            open.add(startNode);
+            visited.put(start.asLong(), startNode);
+
+            Node best = startNode;
+            long bestScore = partialScore(startNode);
+
+            while (!open.isEmpty() && expanded < nodeBudget) {
+                if ((expanded & (INTERRUPT_CHECK_INTERVAL - 1)) == 0 && interrupted()) {
+                    break;
+                }
+                Node current = open.poll();
+                if (current.closed) {
+                    continue;
+                }
+                current.closed = true;
+                expanded++;
+
+                if (current.pos.equals(goal)) {
+                    return result(new Path(reconstruct(current), true));
+                }
+                long score = partialScore(current);
+                if (score < bestScore) {
+                    best = current;
+                    bestScore = score;
+                }
+                expandNeighbors(current);
+            }
+            // Rozpočet/čas vyčerpán či zrušeno – vrátit nejlepší částečnou cestu.
+            List<BlockPos> partial = reconstruct(best);
+            if (partial.size() <= 1 && !cancelled) {
+                logDeadStart(start, goal);
+            }
+            return result(new Path(partial, false));
+        }
+
+        private Result result(Path path) {
+            return new Result(path, expanded, System.nanoTime() - startNanos,
+                    timedOut, cancelled);
+        }
+
+        /** Skóre výběru částečné cesty: blízkost cíli především, cena mírně. */
+        private long partialScore(Node node) {
+            return (long) node.h * PARTIAL_H_WEIGHT + node.g;
+        }
+
+        /** Zrušení nebo časový strop – kontroluje se po blocích expanzí. */
+        private boolean interrupted() {
+            if (cancelSignal != null && cancelSignal.getAsBoolean()) {
+                cancelled = true;
+                return true;
+            }
+            if (deadlineNanos != 0 && System.nanoTime() > deadlineNanos) {
+                timedOut = true;
+                return true;
+            }
+            return false;
+        }
+
+        /** Vlastnosti bloku s memo cache výpočtu. */
+        private BlockTraits traits(BlockPos pos) {
+            long key = pos.asLong();
+            BlockTraits t = traitsMemo.get(key);
+            if (t == null) {
+                t = world.traitsAt(pos);
+                traitsMemo.put(key, t);
+            }
+            return t;
+        }
+
+        /**
+         * Cíl mířící „do vzduchu" nad částečným blokem (deska, sníh) se přesune
+         * o buňku níž – tam, kde bot skutečně skončí nohama.
+         */
+        private BlockPos normalizeGoal(BlockPos goal) {
+            if (Double.isNaN(feetHeight(goal)) && !Double.isNaN(feetHeight(goal.down()))) {
+                return goal.down();
+            }
+            return goal;
+        }
+
+        /** Diagnostika mrtvého startu: mapa traits okolí (S=solid W=liquid .=passable ?=unknown). */
+        private void logDeadStart(BlockPos start, BlockPos goal) {
+            StringBuilder sb = new StringBuilder();
+            for (int dy = 2; dy >= -1; dy--) {
+                sb.append("y").append(dy >= 0 ? "+" : "").append(dy).append("[");
+                for (int dz = -1; dz <= 1; dz++) {
+                    for (int dx = -1; dx <= 1; dx++) {
+                        BlockTraits t = traits(start.offset(dx, dy, dz));
+                        sb.append(t == BlockTraits.UNKNOWN ? '?'
+                                : t.solid() ? 'S' : t.liquid() ? 'W' : t.passable() ? '.' : 'x');
+                    }
+                    sb.append(dz < 1 ? '|' : ']');
+                }
+                sb.append(' ');
+            }
+            org.slf4j.LoggerFactory.getLogger(AStarPathfinder.class).debug(
+                    "[astar] mrtvý start {} → {} (expanded={}): {}", start, goal, expanded, sb);
+        }
+
+        /** Vygeneruje sousedy uzlu a zařadí je do open setu. */
+        private void expandNeighbors(Node current) {
+            BlockPos pos = current.pos;
+            double curFeet = feetHeight(pos);
+            if (Double.isNaN(curFeet)) {
+                curFeet = pos.y(); // start uprostřed „nemožné" pozice – konzervativní základ
+            }
+
+            // Kardinální + diagonální pohyby.
+            for (int dx = -1; dx <= 1; dx++) {
+                for (int dz = -1; dz <= 1; dz++) {
+                    if (dx == 0 && dz == 0) {
+                        continue;
+                    }
+                    boolean diagonal = dx != 0 && dz != 0;
+                    if (diagonal && !canCutCorner(pos, dx, dz)) {
+                        continue;
+                    }
+                    stepTowards(current, curFeet, pos.offset(dx, 0, dz), diagonal);
+                    tryGapJump(current, curFeet, dx, dz);
+                }
+            }
+
+            // Šplhání: žebřík/liána v aktuální pozici → pohyb nahoru/dolů.
+            if (traits(pos).climbable()) {
+                tryAddStandable(current, pos.up(), COST_CLIMB);
+                tryAddStandable(current, pos.down(), COST_CLIMB);
+            }
+
+            // Plavání svisle: ve vodním sloupci se bot může vynořit i potopit.
+            BlockTraits here = traits(pos);
+            if (here.liquid() && !here.hazard()) {
+                tryAddStandable(current, pos.up(), COST_WATER + COST_SWIM_VERTICAL);
+                tryAddStandable(current, pos.down(), COST_WATER);
+            }
+        }
+
+        /**
+         * Krok na sousední sloupec: rovně (i výstup na desku/schod v rámci
+         * step-up výšky), výskok o blok, nebo seskok až o {@link #MAX_DROP}.
+         */
+        private void stepTowards(Node current, double curFeet, BlockPos target, boolean diagonal) {
+            int base = diagonal ? COST_DIAGONAL : COST_STRAIGHT;
+
+            // Stejné patro: chůze, mini-schody (desky, schody), mini-seskoky.
+            double targetFeet = feetHeight(target);
+            if (!Double.isNaN(targetFeet)) {
+                double rise = targetFeet - curFeet;
+                if (rise <= STEP_UP + EPS) {
+                    tryAdd(current, target, base + terrainPenalty(target));
+                    return;
+                }
+                // Vyšší částečný blok ve stejné buňce (6–7 vrstev sněhu) – výskok.
+                if (!diagonal && rise <= JUMP_RISE + EPS
+                        && transitClear(current.pos.offset(0, 2, 0))) {
+                    tryAdd(current, target, base + COST_JUMP + terrainPenalty(target));
+                    return;
+                }
+            }
+
+            // Výskok o blok výš (jen ne-diagonálně, potřebuje volný strop nad hlavou).
+            if (!diagonal) {
+                BlockPos jumpCell = target.up();
+                double jumpFeet = feetHeight(jumpCell);
+                if (!Double.isNaN(jumpFeet)
+                        && jumpFeet - curFeet <= JUMP_RISE + EPS
+                        && transitClear(current.pos.offset(0, 2, 0))
+                        && transitClear(target.offset(0, 2, 0))) {
+                    // Schodovité bloky zvládne step-up fyzika bez výskoku – bez přirážky.
+                    boolean stairStep = traits(target).stepFriendly();
+                    int cost = base + (stairStep ? 2 : COST_JUMP) + terrainPenalty(jumpCell);
+                    tryAdd(current, jumpCell, cost);
+                    return;
+                }
+            }
+
+            // Seskok: sloupec pod cílem musí být průchozí až k dopadu. Do výšky
+            // MAX_DROP kamkoli; hlouběji jen do vody hluboké aspoň 2 (dopad do
+            // mělčiny nebo na zem by bota zranil či zabil).
+            if (transitClear(target) && transitClear(target.up())) {
+                BlockPos drop = target;
+                for (int depth = 1; depth <= MAX_WATER_DROP; depth++) {
+                    drop = drop.down();
+                    double dropFeet = feetHeight(drop);
+                    if (!Double.isNaN(dropFeet)) {
+                        double fall = curFeet - dropFeet;
+                        if (fall <= STEP_UP) {
+                            return; // není seskok – řeší větev stejného patra
+                        }
+                        BlockTraits landing = traits(drop);
+                        boolean deepWater = landing.liquid() && !landing.hazard()
+                                && traits(drop.down()).liquid();
+                        if (fall > MAX_DROP + 0.51 && !deepWater) {
+                            return; // vysoký pád bez vodní jistoty – nejdeme
+                        }
+                        int fallBlocks = (int) Math.ceil(fall - 0.01);
+                        int cost = base + Math.min(fallBlocks, MAX_DROP + 2) * COST_FALL_PER_BLOCK
+                                + terrainPenalty(drop);
+                        tryAdd(current, drop, cost);
+                        return;
+                    }
+                    if (!transitClear(drop)) {
+                        return; // narazili jsme do zdi/hazardu – seskok nelze
+                    }
+                }
+            }
+        }
+
+        /**
+         * Skok přes mezeru. Kardinálně 1–2 sloupce prázdna s dopadem ve stejné
+         * výšce nebo o blok níž; diagonálně jen rohová mezera 1 sloupce (delší let)
+         * se stejnou výškou dopadu. Letová dráha musí být průchozí v úrovni nohou,
+         * hlavy i nad hlavou – u diagonály včetně čtyř sloupců u rohů, přes které
+         * hitbox při letu zavadí. Mezisloupec nesmí být pochozí (jinak stačí
+         * obyčejný krok) a nad lávou/ohněm se neskáče – nepovedený skok by byl
+         * smrtelný. Odraz i dopad jen z „celých" výšek – z hrany desky se neskáče.
+         */
+        private void tryGapJump(Node current, double curFeet, int dx, int dz) {
+            BlockPos pos = current.pos;
+            boolean diagonal = dx != 0 && dz != 0;
+            // Odraz jen z celé výšky (ne z hrany desky) a s volným stropem.
+            if (Math.abs(curFeet - pos.y()) > 0.05 || !transitClear(pos.offset(0, 2, 0))) {
+                return;
+            }
+            int maxSpan = diagonal ? 2 : MAX_GAP + 1;
+            for (int span = 2; span <= maxSpan; span++) {
+                // Nový mezisloupec (poslední před dopadem pro tento rozpon).
+                BlockPos gap = pos.offset(dx * (span - 1), 0, dz * (span - 1));
+                if (!Double.isNaN(feetHeight(gap))) {
+                    return; // není mezera – řeší obyčejný krok
+                }
+                if (!columnClear(gap)) {
+                    return; // zeď/hazard v letové dráze
+                }
+                if (diagonal && !(columnClear(pos.offset(dx, 0, 0))
+                        && columnClear(pos.offset(0, 0, dz))
+                        && columnClear(gap.offset(dx, 0, 0))
+                        && columnClear(gap.offset(0, 0, dz)))) {
+                    return; // rohové sloupce blokují letovou dráhu
+                }
+                if (hazardBelow(gap)) {
+                    return; // láva na dně – radši obchůzka
+                }
+                int base = span * (diagonal ? COST_DIAGONAL : COST_STRAIGHT) + COST_GAP_JUMP
+                        + (span - 2) * COST_GAP_JUMP / 2   // širší mezera = větší riziko
+                        + (diagonal ? COST_GAP_JUMP / 2 : 0); // rohový let je delší a těsnější
+                BlockPos landing = pos.offset(dx * span, 0, dz * span);
+                double landFeet = feetHeight(landing);
+                if (flatLanding(landing, landFeet) && transitClear(landing.offset(0, 2, 0))
+                        && !traits(landing).liquid()) {
+                    tryAdd(current, landing, base + terrainPenalty(landing));
+                    return;
+                }
+                // Dopad o blok níž (jen kardinálně): letí se dál a klesá, fyzikálně
+                // snazší než rovný dopad – ale dopadová plocha musí být volná i
+                // v celé letové výšce.
+                if (!diagonal) {
+                    BlockPos lower = landing.down();
+                    double lowerFeet = feetHeight(lower);
+                    if (flatLanding(lower, lowerFeet) && transitClear(landing.up())
+                            && transitClear(landing.offset(0, 2, 0))
+                            && !traits(lower).liquid()) {
+                        int cost = base + COST_FALL_PER_BLOCK + terrainPenalty(lower);
+                        tryAdd(current, lower, cost);
+                        return;
+                    }
+                }
+            }
+        }
+
+        /** Průchozí sloupec letové dráhy: úroveň nohou, hlavy i nad hlavou. */
+        private boolean columnClear(BlockPos feet) {
+            return transitClear(feet) && transitClear(feet.up())
+                    && transitClear(feet.offset(0, 2, 0));
+        }
+
+        /** Je na dně sloupce (do {@link #GAP_HAZARD_SCAN} bloků) hazard – láva, oheň? */
+        private boolean hazardBelow(BlockPos top) {
+            BlockPos pos = top.down();
+            for (int depth = 1; depth <= GAP_HAZARD_SCAN; depth++) {
+                BlockTraits t = traits(pos);
+                if (t.hazard()) {
+                    return true;
+                }
+                if (!t.noCollision() || t.liquid()) {
+                    return false; // pevné/vodní dno je bezpečné
+                }
+                pos = pos.down();
+            }
+            return false; // bezedno – pád je riziko skoku, ne hazard dna
+        }
+
+        /** Diagonála je povolená jen, když jsou oba přiléhající sloupce průchozí (žádné řezání rohů). */
+        private boolean canCutCorner(BlockPos pos, int dx, int dz) {
+            return transitClear(pos.offset(dx, 0, 0)) && transitClear(pos.offset(dx, 1, 0))
+                    && transitClear(pos.offset(0, 0, dz)) && transitClear(pos.offset(0, 1, dz));
+        }
+
+        /** Přidá cíl, pokud je pochozí (pomocník pro šplhání/plavání). */
+        private void tryAddStandable(Node parent, BlockPos pos, int moveCost) {
+            if (!Double.isNaN(feetHeight(pos))) {
+                tryAdd(parent, pos, moveCost);
+            }
+        }
+
+        /** Přidá uzel do open setu, pokud zlepšuje dosavadní cestu. */
+        private void tryAdd(Node parent, BlockPos pos, int moveCost) {
+            long key = pos.asLong();
+            int g = parent.g + moveCost + dangerPenalty(pos);
+            Node existing = visited.get(key);
+            if (existing != null && existing.g <= g) {
+                return;
+            }
+            Node node = new Node(pos, parent, g, heuristic(pos, goal));
+            visited.put(key, node);
+            open.add(node);
+        }
+
+        /**
+         * Absolutní výška chodidel bota stojícího v dané buňce, nebo {@code NaN}
+         * pokud v ní stát nelze. Memoizováno per výpočet.
+         *
+         * <p>Bot stojí: na částečném bloku v buňce (deska, sníh – chodidla na jeho
+         * stropě), na plném bloku pod buňkou, ve vodě (plavání), na žebříku, nebo
+         * v buňce dveří (otevře si je). Ploty a zídky (výška 1,5) oporou nejsou –
+         * nejde na ně vystoupit ani je překročit. Nad hlavou musí zbýt místo na
+         * tělo (1,8) – kontroluje se i buňka +2 při zvednutých chodidlech.</p>
+         */
+        private double feetHeight(BlockPos feet) {
+            long key = feet.asLong();
+            double cached = feetMemo.get(key);
+            if (cached != FEET_UNCOMPUTED) {
+                return cached;
+            }
+            double computed = computeFeetHeight(feet);
+            feetMemo.put(key, computed);
+            return computed;
+        }
+
+        private double computeFeetHeight(BlockPos feet) {
+            BlockTraits t = traits(feet);
+            BlockTraits head = traits(feet.up());
+            if (t == BlockTraits.UNKNOWN || head == BlockTraits.UNKNOWN) {
+                return Double.NaN;
+            }
+            if (t.hazard() || head.hazard() || t.web() || head.web()) {
+                return Double.NaN;
+            }
+
+            boolean passThrough = t.liquid() || t.climbable() || t.door();
+            double fh = t.door() ? 0 : t.floorHeight();
+            if (!passThrough) {
+                if (fh >= 0.99) {
+                    return Double.NaN; // plný blok / plot – tady se nestojí
+                }
+                if (fh <= 0) {
+                    // Prázdná buňka – oporu musí dát plný blok pod ní.
+                    BlockTraits below = traits(feet.down());
+                    if (below == BlockTraits.UNKNOWN
+                            || below.floorHeight() < 0.99 || below.floorHeight() > 1.01) {
+                        return Double.NaN;
+                    }
+                }
+            } else if (fh >= 0.99) {
+                return Double.NaN; // vodou zalitý plný tvar – plave se v buňce nad ním
+            }
+
+            // Prostor pro tělo: hlava (celá buňka nad) a u zvednutých chodidel
+            // i spodek buňky +2.
+            if (!headClear(head, fh + 0.8)) {
+                return Double.NaN;
+            }
+            if (fh > 0.2 && !headClear(traits(feet.offset(0, 2, 0)), fh - 0.2)) {
+                return Double.NaN;
+            }
+            return feet.y() + fh;
+        }
+
+        /**
+         * Průchozí prostor pro tělo v letu/pádu: bez hazardu, pavučiny a kolize
+         * (nízký profil do 1/16 nevadí), bez „neznáma". Zavřené dveře si bot otevře.
+         */
+        private boolean transitClear(BlockPos pos) {
+            BlockTraits t = traits(pos);
+            if (t == BlockTraits.UNKNOWN || t.hazard() || t.web()) {
+                return false;
+            }
+            return t.door() || t.lowProfile();
+        }
+
+        /** Penalizace terénu: voda (potápění zvlášť), dveře, pomalý povrch, hazard v okolí. */
+        private int terrainPenalty(BlockPos feet) {
+            int penalty = 0;
+            BlockTraits feetTraits = traits(feet);
+            if (feetTraits.liquid()) {
+                penalty += COST_WATER;
+                // Hlava taky pod vodou → bot se tu nenadechne. Dlouhé podvodní
+                // úseky se prodraží a cesta drží hladinu, kde to jde.
+                if (traits(feet.up()).liquid()) {
+                    penalty += COST_SUBMERGED;
+                }
+            }
+            if (feetTraits.door()) {
+                penalty += COST_DOOR;
+            }
+            // Portálový blok – neprocházet omylem (změna dimenze); záměrnému
+            // vstupu (portál je cílem cesty) konstanta nebrání.
+            if (feetTraits.portal() || traits(feet.up()).portal()) {
+                penalty += COST_PORTAL;
+            }
+            // Pomalý povrch pod nohama (soul sand, med) – chůze po něm se vleče.
+            BlockTraits support = feetTraits.floorHeight() > 0
+                    ? feetTraits : traits(feet.down());
+            if (support.speedFactor() < 0.99) {
+                penalty += COST_SLOW_SURFACE;
+            }
+            // Hazard v okolí 1 bloku → vysoká penalizace (bot se drží dál od lávy).
+            for (int dx = -1; dx <= 1; dx++) {
+                for (int dz = -1; dz <= 1; dz++) {
+                    if (traits(feet.offset(dx, 0, dz)).hazard()
+                            || traits(feet.offset(dx, -1, dz)).hazard()) {
+                        return penalty + COST_NEAR_HAZARD;
+                    }
+                }
+            }
+            return penalty;
+        }
     }
 
     /** Uzel A* – mutable kvůli výkonu (open set s lazy mazáním). */
@@ -586,7 +728,13 @@ public final class AStarPathfinder {
 
         @Override
         public int compareTo(Node o) {
-            return Integer.compare(g + h, o.g + o.h);
+            int byF = Integer.compare(g + h, o.g + o.h);
+            if (byF != 0) {
+                return byF;
+            }
+            // Tie-break: při shodném f dřív uzel s vyšším g (hlouběji po své
+            // cestě, blíž cíli) – na otevřených rovinách řeže plata expanzí.
+            return Integer.compare(o.g, g);
         }
     }
 }

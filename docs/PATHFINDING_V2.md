@@ -254,9 +254,17 @@ by vypadalo stroze), dva boti volí různé trasy = viditelná individualita.
 
 ## 4. Doporučené fázování
 
+> **Stav: v2.0 implementováno** – memo cache traits/výšek (v bludišťovém
+> benchmarku ~70× méně dotazů do světa, hlídá `PathfindingEfficiencyTest`),
+> časový rozpočet + kooperativní zrušení (`PathRequest`), tie-break a výběr
+> částečné cesty `h·16+g`, danger bounding-box, drift throttle pohyblivých
+> cílů, validace cesty proti změnám světa (`PathValidator`), sekce
+> `pathfinding.*`, metriky `PathfindingStats` a příkaz `/botalive path`.
+> Detaily viz ARCHITECTURE.md, fáze 19.
+
 | Fáze | Obsah | Náročnost | Riziko | Hlavní přínos |
 |---|---|---|---|---|
-| **v2.0 jádro** | A (memo, čas, cancel, tie-break, partial-best, konfig+metriky+debug) + B (throttle, splice, validace) | M | nízké | 5–10× levnější výpočty, konec replan bouří u followu, měřitelnost |
+| **v2.0 jádro** ✅ | A (memo, čas, cancel, tie-break, partial-best, konfig+metriky+debug) + B (throttle, splice, validace) | M | nízké | 5–10× levnější výpočty, konec replan bouří u followu, měřitelnost |
 | **v2.1 dálka** | C (region graf, koridory, optimistické UNKNOWN, prefetch navázaný na výpočet) | M–L | střední | kilometrové trasy bez slepých ramen a stop-and-go |
 | **v2.2 akce** | D (dig/place hrany za flagem, sjednocení s assist eskalací) + F (predikáty – lze i dřív, je nezávislé) | L | vyšší | tunely/mosty jako plán, plánovaný útěk, multi-target |
 | **v2.3 šmrnc** | E (nové skoky) + G (silnice) + H (osobnost) | S | nízké | lidskost a individualita tras |
