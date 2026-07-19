@@ -63,9 +63,15 @@ public final class SettlementService {
     public record MemberInfo(UUID botId, int plotIndex, BlockPos plotOrigin) {
     }
 
-    /** Vesnice (pohled ven, nemutabilní snímek). */
+    /**
+     * Vesnice (pohled ven, nemutabilní snímek).
+     *
+     * @param houses počet dostavěných domů členů (substance stupně)
+     * @param tier   odvozený stupeň sídla (osada/vesnice/město)
+     */
     public record SettlementInfo(long id, String name, String world, BlockPos center,
-                                 UUID founder, List<MemberInfo> members) {
+                                 UUID founder, List<MemberInfo> members,
+                                 int houses, SettlementTier tier) {
     }
 
     /**
@@ -150,6 +156,8 @@ public final class SettlementService {
         final Map<UUID, Member> members = new LinkedHashMap<>();
         /** Nepoužitelné parcely (index → do kdy platí zákaz). */
         final Map<Integer, Long> unusablePlots = new HashMap<>();
+        /** Poslední OHLÁŠENÝ stupeň – hlásí se jen růst, jednou. */
+        SettlementTier announcedTier = SettlementTier.OSADA;
 
         Settlement(long id, String name, String world, BlockPos center,
                    UUID founder, long createdAt) {
@@ -164,7 +172,7 @@ public final class SettlementService {
 
     /** Členství bota: parcela {@code plotOrigin} může být null (ještě nemá). */
     private record Member(UUID botId, long joinedAt, int plotIndex,
-                          BlockPos plotOrigin, Cardinal facing) {
+                          BlockPos plotOrigin, Cardinal facing, boolean houseDone) {
     }
 
     private final BotAliveConfig.Settlement config;
@@ -222,6 +230,9 @@ public final class SettlementService {
                         new BlockPos(row.x(), row.y(), row.z()),
                         row.founder() == null ? null : UUID.fromString(row.founder()),
                         row.createdAt());
+                if (row.announcedTier() != null) {
+                    settlement.announcedTier = SettlementTier.valueOf(row.announcedTier());
+                }
                 settlements.put(row.id(), settlement);
             }
             for (BotRepository.SettlementMemberRow row : memberRows) {
@@ -236,7 +247,8 @@ public final class SettlementService {
                         ? Cardinal.NORTH
                         : Cardinal.valueOf(row.plotFacing());
                 settlement.members.put(row.botId(), new Member(row.botId(), row.joinedAt(),
-                        row.plotIndex() == null ? -1 : row.plotIndex(), plot, facing));
+                        row.plotIndex() == null ? -1 : row.plotIndex(), plot, facing,
+                        row.houseDone()));
                 memberIndex.put(row.botId(), row.settlementId());
                 // Brzda stěhovacího kolotoče musí přežít restart – nejlepší
                 // dostupný odhad poslední změny je čas vstupu do vesnice.
@@ -411,7 +423,7 @@ public final class SettlementService {
             return false;
         }
         addMember(settlement, new Member(view.botId(), clock.getAsLong(), -1, null,
-                Cardinal.NORTH));
+                Cardinal.NORTH, false));
         lastChangeAt.put(view.botId(), clock.getAsLong());
         return true;
     }
@@ -471,7 +483,7 @@ public final class SettlementService {
         }
         Member member = settlement.members.get(botId);
         addMember(settlement, new Member(botId, member.joinedAt(), slot.index(),
-                slot.origin(), slot.facing()));
+                slot.origin(), slot.facing(), false));
         return true;
     }
 
@@ -485,7 +497,7 @@ public final class SettlementService {
         Settlement settlement = settlements.get(id);
         boolean founderPlot = member.plotIndex() < 0 && member.plotOrigin() != null;
         addMember(settlement, new Member(botId, member.joinedAt(), -1, null,
-                Cardinal.NORTH));
+                Cardinal.NORTH, false));
         if (founderPlot) {
             // Náves stála na zakladatelově domě a ten je pryč (zatopený,
             // zničený) – přepočítat střed na těžiště domů členů, ať se nové
@@ -578,9 +590,57 @@ public final class SettlementService {
             repository.insertSettlement(settlement.id, settlement.name, settlement.world,
                     center.x(), center.y(), center.z(), view.botId().toString(), now);
         }
-        addMember(settlement, new Member(view.botId(), now, -1, founderPlot, facing));
+        addMember(settlement, new Member(view.botId(), now, -1, founderPlot, facing, false));
         lastChangeAt.put(view.botId(), now);
         return Optional.of(info(settlement));
+    }
+
+    /**
+     * Zaznamená dostavěný dům člena – substanci, ze které se odvozuje stupeň
+     * sídla. Volá {@code BuildHouseGoal.finishHouse} (pro zakladatele
+     * i členy s parcelou). Idempotentní.
+     *
+     * @param botId stavebník
+     * @return nově dosažený stupeň, pokud dům sídlo právě povýšil a povýšení
+     *         ještě nebylo ohlášeno (volající ohlásí v chatu)
+     */
+    public synchronized Optional<SettlementTier> houseFinished(UUID botId) {
+        Long id = memberIndex.get(botId);
+        Settlement settlement = id == null ? null : settlements.get(id);
+        if (settlement == null) {
+            return Optional.empty();
+        }
+        Member member = settlement.members.get(botId);
+        if (member == null || member.houseDone()) {
+            return Optional.empty();
+        }
+        addMember(settlement, new Member(member.botId(), member.joinedAt(),
+                member.plotIndex(), member.plotOrigin(), member.facing(), true));
+        SettlementTier tier = tierOf(settlement);
+        if (tier.ordinal() > settlement.announcedTier.ordinal()) {
+            settlement.announcedTier = tier;
+            if (repository != null) {
+                repository.updateSettlementTier(settlement.id, tier.name());
+            }
+            return Optional.of(tier);
+        }
+        return Optional.empty();
+    }
+
+    /** Odvozený stupeň sídla z počtu dostavěných domů (infrastruktura fáze B+). */
+    private SettlementTier tierOf(Settlement settlement) {
+        return SettlementTier.of(houses(settlement), false);
+    }
+
+    /** @return počet dostavěných domů členů */
+    private int houses(Settlement settlement) {
+        int houses = 0;
+        for (Member member : settlement.members.values()) {
+            if (member.houseDone()) {
+                houses++;
+            }
+        }
+        return houses;
     }
 
     // ======================================================== soudržnost
@@ -634,7 +694,7 @@ public final class SettlementService {
                         UUID friend = strongestFriendIn(view, target);
                         leave(view.botId());
                         addMember(target, new Member(view.botId(), now, -1, null,
-                                Cardinal.NORTH));
+                                Cardinal.NORTH, false));
                         rebuildFlags.add(view.botId());
                         lastChangeAt.put(view.botId(), now);
                         return Optional.of(new CohesionAction(
@@ -655,7 +715,7 @@ public final class SettlementService {
         Settlement target = bestJoinable(view, view.position(), config.joinRadius(),
                 Math.max(RELOCATE_MIN_AFFINITY, joinThreshold(view)));
         if (target != null) {
-            addMember(target, new Member(view.botId(), now, -1, null, Cardinal.NORTH));
+            addMember(target, new Member(view.botId(), now, -1, null, Cardinal.NORTH, false));
             rebuildFlags.add(view.botId());
             lastChangeAt.put(view.botId(), now);
             return Optional.of(new CohesionAction(CohesionAction.Type.JOIN_NEARBY,
@@ -709,7 +769,7 @@ public final class SettlementService {
                     member.plotOrigin() == null ? null : member.plotOrigin().x(),
                     member.plotOrigin() == null ? null : member.plotOrigin().y(),
                     member.plotOrigin() == null ? null : member.plotOrigin().z(),
-                    member.facing().name());
+                    member.facing().name(), member.houseDone());
         }
     }
 
@@ -902,6 +962,7 @@ public final class SettlementService {
                     member.plotOrigin()));
         }
         return new SettlementInfo(settlement.id, settlement.name, settlement.world,
-                settlement.center, settlement.founder, List.copyOf(members));
+                settlement.center, settlement.founder, List.copyOf(members),
+                houses(settlement), tierOf(settlement));
     }
 }

@@ -62,6 +62,49 @@ class SettlementServiceTest {
         return info.get();
     }
 
+    // ------------------------------------------------------------- růst sídla
+
+    @Test
+    void ctvrtyDumPovysiOsaduNaVesnici() {
+        var village = foundVillage();
+        // Zakladatelův dům: první substance, na vesnici to ještě není.
+        assertTrue(service.houseFinished(founder).isEmpty());
+        UUID[] settlers = {joiner, third, new UUID(0, 4)};
+        for (int i = 0; i < settlers.length; i++) {
+            UUID settler = settlers[i];
+            var settlerView = view(settler, HOME_SITE.offset(30, 0, 0), 0.7, null,
+                    Map.of(founder, 0.6), Map.of(), Map.of());
+            assertTrue(service.join(village.id(), settlerView));
+            var slot = service.suggestPlots(village.id(), 1).getFirst();
+            assertTrue(service.claimPlot(village.id(), settler, slot));
+            Optional<SettlementTier> up = service.houseFinished(settler);
+            if (i < settlers.length - 1) {
+                assertTrue(up.isEmpty(), "povýšení až se čtvrtým domem");
+            } else {
+                assertEquals(Optional.of(SettlementTier.VESNICE), up,
+                        "čtvrtý dostavěný dům dělá z osady vesnici");
+            }
+        }
+        // Jednorázovost: opakované hlášení téhož domu ani další stavby
+        // povýšení znovu neohlásí.
+        assertTrue(service.houseFinished(settlers[2]).isEmpty());
+        var info = service.settlementOf(founder).orElseThrow();
+        assertEquals(SettlementTier.VESNICE, info.tier());
+        assertEquals(4, info.houses());
+    }
+
+    @Test
+    void uvolneniParcelySnizujeSubstanci() {
+        foundVillage();
+        service.houseFinished(founder);
+        assertEquals(1, service.settlementOf(founder).orElseThrow().houses());
+        // Dům zanikl (zatopený, zbořený) – parcela se vrací, substance klesá,
+        // stupeň se tiše přepočítá (zánik se neslaví hláškou).
+        service.releasePlot(founder);
+        assertEquals(0, service.settlementOf(founder).orElseThrow().houses());
+        assertEquals(SettlementTier.OSADA, service.settlementOf(founder).orElseThrow().tier());
+    }
+
     // ------------------------------------------------------------- planHome
 
     @Test

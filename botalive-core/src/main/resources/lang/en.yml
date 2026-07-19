@@ -248,6 +248,12 @@ phrases:
     - "relocating, my friends live elsewhere"
     - "{name} lives elsewhere now, so I'm going too"
     - "where {name} is, that's where my plot is"
+
+  settlement-village-up:
+    - "our little hamlet is a proper village now! {name} is growing"
+    - "enough of us live here now, {name} is a real village"
+    - "look at {name} grow. that's a village if I ever saw one!"
+    - "one more house done and {name} is no longer just a few shacks"
     - "packing up, following my friends"
   recover-run:
     - "my stuff! hope it's still there"
