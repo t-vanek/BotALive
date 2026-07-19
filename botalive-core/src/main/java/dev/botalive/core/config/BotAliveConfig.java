@@ -356,8 +356,11 @@ public record BotAliveConfig(
      * @param timeBudgetMs časový strop jednoho výpočtu (ms); 0 = bez limitu –
      *                     garantovaná latence i v členitém terénu (voda,
      *                     jeskyně), kde jsou uzly drahé
+     * @param farCorridor  hrubé koridory dálkových tras (A* nad povrchovými
+     *                     sondami) – boti obcházejí jezera a masivy; vypnutí
+     *                     vrací přímkovou segmentaci (kill-switch)
      */
-    public record Pathfinding(int nodeBudget, int timeBudgetMs) {
+    public record Pathfinding(int nodeBudget, int timeBudgetMs, boolean farCorridor) {
     }
 
     /**

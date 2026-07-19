@@ -34,13 +34,15 @@ public final class NavigationService {
     private final int nodeBudget;
     /** Časový strop výpočtu (ms); {@code <= 0} = bez limitu. */
     private final long timeBudgetMs;
+    /** Hrubé koridory pro dálkové trasy ({@link FarPlanner}). */
+    private final boolean farCorridors;
     private final PathfindingStats stats = new PathfindingStats();
 
     /**
      * @param configuredThreads vlákna z konfigurace; 0 = auto (⅛ CPU, min 1)
      */
     public NavigationService(int configuredThreads) {
-        this(configuredThreads, 0, 0L);
+        this(configuredThreads, 0, 0L, true);
     }
 
     /**
@@ -49,8 +51,20 @@ public final class NavigationService {
      * @param timeBudgetMs      časový strop výpočtu (ms); {@code <= 0} bez limitu
      */
     public NavigationService(int configuredThreads, int nodeBudget, long timeBudgetMs) {
+        this(configuredThreads, nodeBudget, timeBudgetMs, true);
+    }
+
+    /**
+     * @param configuredThreads vlákna z konfigurace; 0 = auto (⅛ CPU, min 1)
+     * @param nodeBudget        rozpočet uzlů jednoho výpočtu; {@code <= 0} default
+     * @param timeBudgetMs      časový strop výpočtu (ms); {@code <= 0} bez limitu
+     * @param farCorridors      hrubé koridory pro dálkové trasy (kill-switch)
+     */
+    public NavigationService(int configuredThreads, int nodeBudget, long timeBudgetMs,
+                             boolean farCorridors) {
         this.nodeBudget = nodeBudget;
         this.timeBudgetMs = timeBudgetMs;
+        this.farCorridors = farCorridors;
         int threads = configuredThreads > 0
                 ? configuredThreads
                 : Math.max(1, Runtime.getRuntime().availableProcessors() / 8);
@@ -68,6 +82,31 @@ public final class NavigationService {
     /** @return agregované metriky výpočtů (pro {@code /botalive path}) */
     public PathfindingStats stats() {
         return stats;
+    }
+
+    /** @return {@code true} když jsou zapnuté hrubé koridory dálkových tras */
+    public boolean farCorridors() {
+        return farCorridors;
+    }
+
+    /**
+     * Naplánuje hrubý koridor k dalekému cíli asynchronně ({@link FarPlanner}).
+     *
+     * @param world pohled na svět
+     * @param from  startovní blok
+     * @param to    cílový blok
+     * @return future s koridorem (nikdy neselže – při chybě nese prázdný koridor)
+     */
+    public CompletableFuture<FarPlanner.Corridor> planCorridor(WorldView world,
+                                                               BlockPos from, BlockPos to) {
+        return CompletableFuture.supplyAsync(() -> {
+            try {
+                return FarPlanner.plan(world, from, to);
+            } catch (Throwable t) {
+                LOG.warn("Plánování koridoru selhalo ({} -> {}): {}", from, to, t.toString());
+                return FarPlanner.Corridor.EMPTY;
+            }
+        }, executor);
     }
 
     /**

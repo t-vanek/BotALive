@@ -446,6 +446,54 @@ class PathExecutionSimulationTest {
     }
 
     @Test
+    void obejdeLavovePoleKoridorem() {
+        FakeWorldView world = lavaFieldWorld();
+        Navigator navigator = new Navigator(service, null, new BotRandom(7), personality());
+        navigator.world(world);
+        BotPhysics physics = new BotPhysics(world, at(0));
+        BlockPos goal = new BlockPos(100, FEET, 0);
+        navigator.navigateTo(at(0), goal);
+
+        boolean sawCorridor = false;
+        for (int tick = 0; tick < 5000; tick++) {
+            if (navigator.navigating() && !navigator.hasPath()) {
+                sleep(1);
+            }
+            MoveInput input = navigator.tick(physics.position(), physics.onGround(), physics.inWater());
+            input = LiquidReflex.apply(input, navigator.hasPath(), physics.position(),
+                    physics.submergedTicks(), world);
+            input = FallReflex.apply(input, navigator.hasPath(), physics.onGround(),
+                    physics.fallDistance(), physics.position(), world);
+            physics.step(input);
+            sawCorridor |= navigator.debugSnapshot().corridorCount() > 0;
+            BlockPos feet = physics.position().toBlockPos();
+            assertTrue(!world.traitsAt(feet).hazard(),
+                    "bot vkročil do lávy na " + feet + " (tick " + tick + ")");
+            assertTrue(!navigator.needsAssist(),
+                    "s koridorem se obchůzka najde – assist je selhání (tick " + tick
+                            + ", pozice " + physics.position() + ")");
+            if (arrived(physics.position(), goal)) {
+                assertTrue(sawCorridor, "dálková trasa měla použít hrubý koridor");
+                return;
+            }
+        }
+        throw new AssertionError("bot lávové pole neobešel; skončil na " + physics.position()
+                + ", koridor=" + navigator.debugSnapshot().corridorCount());
+    }
+
+    /** Lávové pole napříč trasou (x 20..60, z −100..24); obchůzka jen severně. */
+    private static FakeWorldView lavaFieldWorld() {
+        FakeWorldView world = new FakeWorldView(FLOOR);
+        for (int x = 20; x <= 60; x++) {
+            for (int z = -100; z <= 24; z++) {
+                world.set(x, FEET, z, FakeWorldView.HAZARD);
+                world.set(x, FLOOR, z, FakeWorldView.HAZARD);
+            }
+        }
+        return world;
+    }
+
+    @Test
     void nahodnyTerenJeVzdyPruchozi() {
         // Property test: deterministicky „rozbitý" terén (hrboly, jámy, zídky,
         // desky, ploty, louže, sníh) – když plánovač slíbí kompletní cestu,

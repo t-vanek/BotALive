@@ -31,9 +31,13 @@ import org.geysermc.mcprotocollib.protocol.data.game.entity.object.Direction;
  *   <li>cesta se periodicky levně validuje proti změnám světa
  *       ({@link PathValidator}) – rozbitý waypoint znamená okamžitý replán,
  *       ne až zaseknutí o 2,5 s později,</li>
- *   <li>daleké cíle (za {@link #FAR_THRESHOLD}) se dělí na segmenty podél
- *       vzdušné čáry ({@link SegmentPlanner}) s prefetchem chunků po trase;
- *       neprůchodný segment zkouší laterální posuny, pak přímý částečný plán.</li>
+ *   <li>daleké cíle (za {@link #FAR_THRESHOLD}) vede hrubý koridor
+ *       ({@link FarPlanner} – A* nad povrchovými sondami, počítá se
+ *       asynchronně): mezicíle segmentů se berou z koridoru, takže bot
+ *       obchází jezera, lávová pole i masivy, na které je přímka krátká;
+ *       dokud koridor není spočítaný (a jako fallback), dělí se trasa
+ *       postaru podél vzdušné čáry ({@link SegmentPlanner}) s laterálními
+ *       posuny a přímým částečným plánem.</li>
  * </ul>
  */
 public final class Navigator {
@@ -78,6 +82,14 @@ public final class Navigator {
     /** Index do {@link #SEGMENT_OFFSETS} při hledání průchodného segmentu. */
     private int segmentAttempt;
     private PathRequest pendingPath;
+    /** Hrubý koridor k dalekému cíli (povrchové body); {@code null} = bez koridoru. */
+    private java.util.List<BlockPos> corridor;
+    /** Index prvního neodbaveného bodu koridoru. */
+    private int corridorIndex;
+    /** Koridor dosáhl cíle ({@code false} = částečný, na konci se přepočítá). */
+    private boolean corridorComplete;
+    /** Běžící asynchronní výpočet koridoru. */
+    private java.util.concurrent.CompletableFuture<FarPlanner.Corridor> pendingCorridor;
     /** Cíl, ke kterému vede aktuální cesta/výpočet (drift pohyblivých cílů). */
     private BlockPos pathTarget;
     /** Cooldown plných replánů při driftu pohyblivého cíle (ticky). */
@@ -180,7 +192,11 @@ public final class Navigator {
         assistCycles = 0;
         segmentGoal = null;
         segmentAttempt = 0;
+        corridor = null;
+        corridorIndex = 0;
+        pendingCorridor = null;
         if (isFar(from.toBlockPos(), to)) {
+            requestCorridor(from.toBlockPos());
             advanceSegment(from.toBlockPos());
         }
         requestPath(from);
@@ -194,6 +210,9 @@ public final class Navigator {
         destination = null;
         segmentGoal = null;
         segmentAttempt = 0;
+        corridor = null;
+        corridorIndex = 0;
+        pendingCorridor = null;
         pathTarget = null;
         driftReplanCooldown = 0;
         ticksWithoutProgress = 0;
@@ -267,8 +286,10 @@ public final class Navigator {
     }
 
     /**
-     * Vybere další mezicíl (s aktuálním laterálním posunem) a přednačte
-     * koridor k němu.
+     * Vybere další mezicíl a přednačte okolí trasy k němu. Preferuje bod
+     * hrubého koridoru ({@link FarPlanner}); bez koridoru (nebo když je
+     * vyčerpaný/mimo dosah) spadne na přímkovou segmentaci s laterálními
+     * posuny.
      *
      * @param from odkud se plánuje
      * @return {@code false} když segment nejde vybrat (blízko cíle, neznámá
@@ -278,6 +299,16 @@ public final class Navigator {
         segmentGoal = null;
         if (destination == null || !isFar(from, destination)) {
             return false;
+        }
+        if (corridor != null) {
+            BlockPos viaCorridor = nextCorridorGoal(from);
+            if (viaCorridor != null) {
+                segmentGoal = viaCorridor;
+                world.prefetch(viaCorridor, 2);
+                world.prefetch(new BlockPos((from.x() + viaCorridor.x()) / 2, from.y(),
+                        (from.z() + viaCorridor.z()) / 2), 2);
+                return true;
+            }
         }
         while (segmentAttempt < SEGMENT_OFFSETS.length) {
             BlockPos segment = SegmentPlanner.nextSegment(world, from, destination,
@@ -296,6 +327,56 @@ public final class Navigator {
     }
 
     /**
+     * Mezicíl z hrubého koridoru: nejvzdálenější bod souvislého úseku
+     * v dosahu {@link #SEGMENT_LENGTH}. Souvislost je klíčová – koridor
+     * obcházející jezero se může do dosahu vrátit až na protějším břehu
+     * a skok na pozdější bod by obchůzku zkratoval přes vodu.
+     * {@code segmentAttempt > 0} (mezicíl nevyšel) posouvá výběr o bod dál –
+     * vadný bod se přeskočí. Bod se před použitím znovu ověří povrchovou
+     * sondou (svět se od výpočtu koridoru mohl načíst/změnit); nenačtený
+     * bod se použije optimisticky, jak je (prefetch už běží).
+     *
+     * @param from odkud se plánuje
+     * @return mezicíl, nebo {@code null} – koridor vyčerpaný/mimo dosah
+     *         (volající spadne na přímkovou segmentaci)
+     */
+    private BlockPos nextCorridorGoal(BlockPos from) {
+        int best = -1;
+        for (int i = corridorIndex; i < corridor.size(); i++) {
+            long dx = corridor.get(i).x() - from.x();
+            long dz = corridor.get(i).z() - from.z();
+            if (dx * dx + dz * dz <= (long) SEGMENT_LENGTH * SEGMENT_LENGTH) {
+                best = i;
+            } else if (best >= 0) {
+                break; // konec souvislého úseku v dosahu
+            }
+        }
+        if (best < 0) {
+            return null;
+        }
+        int target = Math.min(best + segmentAttempt, corridor.size() - 1);
+        corridorIndex = target;
+        BlockPos raw = corridor.get(target);
+        if (target >= corridor.size() - 1 && !corridorComplete) {
+            // Částečný koridor dojel na konec a cíl je pořád daleko –
+            // přepočítat z aktuální pozice (poslední bod ještě poslouží
+            // jako mezicíl, než nový koridor dorazí).
+            corridor = null;
+            requestCorridor(from);
+        }
+        BlockPos resolved = SegmentPlanner.surfaceAt(world, raw.x(), raw.y(), raw.z());
+        return resolved != null ? resolved : raw;
+    }
+
+    /** Požádá o asynchronní výpočet hrubého koridoru k cíli. */
+    private void requestCorridor(BlockPos from) {
+        if (!service.farCorridors() || world == null || destination == null) {
+            return;
+        }
+        pendingCorridor = service.planCorridor(world, from, destination);
+    }
+
+    /**
      * Jeden tick navigace.
      *
      * @param position aktuální pozice bota (nohy)
@@ -310,6 +391,26 @@ public final class Navigator {
         // Během čekání na zásah do terénu bot stojí.
         if (assistNeeded) {
             return MoveInput.IDLE;
+        }
+        // Vyzvednout dopočítaný hrubý koridor a přesměrovat na něj rozjetou
+        // segmentaci – přímkový mezicíl mohl mířit do slepého ramene.
+        if (pendingCorridor != null && pendingCorridor.isDone()) {
+            FarPlanner.Corridor computed = pendingCorridor.join();
+            pendingCorridor = null;
+            if (!computed.isEmpty() && destination != null) {
+                corridor = computed.points();
+                corridorIndex = 0;
+                corridorComplete = computed.complete();
+                org.slf4j.LoggerFactory.getLogger(Navigator.class).debug(
+                        "[nav] koridor: {} bodů, complete={}, cíl={}",
+                        corridor.size(), corridorComplete, destination);
+                BlockPos feet = position.toBlockPos();
+                if (isFar(feet, destination)) {
+                    segmentAttempt = 0;
+                    advanceSegment(feet);
+                    requestPath(position);
+                }
+            }
         }
         // Vyzvednout dopočítanou cestu.
         if (pendingPath != null && pendingPath.isDone()) {
@@ -617,11 +718,14 @@ public final class Navigator {
      * @param waypointIndex index aktuálního waypointu
      * @param waypointCount počet waypointů cesty
      * @param upcoming      několik nejbližších waypointů (max 5)
+     * @param corridorIndex index aktuálního bodu hrubého koridoru
+     * @param corridorCount počet bodů hrubého koridoru (0 = bez koridoru)
      */
     public record DebugSnapshot(BlockPos destination, BlockPos segmentGoal,
                                 boolean computing, boolean assistNeeded, boolean pathComplete,
                                 int waypointIndex, int waypointCount,
-                                java.util.List<BlockPos> upcoming) {
+                                java.util.List<BlockPos> upcoming,
+                                int corridorIndex, int corridorCount) {
     }
 
     /** @return snímek stavu navigace (orientační, bez zámků) */
@@ -639,7 +743,9 @@ public final class Navigator {
                         p.waypoints().subList(idx, Math.min(idx + 5, count)));
             }
         }
+        java.util.List<BlockPos> c = corridor;
         return new DebugSnapshot(destination, segmentGoal, pendingPath != null,
-                assistNeeded, complete, idx, count, upcoming);
+                assistNeeded, complete, idx, count, upcoming,
+                corridorIndex, c != null ? c.size() : 0);
     }
 }

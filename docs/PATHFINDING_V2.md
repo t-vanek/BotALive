@@ -263,17 +263,25 @@ by vypadalo stroze), dva boti volí různé trasy = viditelná individualita.
 > Detaily viz ARCHITECTURE.md, fáze 19.
 >
 > **Navíc: simulační kontrakt plánovač ↔ fyzika**
-> (`PathExecutionSimulationTest`, 32 scénářů) – každá naplánovaná cesta se
+> (`PathExecutionSimulationTest`, 33 scénářů) – každá naplánovaná cesta se
 > v testu fyzicky odejde přes `BotPhysics`. Odhalil a opravil 5 mezer
 > exekuce (potápění, tolerance vodních waypointů, sestup po žebříku,
 > falešné gap-skoky nad jámami, deadlock okna vyhlazení) + 1 ve fyzice
 > (step-up mantloval bota ven ze šachty se žebříkem). Repertoár pohybů
 > je tím pokrytý end-to-end, ne jen na úrovni plánu.
+>
+> **Stav: v2.1 implementováno** – `FarPlanner`: hrubé koridory dálkových
+> tras (A* nad mřížkou povrchových sond 8×8, optimistické UNKNOWN
+> s přirážkou, voda ×2, láva/void/útesy = zeď), asynchronní výpočet,
+> mezicíle segmentů z koridoru s fallbackem na přímku, kill-switch
+> `pathfinding.far-corridor`. Řeší P3/P4: bot fyzicky obchází lávová
+> pole a jezera širší než staré posuny ±24 (simulační scénář
+> `obejdeLavovePoleKoridorem`). Detaily viz ARCHITECTURE.md, fáze 20.
 
 | Fáze | Obsah | Náročnost | Riziko | Hlavní přínos |
 |---|---|---|---|---|
 | **v2.0 jádro** ✅ | A (memo, čas, cancel, tie-break, partial-best, konfig+metriky+debug) + B (throttle, splice, validace) | M | nízké | 5–10× levnější výpočty, konec replan bouří u followu, měřitelnost |
-| **v2.1 dálka** | C (region graf, koridory, optimistické UNKNOWN, prefetch navázaný na výpočet) | M–L | střední | kilometrové trasy bez slepých ramen a stop-and-go |
+| **v2.1 dálka** ✅ | C (region graf, koridory, optimistické UNKNOWN, prefetch navázaný na výpočet) | M–L | střední | kilometrové trasy bez slepých ramen a stop-and-go |
 | **v2.2 akce** | D (dig/place hrany za flagem, sjednocení s assist eskalací) + F (predikáty – lze i dřív, je nezávislé) | L | vyšší | tunely/mosty jako plán, plánovaný útěk, multi-target |
 | **v2.3 šmrnc** | E (nové skoky) + G (silnice) + H (osobnost) | S | nízké | lidskost a individualita tras |
 

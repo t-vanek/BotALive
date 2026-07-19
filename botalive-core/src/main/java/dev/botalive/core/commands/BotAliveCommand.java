@@ -570,6 +570,13 @@ public final class BotAliveCommand implements TabExecutor {
                             " mezicíl segmentu: " + format(snap.segmentGoal()),
                             NamedTextColor.GRAY));
                 }
+                if (snap.corridorCount() > 0) {
+                    sender.sendMessage(Component.text(
+                            " koridor: bod %d/%d".formatted(
+                                    Math.min(snap.corridorIndex() + 1, snap.corridorCount()),
+                                    snap.corridorCount()),
+                            NamedTextColor.GRAY));
+                }
                 String progress = snap.waypointCount() == 0 ? "bez cesty"
                         : "waypoint %d/%d (%s)".formatted(
                                 Math.min(snap.waypointIndex() + 1, snap.waypointCount()),

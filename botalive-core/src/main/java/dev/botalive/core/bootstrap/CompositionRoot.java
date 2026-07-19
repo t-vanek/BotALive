@@ -76,7 +76,8 @@ public final class CompositionRoot {
                 new BotTickEngine(config.performance().tickThreads()));
         NavigationService navigation = container.register(NavigationService.class,
                 new NavigationService(config.performance().pathfindingThreads(),
-                        config.pathfinding().nodeBudget(), config.pathfinding().timeBudgetMs()));
+                        config.pathfinding().nodeBudget(), config.pathfinding().timeBudgetMs(),
+                        config.pathfinding().farCorridor()));
         WorldViewRegistry worldViews = container.register(WorldViewRegistry.class,
                 new WorldViewRegistry(bridge, config.performance()));
 

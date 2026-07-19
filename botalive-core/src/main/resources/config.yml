@@ -268,6 +268,10 @@ pathfinding:
   # i v členitém terénu (voda, jeskyně), kde jsou uzly drahé – při
   # vyčerpání se vrací částečná cesta.
   time-budget-ms: 25
+  # Hrubé koridory dálkových tras (A* nad povrchovými sondami): boti
+  # obcházejí jezera, lávová pole a masivy, na které je přímková
+  # segmentace krátká. Vypnutí vrací původní dělení po vzdušné čáře.
+  far-corridor: true
 
 performance:
   # 0 = automaticky podle počtu jader.

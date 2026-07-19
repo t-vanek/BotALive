@@ -647,3 +647,32 @@ Hotovo ve fázi 19: pathfinding v2.0 – evoluce jádra a chytřejší replannin
   vyhlazení se zaseklo – waypointy se odbavují i projekcí „je za botem".
   Ve fyzice navíc step-up nikdy nezabírá na žebříku/liáně – zbytková
   rychlost při sestupu šachtou bota „vymantlovávala" přes okraj ven.
+
+Hotovo ve fázi 20: pathfinding v2.1 – hrubé koridory dálkových tras
+(`FarPlanner`).
+
+Přímková segmentace s laterálními posuny ±24 neuměla obejít slepá ramena
+širší než posun (velké jezero, lávové pole, horský masiv) – bot skončil
+u překážky, replánoval do vyčerpání a eskaloval k terraformingu.
+FarPlanner hledá trasu A* nad **mřížkou povrchových sond** 8×8 bloků
+(`SegmentPlanner.surfaceAt` ukotvená na výšce souseda):
+
+- hrana mezi sousedními buňkami existuje jen při výškovém rozdílu povrchů
+  ≤ 8 bloků (útes/převis = zeď) a nese přirážku za převýšení;
+- vodní hladina je průchozí s dvojnásobnou cenou (plave se, ale suchá
+  obchůzka vyhrává), láva a void jsou zeď;
+- **nenačtené chunky jsou optimisticky průchozí** s trojnásobnou cenou
+  a zděděnou výškou – bot smí vyrazit „směrem tam" jako hráč s mapou
+  a detail vyřeší low-level plán s prefetchem při přiblížení; rozlišení
+  „nenačteno" vs. „načteno bez povrchu" dává `WorldView.isAvailable`.
+
+Koridor se počítá asynchronně na pathfinding poolu a navigátor z něj bere
+mezicíle segmentů: nejvzdálenější bod **souvislého** úseku v dosahu 64
+bloků (souvislost brání zkratování obchůzky přes jezero na body protějšího
+břehu), vadný bod se přeskočí (`segmentAttempt`), každý bod se před
+použitím znovu ověří povrchovou sondou a částečný koridor (vyčerpaný
+rozpočet) se na svém konci přepočítá z aktuální pozice. Dokud koridor
+není spočítaný – a jako trvalý fallback – jede se postaru po přímce.
+Kill-switch `pathfinding.far-corridor`. Simulační kontrakt (fáze 19) má
+scénář obchůzky lávového pole 40×124 bloků: bot ho s koridorem fyzicky
+obejde severní stranou a nikdy nevkročí do hazardu.
