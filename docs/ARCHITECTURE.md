@@ -696,8 +696,17 @@ v simulačním kontraktu.
   pohyb, pád). Predikáty přijímá A* (`findPath(start, PathGoal, …)`),
   NavigationService i Navigator (`navigateTo(from, PathGoal)`);
   mezicíle segmentů zůstávají blokové a dálková logika se řídí kotvou
-  cíle (`anchor()`). Blokové API je beze změny – goaly migrují
-  postupně, až budou predikáty potřebovat.
+  cíle (`anchor()`). Drift throttle pohyblivých cílů je zobecněný přes
+  `PathGoal.sameShape` – cíl téhož tvaru s posunutou kotvou (blok za
+  entitou, `near` se stejným poloměrem za jdoucím hráčem, `awayFrom`
+  před pohybující se hrozbou) starou cestu dojíždí a plný replán běží
+  nejvýš jednou za sekundu. První migrované goaly: `FollowPlayerGoal`
+  sleduje přes `near(hráč, 3)` (cesta legitimně končí kousek od hráče,
+  jako by šel člověk) a `SurviveGoal` má dvoustupňový útěk – okamžitá
+  přímočará panika drží bota v pohybu hned, a jakmile se dopočítá
+  plánovaný ústup `awayFrom` (po pochozím terénu, obchází lávu, hrany
+  i slepé kouty, respektuje DANGER paměť), převezme řízení navigace.
+  Ostatní goaly migrují postupně.
 - **Dav v simulačním kontraktu** – dva boti proti sobě (chodba šířky 2
   i přesně čelní střet na volném poli) si každý tick předávají pozice
   přes `TrackedEntity` a řídí se `CrowdAvoidance.steer` stejně jako

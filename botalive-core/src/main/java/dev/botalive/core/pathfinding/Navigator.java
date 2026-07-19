@@ -177,13 +177,12 @@ public final class Navigator {
         if (goal.equals(goalSpec) && (hasPath() || pendingPath != null || assistNeeded)) {
             return; // už tam jdeme (nebo čekáme na odblokování terénu)
         }
-        // Pohyblivý cíl (follow, eskorta, přiblížení k entitě): malý posun cíle
-        // rozpracovanou cestu nezahazuje – stará končí pár bloků od nového cíle
-        // a dojede se; plný replán se pouští nejvýš jednou za
-        // {@link #DRIFT_REPLAN_TICKS}. Bez throttlu by sledování spouštělo
-        // plný A* při každém kroku cíle o blok. Jen pro blokové cíle –
-        // predikáty (útěk, okruh) drift po blocích nedávají.
-        if (goal.exactBlock() && goalSpec != null && goalSpec.exactBlock()
+        // Pohyblivý cíl (follow, eskorta, útěk před pohybující se hrozbou):
+        // malý posun kotvy u cíle stejného tvaru rozpracovanou cestu
+        // nezahazuje – stará končí pár bloků od nového cíle a dojede se;
+        // plný replán se pouští nejvýš jednou za {@link #DRIFT_REPLAN_TICKS}.
+        // Bez throttlu by sledování spouštělo plný A* při každém kroku cíle.
+        if (goalSpec != null && goal.sameShape(goalSpec)
                 && segmentGoal == null && !assistNeeded
                 && (hasPath() || pendingPath != null)
                 && !isFar(from.toBlockPos(), to)) {
@@ -518,12 +517,13 @@ public final class Navigator {
                     segmentAttempt = 0;
                     advanceSegment(feet);
                     requestPath(position);
-                } else if (destination != null && goalSpec != null && goalSpec.exactBlock()
+                } else if (destination != null && goalSpec != null
+                        && !goalSpec.reached(feet)
                         && feet.distanceSquared(destination) > 4) {
                     // Cíl mezitím poodešel (drift pohyblivého cíle) – cesta
-                    // dojetá, doplánovat zbytek k aktuální pozici cíle. Jen
-                    // blokové cíle: predikát (útěk, okruh) končí legitimně
-                    // daleko od kotvy.
+                    // dojetá u staré kotvy, ale aktuální predikát nesplněný
+                    // → doplánovat zbytek. Vzdálenostní pojistka drží stop
+                    // u blokových cílů normalizovaných o buňku níž.
                     requestPath(position);
                 } else {
                     stop();

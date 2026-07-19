@@ -43,10 +43,24 @@ public interface PathGoal {
 
     /**
      * @return {@code true} pro cíl „přesně tento blok" – jen ten smí
-     *         normalizovat cíl nad deskou a používat drift throttle
-     *         pohyblivých cílů (porovnávání konců cest s cílem)
+     *         normalizovat cíl nad deskou
      */
     default boolean exactBlock() {
+        return false;
+    }
+
+    /**
+     * Je druhý cíl týž druh lišící se jen kotvou? Drift throttle pohyblivých
+     * cílů pak smí rozpracovanou cestu dojet místo okamžitého replánu:
+     * follow ({@code near} se stejným poloměrem za pohybujícím se hráčem),
+     * útěk ({@code awayFrom} před pohybující se hrozbou), blokový cíl za
+     * entitou. Cíle bez smysluplného driftu (kandidáti, hladina) vrací
+     * {@code false} a posun znamená plný replán.
+     *
+     * @param other porovnávaný cíl
+     * @return {@code true} když se liší nejvýš kotvou
+     */
+    default boolean sameShape(PathGoal other) {
         return false;
     }
 
@@ -134,6 +148,11 @@ public interface PathGoal {
         public boolean exactBlock() {
             return true;
         }
+
+        @Override
+        public boolean sameShape(PathGoal other) {
+            return other instanceof Block;
+        }
     }
 
     /** Okruh kolem středu (3D). */
@@ -151,6 +170,11 @@ public interface PathGoal {
         @Override
         public BlockPos anchor() {
             return center;
+        }
+
+        @Override
+        public boolean sameShape(PathGoal other) {
+            return other instanceof Near n && n.radius == radius;
         }
     }
 
@@ -205,6 +229,11 @@ public interface PathGoal {
         @Override
         public BlockPos anchor() {
             return threat;
+        }
+
+        @Override
+        public boolean sameShape(PathGoal other) {
+            return other instanceof AwayFrom a && a.minDistance == minDistance;
         }
     }
 

@@ -61,6 +61,44 @@ class NavigatorTest {
     }
 
     @Test
+    void pohyblivyNearCilDriftujeBezReplanu() {
+        FakeWorldView world = new FakeWorldView(FLOOR);
+        Navigator navigator = newNavigator(world);
+
+        navigator.navigateTo(START, PathGoal.near(new BlockPos(20, FEET, 0), 3));
+        awaitPath(navigator);
+        long planned = requests();
+
+        // Posun středu o blok (follow za jdoucím hráčem): žádný replán.
+        navigator.navigateTo(START, PathGoal.near(new BlockPos(21, FEET, 0), 3));
+        assertEquals(planned, requests(), "malý posun okruhu nemá spouštět replán");
+
+        // Velký posun: plný replán (drift limit).
+        navigator.navigateTo(START, PathGoal.near(new BlockPos(27, FEET, 0), 3));
+        awaitRequests(planned + 1);
+
+        // Jiný poloměr = jiný tvar cíle → nová navigace, ne drift.
+        navigator.navigateTo(START, PathGoal.near(new BlockPos(27, FEET, 0), 5));
+        awaitRequests(planned + 2);
+    }
+
+    @Test
+    void utekPredPohyblivouHrozbouDriftuje() {
+        FakeWorldView world = new FakeWorldView(FLOOR);
+        Navigator navigator = newNavigator(world);
+
+        navigator.navigateTo(START, PathGoal.awayFrom(new BlockPos(5, FEET, 5), 12));
+        awaitPath(navigator);
+        long planned = requests();
+
+        // Hrozba popošla o blok – útěková cesta se dojíždí, žádný replán.
+        navigator.navigateTo(START, PathGoal.awayFrom(new BlockPos(6, FEET, 5), 12));
+        sleep(60);
+        assertEquals(planned, requests(),
+                "krok hrozby nemá spouštět replán útěku (drift throttle)");
+    }
+
+    @Test
     void rozbitaCestaSeReplanujeBezZaseknuti() {
         FakeWorldView world = new FakeWorldView(FLOOR);
         Navigator navigator = newNavigator(world);

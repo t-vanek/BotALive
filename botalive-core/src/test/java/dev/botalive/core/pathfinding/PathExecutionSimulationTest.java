@@ -513,6 +513,33 @@ class PathExecutionSimulationTest {
     }
 
     @Test
+    void dojdeDoOkruhuNearCile() {
+        FakeWorldView world = new FakeWorldView(FLOOR);
+        BlockPos center = new BlockPos(15, FEET, 0);
+        Navigator navigator = new Navigator(service, null, new BotRandom(7), personality());
+        navigator.world(world);
+        BotPhysics physics = new BotPhysics(world, at(0));
+        navigator.navigateTo(at(0), PathGoal.near(center, 3));
+
+        for (int tick = 0; tick < 600; tick++) {
+            if (navigator.navigating() && !navigator.hasPath()) {
+                sleep(1);
+            }
+            MoveInput input = navigator.tick(physics.position(), physics.onGround(), physics.inWater());
+            physics.step(input);
+            if (!navigator.navigating()) {
+                double dx = physics.position().x() - (center.x() + 0.5);
+                double dz = physics.position().z() - (center.z() + 0.5);
+                double dist = Math.sqrt(dx * dx + dz * dz);
+                assertTrue(dist <= 3.8, "bot má skončit v okruhu 3 od středu, je " + dist);
+                assertTrue(physics.position().x() > 8, "bot se měl vydat ke středu");
+                return;
+            }
+        }
+        throw new AssertionError("navigace do okruhu neskončila; bot na " + physics.position());
+    }
+
+    @Test
     void planovanyUtekObejdeLavu() {
         FakeWorldView world = new FakeWorldView(FLOOR);
         // Láva východně od bota – panický přímý běh by do ní mohl vést,
