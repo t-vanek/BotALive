@@ -948,3 +948,32 @@ Hotovo ve fázi 27: proudy vody (P7 – poslední odložený bod analýzy v3).
 - **Simulační kontrakt**: `preplaveTekouciRekuNapric` – řeka fyzicky
   snáší plavajícího bota po směru toku a navigace kurz průběžně
   koriguje; bot dorazí bez assistu. Analýza v3 je tím vyčerpaná celá.
+
+Hotovo ve fázi 28: boj × navigace (v4.0 – analýza
+[docs/PATHFINDING_V4.md](PATHFINDING_V4.md)).
+
+- **Hybridní bojový pohyb**: mikropohyb (strafing, rozestupy, timing
+  úderů, štít) zůstává přímému řízení `CombatController`u, ale když
+  přímá cesta nefunguje – chybí volná spojnice (voxelový raycast po půl
+  bloku), nebo se nejlepší dosažená vzdálenost ≥ 30 ticků nezlepšuje
+  mimo strafovací pásmo (příkop, plot se spojnicí) – převezme
+  přiblížení `navigateTo(near(cíl, 2))` s drift throttlem pohyblivých
+  cílů. `tick` vrací `null` a bojové goaly nechají pohyb navigátoru;
+  hystereze drží obcházení až na dosah úderu. Konec kitingu: cíl za
+  rohem, plotem či příkopem se obchází, simulace
+  `obejdeZedKeKitujicimuCili` to fyzicky dokazuje.
+- **Plánovaný ústup v boji**: při nízkém zdraví dvoustupňově – okamžitá
+  panika (nově přes `EdgeGuard`: i pár slepých ticků s rozběhem umělo
+  skončit v lávě za zády) a jakmile je plán, `awayFrom(hrozba, 12)` po
+  pochozím terénu. Simulace `ustoupiKolemLavyPoPochozimTerenu`.
+- **Nález simulace – latentní deadlock dvoustupňového útěku**:
+  `hasPath()` se překlápí až v `navigator.tick()`, který při
+  `requestMove(panika)` v BotImplu vůbec neběží – plánovaný útěk
+  SurviveGoalu se tak v produkci nikdy neujal řízení a vzor tiše
+  degradoval na čistou paniku. Nový `Navigator.pathReady()` vidí
+  i dopočítanou, ještě nepřevzatou cestu; SurviveGoal i bojový ústup
+  jedou přes něj.
+- Vědomé meze: navigované přiblížení končí až na dosah melee
+  (lučištník bez spojnice dojde k cíli pěšky) a s běžícím bojem se
+  neaktivují akční hrany (bot se v souboji neprokopává – gate
+  `!combat.engaged()` trvá).

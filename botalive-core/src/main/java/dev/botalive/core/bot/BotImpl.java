@@ -238,6 +238,7 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
         this.inventoryHelper.puller(this::pullToHotbar);
         this.combat = new CombatController(actions, humanizer, rng, personality, config.combat(),
                 CombatDifficulty.fromConfig(config.ai().difficulty()), inventoryHelper);
+        this.combat.navigation(navigator);
         this.vehicle = new VehicleController(connection, clientState);
         this.serverView = new ServerSideView(id, bridge);
         this.chat = new ChatEngine(name, personality, rng, config.chat(),
@@ -1860,6 +1861,7 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
         }
         this.physics = new BotPhysics(worldView, position);
         navigator.world(worldView);
+        combat.world(worldView);
         entities.clear();
         if (obstacleTask != null) {
             obstacleTask.cancel(this);

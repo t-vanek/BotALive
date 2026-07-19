@@ -91,7 +91,7 @@ public final class SurviveGoal extends AbstractGoal {
             // throttle navigace zvládá pohybující se hrozbu bez replan bouří.
             ctx.navigator().navigateTo(pos, dev.botalive.core.pathfinding.PathGoal
                     .awayFrom(threatPos.toBlockPos(), FLEE_DISTANCE));
-            if (!ctx.navigator().hasPath()) {
+            if (!ctx.navigator().pathReady()) {
                 // Než se ústup dopočítá, drží bota v pohybu přímočará panika.
                 // V Endu nesmí skončit ve voidu; v overworldu zůstává přímá –
                 // slepá zatáčka podél hrany umí vrátit bota k hrozbě.

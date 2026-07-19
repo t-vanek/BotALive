@@ -274,9 +274,12 @@ public final class DragonFightGoal extends AbstractGoal {
             ctx.chat().sayFrom(PhraseCategory.COMBAT_TAUNTS, null);
             tauntCooldown = 600;
         }
-        ctx.requestMove(EdgeGuard.apply(ctx.worldView(), ctx.position(),
-                ctx.combat().tick(ctx.position(), ctx.clientState().health(),
-                        ctx.onGround(), ctx.serverView().latest())));
+        dev.botalive.core.physics.MoveInput dragonMove = ctx.combat().tick(
+                ctx.position(), ctx.clientState().health(),
+                ctx.onGround(), ctx.serverView().latest());
+        if (dragonMove != null) {
+            ctx.requestMove(EdgeGuard.apply(ctx.worldView(), ctx.position(), dragonMove));
+        }
     }
 
     /** Vítězství: trofej, oslava, zkušenost – a předání štafety návratu. */

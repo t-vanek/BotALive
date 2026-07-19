@@ -141,8 +141,12 @@ public final class RobGoal extends AbstractGoal {
                 || ctx.combat().target().entityId() != entity.entityId()) {
             ctx.combat().engage(entity);
         }
-        ctx.requestMove(ctx.combat().tick(ctx.position(), ctx.clientState().health(),
-                ctx.onGround(), ctx.serverView().latest()));
+        dev.botalive.core.physics.MoveInput robMove = ctx.combat().tick(
+                ctx.position(), ctx.clientState().health(),
+                ctx.onGround(), ctx.serverView().latest());
+        if (robMove != null) {
+            ctx.requestMove(robMove); // null = přiblížení/ústup řídí navigace
+        }
     }
 
     /** Po vítězství posbírat, co vypadlo (chvíli pobýt u místa souboje). */

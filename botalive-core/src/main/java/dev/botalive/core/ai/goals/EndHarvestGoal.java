@@ -162,9 +162,12 @@ public final class EndHarvestGoal extends AbstractGoal {
             return false;
         }
         ctx.combat().engage(prey.get());
-        ctx.requestMove(EdgeGuard.apply(ctx.worldView(), ctx.position(),
-                ctx.combat().tick(ctx.position(), ctx.clientState().health(),
-                        ctx.onGround(), ctx.serverView().latest())));
+        dev.botalive.core.physics.MoveInput preyMove = ctx.combat().tick(
+                ctx.position(), ctx.clientState().health(),
+                ctx.onGround(), ctx.serverView().latest());
+        if (preyMove != null) {
+            ctx.requestMove(EdgeGuard.apply(ctx.worldView(), ctx.position(), preyMove));
+        }
         return true;
     }
 

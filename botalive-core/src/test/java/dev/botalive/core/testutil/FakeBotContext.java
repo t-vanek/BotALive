@@ -289,6 +289,26 @@ public final class FakeBotContext implements BotContext {
             placed++;
         }
 
+        @Override
+        public void swing() {
+            // simulace bez sítě – animace se zahazuje
+        }
+
+        @Override
+        public void attack(int entityId) {
+            // simulace bez sítě – zásah řeší test, ne server
+        }
+
+        @Override
+        public void releaseUseItem() {
+            // simulace bez sítě
+        }
+
+        @Override
+        public void useOffhand(float yaw, float pitch) {
+            // simulace bez sítě (štít)
+        }
+
         /** Protíná buňka AABB bota (šířka 0,6, výška 1,8)? */
         private boolean intersectsBot(BlockPos cell) {
             double half = 0.3;

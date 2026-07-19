@@ -100,11 +100,34 @@ problémy v provozu.
 - Krajní případ žebříkových hran: trigger je těsný (pata stěny), ale
   smoothing s ním zatím nemá scénář v davu.
 
+> **Stav: v4.0 implementováno.** `CombatController` je hybrid: mikropohyb
+> (strafing, rozestupy, timing úderů, štít) zůstává přímému řízení, ale
+> bez volné spojnice (voxelový raycast po půl bloku) nebo bez postupu
+> (nejlepší dosažená vzdálenost se ≥ 30 ticků nezlepšuje mimo strafovací
+> pásmo) převezme přiblížení `navigateTo(near(cíl, 2))` s drift throttlem;
+> `tick` pak vrací `null` a všech šest bojových volajících nechá pohyb
+> navigátoru. Hystereze: jednou zahájené obcházení se drží až na dosah
+> úderu. Ústup při nízkém zdraví je dvoustupňový (okamžitá panika →
+> plánovaný `awayFrom` 12) a panika couvá přes `EdgeGuard` – i pár
+> slepých ticků s rozběhem umělo skončit v lávě za zády. **Bonusový
+> nález simulace**: dvoustupňový vzor měl latentní deadlock i v
+> SurviveGoalu – `hasPath()` se překlápí až v `navigator.tick()`, který
+> při `requestMove(panika)` vůbec neběží, takže plánovaný útěk se v
+> produkci nikdy neujal řízení a vzor tiše degradoval na čistou paniku.
+> Nový `Navigator.pathReady()` vidí i dopočítanou, ještě nepřevzatou
+> cestu; SurviveGoal i bojový ústup jedou přes něj. Simulace:
+> `obejdeZedKeKitujicimuCili` (L-zeď, bot dojde na dosah jen obchůzkou)
+> a `ustoupiKolemLavyPoPochozimTerenu` (lávové pole za zády, útěk na
+> 11+ bloků bez vkročení do hazardu). Vědomé meze: navigované přiblížení
+> končí až na dosah melee (lučištník bez spojnice dojde k cíli pěšky)
+> a s běžícím bojem se neaktivují akční hrany (bot se v souboji
+> neprokopává – gate `!combat.engaged()` v BotImplu trvá).
+
 ## 2. Doporučené fázování
 
 | Fáze | Obsah | Náročnost | Riziko | Přínos |
 |---|---|---|---|---|
-| **v4.0 boj × navigace** | P1: hybridní přiblížení (LOS gate → `near`), plánovaný ústup `awayFrom`, kiting + ústupový sim scénář | M | střední | konec kitingu, ústup přestane být sebevražedný – největší viditelná díra spolupráce |
+| **v4.0 boj × navigace** ✅ | P1: hybridní přiblížení (LOS gate → `near`), plánovaný ústup `awayFrom`, kiting + ústupový sim scénář (+ oprava latentního deadlocku dvoustupňového útěku) | M | střední | konec kitingu, ústup přestane být sebevražedný – největší viditelná díra spolupráce |
 | **v4.1 ohleduplnost** | P2 dav ustoupí přesným taskům + P3 živé hrozby do dangerSupplier | S | nízké | pilíře/žebříky v davu, trasy obcházejí moby |
 | **v4.2 perturbační kontrakt** | P4: kategorie simulací s rušením | M | nízké | očekávané nálezy v exekuci pod tlakem |
 | odloženo | P5 čluny (chce BoatPhysics), P6 drobnosti | M–L | – | nízká frekvence užití |
