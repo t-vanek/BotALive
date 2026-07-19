@@ -4,9 +4,11 @@ import dev.botalive.api.bot.Bot;
 import dev.botalive.api.personality.Trait;
 import dev.botalive.core.ai.BotContext;
 import dev.botalive.core.ai.BotNeeds;
+import dev.botalive.core.build.HouseBlueprint;
 import dev.botalive.core.build.WellBlueprint;
 import dev.botalive.core.chat.PhraseCategory;
 import dev.botalive.core.settlement.SettlementService;
+import dev.botalive.core.settlement.SettlementService.ProjectKind;
 import dev.botalive.core.tasks.BotTask;
 import dev.botalive.core.tasks.MineBlockTask;
 import dev.botalive.core.tasks.PlaceBlockTask;
@@ -14,8 +16,12 @@ import dev.botalive.core.util.BlockPos;
 import dev.botalive.core.world.WorldDimension;
 import dev.botalive.core.world.WorldView;
 
+import org.bukkit.Material;
+
 import java.util.ArrayDeque;
 import java.util.Deque;
+import java.util.List;
+import java.util.function.Predicate;
 
 /**
  * Společná stavba pro sídlo – zatím studna návsi (růstová roadmapa, fáze B).
@@ -38,10 +44,16 @@ public final class CommunalBuildGoal extends AbstractGoal {
     private SettlementService.ProjectInfo project;
     private final Deque<BotTask> terraform = new ArrayDeque<>();
     private final Deque<BlockPos> placements = new ArrayDeque<>();
+    /** Vybavení sýpky (dveře, dvojtruhla, pochodeň) – co chybí, přeskočí se. */
+    private final Deque<FurnishStep> furnish = new ArrayDeque<>();
     private BotTask current;
     private int cooldownTicks;
     private boolean claimed;
     private java.util.UUID selfId;
+
+    /** Krok vybavení: čím (predikát itemu) a kam. */
+    private record FurnishStep(Predicate<Material> item, BlockPos target) {
+    }
 
     /** Vytvoří cíl. */
     public CommunalBuildGoal() {
@@ -63,13 +75,21 @@ public final class CommunalBuildGoal extends AbstractGoal {
         if (time >= 11500 && time <= 23000) {
             return 0;
         }
-        if (ctx.settlements() == null
-                || ctx.settlements().neededProject(bot.id()).isEmpty()) {
+        if (ctx.settlements() == null) {
+            return 0;
+        }
+        var needed = ctx.settlements().neededProject(bot.id());
+        if (needed.isEmpty()) {
             return 0;
         }
         BotNeeds needs = BotNeeds.assess(ctx.serverView().latest());
-        if (needs.buildingBlocks() < WellBlueprint.blocksNeeded() + BLOCK_RESERVE) {
+        if (needs.buildingBlocks() < blocksNeededFor(needed.get().kind()) + BLOCK_RESERVE) {
             return 0;
+        }
+        if (needed.get().kind() == ProjectKind.GRANARY
+                && ctx.inventory().countItem(ctx.serverView().latest(),
+                        Material.CHEST) < 2) {
+            return 0; // sýpka bez truhel je jen kůlna
         }
         double helpfulness = bot.personality().trait(Trait.HELPFULNESS);
         // Závazek: kdo si stavbu zamluvil, drží se jí – bez bonusu si stavitelé
@@ -85,8 +105,12 @@ public final class CommunalBuildGoal extends AbstractGoal {
         selfId = bot.id();
         terraform.clear();
         placements.clear();
+        furnish.clear();
+        furnishPlanned = false;
         current = null;
     }
+
+    private boolean furnishPlanned;
 
     @Override
     public void tick(Bot bot) {
@@ -108,6 +132,38 @@ public final class CommunalBuildGoal extends AbstractGoal {
         return project.origin().offset(WellBlueprint.SIZE / 2, 0, WellBlueprint.SIZE / 2);
     }
 
+    // ------------------------------------------------ per-druh geometrie
+
+    private static int blocksNeededFor(ProjectKind kind) {
+        return kind == ProjectKind.WELL
+                ? WellBlueprint.blocksNeeded() : HouseBlueprint.blocksNeeded();
+    }
+
+    private List<BlockPos> placementsFor() {
+        return project.kind() == ProjectKind.WELL
+                ? WellBlueprint.placements(project.origin())
+                : HouseBlueprint.placements(project.origin(), project.facing());
+    }
+
+    private List<BlockPos> clearVolumeFor() {
+        return project.kind() == ProjectKind.WELL
+                ? WellBlueprint.clearVolume(project.origin())
+                : HouseBlueprint.clearVolume(project.origin());
+    }
+
+    private List<BlockPos> groundColumnsFor() {
+        return project.kind() == ProjectKind.WELL
+                ? WellBlueprint.groundColumns(project.origin())
+                : HouseBlueprint.groundColumns(project.origin());
+    }
+
+    /** Stanoviště stavitele: šachta studny, resp. vnitřek sýpky. */
+    private BlockPos standFor() {
+        return project.kind() == ProjectKind.WELL
+                ? wellCenter()
+                : HouseBlueprint.standPoint(project.origin(), project.facing());
+    }
+
     private void tickClaim(BotContext ctx, Bot bot) {
         var needed = ctx.settlements().neededProject(bot.id());
         if (needed.isEmpty()) {
@@ -124,23 +180,25 @@ public final class CommunalBuildGoal extends AbstractGoal {
         claimed = true;
         String name = settlementName(ctx, bot);
         if (name != null && ctx.rng().chance(0.6)) {
-            ctx.chat().sayFrom(PhraseCategory.SETTLEMENT_WELL_START, name);
+            ctx.chat().sayFrom(project.kind() == ProjectKind.WELL
+                    ? PhraseCategory.SETTLEMENT_WELL_START
+                    : PhraseCategory.SETTLEMENT_GRANARY_START, name);
         }
         phase = Phase.GOTO;
     }
 
     private void tickGoto(BotContext ctx) {
-        // K věnci se chodí „do okruhu" – pevné stanoviště umělo být zrovna
-        // nedostupné (křoví, soused) a stavba se zbytečně vzdávala.
-        BlockPos center = wellCenter();
-        if (ctx.position().toBlockPos().distanceSquared(center) <= 9) {
+        // Ke staveništi se chodí „do okruhu" – pevné stanoviště umělo být
+        // zrovna nedostupné (křoví, soused) a stavba se zbytečně vzdávala.
+        BlockPos stand = standFor();
+        if (ctx.position().toBlockPos().distanceSquared(stand) <= 9) {
             ctx.navigator().stop();
             planWork(ctx);
             phase = terraform.isEmpty() ? Phase.STEP_IN : Phase.TERRAFORM;
             return;
         }
         ctx.navigator().navigateTo(ctx.position(),
-                dev.botalive.core.pathfinding.PathGoal.near(center, 2));
+                dev.botalive.core.pathfinding.PathGoal.near(stand, 2));
         if (!ctx.navigator().navigating()) {
             giveUp(ctx, 1200); // staveniště nedostupné – uvolnit a zkusit jindy
         }
@@ -152,7 +210,7 @@ public final class CommunalBuildGoal extends AbstractGoal {
      * protější roh na hraně dosahu.
      */
     private void tickStepIn(BotContext ctx) {
-        BlockPos center = wellCenter();
+        BlockPos center = standFor();
         BlockPos feet = ctx.position().toBlockPos();
         if (feet.equals(center)) {
             ctx.navigator().stop();
@@ -171,11 +229,12 @@ public final class CommunalBuildGoal extends AbstractGoal {
         }
     }
 
-    /** Naplánuje výkopy, zásypy a pokládku věnce (vzor BuildHouseGoal). */
+    /** Naplánuje výkopy, zásypy a pokládku struktury (vzor BuildHouseGoal). */
     private void planWork(BotContext ctx) {
         WorldView world = ctx.worldView();
-        var structure = new java.util.HashSet<>(WellBlueprint.placements(project.origin()));
-        for (BlockPos space : WellBlueprint.clearVolume(project.origin())) {
+        List<BlockPos> structurePlacements = placementsFor();
+        var structure = new java.util.HashSet<>(structurePlacements);
+        for (BlockPos space : clearVolumeFor()) {
             if (structure.contains(space)) {
                 continue;
             }
@@ -183,12 +242,12 @@ public final class CommunalBuildGoal extends AbstractGoal {
                 terraform.add(new MineBlockTask(space));
             }
         }
-        for (BlockPos ground : WellBlueprint.groundColumns(project.origin())) {
+        for (BlockPos ground : groundColumnsFor()) {
             if (!world.traitsAt(ground).solid()) {
                 terraform.add(new PlaceBlockTask(ground));
             }
         }
-        placements.addAll(WellBlueprint.placements(project.origin()));
+        placements.addAll(structurePlacements);
     }
 
     private void tickTasks(BotContext ctx, Phase next) {
@@ -231,23 +290,65 @@ public final class CommunalBuildGoal extends AbstractGoal {
 
     private void tickFinish(BotContext ctx, Bot bot) {
         if (current != null) {
-            if (current.tick(ctx)) {
-                current = null;
-            } else {
+            if (!current.tick(ctx)) {
                 return;
             }
-            finishProject(ctx, bot);
-            return;
+            current = null;
         }
-        // Pochodeň na obrubu – bez ní stavba platí taky (dekorace, ne podmínka).
-        BlockPos torch = WellBlueprint.torchSpot(project.origin());
-        if (ctx.worldView() != null && !ctx.worldView().traitsAt(torch).solid()
-                && ctx.inventory().equipMatching(ctx.serverView().latest(),
-                        m -> m == org.bukkit.Material.TORCH)) {
-            current = new PlaceBlockTask(torch);
+        if (!furnishPlanned) {
+            planFurnish();
+            furnishPlanned = true;
+        }
+        // Vybavení je bonus, ne podmínka: co chybí v batohu, přeskočí se.
+        FurnishStep step;
+        while ((step = furnish.poll()) != null) {
+            if (ctx.worldView() != null
+                    && ctx.worldView().traitsAt(step.target()).solid()) {
+                continue; // už osazeno (návrat k rozdělané stavbě)
+            }
+            if (!ctx.inventory().equipMatching(ctx.serverView().latest(), step.item())) {
+                continue;
+            }
+            current = new PlaceBlockTask(step.target());
             return;
         }
         finishProject(ctx, bot);
+    }
+
+    /** Vybavení podle druhu: studna pochodeň, sýpka dveře + dvojtruhlu + světlo. */
+    private void planFurnish() {
+        if (project.kind() == ProjectKind.WELL) {
+            furnish.add(new FurnishStep(m -> m == Material.TORCH,
+                    WellBlueprint.torchSpot(project.origin())));
+            return;
+        }
+        furnish.add(new FurnishStep(m -> m.name().endsWith("_DOOR"),
+                HouseBlueprint.doorBottom(project.origin(), project.facing())));
+        BlockPos chest = HouseBlueprint.bedSpot(project.origin(), project.facing());
+        furnish.add(new FurnishStep(m -> m == Material.CHEST, chest));
+        furnish.add(new FurnishStep(m -> m == Material.CHEST, chestNeighbor(chest)));
+        furnish.add(new FurnishStep(m -> m == Material.TORCH,
+                HouseBlueprint.torchSpot(project.origin(), project.facing())));
+    }
+
+    /**
+     * Druhá půlka dvojtruhly: vnitřní soused truhly, který není stanovištěm
+     * stavitele ani místem pochodně – v interiéru 2×2 vyjde jednoznačně.
+     */
+    private BlockPos chestNeighbor(BlockPos chest) {
+        BlockPos stand = HouseBlueprint.standPoint(project.origin(), project.facing());
+        BlockPos torch = HouseBlueprint.torchSpot(project.origin(), project.facing());
+        for (int[] d : new int[][]{{1, 0}, {-1, 0}, {0, 1}, {0, -1}}) {
+            BlockPos candidate = chest.offset(d[0], 0, d[1]);
+            int lx = candidate.x() - project.origin().x();
+            int lz = candidate.z() - project.origin().z();
+            if (lx >= 1 && lx <= HouseBlueprint.SIZE - 2
+                    && lz >= 1 && lz <= HouseBlueprint.SIZE - 2
+                    && !candidate.equals(stand) && !candidate.equals(torch)) {
+                return candidate;
+            }
+        }
+        return chest.offset(1, 0, 0);
     }
 
     private void finishProject(BotContext ctx, Bot bot) {
@@ -255,7 +356,9 @@ public final class CommunalBuildGoal extends AbstractGoal {
         claimed = false;
         String name = settlementName(ctx, bot);
         if (name != null) {
-            ctx.chat().sayFrom(PhraseCategory.SETTLEMENT_WELL_DONE, name);
+            ctx.chat().sayFrom(project.kind() == ProjectKind.WELL
+                    ? PhraseCategory.SETTLEMENT_WELL_DONE
+                    : PhraseCategory.SETTLEMENT_GRANARY_DONE, name);
         }
         tier.ifPresent(t -> dev.botalive.core.settlement.SettlementAnnouncer
                 .sayTierUp(ctx.chat(), t, name));
@@ -301,6 +404,7 @@ public final class CommunalBuildGoal extends AbstractGoal {
 
     @Override
     public String explain(Bot bot) {
-        return "stavím studnu pro sídlo";
+        return project != null && project.kind() == ProjectKind.GRANARY
+                ? "stavím sýpku pro sídlo" : "stavím studnu pro sídlo";
     }
 }

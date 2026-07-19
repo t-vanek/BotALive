@@ -78,6 +78,12 @@ public enum PhraseCategory {
     /** Studna sídla dokončena ({@code {name}} = jméno sídla). */
     SETTLEMENT_WELL_DONE,
 
+    /** Bot začíná stavět sýpku sídla ({@code {name}} = jméno sídla). */
+    SETTLEMENT_GRANARY_START,
+
+    /** Sýpka sídla dokončena ({@code {name}} = jméno sídla). */
+    SETTLEMENT_GRANARY_DONE,
+
     /** Nový člen převzal chybějící řemeslo ({@code {name}} = název role). */
     SETTLEMENT_ROLE_TAKEN,
 

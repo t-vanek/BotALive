@@ -265,6 +265,16 @@ phrases:
     - "there, {name} has a well. no stone carried, no water!"
     - "finished, the well stands. come see the square"
 
+  settlement-granary-start:
+    - "houses we have, {name} needs a granary for shared stores"
+    - "grabbing planks and chests, building a granary for {name}"
+    - "a big village wants a common pantry – on it"
+
+  settlement-granary-done:
+    - "granary's up! the stores of {name} won't live in pockets anymore"
+    - "done, {name} has a granary. bring your surplus, winter is coming"
+    - "granary finished, the hungry know where to go now"
+
   settlement-role-taken:
     - "nobody here worked as {name}, so I'm taking it up"
     - "the village needs a {name} around – that's me now"
