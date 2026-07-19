@@ -302,22 +302,24 @@ by vypadalo stroze), dva boti volí různé trasy = viditelná individualita.
 > římsu o blok výš; oba pohyby fyzicky ověřené simulačním kontraktem
 > (dolet bez poškození). Detaily viz ARCHITECTURE.md, fáze 23.
 >
-> **Stav: v2.2-D implementováno (kopání)** – kopací hrany v plánu
-> (`TerrainAction`): tunel 1×2, vylámané schody nahoru i dolů jako hrany
-> grafu; aktivace až po selhání pěšího plánu (náhrada assist eskalace),
-> gate `ai.terraforming` + `pathfinding.planned-actions`, deny-list
-> majetku a tekutinová pojistka. Tunel = jeden souvislý plán bez replánů
-> (simulace: masiv tloušťky 3 na ≤ 4 výpočty). Pokládání bloků (mosty,
-> pilíře) zůstává reaktivní assist pipeline – mostění lávových jezer má
-> vlastní bezpečnostní logiku v `BridgeTask`. Z roadmapy zbývá jen
-> v2.3-G (preference cestiček, vědomě odloženo kvůli přípustnosti
-> heuristiky). Detaily viz ARCHITECTURE.md, fáze 24.
+> **Stav: v2.2-D implementováno kompletně** – akční hrany v plánu
+> (`TerrainAction`): kopání (tunel 1×2, vylámané schody nahoru i dolů)
+> i pokládání (most přes propast, pilíř) jako hrany grafu; aktivace až
+> po selhání pěšího plánu (náhrada assist eskalace), gate
+> `ai.terraforming` + `pathfinding.planned-actions`, deny-list majetku,
+> tekutinová pojistka kopání, hloubkový sken hazardu pod oporami mostů
+> a rozpočet bloků z inventáře (plán neslíbí víc, než bot má). Tunel
+> i most = jeden souvislý plán bez replánů; plánovač míchá strategie
+> jako hráč (2 opory + sprint-skok z decku přes mezeru 5). Mostění
+> lávových jezer zůstává záměrně reaktivnímu `BridgeTask`. Z roadmapy
+> zbývá jen v2.3-G (preference cestiček, vědomě odloženo kvůli
+> přípustnosti heuristiky). Detaily viz ARCHITECTURE.md, fáze 24.
 
 | Fáze | Obsah | Náročnost | Riziko | Hlavní přínos |
 |---|---|---|---|---|
 | **v2.0 jádro** ✅ | A (memo, čas, cancel, tie-break, partial-best, konfig+metriky+debug) + B (throttle, splice, validace) | M | nízké | 5–10× levnější výpočty, konec replan bouří u followu, měřitelnost |
 | **v2.1 dálka** ✅ | C (region graf, koridory, optimistické UNKNOWN, prefetch navázaný na výpočet) | M–L | střední | kilometrové trasy bez slepých ramen a stop-and-go |
-| **v2.2 akce** (D-dig ✅ F ✅) | D (dig/place hrany za flagem, sjednocení s assist eskalací) ✅ kopání + F (predikáty – lze i dřív, je nezávislé) ✅ | L | vyšší | tunely/mosty jako plán, plánovaný útěk, multi-target |
+| **v2.2 akce** ✅ | D (dig/place hrany za flagem, sjednocení s assist eskalací) ✅ + F (predikáty – lze i dřív, je nezávislé) ✅ | L | vyšší | tunely/mosty jako plán, plánovaný útěk, multi-target |
 | **v2.3 šmrnc** (E ✅ H ✅) | E (nové skoky) ✅ + G (silnice) + H (osobnost) ✅ | S | nízké | lidskost a individualita tras |
 
 Pořadí není náhodné: **A je prerekvizita všeho** (bez metrik a levné smyčky

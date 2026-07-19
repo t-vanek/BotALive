@@ -868,6 +868,80 @@ class AStarPathfinderTest {
     }
 
     @Test
+    void premostiPropastKdyzMaBloky() {
+        FakeWorldView world = platformsWithGap(5);
+        BlockPos start = new BlockPos(0, FEET, 0);
+        BlockPos goal = new BlockPos(10, FEET, 0);
+
+        Path walkOnly = new AStarPathfinder(world).findPath(start, goal, 2000);
+        assertFalse(walkOnly.complete(), "mezera 5 bloků pěšky/skokem nejde");
+
+        AStarPathfinder.Result bridged = new AStarPathfinder(world).findPath(
+                start, PathGoal.block(goal), 0, 0L, null, PathOptions.withActions(8));
+        assertTrue(bridged.path().complete(), "s bloky v rozpočtu se má přemostit: "
+                + bridged.path().waypoints());
+        int places = bridged.path().actions().values().stream()
+                .mapToInt(a -> a.places().size()).sum();
+        // Plánovač míchá strategie jako hráč: 2 opory + sprint-skok přes
+        // zbylé 3 sloupce z položeného decku (ne otrocky 5 bloků).
+        assertTrue(places >= 2, "přemostění chce aspoň 2 opory, je " + places);
+
+        AStarPathfinder.Result tight = new AStarPathfinder(world).findPath(
+                start, PathGoal.block(goal), 2000, 0L, null, PathOptions.withActions(1));
+        assertFalse(tight.path().complete(), "1 blok na mezeru 5 nestačí (rozpočet)");
+    }
+
+    @Test
+    void vypilirujeSeNaPlosinu() {
+        FakeWorldView world = new FakeWorldView(FLOOR);
+        // Plošina +4 s kolmými stěnami – bez akcí nedosažitelná.
+        for (int x = 5; x <= 12; x++) {
+            for (int z = -4; z <= 4; z++) {
+                world.wall(x, FEET, FEET + 3, z);
+            }
+        }
+        BlockPos start = new BlockPos(0, FEET, 0);
+        BlockPos goal = new BlockPos(8, FEET + 4, 0);
+
+        Path walkOnly = new AStarPathfinder(world).findPath(start, goal, 2000);
+        assertFalse(walkOnly.complete(), "kolmé stěny pěšky nejdou");
+
+        // Jen pokládání (bez kopání) – deterministicky pilíř, ne schody do stěny.
+        AStarPathfinder.Result pillared = new AStarPathfinder(world).findPath(
+                start, PathGoal.block(goal), 0, 0L, null, new PathOptions(false, 8));
+        assertTrue(pillared.path().complete(), "pilíř má na plošinu vynést: "
+                + pillared.path().waypoints());
+        int places = pillared.path().actions().values().stream()
+                .mapToInt(a -> a.places().size()).sum();
+        // 3 bloky pilíře + výskok na hranu plošiny (poslední patro zvládne skok).
+        assertTrue(places >= 3, "výstup o 4 patra = aspoň 3 bloky, je " + places);
+    }
+
+    @Test
+    void nemostiSLavouPodOperou() {
+        FakeWorldView world = platformsWithGap(1);
+        // Láva těsně pod úrovní opory mostu: skok je zakázaný (hazard dole)
+        // a most taky – pád z mostku nad lávou je rozsudek. Bedrockové
+        // mantinely po stranách: bez nich plánovač korektně vymyslel boční
+        // lávku o dráhu vedle, kde pod oporami láva není.
+        for (int z = -1; z <= 1; z++) {
+            world.set(3, FLOOR - 1, z, FakeWorldView.HAZARD);
+        }
+        for (int x = 0; x <= 6; x++) {
+            for (int y = FLOOR - 2; y <= FEET + 3; y++) {
+                world.set(x, y, -2, org.bukkit.Material.BEDROCK, FakeWorldView.SOLID);
+                world.set(x, y, 2, org.bukkit.Material.BEDROCK, FakeWorldView.SOLID);
+            }
+        }
+        AStarPathfinder.Result result = new AStarPathfinder(world).findPath(
+                new BlockPos(0, FEET, 0), PathGoal.block(new BlockPos(6, FEET, 0)),
+                2000, 0L, null, PathOptions.withActions(8));
+
+        assertFalse(result.path().complete(),
+                "nad lávou se nemostí ani neskáče – zůstává reaktivní BridgeTask");
+    }
+
+    @Test
     void castecnaCestaMiriKCili() {
         FakeWorldView world = new FakeWorldView(FLOOR);
         // Cíl nedosažitelný (ve vzduchu), malý rozpočet – částečná cesta se má

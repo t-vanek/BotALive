@@ -607,6 +607,73 @@ class PathExecutionSimulationTest {
     }
 
     @Test
+    void premostiPropastPodlePlanu() {
+        // Propast šířky 5 přes celou krajinu (z ±100) – neskočitelná, obchůzka
+        // dráž než most. Bot má bloky → most vzniká podle JEDNOHO plánu:
+        // opory hlásí přes actionNeeded, test je „pokládá" jako server.
+        FakeWorldView world = new FakeWorldView(FLOOR);
+        for (int x = 3; x <= 7; x++) {
+            for (int z = -100; z <= 100; z++) {
+                for (int y = FLOOR - 12; y <= FLOOR; y++) {
+                    world.set(x, y, z, FakeWorldView.AIRLIKE);
+                }
+            }
+        }
+        Navigator navigator = new Navigator(service, null, new BotRandom(7), personality());
+        navigator.world(world);
+        navigator.terraforming(true);
+        navigator.placeBudget(() -> 64);
+        BotPhysics physics = new BotPhysics(world, at(0));
+        BlockPos goal = new BlockPos(10, FEET, 0);
+        navigator.navigateTo(at(0), goal);
+
+        int placeDelay = 0;
+        int placed = 0;
+        for (int tick = 0; tick < 3000; tick++) {
+            if (navigator.navigating() && !navigator.hasPath()) {
+                sleep(1);
+            }
+            TerrainAction action = navigator.actionNeeded();
+            if (action != null) {
+                if (++placeDelay >= 6) {
+                    for (BlockPos dig : action.digs()) {
+                        world.set(dig.x(), dig.y(), dig.z(), FakeWorldView.AIRLIKE);
+                    }
+                    for (BlockPos place : action.places()) {
+                        world.set(place.x(), place.y(), place.z(), FakeWorldView.SOLID);
+                        placed++;
+                    }
+                    navigator.actionResolved();
+                    placeDelay = 0;
+                }
+                continue;
+            }
+            MoveInput input = navigator.tick(physics.position(), physics.onGround(), physics.inWater());
+            input = LiquidReflex.apply(input, navigator.hasPath(), physics.position(),
+                    physics.submergedTicks(), world);
+            input = FallReflex.apply(input, navigator.hasPath(), physics.onGround(),
+                    physics.fallDistance(), physics.position(), world);
+            physics.step(input);
+            if (physics.landedThisTick() && physics.lastFallDamage() > 0) {
+                throw new AssertionError("pád z mostu (tick " + tick + ", poškození "
+                        + physics.lastFallDamage() + ")");
+            }
+            assertTrue(!navigator.needsAssist(),
+                    "most z plánu měl assist nahradit (tick " + tick + ")");
+            if (arrived(physics.position(), goal)) {
+                // Plánovač míchá most se sprint-skokem z decku – bloků je
+                // méně než sloupců mezery, fyzika dolet právě ověřila.
+                assertTrue(placed >= 2, "přemostění chce aspoň 2 opory, bylo " + placed);
+                long requests = service.stats().snapshot().requests();
+                assertTrue(requests <= 4, "most má být jeden plán; výpočtů: " + requests);
+                return;
+            }
+        }
+        throw new AssertionError("bot propast nepřemostil; skončil na " + physics.position()
+                + ", položeno " + placed);
+    }
+
+    @Test
     void dojdeDoOkruhuNearCile() {
         FakeWorldView world = new FakeWorldView(FLOOR);
         BlockPos center = new BlockPos(15, FEET, 0);

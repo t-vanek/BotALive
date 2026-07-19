@@ -395,6 +395,32 @@ public final class InventoryHelper {
     }
 
     /**
+     * Spočítá stavební bloky v inventáři (hotbar + hlavní inventář) –
+     * rozpočet pokládacích hran plánovače cest.
+     *
+     * @param snapshot server-side snapshot ({@code null} = 0)
+     * @return celkový počet kusů stavebních bloků
+     */
+    public static int countBuildingBlocks(ServerSideView.Snapshot snapshot) {
+        if (snapshot == null) {
+            return 0;
+        }
+        int count = 0;
+        for (int i = 0; i < snapshot.hotbar().length; i++) {
+            if (snapshot.hotbar()[i] != null && isBuildingBlock(snapshot.hotbar()[i])) {
+                count += Math.max(1, snapshot.hotbarCounts()[i]);
+            }
+        }
+        for (int i = 0; i < snapshot.mainInventory().length; i++) {
+            if (snapshot.mainInventory()[i] != null
+                    && isBuildingBlock(snapshot.mainInventory()[i])) {
+                count += Math.max(1, snapshot.mainCounts()[i]);
+            }
+        }
+        return count;
+    }
+
+    /**
      * Index kusu brnění ve {@code snapshot.armor()} (Bukkit pořadí:
      * 0 boty, 1 kalhoty, 2 prsní plát, 3 helma).
      *

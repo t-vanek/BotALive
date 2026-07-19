@@ -776,3 +776,20 @@ kdykoli rozumná existuje, a tunel je pak JEDEN souvislý plán.
   s kamennou ohradou si plánovač korektně spočítal, že levnější tunel
   vede jednoblokovou boční stěnou ven a kolem – optimalizuje opravdu
   přes celý prostor zásahů.
+- **Pokládací hrany** (druhá polovina fáze): most přes chybějící podlahu
+  (opěra pod cílovou buňku) a pilíř pod vlastní nohy (uzel o patro výš)
+  jako hrany grafu s cenou ~10 kroků chůze za blok. **Rozpočet
+  inventáře**: plán nikdy neslíbí víc bloků, než bot má
+  (`Navigator.placeBudget` ← `InventoryHelper.countBuildingBlocks`,
+  strop 12 na plán jako u BridgeTasku) – počet položených bloků se hlídá
+  podél celé cesty v uzlech A*. Pokládá se jen do čistě prázdných buněk,
+  nikdy do tekutin, a pod opěrou běží **hloubkový sken hazardu** (jako
+  u skoků): láva kdekoli v dohledné hloubce pod mostkem = žádný most,
+  ani o patro výš – lávová jezera zůstávají reaktivnímu BridgeTasku.
+  Nejhezčí emergentní chování: plánovač **míchá strategie jako hráč** –
+  přes mezeru 5 sloupců položí 2 opory a zbytek přeskočí sprint-skokem
+  z položeného decku, na plošinu +4 staví jen 3 bloky pilíře a poslední
+  patro vyskočí; simulace obojí fyzicky odehrála bez poškození
+  (`premostiPropastPodlePlanu`). A při ladění pojistky vymyslel boční
+  lávku o dráhu vedle lávového pruhu, kde pod oporami láva není –
+  testy dostaly bedrockové mantinely a pojistka hloubkový sken.

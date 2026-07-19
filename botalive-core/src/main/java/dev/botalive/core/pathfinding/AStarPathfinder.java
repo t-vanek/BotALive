@@ -101,6 +101,12 @@ public final class AStarPathfinder {
      */
     private static final int COST_DIG = 80;
 
+    /**
+     * Cena položení jednoho bloku (~10 kroků chůze) – bloky jsou vzácnější
+     * než čas kopání a most se staví, jen když obchůzka reálně neexistuje.
+     */
+    private static final int COST_PLACE = 100;
+
     /** Ceny za blízkost místa, kde bot zemřel / poznal nebezpečí. */
     private static final int COST_DANGER_NEAR = 80;
     private static final int COST_DANGER = 30;
@@ -520,9 +526,12 @@ public final class AStarPathfinder {
                 tryAddStandable(current, pos.down(), costClimb);
             }
 
-            // Kopací hrany (jen na vyžádání – náhrada assist eskalace).
+            // Akční hrany (jen na vyžádání – náhrada assist eskalace).
             if (options.digThrough() && Math.abs(curFeet - pos.y()) <= 0.05) {
                 tryDigEdges(current);
+            }
+            if (options.maxPlacements() > 0 && Math.abs(curFeet - pos.y()) <= 0.05) {
+                tryPlaceEdges(current);
             }
 
             // Plavání svisle: ve vodním sloupci se bot může vynořit i potopit.
@@ -788,6 +797,55 @@ public final class AStarPathfinder {
             return digs;
         }
 
+        /**
+         * Pokládací hrany: most přes chybějící podlahu (opěra pod cílovou
+         * buňku) a pilíř pod vlastní nohy (uzel o patro výš). Pokládá se jen
+         * do čistě prázdných buněk – nikdy do tekutin (lávová jezera řeší
+         * reaktivní BridgeTask) a nikdy s lávou přímo pod opěrou (pád
+         * z mostku by byl rozsudek). Rozpočet bloků hlídá {@code placeCount}
+         * podél celé cesty.
+         */
+        private void tryPlaceEdges(Node current) {
+            BlockPos pos = current.pos;
+            if (current.placeCount >= options.maxPlacements()) {
+                return;
+            }
+            // Most: sousední sloupec bez podlahy → položit opěru pod cíl.
+            for (int dir = 0; dir < 4; dir++) {
+                int dx = dir == 0 ? 1 : dir == 1 ? -1 : 0;
+                int dz = dir == 2 ? 1 : dir == 3 ? -1 : 0;
+                BlockPos target = pos.offset(dx, 0, dz);
+                BlockPos support = target.down();
+                // Hloubkový sken pod oporou (jako u skoků): láva kdekoli
+                // v dohledné hloubce pod mostkem = žádný most, i o patro výš.
+                if (!placeable(support) || hazardBelow(support)) {
+                    continue;
+                }
+                if (!transitClear(target) || !transitClear(target.up())) {
+                    continue;
+                }
+                tryAdd(current, target,
+                        COST_STRAIGHT + COST_PLACE + terrainPenalty(target),
+                        new TerrainAction(List.of(), List.of(support)));
+            }
+            // Pilíř: blok pod nohy při výskoku – uzel o patro výš. Potřebuje
+            // volný prostor na výskok (+2, +3) a čistě prázdnou vlastní buňku.
+            if (placeable(pos)
+                    && transitClear(pos.offset(0, 2, 0))
+                    && transitClear(pos.offset(0, 3, 0))) {
+                tryAdd(current, pos.up(),
+                        costJump + COST_PLACE + terrainPenalty(pos.up()),
+                        new TerrainAction(List.of(), List.of(pos)));
+            }
+        }
+
+        /** Čistě prázdná buňka, do které lze položit blok. */
+        private boolean placeable(BlockPos cell) {
+            BlockTraits t = traits(cell);
+            return t != BlockTraits.UNKNOWN && t.noCollision()
+                    && !t.liquid() && !t.hazard() && !t.web();
+        }
+
         /** Smí se blok vykopat? (mimo deny-list chráněných materiálů) */
         private boolean diggable(BlockPos cell) {
             org.bukkit.Material material = world.materialAt(cell);
@@ -810,13 +868,18 @@ public final class AStarPathfinder {
 
         /** Přidá uzel (případně se zásahem do terénu), pokud zlepšuje cestu. */
         private void tryAdd(Node parent, BlockPos pos, int moveCost, TerrainAction action) {
+            int placeCount = parent.placeCount
+                    + (action == null ? 0 : action.places().size());
+            if (placeCount > options.maxPlacements()) {
+                return; // rozpočet bloků na cestu vyčerpán
+            }
             long key = pos.asLong();
             int g = parent.g + moveCost + dangerPenalty(pos);
             Node existing = visited.get(key);
             if (existing != null && existing.g <= g) {
                 return;
             }
-            Node node = new Node(pos, parent, g, goal.heuristic(pos), action);
+            Node node = new Node(pos, parent, g, goal.heuristic(pos), action, placeCount);
             visited.put(key, node);
             open.add(node);
         }
@@ -940,18 +1003,21 @@ public final class AStarPathfinder {
         final int h;
         /** Zásah do terénu nutný před vkročením na uzel ({@code null} = chůze). */
         final TerrainAction action;
+        /** Bloky položené na cestě od startu k uzlu (rozpočet inventáře). */
+        final int placeCount;
         boolean closed;
 
         Node(BlockPos pos, Node parent, int g, int h) {
-            this(pos, parent, g, h, null);
+            this(pos, parent, g, h, null, 0);
         }
 
-        Node(BlockPos pos, Node parent, int g, int h, TerrainAction action) {
+        Node(BlockPos pos, Node parent, int g, int h, TerrainAction action, int placeCount) {
             this.pos = pos;
             this.parent = parent;
             this.g = g;
             this.h = h;
             this.action = action;
+            this.placeCount = placeCount;
         }
 
         @Override

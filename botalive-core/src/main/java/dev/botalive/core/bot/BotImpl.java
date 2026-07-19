@@ -231,6 +231,7 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
                         org.geysermc.mcprotocollib.protocol.data.game.entity.object.Direction.NORTH),
                 rng, personality);
         this.navigator.terraforming(config.ai().terraforming());
+        this.navigator.placeBudget(this::buildingBlockBudget);
         this.navigator.dangerSupplier(this::dangerMemories);
         this.inventoryHelper = new InventoryHelper(actions);
         this.inventoryHelper.puller(this::pullToHotbar);
@@ -1195,10 +1196,11 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
             if (alive && !paused.get() && !combat.engaged() && navigator.actionNeeded() != null) {
                 // Zásah do terénu z plánu cesty: vykopat bloky a pokračovat
                 // po téže cestě (kopací hrany – náhrada assist eskalace).
-                obstacleTask = plannedDigSequence(navigator.actionNeeded());
+                obstacleTask = plannedActionSequence(navigator.actionNeeded());
                 actionTaskRunning = obstacleTask != null;
-                LOG.debug("[{}] [nav] zásah z plánu: {} bloků", name,
-                        navigator.actionNeeded().digs().size());
+                LOG.debug("[{}] [nav] zásah z plánu: {} kopat, {} položit", name,
+                        navigator.actionNeeded().digs().size(),
+                        navigator.actionNeeded().places().size());
                 if (obstacleTask == null) {
                     navigator.actionResolved(); // prázdný zásah – jen pokračovat
                 }
@@ -1456,16 +1458,24 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
         return hasItem || boatNearby;
     }
 
+    /** Počet stavebních bloků v inventáři – rozpočet pokládacích hran plánu. */
+    private int buildingBlockBudget() {
+        return dev.botalive.core.inventory.InventoryHelper
+                .countBuildingBlocks(serverView.latest());
+    }
+
     /**
-     * Sestaví sekvenci vykopání bloků jednoho zásahu z plánu cesty
-     * ({@link dev.botalive.core.pathfinding.TerrainAction}). Každý krok si
-     * před kopáním nasadí nejlepší nástroj na materiál bloku; blok, který
-     * mezitím zmizel (creeper, jiný bot), se přeskočí.
+     * Sestaví sekvenci vykonání jednoho zásahu z plánu cesty
+     * ({@link dev.botalive.core.pathfinding.TerrainAction}): vykopání bloků
+     * (s per-blokovým nasazením nejlepšího nástroje; blok mezitím zmizelý se
+     * přeskočí) a položení bloků (opora mostu, pilíř; bez stavebních bloků
+     * v inventáři se krok vzdá a stav dořeší detekce zaseknutí – další plán
+     * už počítá s nulovým rozpočtem pokládání).
      *
      * @param action zásah z plánu
      * @return sekvence tasků, nebo {@code null} při prázdném zásahu
      */
-    private dev.botalive.core.tasks.BotTask plannedDigSequence(
+    private dev.botalive.core.tasks.BotTask plannedActionSequence(
             dev.botalive.core.pathfinding.TerrainAction action) {
         java.util.List<dev.botalive.core.tasks.BotTask> steps = new java.util.ArrayList<>();
         for (BlockPos dig : action.digs()) {
@@ -1490,6 +1500,32 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
                 public void cancel(dev.botalive.core.ai.BotContext ctx) {
                     if (mine != null) {
                         mine.cancel(ctx);
+                    }
+                }
+            });
+        }
+        for (BlockPos place : action.places()) {
+            steps.add(new dev.botalive.core.tasks.BotTask() {
+                private dev.botalive.core.tasks.PlaceBlockTask task;
+
+                @Override
+                public boolean tick(dev.botalive.core.ai.BotContext ctx) {
+                    if (task == null) {
+                        if (worldView == null || worldView.traitsAt(place).solid()) {
+                            return true; // blok už stojí
+                        }
+                        if (!inventoryHelper.equipBuildingBlock(serverView.latest())) {
+                            return true; // bez bloků – dořeší detekce zaseknutí
+                        }
+                        task = new dev.botalive.core.tasks.PlaceBlockTask(place);
+                    }
+                    return task.tick(ctx);
+                }
+
+                @Override
+                public void cancel(dev.botalive.core.ai.BotContext ctx) {
+                    if (task != null) {
+                        task.cancel(ctx);
                     }
                 }
             });

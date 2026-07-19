@@ -119,8 +119,13 @@ public final class Navigator {
     private boolean assistNeeded;
     private int assistCycles;
 
+    /** Strop položených bloků na jeden plán (zrcadlí strop BridgeTasku). */
+    private static final int MAX_PLAN_PLACEMENTS = 12;
+
     /** Zásahy do terénu povolené konfigurací bota ({@code ai.terraforming}). */
     private boolean terraformingAllowed;
+    /** Dodavatel počtu stavebních bloků v inventáři (rozpočet pokládání). */
+    private java.util.function.IntSupplier placeBudget = () -> 0;
     /** Aktuální navigace už plánuje s kopacími hranami (po selhání pěšího plánu). */
     private boolean actionsEnabled;
     /** Zásah čekající na vykonání (bot stojí u zablokovaného waypointu). */
@@ -173,6 +178,16 @@ public final class Navigator {
      */
     public void terraforming(boolean allowed) {
         this.terraformingAllowed = allowed;
+    }
+
+    /**
+     * Nastaví dodavatele počtu stavebních bloků v inventáři – plán s akcemi
+     * nikdy neslíbí víc položených bloků (mosty, pilíře), než bot má.
+     *
+     * @param supplier počet dostupných stavebních bloků
+     */
+    public void placeBudget(java.util.function.IntSupplier supplier) {
+        this.placeBudget = supplier;
     }
 
     /**
@@ -826,7 +841,9 @@ public final class Navigator {
         // cílový predikát (okruh, útěk, hladina, kandidáti…).
         PathGoal requestGoal = segmentGoal != null || goalSpec == null
                 ? PathGoal.block(target) : goalSpec;
-        PathOptions options = actionsEnabled ? PathOptions.WITH_DIGGING : PathOptions.WALK_ONLY;
+        PathOptions options = actionsEnabled
+                ? PathOptions.withActions(Math.min(MAX_PLAN_PLACEMENTS, placeBudget.getAsInt()))
+                : PathOptions.WALK_ONLY;
         pendingPath = service.request(world, from.toBlockPos(), requestGoal, 0, dangers,
                 costs, options);
     }
