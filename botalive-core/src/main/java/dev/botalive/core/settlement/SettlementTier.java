@@ -36,16 +36,17 @@ public enum SettlementTier {
     /**
      * Odvodí stupeň ze substance sídla.
      *
-     * @param houses   počet dostavěných domů členů
-     * @param townInfra město má i společné stavby (sýpka, tržiště – fáze B+;
-     *                  do té doby vždy {@code false}, samotný počet domů
-     *                  z vesnice město nedělá)
+     * @param houses    počet dostavěných domů členů
+     * @param well      náves má dostavěnou studnu (společná stavba, fáze B) –
+     *                  bez ní zůstává i osm chalup osadou
+     * @param townInfra město má městskou infrastrukturu (sýpka + tržiště,
+     *                  fáze B2/D; do té doby vždy {@code false})
      * @return stupeň sídla
      */
-    public static SettlementTier of(int houses, boolean townInfra) {
-        if (houses >= TOWN_HOUSES && townInfra) {
+    public static SettlementTier of(int houses, boolean well, boolean townInfra) {
+        if (houses >= TOWN_HOUSES && well && townInfra) {
             return MESTO;
         }
-        return houses >= VILLAGE_HOUSES ? VESNICE : OSADA;
+        return houses >= VILLAGE_HOUSES && well ? VESNICE : OSADA;
     }
 }

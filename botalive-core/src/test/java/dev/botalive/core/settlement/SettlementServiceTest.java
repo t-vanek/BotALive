@@ -64,33 +64,66 @@ class SettlementServiceTest {
 
     // ------------------------------------------------------------- růst sídla
 
-    @Test
-    void ctvrtyDumPovysiOsaduNaVesnici() {
+    /** Postaví osadu se 4 dostavěnými domy (zakladatel + 3 osadníci). */
+    private SettlementService.SettlementInfo villageWithFourHouses() {
         var village = foundVillage();
-        // Zakladatelův dům: první substance, na vesnici to ještě není.
-        assertTrue(service.houseFinished(founder).isEmpty());
+        service.houseFinished(founder);
         UUID[] settlers = {joiner, third, new UUID(0, 4)};
-        for (int i = 0; i < settlers.length; i++) {
-            UUID settler = settlers[i];
+        for (UUID settler : settlers) {
             var settlerView = view(settler, HOME_SITE.offset(30, 0, 0), 0.7, null,
                     Map.of(founder, 0.6), Map.of(), Map.of());
             assertTrue(service.join(village.id(), settlerView));
             var slot = service.suggestPlots(village.id(), 1).getFirst();
             assertTrue(service.claimPlot(village.id(), settler, slot));
-            Optional<SettlementTier> up = service.houseFinished(settler);
-            if (i < settlers.length - 1) {
-                assertTrue(up.isEmpty(), "povýšení až se čtvrtým domem");
-            } else {
-                assertEquals(Optional.of(SettlementTier.VESNICE), up,
-                        "čtvrtý dostavěný dům dělá z osady vesnici");
-            }
+            assertTrue(service.houseFinished(settler).isEmpty(),
+                    "bez studny domy samy nepovyšují");
         }
-        // Jednorázovost: opakované hlášení téhož domu ani další stavby
-        // povýšení znovu neohlásí.
-        assertTrue(service.houseFinished(settlers[2]).isEmpty());
+        return village;
+    }
+
+    @Test
+    void studnaDovrsiVesnici() {
+        var village = villageWithFourHouses();
+        // Čtyři domy bez studny = pořád osada; sídlo ale už studnu nabízí.
+        assertEquals(SettlementTier.OSADA,
+                service.settlementOf(founder).orElseThrow().tier());
+        var project = service.neededProject(founder);
+        assertTrue(project.isPresent());
+        assertEquals(SettlementService.ProjectKind.WELL, project.get().kind());
+
+        // První bere; druhému se projekt nenabízí, dokud ho stavitel drží.
+        assertTrue(service.claimProject(village.id(),
+                SettlementService.ProjectKind.WELL, founder));
+        assertTrue(service.neededProject(joiner).isEmpty(),
+                "rozdělaný projekt cizího stavitele se nenabízí");
+        assertFalse(service.claimProject(village.id(),
+                SettlementService.ProjectKind.WELL, joiner));
+
+        // Uvolnění (přerušený cíl) → převezme soused; dokončení povyšuje.
+        service.releaseProject(village.id(), SettlementService.ProjectKind.WELL, founder);
+        assertTrue(service.claimProject(village.id(),
+                SettlementService.ProjectKind.WELL, joiner));
+        assertEquals(Optional.of(SettlementTier.VESNICE),
+                service.projectFinished(village.id(), SettlementService.ProjectKind.WELL),
+                "hotová studna dělá z osady vesnici");
+        // Jednorázovost hlášky i dokončení.
+        assertTrue(service.projectFinished(village.id(),
+                SettlementService.ProjectKind.WELL).isEmpty());
         var info = service.settlementOf(founder).orElseThrow();
         assertEquals(SettlementTier.VESNICE, info.tier());
         assertEquals(4, info.houses());
+        // Po studně už sídlo žádný projekt nepotřebuje (sýpka je fáze B2).
+        assertTrue(service.neededProject(founder).isEmpty());
+    }
+
+    @Test
+    void parcelaProjektuSeDomumNenabizi() {
+        var village = villageWithFourHouses();
+        var project = service.neededProject(founder).orElseThrow();
+        for (var slot : service.suggestPlots(village.id(), 50)) {
+            assertFalse(slot.origin().equals(project.origin()),
+                    "parcela studny nesmí být nabídnuta na dům");
+        }
     }
 
     @Test

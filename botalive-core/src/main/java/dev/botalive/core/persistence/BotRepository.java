@@ -466,6 +466,73 @@ public final class BotRepository {
     }
 
     /**
+     * Řádek společné stavby sídla ({@code ba_settlement_projects}).
+     *
+     * @param settlementId id sídla
+     * @param kind         druh stavby (název {@code ProjectKind})
+     * @param plotIndex    zablokovaná parcela
+     * @param x            origin stavby x
+     * @param y            origin stavby y
+     * @param z            origin stavby z
+     * @param facing       orientace (název {@code Cardinal})
+     * @param done         stavba dokončena
+     */
+    public record SettlementProjectRow(long settlementId, String kind, int plotIndex,
+                                       int x, int y, int z, String facing, boolean done) {
+    }
+
+    /**
+     * Načte všechny společné stavby sídel.
+     */
+    public CompletableFuture<List<SettlementProjectRow>> loadSettlementProjects() {
+        return db.async(connection -> {
+            List<SettlementProjectRow> result = new ArrayList<>();
+            try (PreparedStatement ps = connection.prepareStatement(
+                    "SELECT settlement_id, kind, plot_index, x, y, z, facing, done "
+                            + "FROM ba_settlement_projects");
+                 ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    result.add(new SettlementProjectRow(rs.getLong(1), rs.getString(2),
+                            rs.getInt(3), rs.getInt(4), rs.getInt(5), rs.getInt(6),
+                            rs.getString(7), rs.getInt(8) != 0));
+                }
+                return result;
+            } catch (SQLException e) {
+                throw new IllegalStateException(e);
+            }
+        });
+    }
+
+    /**
+     * Uloží/aktualizuje společnou stavbu sídla.
+     */
+    public CompletableFuture<Void> upsertSettlementProject(long settlementId, String kind,
+                                                           int plotIndex, int x, int y, int z,
+                                                           String facing, boolean done) {
+        String sql = "INSERT INTO ba_settlement_projects(settlement_id, kind, plot_index, "
+                + "x, y, z, facing, done) VALUES (?,?,?,?,?,?,?,?)"
+                + db.dialect().upsertSuffix("settlement_id, kind",
+                "plot_index=excluded.plot_index, x=excluded.x, y=excluded.y, "
+                        + "z=excluded.z, facing=excluded.facing, done=excluded.done");
+        return db.async(connection -> {
+            try (PreparedStatement ps = connection.prepareStatement(sql)) {
+                ps.setLong(1, settlementId);
+                ps.setString(2, kind);
+                ps.setInt(3, plotIndex);
+                ps.setInt(4, x);
+                ps.setInt(5, y);
+                ps.setInt(6, z);
+                ps.setString(7, facing);
+                ps.setInt(8, done ? 1 : 0);
+                ps.executeUpdate();
+                return null;
+            } catch (SQLException e) {
+                throw new IllegalStateException(e);
+            }
+        });
+    }
+
+    /**
      * Načte všechny vesnice.
      */
     public CompletableFuture<List<SettlementRow>> loadSettlements() {
@@ -564,9 +631,13 @@ public final class BotRepository {
     public CompletableFuture<Void> deleteSettlement(long id) {
         return db.async(connection -> {
             try (PreparedStatement ps = connection.prepareStatement(
-                    "DELETE FROM ba_settlements WHERE id = ?")) {
+                    "DELETE FROM ba_settlements WHERE id = ?");
+                 PreparedStatement projects = connection.prepareStatement(
+                         "DELETE FROM ba_settlement_projects WHERE settlement_id = ?")) {
                 ps.setLong(1, id);
                 ps.executeUpdate();
+                projects.setLong(1, id);
+                projects.executeUpdate();
                 return null;
             } catch (SQLException e) {
                 throw new IllegalStateException(e);

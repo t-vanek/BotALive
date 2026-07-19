@@ -158,6 +158,8 @@ public final class SettlementService {
         final Map<Integer, Long> unusablePlots = new HashMap<>();
         /** Poslední OHLÁŠENÝ stupeň – hlásí se jen růst, jednou. */
         SettlementTier announcedTier = SettlementTier.OSADA;
+        /** Společné stavby sídla (studna, později sýpka/tržiště). */
+        final Map<ProjectKind, Project> projects = new HashMap<>();
 
         Settlement(long id, String name, String world, BlockPos center,
                    UUID founder, long createdAt) {
@@ -173,6 +175,44 @@ public final class SettlementService {
     /** Členství bota: parcela {@code plotOrigin} může být null (ještě nemá). */
     private record Member(UUID botId, long joinedAt, int plotIndex,
                           BlockPos plotOrigin, Cardinal facing, boolean houseDone) {
+    }
+
+    /** Druh společné stavby sídla. */
+    public enum ProjectKind {
+        WELL
+        // GRANARY a MARKET_STALL přibudou ve fázích B2/D růstové roadmapy.
+    }
+
+    /**
+     * Společná stavba (pohled ven).
+     *
+     * @param settlementId sídlo
+     * @param kind         druh stavby
+     * @param origin       origin stavby (roh půdorysu)
+     * @param facing       orientace
+     * @param done         dokončeno
+     */
+    public record ProjectInfo(long settlementId, ProjectKind kind, BlockPos origin,
+                              Cardinal facing, boolean done) {
+    }
+
+    /** Vnitřní stav projektu; {@code builder} je transientní (restart uvolní). */
+    private static final class Project {
+        final ProjectKind kind;
+        final int plotIndex;
+        final BlockPos origin;
+        final Cardinal facing;
+        UUID builder;
+        boolean done;
+
+        Project(ProjectKind kind, int plotIndex, BlockPos origin, Cardinal facing,
+                boolean done) {
+            this.kind = kind;
+            this.plotIndex = plotIndex;
+            this.origin = origin;
+            this.facing = facing;
+            this.done = done;
+        }
     }
 
     private final BotAliveConfig.Settlement config;
@@ -253,6 +293,19 @@ public final class SettlementService {
                 // Brzda stěhovacího kolotoče musí přežít restart – nejlepší
                 // dostupný odhad poslední změny je čas vstupu do vesnice.
                 lastChangeAt.put(row.botId(), row.joinedAt());
+            }
+            for (BotRepository.SettlementProjectRow row
+                    : repository.loadSettlementProjects().join()) {
+                Settlement settlement = settlements.get(row.settlementId());
+                if (settlement == null) {
+                    continue; // osiřelý projekt – sídlo zaniklo
+                }
+                ProjectKind kind = ProjectKind.valueOf(row.kind());
+                settlement.projects.put(kind, new Project(kind, row.plotIndex(),
+                        new BlockPos(row.x(), row.y(), row.z()),
+                        Cardinal.valueOf(row.facing()), row.done()));
+                // Parcela projektu není pro domy – trvale.
+                settlement.unusablePlots.put(row.plotIndex(), Long.MAX_VALUE);
             }
             reapGhosts(lastSeen);
         }
@@ -616,6 +669,145 @@ public final class SettlementService {
         }
         addMember(settlement, new Member(member.botId(), member.joinedAt(),
                 member.plotIndex(), member.plotOrigin(), member.facing(), true));
+        return maybeAnnounceTier(settlement);
+    }
+
+    /** Odvozený stupeň sídla z dostavěných domů a společných staveb. */
+    private SettlementTier tierOf(Settlement settlement) {
+        return SettlementTier.of(houses(settlement),
+                projectDone(settlement, ProjectKind.WELL), false);
+    }
+
+    /** @return {@code true} pokud má sídlo dokončenou danou společnou stavbu */
+    private static boolean projectDone(Settlement settlement, ProjectKind kind) {
+        Project project = settlement.projects.get(kind);
+        return project != null && project.done;
+    }
+
+    // ==================================================== společné stavby
+
+    /**
+     * Společná stavba, kterou sídlo potřebuje k dalšímu růstu a kterou si
+     * tazatel smí vzít (volná, nebo už jeho). Projekt se při prvním dotazu
+     * založí: vybere se první volná parcela (prstenec 1+), trvale se
+     * zablokuje pro domy a persistuje.
+     *
+     * @param botId člen sídla, který se ptá
+     * @return projekt k zamluvení/stavbě, nebo empty (nic netřeba / staví
+     *         někdo jiný / bot není členem)
+     */
+    public synchronized Optional<ProjectInfo> neededProject(UUID botId) {
+        Long id = memberIndex.get(botId);
+        Settlement settlement = id == null ? null : settlements.get(id);
+        if (settlement == null) {
+            return Optional.empty();
+        }
+        // Zatím jediný motor růstu: studna dělá z osady vesnici.
+        if (houses(settlement) < SettlementTier.VILLAGE_HOUSES
+                || projectDone(settlement, ProjectKind.WELL)) {
+            return Optional.empty();
+        }
+        Project project = settlement.projects.get(ProjectKind.WELL);
+        if (project == null) {
+            Integer index = freePlotIndex(settlement);
+            if (index == null) {
+                return Optional.empty(); // plno – bez místa se nestaví
+            }
+            BlockPos origin = PlotLayout.plotOrigin(settlement.center, index,
+                    config.plotSpacing());
+            project = new Project(ProjectKind.WELL, index, origin,
+                    PlotLayout.facingToward(origin, settlement.center), false);
+            settlement.projects.put(ProjectKind.WELL, project);
+            settlement.unusablePlots.put(index, Long.MAX_VALUE);
+            persistProject(settlement, project);
+        }
+        if (project.builder != null && !project.builder.equals(botId)) {
+            return Optional.empty(); // už na tom dělá někdo jiný
+        }
+        return Optional.of(projectInfo(settlement, project));
+    }
+
+    /**
+     * Zamluví projekt staviteli – první bere (vzor trhu).
+     *
+     * @return {@code false} když projekt mezitím vzal jiný bot nebo neexistuje
+     */
+    public synchronized boolean claimProject(long settlementId, ProjectKind kind, UUID botId) {
+        Settlement settlement = settlements.get(settlementId);
+        Project project = settlement == null ? null : settlement.projects.get(kind);
+        if (project == null || project.done
+                || (project.builder != null && !project.builder.equals(botId))) {
+            return false;
+        }
+        project.builder = botId;
+        return true;
+    }
+
+    /** Stavitel to vzdal (přerušení cíle) – projekt se uvolní dalšímu. */
+    public synchronized void releaseProject(long settlementId, ProjectKind kind, UUID botId) {
+        Settlement settlement = settlements.get(settlementId);
+        Project project = settlement == null ? null : settlement.projects.get(kind);
+        if (project != null && botId.equals(project.builder)) {
+            project.builder = null;
+        }
+    }
+
+    /**
+     * Dokončená společná stavba – substance sídla.
+     *
+     * @return nově dosažený stupeň k ohlášení (jako {@link #houseFinished})
+     */
+    public synchronized Optional<SettlementTier> projectFinished(long settlementId,
+                                                                 ProjectKind kind) {
+        Settlement settlement = settlements.get(settlementId);
+        Project project = settlement == null ? null : settlement.projects.get(kind);
+        if (project == null || project.done) {
+            return Optional.empty();
+        }
+        project.done = true;
+        project.builder = null;
+        persistProject(settlement, project);
+        return maybeAnnounceTier(settlement);
+    }
+
+    /** @return první parcela nezabraná členem ani zákazem, nebo {@code null} */
+    private Integer freePlotIndex(Settlement settlement) {
+        for (int index = 1; index <= MAX_PLOT_INDEX; index++) {
+            if (settlement.unusablePlots.containsKey(index)) {
+                continue;
+            }
+            boolean taken = false;
+            for (Member member : settlement.members.values()) {
+                if (member.plotIndex() == index) {
+                    taken = true;
+                    break;
+                }
+            }
+            if (!taken) {
+                return index;
+            }
+        }
+        return null;
+    }
+
+    private void persistProject(Settlement settlement, Project project) {
+        if (repository != null) {
+            repository.upsertSettlementProject(settlement.id, project.kind.name(),
+                    project.plotIndex, project.origin.x(), project.origin.y(),
+                    project.origin.z(), project.facing.name(), project.done);
+        }
+    }
+
+    private ProjectInfo projectInfo(Settlement settlement, Project project) {
+        return new ProjectInfo(settlement.id, project.kind, project.origin,
+                project.facing, project.done);
+    }
+
+    /**
+     * Ohlásí růst stupně, pokud substance právě překročila dosud ohlášený
+     * stupeň. Pokles je tichý – stupeň se jen živě přepočítává.
+     */
+    private Optional<SettlementTier> maybeAnnounceTier(Settlement settlement) {
         SettlementTier tier = tierOf(settlement);
         if (tier.ordinal() > settlement.announcedTier.ordinal()) {
             settlement.announcedTier = tier;
@@ -625,11 +817,6 @@ public final class SettlementService {
             return Optional.of(tier);
         }
         return Optional.empty();
-    }
-
-    /** Odvozený stupeň sídla z počtu dostavěných domů (infrastruktura fáze B+). */
-    private SettlementTier tierOf(Settlement settlement) {
-        return SettlementTier.of(houses(settlement), false);
     }
 
     /** @return počet dostavěných domů členů */

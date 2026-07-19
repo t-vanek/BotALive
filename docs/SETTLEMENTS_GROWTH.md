@@ -30,7 +30,7 @@ neopakoval. Čisté jádro: `SettlementTier.of(houses, townInfra)`.
 - Hláška `settlement-village-up` (cs/en), `/botalive settlements`
   ukazuje stupeň a počet domů.
 
-## Fáze B – společné stavby (motor růstu)
+## Fáze B – společné stavby (motor růstu; studna hotová, sýpka = B2)
 
 První ne-soukromé budovy. Vzor `MarketBoard`: sdílená nástěnka
 **projektů sídla** (`SettlementProjects`) – projekt má druh, parcelu
