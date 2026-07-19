@@ -278,6 +278,11 @@ phrases:
     - "studna hotová! náves {name:2} vypadá konečně k světu"
     - "tak, {name} má studnu. kdo nenosil kámen, nepije!"
     - "hotovo, studna stojí. pojďte se podívat na náves"
+
+  settlement-role-taken:
+    - "u nás chyběl {name}, tak to beru já"
+    - "vesnice potřebuje, aby tu byl {name} – hlásím se"
+    - "měním řemeslo, {name} tady prostě scházel"
     - "kde je {name}, tam je i moje parcela"
     - "balím to tady, jdu za kamarády"
   recover-run:

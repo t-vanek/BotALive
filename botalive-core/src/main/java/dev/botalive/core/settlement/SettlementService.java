@@ -792,6 +792,54 @@ public final class SettlementService {
         return maybeAnnounceTier(settlement);
     }
 
+    /** Řemesla, bez kterých sídlo kulhá – v pořadí naléhavosti. */
+    private static final List<dev.botalive.api.role.BotRole> CORE_ROLES = List.of(
+            dev.botalive.api.role.BotRole.FARMER,
+            dev.botalive.api.role.BotRole.HUNTER,
+            dev.botalive.api.role.BotRole.BLACKSMITH,
+            dev.botalive.api.role.BotRole.BUILDER);
+
+    /**
+     * První klíčové řemeslo, které v sídle nikdo nedělá – nový univerzál si
+     * ho při vstupu může vzít (role je zaměření, ne klec: nudge v životním
+     * zlomu, žádné přeřazování zavedených členů).
+     *
+     * @param settlementId sídlo
+     * @return chybějící řemeslo, nebo empty (vše pokryto / sídlo neexistuje)
+     */
+    public Optional<dev.botalive.api.role.BotRole> missingCoreRole(long settlementId) {
+        BotManagerImpl manager = botManager;
+        if (manager == null) {
+            return Optional.empty();
+        }
+        return missingCoreRole(settlementId,
+                id -> manager.byId(id).map(dev.botalive.api.bot.Bot::role)
+                        .orElse(dev.botalive.api.role.BotRole.NONE));
+    }
+
+    /** Testovatelná varianta s injektovaným zdrojem rolí. */
+    synchronized Optional<dev.botalive.api.role.BotRole> missingCoreRole(
+            long settlementId,
+            java.util.function.Function<UUID, dev.botalive.api.role.BotRole> roleOf) {
+        Settlement settlement = settlements.get(settlementId);
+        if (settlement == null) {
+            return Optional.empty();
+        }
+        for (dev.botalive.api.role.BotRole needed : CORE_ROLES) {
+            boolean covered = false;
+            for (Member member : settlement.members.values()) {
+                if (roleOf.apply(member.botId()) == needed) {
+                    covered = true;
+                    break;
+                }
+            }
+            if (!covered) {
+                return Optional.of(needed);
+            }
+        }
+        return Optional.empty();
+    }
+
     /**
      * Zaznamená zakotvenost člena (Σ FRIEND vazeb k ostatním členům) pro
      * odvození starosty. Volá se ze sousedské úvahy; oddělené kvůli

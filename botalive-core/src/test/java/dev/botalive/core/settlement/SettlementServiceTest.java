@@ -134,6 +134,34 @@ class SettlementServiceTest {
     }
 
     @Test
+    void chybejiciRemesloSeNabiziVPoradiNalehavosti() {
+        var village = foundVillage();
+        // Nikdo nic nedělá → nejnaléhavější je farmář.
+        assertEquals(Optional.of(dev.botalive.api.role.BotRole.FARMER),
+                service.missingCoreRole(village.id(),
+                        id -> dev.botalive.api.role.BotRole.NONE));
+        // Farmář pokrytý zakladatelem → další v řadě je lovec.
+        assertEquals(Optional.of(dev.botalive.api.role.BotRole.HUNTER),
+                service.missingCoreRole(village.id(),
+                        id -> id.equals(founder)
+                                ? dev.botalive.api.role.BotRole.FARMER
+                                : dev.botalive.api.role.BotRole.NONE));
+    }
+
+    @Test
+    void pokryteSidloRemesloNenabizi() {
+        var village = villageWithFourHouses();
+        Map<UUID, dev.botalive.api.role.BotRole> roles = Map.of(
+                founder, dev.botalive.api.role.BotRole.FARMER,
+                joiner, dev.botalive.api.role.BotRole.HUNTER,
+                third, dev.botalive.api.role.BotRole.BLACKSMITH,
+                new UUID(0, 4), dev.botalive.api.role.BotRole.BUILDER);
+        assertEquals(Optional.empty(),
+                service.missingCoreRole(village.id(),
+                        id -> roles.getOrDefault(id, dev.botalive.api.role.BotRole.NONE)));
+    }
+
+    @Test
     void parcelaProjektuSeDomumNenabizi() {
         var village = villageWithFourHouses();
         var project = service.neededProject(founder).orElseThrow();

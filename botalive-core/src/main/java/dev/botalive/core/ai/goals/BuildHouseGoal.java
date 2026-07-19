@@ -292,6 +292,14 @@ public final class BuildHouseGoal extends AbstractGoal {
             }
             dev.botalive.core.settlement.SettlementAnnouncer.sayJoined(ctx.chat(),
                     plan.settlementName());
+            // Univerzál převezme řemeslo, které v sídle chybí (fáze C).
+            if (bot.role() == dev.botalive.api.role.BotRole.NONE) {
+                settlements.missingCoreRole(settlementId).ifPresent(needed -> {
+                    bot.role(needed);
+                    ctx.chat().sayFrom(dev.botalive.core.chat.PhraseCategory
+                            .SETTLEMENT_ROLE_TAKEN, needed.displayName());
+                });
+            }
             plan = new SettlementService.HomePlan(SettlementService.HomePlan.Kind.MEMBER,
                     settlementId, plan.settlementName(), null);
         }
