@@ -149,9 +149,24 @@ public final class NavigationService {
      */
     public PathRequest request(WorldView world, BlockPos start, BlockPos goal,
                                int nodeBudget, List<BlockPos> dangers) {
+        return request(world, start, PathGoal.block(goal), nodeBudget, dangers);
+    }
+
+    /**
+     * Naplánuje cestu k obecnému cíli ({@link PathGoal}) asynchronně.
+     *
+     * @param world      pohled na svět
+     * @param start      startovní blok
+     * @param goal       cílový predikát (okruh, útěk, hladina, kandidáti…)
+     * @param nodeBudget rozpočet uzlů (0 = z konfigurace)
+     * @param dangers    místa smrtí/nebezpečí z paměti bota (může být prázdné)
+     * @return handle výpočtu (future nikdy neselže – při chybě nese prázdnou cestu)
+     */
+    public PathRequest request(WorldView world, BlockPos start, PathGoal goal,
+                               int nodeBudget, List<BlockPos> dangers) {
         // Prefetch okolí, ať má A* s čím pracovat, než se pustí do výpočtu.
         world.prefetch(start, 2);
-        world.prefetch(goal, 1);
+        world.prefetch(goal.anchor(), 1);
         int budget = nodeBudget > 0 ? nodeBudget : this.nodeBudget;
         AtomicBoolean cancelFlag = new AtomicBoolean();
         CompletableFuture<Path> future = CompletableFuture.supplyAsync(() -> {
@@ -164,7 +179,7 @@ public final class NavigationService {
                 stats.record(result);
                 return result.path();
             } catch (Throwable t) {
-                LOG.warn("Pathfinding selhal ({} -> {}): {}", start, goal, t.toString());
+                LOG.warn("Pathfinding selhal ({} -> {}): {}", start, goal.anchor(), t.toString());
                 return new Path(List.of(), false);
             }
         }, executor);

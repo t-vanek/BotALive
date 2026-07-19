@@ -38,7 +38,10 @@ inventář a historii; po restartu serveru pokračuje tam, kde skončil.
   změnám světa. Dálkové trasy vede **hrubý koridor** (A* nad povrchovými
   sondami) – boti obcházejí jezera, lávová pole i masivy, na které je
   přímková segmentace krátká, a nenačteným terénem procházejí optimisticky
-  (`pathfinding.far-corridor`). Diagnostika a metriky: `/botalive path <bot>`.
+  (`pathfinding.far-corridor`). Cíl nemusí být jen blok: **predikáty**
+  (okruh kolem bloku, útěk od hrozby, těžební hladina, nejbližší
+  dosažitelný z kandidátů) plánuje A* přímo. Diagnostika a metriky:
+  `/botalive path <bot>`.
 - **Lidský projev** – omezená rychlost otáčení hlavy s easingem a šumem, trvalá
   chyba míření, log-normální reakční latence, mikro-rozhlížení, pauzy,
   rozfázované ticky. Chat s přemýšlením, rychlostí psaní, překlepy (QWERTZ

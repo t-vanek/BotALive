@@ -632,6 +632,91 @@ class AStarPathfinderTest {
     }
 
     @Test
+    void anyOfNajdeNejblizsihoDosazitelnehoKandidata() {
+        FakeWorldView world = new FakeWorldView(FLOOR);
+        BlockPos near = new BlockPos(6, FEET, 0);
+        BlockPos far = new BlockPos(0, FEET, 12);
+        // Bližší kandidát zazděný do krabice výšky 3 – dosažitelný je jen
+        // vzdálenější; předvýběr vzdušnou čarou by vybral špatně.
+        for (int x = 5; x <= 7; x++) {
+            for (int z = -1; z <= 1; z++) {
+                if (x != 6 || z != 0) {
+                    world.wall(x, FEET, FEET + 2, z);
+                }
+            }
+        }
+        AStarPathfinder.Result result = new AStarPathfinder(world).findPath(
+                new BlockPos(0, FEET, 0),
+                PathGoal.anyOf(java.util.List.of(near, far)), 0, 0L, null);
+
+        assertTrue(result.path().complete(), "dosažitelný kandidát existuje");
+        assertTrue(far.equals(result.path().waypoints().getLast()),
+                "cesta má skončit u dosažitelného kandidáta: "
+                        + result.path().waypoints().getLast());
+    }
+
+    @Test
+    void nearSkonciVOkruhu() {
+        FakeWorldView world = new FakeWorldView(FLOOR);
+        BlockPos center = new BlockPos(12, FEET, 0);
+        Path path = new AStarPathfinder(world).findPath(
+                new BlockPos(0, FEET, 0), PathGoal.near(center, 3), 0, 0L, null).path();
+
+        assertTrue(path.complete(), "okruh 3 kolem bloku je dosažitelný");
+        BlockPos last = path.waypoints().getLast();
+        assertTrue(last.distanceSquared(center) <= 9,
+                "cesta má skončit v okruhu 3: " + last);
+        assertTrue(path.waypoints().size() <= 10,
+                "do okruhu se nemá chodit dál, než je potřeba: " + path.waypoints());
+    }
+
+    @Test
+    void awayFromUtecePoBezpecnemTerenu() {
+        FakeWorldView world = new FakeWorldView(FLOOR);
+        // Láva východně od bota – útěk musí vybrat jiný směr.
+        for (int x = 5; x <= 40; x++) {
+            for (int z = -20; z <= 20; z++) {
+                world.set(x, FEET, z, FakeWorldView.HAZARD);
+                world.set(x, FLOOR, z, FakeWorldView.HAZARD);
+            }
+        }
+        BlockPos threat = new BlockPos(0, FEET, 0);
+        Path path = new AStarPathfinder(world).findPath(
+                new BlockPos(2, FEET, 0), PathGoal.awayFrom(threat, 12), 0, 0L, null).path();
+
+        assertTrue(path.complete(), "únik na 12 bloků má existovat");
+        BlockPos last = path.waypoints().getLast();
+        long dx = last.x() - threat.x();
+        long dz = last.z() - threat.z();
+        assertTrue(dx * dx + dz * dz >= 144,
+                "konec cesty má být aspoň 12 bloků od hrozby: " + last);
+        for (BlockPos waypoint : path.waypoints()) {
+            assertFalse(world.traitsAt(waypoint).hazard(),
+                    "útěk nesmí vést lávou: " + waypoint);
+        }
+    }
+
+    @Test
+    void yLevelSestoupiNaHladinu() {
+        FakeWorldView world = new FakeWorldView(FLOOR);
+        // Kaskáda teras dolů (−1 každé 2 bloky, celkem −4).
+        for (int step = 1; step <= 4; step++) {
+            for (int x = 2 + step * 2; x <= 30; x++) {
+                for (int z = -4; z <= 4; z++) {
+                    world.set(x, FLOOR - step + 1, z, FakeWorldView.AIRLIKE);
+                }
+            }
+        }
+        BlockPos start = new BlockPos(0, FEET, 0);
+        Path path = new AStarPathfinder(world).findPath(
+                start, PathGoal.yLevel(FEET - 4, start), 0, 0L, null).path();
+
+        assertTrue(path.complete(), "na hladinu −4 vedou terasy");
+        assertTrue(path.waypoints().getLast().y() == FEET - 4,
+                "cesta má skončit na cílové hladině: " + path.waypoints().getLast());
+    }
+
+    @Test
     void castecnaCestaMiriKCili() {
         FakeWorldView world = new FakeWorldView(FLOOR);
         // Cíl nedosažitelný (ve vzduchu), malý rozpočet – částečná cesta se má

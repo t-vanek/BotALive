@@ -679,3 +679,29 @@ není spočítaný – a jako trvalý fallback – jede se postaru po přímce.
 Kill-switch `pathfinding.far-corridor`. Simulační kontrakt (fáze 19) má
 scénář obchůzky lávového pole 40×124 bloků: bot ho s koridorem fyzicky
 obejde severní stranou a nikdy nevkročí do hazardu.
+
+Hotovo ve fázi 21: cílové predikáty pathfindingu (`PathGoal`) a dav
+v simulačním kontraktu.
+
+- **PathGoal** – cíl hledání už není jen „dojdi na blok": predikát
+  dosažení + přípustná heuristika. Vestavěné cíle: `block` (dnešní
+  chování; jako jediný normalizuje cíl nad deskou a používá drift
+  throttle pohyblivých cílů), `near` (okruh – interakce s truhlou,
+  ponkem, entitou), `anyOf` (**nejbližší dosažitelný** z kandidátů –
+  strom/ruda/truhla se vybírá podle skutečné dosažitelnosti, ne
+  vzdušnou čarou; multi-target hledání zadarmo), `awayFrom` (plánovaný
+  útěk po pochozím terénu – žádné hrany, láva ani slepé kouty panického
+  přímého běhu; heuristika ×7/blok drží přípustnost i pro diagonální
+  úprky) a `yLevel` (těžební hladina; ×6/blok = nejlevnější svislý
+  pohyb, pád). Predikáty přijímá A* (`findPath(start, PathGoal, …)`),
+  NavigationService i Navigator (`navigateTo(from, PathGoal)`);
+  mezicíle segmentů zůstávají blokové a dálková logika se řídí kotvou
+  cíle (`anchor()`). Blokové API je beze změny – goaly migrují
+  postupně, až budou predikáty potřebovat.
+- **Dav v simulačním kontraktu** – dva boti proti sobě (chodba šířky 2
+  i přesně čelní střet na volném poli) si každý tick předávají pozice
+  přes `TrackedEntity` a řídí se `CrowdAvoidance.steer` stejně jako
+  `BotImpl.tick`; oba musí fyzicky dorazit – deadlock z přetlačování je
+  selhání testu. Plus scénář plánovaného útěku: bot sevřený mezi
+  hrozbou a lávovým polem uteče na bezpečnou vzdálenost po pochozím
+  terénu a do lávy nikdy nevkročí.

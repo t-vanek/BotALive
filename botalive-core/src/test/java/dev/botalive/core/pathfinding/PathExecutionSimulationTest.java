@@ -513,6 +513,130 @@ class PathExecutionSimulationTest {
     }
 
     @Test
+    void planovanyUtekObejdeLavu() {
+        FakeWorldView world = new FakeWorldView(FLOOR);
+        // Láva východně od bota – panický přímý běh by do ní mohl vést,
+        // plánovaný útěk (PathGoal.awayFrom) ji obejde po pochozím terénu.
+        for (int x = 5; x <= 40; x++) {
+            for (int z = -20; z <= 20; z++) {
+                world.set(x, FEET, z, FakeWorldView.HAZARD);
+                world.set(x, FLOOR, z, FakeWorldView.HAZARD);
+            }
+        }
+        BlockPos threat = new BlockPos(0, FEET, 0);
+        Navigator navigator = new Navigator(service, null, new BotRandom(7), personality());
+        navigator.world(world);
+        Vec3 start = new Vec3(2.5, FEET, 0.5);
+        BotPhysics physics = new BotPhysics(world, start);
+        navigator.navigateTo(start, PathGoal.awayFrom(threat, 12));
+
+        for (int tick = 0; tick < 800; tick++) {
+            if (navigator.navigating() && !navigator.hasPath()) {
+                sleep(1);
+            }
+            MoveInput input = navigator.tick(physics.position(), physics.onGround(), physics.inWater());
+            input = LiquidReflex.apply(input, navigator.hasPath(), physics.position(),
+                    physics.submergedTicks(), world);
+            input = FallReflex.apply(input, navigator.hasPath(), physics.onGround(),
+                    physics.fallDistance(), physics.position(), world);
+            physics.step(input);
+            BlockPos feet = physics.position().toBlockPos();
+            assertTrue(!world.traitsAt(feet).hazard(),
+                    "útěk vkročil do lávy na " + feet + " (tick " + tick + ")");
+            double dx = physics.position().x() - (threat.x() + 0.5);
+            double dz = physics.position().z() - (threat.z() + 0.5);
+            if (dx * dx + dz * dz >= 144 && !navigator.navigating()) {
+                return; // v bezpečné vzdálenosti a navigace korektně skončila
+            }
+        }
+        throw new AssertionError("bot neutekl na 12 bloků od hrozby; skončil na "
+                + physics.position() + ", naviguje=" + navigator.navigating());
+    }
+
+    @Test
+    void dvaBotiSeVyhnouVProtismeruNaChodbe() {
+        FakeWorldView world = new FakeWorldView(FLOOR);
+        // Chodba šířky 2 (z 0..1) – boti jdoucí proti sobě se musí vyhnout
+        // úkrokem (CrowdAvoidance), ne se věčně přetlačovat.
+        for (int x = -2; x <= 16; x++) {
+            world.wall(x, FEET, FEET + 1, -1);
+            world.wall(x, FEET, FEET + 1, 2);
+        }
+        simulateTwoBots(world,
+                new Vec3(0.5, FEET, 0.5), new BlockPos(14, FEET, 1),
+                new Vec3(14.5, FEET, 1.5), new BlockPos(0, FEET, 0),
+                1500);
+    }
+
+    @Test
+    void dvaBotiSeVyhnouCelneNaVolnemPoli() {
+        FakeWorldView world = new FakeWorldView(FLOOR);
+        // Přesně čelní střet na jedné přímce – deterministický úkrok podle id.
+        simulateTwoBots(world,
+                new Vec3(0.5, FEET, 0.5), new BlockPos(20, FEET, 0),
+                new Vec3(20.5, FEET, 0.5), new BlockPos(0, FEET, 0),
+                1500);
+    }
+
+    /**
+     * Dva boti ve sdíleném světě, každý vidí druhého jako entitu davu –
+     * tick zrcadlí {@code BotImpl}: navigace → CrowdAvoidance → reflexy →
+     * fyzika. Oba musí dorazit; deadlock z přetlačování = selhání.
+     */
+    private void simulateTwoBots(FakeWorldView world, Vec3 startA, BlockPos goalA,
+                                 Vec3 startB, BlockPos goalB, int maxTicks) {
+        Navigator navA = new Navigator(service, null, new BotRandom(7), personality());
+        Navigator navB = new Navigator(service, null, new BotRandom(13), personality());
+        navA.world(world);
+        navB.world(world);
+        BotPhysics physA = new BotPhysics(world, startA);
+        BotPhysics physB = new BotPhysics(world, startB);
+        var type = org.geysermc.mcprotocollib.protocol.data.game.entity.type.EntityType.PLAYER;
+        var trackedA = new dev.botalive.core.entity.TrackedEntity(
+                1, java.util.UUID.randomUUID(), type, startA);
+        var trackedB = new dev.botalive.core.entity.TrackedEntity(
+                2, java.util.UUID.randomUUID(), type, startB);
+        navA.navigateTo(startA, goalA);
+        navB.navigateTo(startB, goalB);
+
+        boolean doneA = false;
+        boolean doneB = false;
+        for (int tick = 0; tick < maxTicks && !(doneA && doneB); tick++) {
+            if ((navA.navigating() && !navA.hasPath()) || (navB.navigating() && !navB.hasPath())) {
+                sleep(1);
+            }
+            trackedA.setPosition(physA.position(), 0, 0);
+            trackedB.setPosition(physB.position(), 0, 0);
+            if (!doneA) {
+                stepBot(world, navA, physA, 1, trackedB);
+                doneA = arrived(physA.position(), goalA);
+            }
+            if (!doneB) {
+                stepBot(world, navB, physB, 2, trackedA);
+                doneB = arrived(physB.position(), goalB);
+            }
+        }
+        assertTrue(doneA, "bot A nedorazil; skončil na " + physA.position());
+        assertTrue(doneB, "bot B nedorazil; skončil na " + physB.position());
+    }
+
+    /** Jeden tick jednoho bota v davové simulaci (zrcadlí BotImpl.tick). */
+    private static void stepBot(FakeWorldView world, Navigator navigator, BotPhysics physics,
+                                int selfId, dev.botalive.core.entity.TrackedEntity neighbor) {
+        MoveInput input = navigator.tick(physics.position(), physics.onGround(), physics.inWater());
+        Vec3 steered = dev.botalive.core.physics.CrowdAvoidance.steer(
+                physics.position(), selfId, java.util.List.of(neighbor), input.direction());
+        if (!steered.equals(input.direction())) {
+            input = new MoveInput(steered, input.sprint(), input.jump(), input.sneak());
+        }
+        input = LiquidReflex.apply(input, navigator.hasPath(), physics.position(),
+                physics.submergedTicks(), world);
+        input = FallReflex.apply(input, navigator.hasPath(), physics.onGround(),
+                physics.fallDistance(), physics.position(), world);
+        physics.step(input);
+    }
+
+    @Test
     void nahodnyTerenJeVzdyPruchozi() {
         // Property test: deterministicky „rozbitý" terén (hrboly, jámy, zídky,
         // desky, ploty, louže, sníh) – když plánovač slíbí kompletní cestu,

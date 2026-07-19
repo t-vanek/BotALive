@@ -277,12 +277,21 @@ by vypadalo stroze), dva boti volí různé trasy = viditelná individualita.
 > `pathfinding.far-corridor`. Řeší P3/P4: bot fyzicky obchází lávová
 > pole a jezera širší než staré posuny ±24 (simulační scénář
 > `obejdeLavovePoleKoridorem`). Detaily viz ARCHITECTURE.md, fáze 20.
+>
+> **Stav: v2.2-F implementováno** – cílové predikáty `PathGoal`
+> (block/near/anyOf/awayFrom/yLevel) v A*, NavigationService i Navigatoru
+> (`navigateTo(from, PathGoal)`): multi-target najde nejbližší
+> **dosažitelný** kandidát, plánovaný útěk a těžební hladina jsou cíle
+> první třídy; blokové API beze změny, goaly migrují postupně. Simulace
+> navíc kryje dav (`CrowdAvoidance` – dva boti proti sobě v chodbě
+> i čelně) a plánovaný útěk kolem lávy. Z v2.2 zbývá D (akční hrany
+> kopání/stavění). Detaily viz ARCHITECTURE.md, fáze 21.
 
 | Fáze | Obsah | Náročnost | Riziko | Hlavní přínos |
 |---|---|---|---|---|
 | **v2.0 jádro** ✅ | A (memo, čas, cancel, tie-break, partial-best, konfig+metriky+debug) + B (throttle, splice, validace) | M | nízké | 5–10× levnější výpočty, konec replan bouří u followu, měřitelnost |
 | **v2.1 dálka** ✅ | C (region graf, koridory, optimistické UNKNOWN, prefetch navázaný na výpočet) | M–L | střední | kilometrové trasy bez slepých ramen a stop-and-go |
-| **v2.2 akce** | D (dig/place hrany za flagem, sjednocení s assist eskalací) + F (predikáty – lze i dřív, je nezávislé) | L | vyšší | tunely/mosty jako plán, plánovaný útěk, multi-target |
+| **v2.2 akce** (F ✅) | D (dig/place hrany za flagem, sjednocení s assist eskalací) + F (predikáty – lze i dřív, je nezávislé) ✅ | L | vyšší | tunely/mosty jako plán, plánovaný útěk, multi-target |
 | **v2.3 šmrnc** | E (nové skoky) + G (silnice) + H (osobnost) | S | nízké | lidskost a individualita tras |
 
 Pořadí není náhodné: **A je prerekvizita všeho** (bez metrik a levné smyčky

@@ -184,6 +184,24 @@ public final class AStarPathfinder {
      */
     public Result findPath(BlockPos start, BlockPos goal, int nodeBudget,
                            long timeBudgetMs, BooleanSupplier cancelled) {
+        return findPath(start, PathGoal.block(goal), nodeBudget, timeBudgetMs, cancelled);
+    }
+
+    /**
+     * Naplánuje cestu k obecnému cíli ({@link PathGoal} – okruh, útěk,
+     * hladina, nejbližší z kandidátů…). Hledání končí v první buňce, která
+     * splní predikát; u multi-target cíle tak vyhrává nejlevněji dosažitelný
+     * kandidát bez předběžného výběru vzdušnou čarou.
+     *
+     * @param start        startovní blok (nohy bota)
+     * @param goal         cílový predikát
+     * @param nodeBudget   maximum expandovaných uzlů; {@code <= 0} použije default
+     * @param timeBudgetMs časový strop výpočtu (ms); {@code <= 0} bez limitu
+     * @param cancelled    signál zrušení (smí být {@code null})
+     * @return výsledek s cestou a diagnostikou
+     */
+    public Result findPath(BlockPos start, PathGoal goal, int nodeBudget,
+                           long timeBudgetMs, BooleanSupplier cancelled) {
         int budget = nodeBudget > 0 ? nodeBudget : DEFAULT_NODE_BUDGET;
         return new Search(budget, timeBudgetMs, cancelled).run(start, goal);
     }
@@ -206,16 +224,6 @@ public final class AStarPathfinder {
             }
         }
         return penalty;
-    }
-
-    /** Oktilová heuristika (konzistentní pro 8-směrový pohyb). */
-    private static int heuristic(BlockPos from, BlockPos to) {
-        int dx = Math.abs(from.x() - to.x());
-        int dy = Math.abs(from.y() - to.y());
-        int dz = Math.abs(from.z() - to.z());
-        int min = Math.min(dx, dz);
-        int max = Math.max(dx, dz);
-        return COST_DIAGONAL * min + COST_STRAIGHT * (max - min) + COST_STRAIGHT * dy;
     }
 
     /** Buňka hlavy nepřekáží tělu do dané lokální výšky (dveře si bot otevře). */
@@ -267,7 +275,7 @@ public final class AStarPathfinder {
         /** Memo pochozí výšky ({@code NaN} = nestojí se tu). */
         private final Long2DoubleOpenHashMap feetMemo = new Long2DoubleOpenHashMap(512);
 
-        private BlockPos goal;
+        private PathGoal goal;
         private int expanded;
         private boolean timedOut;
         private boolean cancelled;
@@ -279,10 +287,10 @@ public final class AStarPathfinder {
             feetMemo.defaultReturnValue(FEET_UNCOMPUTED);
         }
 
-        Result run(BlockPos start, BlockPos rawGoal) {
-            goal = normalizeGoal(rawGoal);
+        Result run(BlockPos start, PathGoal rawGoal) {
+            goal = rawGoal.exactBlock() ? normalizeBlockGoal(rawGoal) : rawGoal;
 
-            Node startNode = new Node(start, null, 0, heuristic(start, goal));
+            Node startNode = new Node(start, null, 0, goal.heuristic(start));
             open.add(startNode);
             visited.put(start.asLong(), startNode);
 
@@ -300,7 +308,7 @@ public final class AStarPathfinder {
                 current.closed = true;
                 expanded++;
 
-                if (current.pos.equals(goal)) {
+                if (goal.reached(current.pos)) {
                     return result(new Path(reconstruct(current), true));
                 }
                 long score = partialScore(current);
@@ -313,7 +321,7 @@ public final class AStarPathfinder {
             // Rozpočet/čas vyčerpán či zrušeno – vrátit nejlepší částečnou cestu.
             List<BlockPos> partial = reconstruct(best);
             if (partial.size() <= 1 && !cancelled) {
-                logDeadStart(start, goal);
+                logDeadStart(start, goal.anchor());
             }
             return result(new Path(partial, false));
         }
@@ -353,14 +361,16 @@ public final class AStarPathfinder {
         }
 
         /**
-         * Cíl mířící „do vzduchu" nad částečným blokem (deska, sníh) se přesune
-         * o buňku níž – tam, kde bot skutečně skončí nohama.
+         * Blokový cíl mířící „do vzduchu" nad částečným blokem (deska, sníh)
+         * se přesune o buňku níž – tam, kde bot skutečně skončí nohama.
+         * Obecné predikáty se nenormalizují (definují dosažení samy).
          */
-        private BlockPos normalizeGoal(BlockPos goal) {
-            if (Double.isNaN(feetHeight(goal)) && !Double.isNaN(feetHeight(goal.down()))) {
-                return goal.down();
+        private PathGoal normalizeBlockGoal(PathGoal blockGoal) {
+            BlockPos pos = blockGoal.anchor();
+            if (Double.isNaN(feetHeight(pos)) && !Double.isNaN(feetHeight(pos.down()))) {
+                return PathGoal.block(pos.down());
             }
-            return goal;
+            return blockGoal;
         }
 
         /** Diagnostika mrtvého startu: mapa traits okolí (S=solid W=liquid .=passable ?=unknown). */
@@ -595,7 +605,7 @@ public final class AStarPathfinder {
             if (existing != null && existing.g <= g) {
                 return;
             }
-            Node node = new Node(pos, parent, g, heuristic(pos, goal));
+            Node node = new Node(pos, parent, g, goal.heuristic(pos));
             visited.put(key, node);
             open.add(node);
         }

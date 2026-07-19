@@ -75,6 +75,8 @@ public final class Navigator {
     private Path path;
     private int waypointIndex;
     private BlockPos destination;
+    /** Cílový predikát navigace ({@code null} = nenaviguje); destination = jeho kotva. */
+    private PathGoal goalSpec;
     /** Mezicíl na dlouhé trase; {@code null} = plánuje se rovnou k cíli. */
     private BlockPos segmentGoal;
     /** Index do {@link #SEGMENT_OFFSETS} při hledání průchodného segmentu. */
@@ -156,21 +158,37 @@ public final class Navigator {
      * @param to   cílový blok
      */
     public void navigateTo(Vec3 from, BlockPos to) {
+        navigateTo(from, PathGoal.block(to));
+    }
+
+    /**
+     * Zahájí navigaci k obecnému cíli ({@link PathGoal} – okruh kolem bloku,
+     * útěk od hrozby, výšková hladina, nejbližší z kandidátů). Dálková
+     * segmentace a prefetch se řídí kotvou cíle ({@link PathGoal#anchor()}).
+     *
+     * @param from aktuální pozice bota
+     * @param goal cílový predikát
+     */
+    public void navigateTo(Vec3 from, PathGoal goal) {
         if (world == null) {
             return;
         }
-        if (to.equals(destination) && (hasPath() || pendingPath != null || assistNeeded)) {
+        BlockPos to = goal.anchor();
+        if (goal.equals(goalSpec) && (hasPath() || pendingPath != null || assistNeeded)) {
             return; // už tam jdeme (nebo čekáme na odblokování terénu)
         }
         // Pohyblivý cíl (follow, eskorta, přiblížení k entitě): malý posun cíle
         // rozpracovanou cestu nezahazuje – stará končí pár bloků od nového cíle
         // a dojede se; plný replán se pouští nejvýš jednou za
         // {@link #DRIFT_REPLAN_TICKS}. Bez throttlu by sledování spouštělo
-        // plný A* při každém kroku cíle o blok.
-        if (destination != null && segmentGoal == null && !assistNeeded
+        // plný A* při každém kroku cíle o blok. Jen pro blokové cíle –
+        // predikáty (útěk, okruh) drift po blocích nedávají.
+        if (goal.exactBlock() && goalSpec != null && goalSpec.exactBlock()
+                && segmentGoal == null && !assistNeeded
                 && (hasPath() || pendingPath != null)
                 && !isFar(from.toBlockPos(), to)) {
             destination = to;
+            goalSpec = goal;
             double driftSq = pathTarget == null
                     ? Double.MAX_VALUE : to.distanceSquared(pathTarget);
             if (driftSq <= DRIFT_KEEP_SQ) {
@@ -185,6 +203,7 @@ public final class Navigator {
             return;
         }
         destination = to;
+        goalSpec = goal;
         repathAttempts = 0;
         assistNeeded = false;
         assistCycles = 0;
@@ -206,6 +225,7 @@ public final class Navigator {
         path = null;
         waypointIndex = 0;
         destination = null;
+        goalSpec = null;
         segmentGoal = null;
         segmentAttempt = 0;
         corridor = null;
@@ -488,6 +508,7 @@ public final class Navigator {
                     advanceSegment(feet);
                     requestPath(position);
                 } else if (!path.complete() && destination != null
+                        && (goalSpec == null || !goalSpec.reached(feet))
                         && currentObjective() != null
                         && feet.distanceSquared(currentObjective()) > 4) {
                     requestPath(position); // částečná cesta – doplánovat
@@ -497,9 +518,12 @@ public final class Navigator {
                     segmentAttempt = 0;
                     advanceSegment(feet);
                     requestPath(position);
-                } else if (destination != null && feet.distanceSquared(destination) > 4) {
+                } else if (destination != null && goalSpec != null && goalSpec.exactBlock()
+                        && feet.distanceSquared(destination) > 4) {
                     // Cíl mezitím poodešel (drift pohyblivého cíle) – cesta
-                    // dojetá, doplánovat zbytek k aktuální pozici cíle.
+                    // dojetá, doplánovat zbytek k aktuální pozici cíle. Jen
+                    // blokové cíle: predikát (útěk, okruh) končí legitimně
+                    // daleko od kotvy.
                     requestPath(position);
                 } else {
                     stop();
@@ -701,7 +725,11 @@ public final class Navigator {
         java.util.List<BlockPos> dangers = dangerSupplier != null
                 ? dangerSupplier.get() : java.util.List.of();
         pathTarget = target;
-        pendingPath = service.request(world, from.toBlockPos(), target, 0, dangers);
+        // Mezicíle segmentů jsou vždy konkrétní bloky; přímý plán jde na
+        // cílový predikát (okruh, útěk, hladina, kandidáti…).
+        PathGoal requestGoal = segmentGoal != null || goalSpec == null
+                ? PathGoal.block(target) : goalSpec;
+        pendingPath = service.request(world, from.toBlockPos(), requestGoal, 0, dangers);
     }
 
     /**
