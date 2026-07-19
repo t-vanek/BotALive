@@ -393,6 +393,10 @@ public final class BotAliveCommand implements TabExecutor {
                             NamedTextColor.WHITE))
                     .append(Component.text("  zakladatel: " + founderName,
                             NamedTextColor.LIGHT_PURPLE))
+                    .append(Component.text("  starosta: " + (settlement.mayor() == null
+                                    ? "?" : botManager.byId(settlement.mayor())
+                                            .map(Bot::name).orElse("?")),
+                            NamedTextColor.LIGHT_PURPLE))
                     .append(Component.text("  členů: " + settlement.members().size()
                             + " (parcel: " + houses + ", domů: " + settlement.houses() + ")",
                             NamedTextColor.GRAY)));
