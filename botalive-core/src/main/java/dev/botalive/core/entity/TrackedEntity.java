@@ -114,6 +114,20 @@ public final class TrackedEntity {
     }
 
     /**
+     * @return {@code true} pokud entita fyzicky blokuje pohyb – klientská
+     *         fyzika kolize entit nemodeluje (jen bloky), takže zaparkovaná
+     *         loď je pro bota neviditelná zeď (provozní nález: bot přišpendlený
+     *         o loď u břehu). Tyhle entity se obcházejí steeringem davu.
+     */
+    public boolean blocksMovement() {
+        if (type == EntityType.PLAYER || type == EntityType.SHULKER) {
+            return true;
+        }
+        String name = type.name();
+        return name.endsWith("_BOAT") || name.endsWith("_RAFT") || name.contains("MINECART");
+    }
+
+    /**
      * Vždy nepřátelské moby bot napadá sám; <b>neutrální</b> druhy (enderman,
      * piglin, zombifikovaný piglin) tu záměrně nejsou – na ty se útočí jen
      * odvetou přes čerstvou ENEMY vzpomínku (viz {@code CombatGoal}), jako
