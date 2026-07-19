@@ -896,6 +896,11 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
         return future;
     }
 
+    /** Počká na zhasnutí síťového spojení (vypnutí pluginu, po odpojení). */
+    public void awaitNetworkQuiesce(long millis) {
+        connection.awaitQuiesce(millis);
+    }
+
     /** Trvale odstraní bota (volá manager). */
     public void markRemoved() {
         removed.set(true);
@@ -1070,6 +1075,24 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
         synchronized (tickLock) {
             tickInner();
         }
+    }
+
+    /** Stuck watchdog: práh nehybnosti při aktivní navigaci (600 ticků = 30 s). */
+    private static final int WATCHDOG_STILL_TICKS = 600;
+    /** Poslední pozice s pohybem a stáří nehybnosti (jen tick vlákno). */
+    private Vec3 watchdogPos = Vec3.ZERO;
+    private int watchdogStillTicks;
+    /** Opakované watchdog resety na témže bloku → nouzový přesun. */
+    private BlockPos watchdogLastResetPos;
+    private int watchdogRepeats;
+    /** Čas posledního nouzového přesunu – 2. přesun v okně jde na povrch. */
+    private long watchdogLastRelocateAt;
+    /** Okno, ve kterém druhý nouzový přesun eskaluje na povrch (ms). */
+    private static final long WATCHDOG_RELOCATE_WINDOW_MS = 300_000L;
+
+    /** @return ticky nehybnosti při aktivní navigaci (pro flotilový přehled) */
+    public int ticksWithoutMovement() {
+        return watchdogStillTicks;
     }
 
     private void tickInner() {
@@ -1248,10 +1271,11 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
             int targetId = combat.engaged() && combat.target() != null
                     ? combat.target().entityId() : -1;
             List<TrackedEntity> crowd = entities.nearby(physics.position(), CrowdAvoidance.radius(),
-                    e -> e.isPlayer() && e.entityId() != targetId);
+                    e -> e.blocksMovement() && e.entityId() != targetId);
             if (!crowd.isEmpty()) {
                 Vec3 steered = CrowdAvoidance.steer(
-                        physics.position(), clientState.entityId(), crowd, input.direction());
+                        physics.position(), clientState.entityId(), crowd, input.direction(),
+                        worldView);
                 if (!steered.equals(input.direction())) {
                     input = new MoveInput(steered, input.sprint(), input.jump(), input.sneak());
                 }
@@ -1307,6 +1331,70 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
         if (physics.landedThisTick() && physics.lastFallDamage() > 0) {
             LOG.debug("[{}] tvrdý dopad z ~{} bloků (odhad {} poškození)",
                     name, String.format("%.1f", physics.lastFallDistance()), physics.lastFallDamage());
+        }
+
+        // Stuck watchdog: aktivní navigace bez pohybu 30 s = zaseknutí, které
+        // nižší vrstvy nezachytily (dveře, dav, kolizní desync klient×server).
+        // WARN se souvislostmi a tvrdý reset navigace – goal si hned naplánuje
+        // čerstvou cestu a trvale marný cíl srazí backoff v navigátoru.
+        if (physics.position().distanceSquared(watchdogPos) > 0.04
+                || !navigator.navigating()) {
+            watchdogPos = physics.position();
+            watchdogStillTicks = 0;
+        } else if (++watchdogStillTicks >= WATCHDOG_STILL_TICKS) {
+            watchdogStillTicks = 0;
+            BlockPos here = physics.position().toBlockPos();
+            if (here.equals(watchdogLastResetPos)) {
+                watchdogRepeats++;
+            } else {
+                watchdogLastResetPos = here;
+                watchdogRepeats = 0;
+            }
+            if (watchdogRepeats >= 2) {
+                // Třetí reset na témže bloku: navigační resety nepomáhají, bot
+                // je uvězněný v něčem, co klientský model nezná (stojí na
+                // entitě – loď; kolizní desync). Poslední instance: přesun na
+                // sousední pevnou buňku s plným resyncem klienta.
+                watchdogRepeats = 0;
+                watchdogLastResetPos = null;
+                String worldName = worldView != null ? worldView.worldName() : null;
+                World bukkitWorld = worldName != null ? Bukkit.getWorld(worldName) : null;
+                long now = System.currentTimeMillis();
+                boolean secondInWindow = now - watchdogLastRelocateAt
+                        < WATCHDOG_RELOCATE_WINDOW_MS;
+                watchdogLastRelocateAt = now;
+                boolean overworld = worldView != null && worldView.dimension()
+                        == dev.botalive.core.world.WorldDimension.OVERWORLD;
+                if (secondInWindow && overworld && bukkitWorld != null) {
+                    // 2. stupeň: sousední buňka nestačila (jeskynní geometrie
+                    // poráží bota opakovaně) – přenést na povrch sloupce.
+                    // Lávová „hladina" jako cíl neplatí, bezpečnější je spawn.
+                    // Mimo overworld (střecha Netheru!) zůstává 1. stupeň.
+                    LOG.warn("[{}] watchdog: 2. nouzový přesun během 5 min na {} "
+                            + "– přenos na povrch", name, here);
+                    bridge.runAt(new Location(bukkitWorld, here.x(), here.y(), here.z()), () -> {
+                        int surfaceY = bukkitWorld.getHighestBlockYAt(here.x(), here.z());
+                        var surface = bukkitWorld.getBlockAt(here.x(), surfaceY, here.z())
+                                .getType();
+                        Location target = surface == org.bukkit.Material.LAVA
+                                ? bukkitWorld.getSpawnLocation()
+                                : new Location(bukkitWorld, here.x() + 0.5, surfaceY + 1.0,
+                                        here.z() + 0.5);
+                        teleport(target);
+                    });
+                } else if (bukkitWorld != null) {
+                    BlockPos refuge = findAdjacentGround(here);
+                    LOG.warn("[{}] watchdog: 3× reset na {} bez posunu – nouzový přesun na {}",
+                            name, here, refuge);
+                    teleport(new Location(bukkitWorld, refuge.x() + 0.5, refuge.y(),
+                            refuge.z() + 0.5));
+                }
+            } else {
+                LOG.warn("[{}] watchdog: {} s bez pohybu na {} (goal {}, cíl {}) – reset navigace",
+                        name, WATCHDOG_STILL_TICKS / 20, here,
+                        brain.currentGoalId(), navigator.currentObjective());
+            }
+            navigator.stop();
         }
 
         // Periodicky: přepočet postupu k životní ambici (levné, cache 2 s).
@@ -1787,6 +1875,67 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
         }
     }
 
+    /**
+     * Najde sousední buňku s pevnou podlahou a místem pro tělo – útočiště
+     * nouzového přesunu watchdogu. Bez nálezu vrací výchozí pozici (samotný
+     * resync klienta často desync srovná).
+     */
+    private BlockPos findAdjacentGround(BlockPos around) {
+        if (worldView == null) {
+            return around;
+        }
+        for (int r = 1; r <= 2; r++) {
+            for (int dx = -r; dx <= r; dx++) {
+                for (int dz = -r; dz <= r; dz++) {
+                    if (Math.max(Math.abs(dx), Math.abs(dz)) != r) {
+                        continue; // jen obvod prstence
+                    }
+                    BlockPos cell = new BlockPos(around.x() + dx, around.y(), around.z() + dz);
+                    if (worldView.traitsAt(cell).lowProfile()
+                            && worldView.traitsAt(cell.up()).lowProfile()
+                            && worldView.traitsAt(cell.down()).solid()) {
+                        return cell;
+                    }
+                }
+            }
+        }
+        return around;
+    }
+
+    /**
+     * Bezpečná resurekce: uložená pozice nemusí dnes existovat (zbořená
+     * plošina, přeteraformovaný terén) – bot vzkříšený do vzduchu umře pádem
+     * dřív, než mu AI stihne pomoct. Bez pevné podlahy (či vodní hladiny na
+     * dopad) do 24 bloků pod nohama se přenese na povrch v témže sloupci;
+     * lávová „hladina" se jako cíl odmítá – bezpečnější je world spawn.
+     */
+    private void maybeRescueFloatingSpawn(Vec3 position) {
+        String worldName = worldView != null ? worldView.worldName() : null;
+        World bukkitWorld = worldName != null ? Bukkit.getWorld(worldName) : null;
+        if (bukkitWorld == null) {
+            return;
+        }
+        BlockPos feet = position.toBlockPos();
+        bridge.runAt(new Location(bukkitWorld, feet.x(), feet.y(), feet.z()), () -> {
+            int bottom = Math.max(bukkitWorld.getMinHeight(), feet.y() - 24);
+            for (int y = feet.y() - 1; y >= bottom; y--) {
+                var type = bukkitWorld.getBlockAt(feet.x(), y, feet.z()).getType();
+                if (type.isSolid() || type == org.bukkit.Material.WATER) {
+                    return; // podlaha (nebo voda na dopad) v dosahu – v pořádku
+                }
+            }
+            int surfaceY = bukkitWorld.getHighestBlockYAt(feet.x(), feet.z());
+            var surface = bukkitWorld.getBlockAt(feet.x(), surfaceY, feet.z()).getType();
+            Location target = surface == org.bukkit.Material.LAVA
+                    ? bukkitWorld.getSpawnLocation()
+                    : new Location(bukkitWorld, feet.x() + 0.5, surfaceY + 1.0, feet.z() + 0.5);
+            LOG.warn("[{}] Resurekce do prázdna na {} (bez podlahy do 24 bloků) – přenos na "
+                    + "{} {} {}", name, feet, target.getBlockX(), target.getBlockY(),
+                    target.getBlockZ());
+            teleport(target);
+        });
+    }
+
     /** Aplikuje knockback impulzy od serveru (absolutní rychlost). */
     private void drainImpulses() {
         Vec3 impulse;
@@ -1802,6 +1951,7 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
         state.set(BotLifecycleState.SPAWNED);
         LOG.info("[{}] Naspawnován na {} v {}", name, position.toBlockPos(),
                 worldView != null ? worldView.worldName() : "?");
+        maybeRescueFloatingSpawn(position);
 
         // Přílet portálem: první pozice v novém světě je cílový portál –
         // vzpomínka na něj je cesta zpátky domů (Nether: portál↔portál).
@@ -1964,6 +2114,12 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
 
     @Override
     public String name() {
+        return name;
+    }
+
+    /** Jméno bota do logů – identity hash nikomu nic neřekne. */
+    @Override
+    public String toString() {
         return name;
     }
 

@@ -27,9 +27,19 @@ public final class BotTickEngine {
 
     private static final Logger LOG = LoggerFactory.getLogger(BotTickEngine.class);
     private static final long TICK_PERIOD_MS = 50L;
+    /** Jak dlouho se opakování téže výjimky v ticku jen počítá místo logování. */
+    private static final long ERROR_DEDUP_MS = 60_000L;
 
     private final ScheduledThreadPoolExecutor executor;
     private final Map<Object, ScheduledFuture<?>> tasks = new ConcurrentHashMap<>();
+    private final Map<Object, TickErrorState> tickErrors = new ConcurrentHashMap<>();
+
+    /** Deduplikace opakované výjimky v ticku jednoho bota (chráněno vlastním zámkem). */
+    private static final class TickErrorState {
+        String signature;
+        long lastLogAt;
+        int suppressed;
+    }
 
     /**
      * @param configuredThreads počet vláken z konfigurace; 0 = auto (¼ CPU, min 2)
@@ -66,10 +76,37 @@ public final class BotTickEngine {
             try {
                 tick.run();
             } catch (Throwable t) {
-                LOG.error("Neošetřená výjimka v ticku bota {}", owner, t);
+                logTickError(owner, t);
             }
         }, staggerMs, TICK_PERIOD_MS, TimeUnit.MILLISECONDS);
         tasks.put(owner, future);
+    }
+
+    /**
+     * Zaloguje výjimku z ticku s deduplikací: tatáž výjimka (třída + zpráva)
+     * u téhož bota se v okně {@link #ERROR_DEDUP_MS} jen počítá – zaseklý bot
+     * s chybou každý tick by jinak zaplavil log stovkami identických stacků.
+     */
+    private void logTickError(Object owner, Throwable t) {
+        String signature = t.getClass().getName() + ": " + t.getMessage();
+        TickErrorState state = tickErrors.computeIfAbsent(owner, o -> new TickErrorState());
+        synchronized (state) {
+            long now = System.currentTimeMillis();
+            if (signature.equals(state.signature) && now - state.lastLogAt < ERROR_DEDUP_MS) {
+                state.suppressed++;
+                return;
+            }
+            int suppressed = state.suppressed;
+            state.signature = signature;
+            state.lastLogAt = now;
+            state.suppressed = 0;
+            if (suppressed > 0) {
+                LOG.error("Neošetřená výjimka v ticku bota {} (a {}× potlačené opakování)",
+                        owner, suppressed, t);
+            } else {
+                LOG.error("Neošetřená výjimka v ticku bota {}", owner, t);
+            }
+        }
     }
 
     /**
@@ -79,6 +116,7 @@ public final class BotTickEngine {
      */
     public void stopTicking(Object owner) {
         ScheduledFuture<?> future = tasks.remove(owner);
+        tickErrors.remove(owner);
         if (future != null) {
             future.cancel(false);
         }
