@@ -629,7 +629,10 @@ Hotovo ve fázi 19: pathfinding v2.0 – evoluce jádra a chytřejší replannin
   (přeplavání, vynoření, **potopení na dno**, podvodní tunel, skok z výšky
   do hlubiny), žebříky (výstup 10 bloků s mantlem, **sestup šachtou**),
   úzký most, klikatá chodba, nízký tunel, led u hrany útesu, zeď postavená
-  uprostřed chůze (validace → obchůzka), daleká segmentová trasa a 20
+  uprostřed chůze (validace → obchůzka), **dveře ve zdi** (klik navigátoru
+  jde přes úzké rozhraní `DoorOpener` – produkce ho adaptuje na paketový
+  `BotActions.useItemOn`, test na lambdu přepínající blok, takže i dveře
+  jsou kryté end-to-end), daleká segmentová trasa a 20
   seedů náhodného terénu (každá krajina s kompletním plánem musí být
   fyzicky průchozí). Simulace odhalila a opravila pět reálných mezer
   exekuce: (1) bot s hlavou pod vodou držel skok bezpodmínečně a

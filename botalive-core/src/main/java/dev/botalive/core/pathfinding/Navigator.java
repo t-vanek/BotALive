@@ -2,13 +2,11 @@ package dev.botalive.core.pathfinding;
 
 import dev.botalive.api.personality.Personality;
 import dev.botalive.api.personality.Trait;
-import dev.botalive.core.network.BotActions;
 import dev.botalive.core.physics.MoveInput;
 import dev.botalive.core.util.BlockPos;
 import dev.botalive.core.util.BotRandom;
 import dev.botalive.core.util.Vec3;
 import dev.botalive.core.world.WorldView;
-import org.geysermc.mcprotocollib.protocol.data.game.entity.object.Direction;
 
 /**
  * Vykonavatel cest – převádí naplánovanou {@link Path} na pohybové vstupy.
@@ -67,7 +65,7 @@ public final class Navigator {
     private static final int[] SEGMENT_OFFSETS = {0, 24, -24};
 
     private final NavigationService service;
-    private final BotActions actions;
+    private final DoorOpener actions;
     private final BotRandom rng;
     private final Personality personality;
     /** Dodavatel míst špatných vzpomínek (smrti/nebezpečí) – učení z chyb. */
@@ -119,11 +117,11 @@ public final class Navigator {
 
     /**
      * @param service     asynchronní pathfinding
-     * @param actions     akční primitivy (otevírání dveří)
+     * @param actions     otevírání dveří v cestě ({@code null} = bez interakcí)
      * @param rng         per-bot náhoda
      * @param personality osobnost (sprint, trpělivost)
      */
-    public Navigator(NavigationService service, BotActions actions, BotRandom rng, Personality personality) {
+    public Navigator(NavigationService service, DoorOpener actions, BotRandom rng, Personality personality) {
         this.service = service;
         this.actions = actions;
         this.rng = rng;
@@ -521,8 +519,8 @@ public final class Navigator {
         if (doorClickCooldown > 0) {
             doorClickCooldown--;
         }
-        if (world.traitsAt(waypoint).door() && doorClickCooldown == 0) {
-            actions.useItemOn(waypoint, Direction.NORTH);
+        if (world.traitsAt(waypoint).door() && doorClickCooldown == 0 && actions != null) {
+            actions.open(waypoint);
             doorClickCooldown = 8;
         }
 

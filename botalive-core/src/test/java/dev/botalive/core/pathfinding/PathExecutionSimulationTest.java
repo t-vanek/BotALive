@@ -354,6 +354,25 @@ class PathExecutionSimulationTest {
     }
 
     @Test
+    void otevreDvereVeZdiAProjde() {
+        FakeWorldView world = new FakeWorldView(FLOOR);
+        // Zeď napříč s dveřmi (2 bloky vysoké) na z=0 – jediný průchod.
+        for (int z = -4; z <= 4; z++) {
+            if (z != 0) {
+                world.wall(3, FEET, FEET + 1, z);
+            }
+        }
+        world.set(3, FEET, 0, FakeWorldView.DOOR_CLOSED);
+        world.set(3, FEET + 1, 0, FakeWorldView.DOOR_CLOSED);
+        // „Server": klik navigátoru dveře skutečně přepne (obě poloviny).
+        DoorOpener opener = door -> {
+            world.set(door.x(), door.y(), door.z(), FakeWorldView.DOOR_OPEN);
+            world.set(door.x(), door.y() + 1, door.z(), FakeWorldView.DOOR_OPEN);
+        };
+        simulate(world, at(0), new BlockPos(6, FEET, 0), 600, opener);
+    }
+
+    @Test
     void projdeNizkymTunelem() {
         FakeWorldView world = new FakeWorldView(FLOOR);
         // Tunel vysoký 2 (strop ve FEET+2): skoky jsou zakázané, chůze musí stačit.
@@ -565,7 +584,13 @@ class PathExecutionSimulationTest {
      * k zásahu do terénu (plánovač a fyzika se neshodly).
      */
     private void simulate(FakeWorldView world, Vec3 start, BlockPos goal, int maxTicks) {
-        Navigator navigator = new Navigator(service, null, new BotRandom(7), personality());
+        simulate(world, start, goal, maxTicks, null);
+    }
+
+    /** Varianta s obsluhou dveří (simulace „serveru", který klik provede). */
+    private void simulate(FakeWorldView world, Vec3 start, BlockPos goal, int maxTicks,
+                          DoorOpener opener) {
+        Navigator navigator = new Navigator(service, opener, new BotRandom(7), personality());
         navigator.world(world);
         BotPhysics physics = new BotPhysics(world, start);
         navigator.navigateTo(start, goal);

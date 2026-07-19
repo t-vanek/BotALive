@@ -223,7 +223,11 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
         this.actions = new BotActions(connection, clientState);
         this.movementSender = new MovementSender(connection, clientState);
         this.humanizer = new Humanizer(rng, personality);
-        this.navigator = new Navigator(services.navigation(), actions, rng, personality);
+        // Navigátor ze sítě potřebuje jedinou akci – klik na dveře v cestě.
+        this.navigator = new Navigator(services.navigation(),
+                door -> actions.useItemOn(door,
+                        org.geysermc.mcprotocollib.protocol.data.game.entity.object.Direction.NORTH),
+                rng, personality);
         this.navigator.dangerSupplier(this::dangerMemories);
         this.inventoryHelper = new InventoryHelper(actions);
         this.inventoryHelper.puller(this::pullToHotbar);
