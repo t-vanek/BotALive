@@ -26,6 +26,13 @@ public final class EdgeGuard {
     /** Do jaké hloubky pod hranou se hledá podlaha, než je krok „přes okraj". */
     public static final int SCAN_DEPTH = 5;
 
+    /**
+     * Hloubka smrtícího pádu – práh mírné (overworldové) varianty
+     * {@link #applyLethal}. Drží se nad prahem volby povahy v plánovači
+     * (rokle ~12 je legitimní seskok odvážných).
+     */
+    public static final int LETHAL_DEPTH = 20;
+
     /** Jak daleko před botem se sloupec prověřuje (bloky). */
     private static final double LOOKAHEAD = 0.9;
 
@@ -44,16 +51,37 @@ public final class EdgeGuard {
      * @return bezpečný pohyb (původní, otočený, nebo {@link MoveInput#IDLE})
      */
     public static MoveInput apply(WorldView world, Vec3 position, MoveInput input) {
+        return apply(world, position, input, SCAN_DEPTH);
+    }
+
+    /**
+     * Mírná varianta pro overworld: zasahuje jen před pádem přes
+     * {@link #LETHAL_DEPTH} bloků (nebo lávou ve sloupci) – běžné seskoky
+     * nechává být, takže zavedené chování (přiblížení přes seskok, přímočarý
+     * útěk) se nemění. Provozní nález: dva pády na smrt při přímém pohybu
+     * u podzemních srázů, kde End-only ochrana nebyla.
+     *
+     * @param world    svět bota ({@code null} = bez kontroly)
+     * @param position pozice bota (nohy)
+     * @param input    zamýšlený pohyb
+     * @return bezpečný pohyb (původní, otočený, nebo {@link MoveInput#IDLE})
+     */
+    public static MoveInput applyLethal(WorldView world, Vec3 position, MoveInput input) {
+        return apply(world, position, input, LETHAL_DEPTH);
+    }
+
+    private static MoveInput apply(WorldView world, Vec3 position, MoveInput input,
+                                   int scanDepth) {
         if (world == null || input == null || input.direction().horizontalLength() < 1.0E-4) {
             return input;
         }
         Vec3 direction = input.direction().horizontal().normalized();
-        if (safeAhead(world, position, direction, SCAN_DEPTH)) {
+        if (safeAhead(world, position, direction, scanDepth)) {
             return input;
         }
         for (double degrees : TURNS) {
             Vec3 turned = rotate(direction, Math.toRadians(degrees));
-            if (safeAhead(world, position, turned, SCAN_DEPTH)) {
+            if (safeAhead(world, position, turned, scanDepth)) {
                 // Odklon je opatrný krok podél hrany – bez sprintu a skoku.
                 return new MoveInput(turned, false, false, input.sneak());
             }

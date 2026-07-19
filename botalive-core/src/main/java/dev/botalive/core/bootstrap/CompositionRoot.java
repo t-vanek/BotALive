@@ -230,6 +230,7 @@ public final class CompositionRoot {
         registry.register("share", bot -> new dev.botalive.core.ai.goals.ShareGoal());
         registry.register("mine", bot -> new MineGoal());
         registry.register("home", bot -> new ReturnHomeGoal());
+        registry.register("escape", bot -> new dev.botalive.core.ai.goals.EscapeGoal());
         registry.register("shelter", bot -> new BuildShelterGoal());
         registry.register("house", bot -> new BuildHouseGoal());
         registry.register("follow", bot -> new FollowPlayerGoal());
@@ -279,6 +280,10 @@ public final class CompositionRoot {
      */
     public void shutdown() {
         get(BotManagerImpl.class).shutdownAll();
+        // Až po odpojení všech botů: řízené vypnutí sdíleného netty event-loopu
+        // (daemon skupina pluginu) – bez něj by ne-daemon vlákna knihovny držela
+        // JVM po stopu serveru naživu (osiřelý java.exe se zámky světa).
+        dev.botalive.core.network.BotEventLoop.shutdown();
         get(BotTickEngine.class).shutdown();
         get(NavigationService.class).shutdown();
         get(Database.class).close();
