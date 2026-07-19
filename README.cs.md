@@ -72,6 +72,7 @@ Každý bot má vlastní identitu, osobnost, paměť, cíle, inventář a histor
 - **Netherové výpravy** — vybavený bot najde portál z paměti, objeví cizí, nebo si **postaví vlastní** (vytěží 14 obsidiánu, postaví rám 4×5, zapálí křesadlem). V Netheru těží quartz, zlato a glowstone, dobývá **starodávné trosky**, vylupuje pevnosti a bastiony (kovářské šablony!), se zlatými botami směňuje s pigliny — a doma poví diamantovou výbavu na **netheritovou** se zachovanými enchanty i poškozením.
 - **Kolonizace** — předsunuté základny s truhlou u netherské strany portálu, lektvar odolnosti ohni před sestupem do hloubky a návratové pojistky na zdraví, hlad i plný batoh. Kořist se propisuje do života společenství: trh, peněženky, drby o portálech, kopírování šablon.
 - **Výpravy do Endu** — bot, který se o portálu dozví (průchodem, toulkami, drby od kamaráda, nebo přes `/botalive end portal`), se vybaví a bojuje jako zkušený hráč: nejdřív sestřelit krystaly, endermanům se nekoukat do očí, ochrana hran proti pádu do voidu, usazeného draka mlátit, letícího střílet. Vítězství se slaví v chatu, ukládá jako trofej a zvedá odvahu.
+- **Vnější ostrovy a elytry** — po skolení draka bot s dostatkem perel jednu prohodí gatewayí, zapamatuje si zpáteční portál, najde end city (server-side hledání struktur; na cizích serverech sken purpuru), vyluští truhly věží, z end ship srazí **elytry** (item frame) a rovnou si je oblékne. Levitaci po zásahu shulkerem klient poctivě simuluje, takže se bot neroztrhne se serverem; s elytrami pak slétá z výšek konzervativním řízením letu (žádné střemhlavé nálety, podrovnání před dosedem).
 - **Dimenzní disciplína** — postel se v obou dimenzích nikdy nepoužívá (vybuchla by) a cesty se portálům vyhýbají, takže bot nikdy nezmění dimenzi omylem.
 
 ### 🏘️ Společenství a ekonomika
@@ -80,6 +81,8 @@ Každý bot má vlastní identitu, osobnost, paměť, cíle, inventář a histor
 - **Trh mezi boty** — přebytky se vyvolávají v chatu („prodávám 5x bread za 12, kdo chce?“), zamluví se, osobně předají a zaplatí. Kamarádi mají slevu, chamtivci přirážku a hladový bot s penězi si koupí jídlo, místo aby kradl.
 - **Zločin má následky** — hladovějící bot si „půjčí“ z cizí truhly a v krajní nouzi i někoho přepadne (vždy respektuje sekci `pvp`; kamarádi jsou tabu). Krádeže se zapisují do sdílené knihy zločinů — majitel to odhalí, naštve se a pamatuje si.
 - **Ekonomika** — výchozí interní persistentní peněženky; s nainstalovaným Vaultem boti žijí v serverové ekonomice (`/pay`, `/baltop`) a výdělky z těžby či obchodu vidí všichni.
+- **Války a diplomacie** (volitelné, výchozí vypnuto) — křivdy mezi členy různých vesnic (odhalené krádeže, napadení) zvedají napětí mezi sídly. Nad prahem bojovný starosta vyhlásí válku: nájezdy táhnou na cizí náves, obranu svolává stejná mašinerie jako běžné PvP, padlí zvyšují únavu z války a unavení starostové dojednají příměří — poražený platí reparace z peněženky starosty. Výhradně mezi boty, hráčů se války nikdy netýkají; nájezdy respektují sekci `pvp` (bez ní se válčí jen „studeně“). `/botalive diplomacy` ukazuje napětí, války i příměří.
+- **Boti k pronájmu** — hráč si najme bota osobně (`/botalive hire <bot> <worker|guard> [dny]`, do 16 bloků): **dělník** se soustředí na produktivní práci a výtěžek pravidelně nosí zaměstnavateli; **bodyguard** chodí s vámi a bije útočníky — moby vždy, hráče a boty jen v mezích sekce `pvp`. Mzda jde podle povahy (chamtiví a líní jsou dražší, kamarádi mají tržní slevu) a platí se předem přes Vault `/pay`. Kdo vlastního bota napadne, přijde o něj na místě — a peníze nevrací.
 
 ### 💬 Chat a lidský projev
 
@@ -134,6 +137,10 @@ Základní příkaz `/botalive`, aliasy `/ba` a `/bots`.
 | `stats <jméno>` | Vytěženo, postaveno, smrti, zabití, nachozeno, peníze… |
 | `role <jméno> [role\|random]` | Zobrazí/nastaví profesi bota |
 | `settlements` | Přehled vesnic botů (jméno, náves, zakladatel, členové) |
+| `diplomacy` | Napětí, války a příměří mezi vesnicemi botů |
+| `hire <jméno> <worker\|guard> [dny]` | Nabídka mzdy od bota (osobně, do 16 bloků) |
+| `hire <jméno> confirm` | Potvrzení najmutí — bot pak čeká na `/pay` |
+| `dismiss <jméno>` | Předčasná výpověď smlouvy (mzda se nevrací) |
 | `end portal <x> <y> <z> [svět]` | Prozradí všem botům polohu portálu do Endu (drby ji šíří dál) |
 | `path <jméno>` | Diagnostika navigace (cíl, waypointy, stav výpočtu) + metriky A\* |
 
@@ -159,8 +166,11 @@ Hráčské teleporty mají konfigurovatelný cooldown (`teleport.player-cooldown
 | `pathfinding.*` | Uzlové/časové rozpočty, dálkový koridor, diagnostika |
 | `combat.*`, `pvp.*` | Profil obtížnosti, PvP přepínače, pojistka útoků na hráče |
 | `nether.*`, `end.*` | Prahy výbavy pro výpravy, rozpočty, pojistky |
+| `end.outer.*` | Vnější ostrovy: rozpočet výpravy, rezerva perel, hledání struktur, elytrové lety |
 | `settlement.*` | Vesnice, parcely, osvětlení, cestičky |
+| `settlement.war.*` | Války a diplomacie: váhy napětí, velikost a kadence nájezdů, příměří, reparace (výchozí vypnuto) |
 | `economy.*` | Integrace Vaultu, trh mezi boty |
+| `economy.employment.*` | Najímání botů: mzdy, stropy smluv, platba předem |
 | `chat.*` | Jazyk, chování psaní a konverzace |
 | `memory.*`, `persistence.*` | Limity paměti, SQLite/PostgreSQL |
 | `network.*` | World model (`packet`), kontrola verze protokolu |
@@ -179,7 +189,7 @@ Placeholder `{name}` se nahrazuje jménem protistrany.
 <details>
 <summary>Kategorie frází</summary>
 
-`greetings`, `confused`, `agreement`, `disagreement`, `youre-welcome`, `idle-chatter`, `death-reactions`, `combat-taunts`, `meet-player`, `pvp-help-calls`, `pvp-assist`, `pvp-taunts`, `nether-depart`, `nether-arrive`, `nether-return`, `nether-loot`, `end-depart`, `end-arrive`, `dragon-slain`, `end-return`, `emojis`
+`greetings`, `confused`, `agreement`, `disagreement`, `youre-welcome`, `idle-chatter`, `death-reactions`, `combat-taunts`, `meet-player`, `pvp-help-calls`, `pvp-assist`, `pvp-taunts`, `nether-depart`, `nether-arrive`, `nether-return`, `nether-loot`, `end-depart`, `end-arrive`, `dragon-slain`, `end-return`, `end-outer-depart`, `end-city-found`, `elytra-found`, `end-outer-return`, `war-declared`, `war-raid-depart`, `war-raid-taunts`, `war-truce-offer`, `war-truce-agreed`, `hire-pay-request`, `hire-accept`, `hire-decline`, `hire-expired`, `hire-quit`, `hire-deliver`, `guard-defend`, `emojis`
 
 </details>
 
@@ -204,7 +214,7 @@ bot.teleportToPlayer(player.getUniqueId());    // bot k hráči
 bot.teleportPlayerToBot(player.getUniqueId()); // hráč k botovi
 ```
 
-Bukkit eventy (všechny asynchronní): `BotSpawnedEvent`, `BotRemovedEvent`, `BotChatEvent` (cancellable), `BotDiedEvent`, `BotGoalChangedEvent`.
+Bukkit eventy (všechny asynchronní): `BotSpawnedEvent`, `BotRemovedEvent`, `BotChatEvent` (cancellable), `BotDiedEvent`, `BotGoalChangedEvent`, `SettlementWarDeclaredEvent`, `SettlementTruceEvent`, `BotHiredEvent`, `BotDismissedEvent`.
 
 ## Build ze zdrojů
 
@@ -227,8 +237,9 @@ Rozhodnutí a trade-offy popisuje [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md); 
 
 - **Vyžadován offline mode** — boti jsou nepodepsaní klienti. Na online-mode serveru se plugin korektně odmítne připojit a vysvětlí proč.
 - **Nether** — boti nejezdí na striderech a přes velké lávové oceány nestaví dlouhé mosty (strop 12 bloků; cesta se hledá jinudy). Brewing, respawn anchor a boj s witherem nejsou v plánu; nether wart se sbírá jen jako kořist z truhel. Chybí útočné házení splash lektvarů (bot si je hází jen sám pod sebe jako nouzovou záchranu).
-- **End** — vnější ostrovy (gatewaye, end cities, shulkeři, elytra) zatím nejsou pokryté; boti operují na hlavním ostrově. Průlet gatewayí hozenou perlou je na roadmapě.
+- **Vnější ostrovy Endu** — elytrový let je zatím jen klouzání (bez raket), krunýř shulkera se nečte (entity metadata zůstávají neparsovaná — bot občas máchne do zavřeného krunýře jako začátečník) a města za `end.outer.max-city-distance` se vzdávají, přes void se nemostí. Shulker boxy se necraftí ani nepoužívají.
 - **Strongholdy** — boti netriangulují očima Enderu; portál se naučí průchodem, náhodným objevem, drby, nebo přes `/botalive end portal`. Oči Enderu si ale craftí (perla + blaze prach z netherové kořisti) a nezaplněný rám portálu si doplní sami.
+- **Války** — nájezdy jen bojují (nerabují a nezapalují), hráčů se nikdy netýkají a vesnice v různých světech spolu neválčí (nájezdník mezi světy nedojde).
 
 ## Přispívání
 
