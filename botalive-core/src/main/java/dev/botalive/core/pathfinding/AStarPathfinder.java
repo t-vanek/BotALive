@@ -111,11 +111,20 @@ public final class AStarPathfinder {
     private final int dangerMinX, dangerMinY, dangerMinZ;
     private final int dangerMaxX, dangerMaxY, dangerMaxZ;
 
+    /** Ceny škálované osobnostním profilem ({@link PathCosts}). */
+    private final int costJump;
+    private final int costFallPerBlock;
+    private final int costClimb;
+    private final int costWater;
+    private final int costSubmerged;
+    private final int costGapJump;
+    private final int costNearHazard;
+
     /**
      * @param world pohled na svět (thread-safe)
      */
     public AStarPathfinder(WorldView world) {
-        this(world, List.of());
+        this(world, List.of(), PathCosts.DEFAULT);
     }
 
     /**
@@ -125,6 +134,15 @@ public final class AStarPathfinder {
      *                zdražuje, nezakazuje (bot nesmí uvíznout)
      */
     public AStarPathfinder(WorldView world, List<BlockPos> dangers) {
+        this(world, dangers, PathCosts.DEFAULT);
+    }
+
+    /**
+     * @param world   pohled na svět (thread-safe)
+     * @param dangers místa špatných vzpomínek (smrti, nebezpečí)
+     * @param costs   osobnostní profil cen (styl cesty podle povahy)
+     */
+    public AStarPathfinder(WorldView world, List<BlockPos> dangers, PathCosts costs) {
         this.world = world;
         this.dangers = dangers == null ? List.of() : dangers;
         int minX = Integer.MAX_VALUE, minY = Integer.MAX_VALUE, minZ = Integer.MAX_VALUE;
@@ -143,6 +161,19 @@ public final class AStarPathfinder {
         this.dangerMaxX = maxX;
         this.dangerMaxY = maxY;
         this.dangerMaxZ = maxZ;
+        PathCosts profile = costs == null ? PathCosts.DEFAULT : costs;
+        this.costJump = scaled(COST_JUMP, profile.climb());
+        this.costFallPerBlock = scaled(COST_FALL_PER_BLOCK, profile.drop());
+        this.costClimb = scaled(COST_CLIMB, profile.climb());
+        this.costWater = scaled(COST_WATER, profile.water());
+        this.costSubmerged = scaled(COST_SUBMERGED, profile.water());
+        this.costGapJump = scaled(COST_GAP_JUMP, profile.gapJump());
+        this.costNearHazard = scaled(COST_NEAR_HAZARD, profile.hazardMargin());
+    }
+
+    /** Cena škálovaná profilem (zaokrouhlená, nezáporná). */
+    private static int scaled(int base, double multiplier) {
+        return Math.max(0, (int) Math.round(base * multiplier));
     }
 
     /**
@@ -417,15 +448,15 @@ public final class AStarPathfinder {
 
             // Šplhání: žebřík/liána v aktuální pozici → pohyb nahoru/dolů.
             if (traits(pos).climbable()) {
-                tryAddStandable(current, pos.up(), COST_CLIMB);
-                tryAddStandable(current, pos.down(), COST_CLIMB);
+                tryAddStandable(current, pos.up(), costClimb);
+                tryAddStandable(current, pos.down(), costClimb);
             }
 
             // Plavání svisle: ve vodním sloupci se bot může vynořit i potopit.
             BlockTraits here = traits(pos);
             if (here.liquid() && !here.hazard()) {
-                tryAddStandable(current, pos.up(), COST_WATER + COST_SWIM_VERTICAL);
-                tryAddStandable(current, pos.down(), COST_WATER);
+                tryAddStandable(current, pos.up(), costWater + COST_SWIM_VERTICAL);
+                tryAddStandable(current, pos.down(), costWater);
             }
         }
 
@@ -447,7 +478,7 @@ public final class AStarPathfinder {
                 // Vyšší částečný blok ve stejné buňce (6–7 vrstev sněhu) – výskok.
                 if (!diagonal && rise <= JUMP_RISE + EPS
                         && transitClear(current.pos.offset(0, 2, 0))) {
-                    tryAdd(current, target, base + COST_JUMP + terrainPenalty(target));
+                    tryAdd(current, target, base + costJump + terrainPenalty(target));
                     return;
                 }
             }
@@ -462,7 +493,7 @@ public final class AStarPathfinder {
                         && transitClear(target.offset(0, 2, 0))) {
                     // Schodovité bloky zvládne step-up fyzika bez výskoku – bez přirážky.
                     boolean stairStep = traits(target).stepFriendly();
-                    int cost = base + (stairStep ? 2 : COST_JUMP) + terrainPenalty(jumpCell);
+                    int cost = base + (stairStep ? 2 : costJump) + terrainPenalty(jumpCell);
                     tryAdd(current, jumpCell, cost);
                     return;
                 }
@@ -488,7 +519,7 @@ public final class AStarPathfinder {
                             return; // vysoký pád bez vodní jistoty – nejdeme
                         }
                         int fallBlocks = (int) Math.ceil(fall - 0.01);
-                        int cost = base + Math.min(fallBlocks, MAX_DROP + 2) * COST_FALL_PER_BLOCK
+                        int cost = base + Math.min(fallBlocks, MAX_DROP + 2) * costFallPerBlock
                                 + terrainPenalty(drop);
                         tryAdd(current, drop, cost);
                         return;
@@ -535,9 +566,9 @@ public final class AStarPathfinder {
                 if (hazardBelow(gap)) {
                     return; // láva na dně – radši obchůzka
                 }
-                int base = span * (diagonal ? COST_DIAGONAL : COST_STRAIGHT) + COST_GAP_JUMP
-                        + (span - 2) * COST_GAP_JUMP / 2   // širší mezera = větší riziko
-                        + (diagonal ? COST_GAP_JUMP / 2 : 0); // rohový let je delší a těsnější
+                int base = span * (diagonal ? COST_DIAGONAL : COST_STRAIGHT) + costGapJump
+                        + (span - 2) * costGapJump / 2   // širší mezera = větší riziko
+                        + (diagonal ? costGapJump / 2 : 0); // rohový let je delší a těsnější
                 BlockPos landing = pos.offset(dx * span, 0, dz * span);
                 double landFeet = feetHeight(landing);
                 if (flatLanding(landing, landFeet) && transitClear(landing.offset(0, 2, 0))
@@ -554,7 +585,7 @@ public final class AStarPathfinder {
                     if (flatLanding(lower, lowerFeet) && transitClear(landing.up())
                             && transitClear(landing.offset(0, 2, 0))
                             && !traits(lower).liquid()) {
-                        int cost = base + COST_FALL_PER_BLOCK + terrainPenalty(lower);
+                        int cost = base + costFallPerBlock + terrainPenalty(lower);
                         tryAdd(current, lower, cost);
                         return;
                     }
@@ -687,11 +718,11 @@ public final class AStarPathfinder {
             int penalty = 0;
             BlockTraits feetTraits = traits(feet);
             if (feetTraits.liquid()) {
-                penalty += COST_WATER;
+                penalty += costWater;
                 // Hlava taky pod vodou → bot se tu nenadechne. Dlouhé podvodní
                 // úseky se prodraží a cesta drží hladinu, kde to jde.
                 if (traits(feet.up()).liquid()) {
-                    penalty += COST_SUBMERGED;
+                    penalty += costSubmerged;
                 }
             }
             if (feetTraits.door()) {
@@ -713,7 +744,7 @@ public final class AStarPathfinder {
                 for (int dz = -1; dz <= 1; dz++) {
                     if (traits(feet.offset(dx, 0, dz)).hazard()
                             || traits(feet.offset(dx, -1, dz)).hazard()) {
-                        return penalty + COST_NEAR_HAZARD;
+                        return penalty + costNearHazard;
                     }
                 }
             }

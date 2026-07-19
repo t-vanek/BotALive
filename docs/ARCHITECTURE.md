@@ -714,3 +714,20 @@ v simulačním kontraktu.
   selhání testu. Plus scénář plánovaného útěku: bot sevřený mezi
   hrozbou a lávovým polem uteče na bezpečnou vzdálenost po pochozím
   terénu a do lávy nikdy nevkročí.
+
+Hotovo ve fázi 22: osobnost v cenách cest (`PathCosts`).
+
+Styl cesty je deterministická funkce povahy – žádný šum, kmitání tras
+mezi replány by vypadalo stroze. Profil násobí jen **přirážky** nad
+základní cenou kroku: odvaha zlevňuje sprint-skoky přes mezery
+(0,5–1,5×), opatrnost zdražuje seskoky (1–1,8×), blízkost lávy
+(0,7–1,7×) a vodu (0,8–1,5×), lenost šplhání a výskoky (0,85–1,6×).
+Přípustnost heuristik drží podlahy: pád nikdy pod 6/blok (heuristika
+`yLevel`), šplh nikdy pod 0,85× (oktilová svislice 10 ≤ 12·0,85).
+Profil se odvozuje jednou v konstruktoru navigátoru a teče přes
+`NavigationService.request(…, PathCosts)` do A* (škálované ceny se
+předpočítají do instančních polí – vnitřní smyčka zůstává celočíselná).
+Neutrální profil je bit-shodný s chováním před personalizací. Test
+`odvaznySkaceOpatrnyObchazi`: nad stejnou roklí odvážný bot volí
+sprint-skok a opatrný obchůzku – dva boti, dvě trasy, viditelná
+individualita.

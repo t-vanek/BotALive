@@ -68,6 +68,8 @@ public final class Navigator {
     private final DoorOpener actions;
     private final BotRandom rng;
     private final Personality personality;
+    /** Osobnostní profil cen cest (deterministický, per bot). */
+    private final PathCosts costs;
     /** Dodavatel míst špatných vzpomínek (smrti/nebezpečí) – učení z chyb. */
     private java.util.function.Supplier<java.util.List<BlockPos>> dangerSupplier;
 
@@ -128,6 +130,7 @@ public final class Navigator {
         this.actions = actions;
         this.rng = rng;
         this.personality = personality;
+        this.costs = PathCosts.of(personality);
     }
 
     /**
@@ -729,7 +732,7 @@ public final class Navigator {
         // cílový predikát (okruh, útěk, hladina, kandidáti…).
         PathGoal requestGoal = segmentGoal != null || goalSpec == null
                 ? PathGoal.block(target) : goalSpec;
-        pendingPath = service.request(world, from.toBlockPos(), requestGoal, 0, dangers);
+        pendingPath = service.request(world, from.toBlockPos(), requestGoal, 0, dangers, costs);
     }
 
     /**

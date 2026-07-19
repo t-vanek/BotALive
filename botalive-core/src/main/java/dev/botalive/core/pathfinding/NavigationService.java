@@ -164,6 +164,22 @@ public final class NavigationService {
      */
     public PathRequest request(WorldView world, BlockPos start, PathGoal goal,
                                int nodeBudget, List<BlockPos> dangers) {
+        return request(world, start, goal, nodeBudget, dangers, PathCosts.DEFAULT);
+    }
+
+    /**
+     * Naplánuje cestu s osobnostním profilem cen (styl cesty podle povahy).
+     *
+     * @param world      pohled na svět
+     * @param start      startovní blok
+     * @param goal       cílový predikát
+     * @param nodeBudget rozpočet uzlů (0 = z konfigurace)
+     * @param dangers    místa smrtí/nebezpečí z paměti bota (může být prázdné)
+     * @param costs      profil cen ({@link PathCosts#of}); {@code null} = neutrální
+     * @return handle výpočtu (future nikdy neselže – při chybě nese prázdnou cestu)
+     */
+    public PathRequest request(WorldView world, BlockPos start, PathGoal goal,
+                               int nodeBudget, List<BlockPos> dangers, PathCosts costs) {
         // Prefetch okolí, ať má A* s čím pracovat, než se pustí do výpočtu.
         world.prefetch(start, 2);
         world.prefetch(goal.anchor(), 1);
@@ -174,7 +190,7 @@ public final class NavigationService {
                 return new Path(List.of(), false); // zrušeno ještě ve frontě poolu
             }
             try {
-                AStarPathfinder.Result result = new AStarPathfinder(world, dangers)
+                AStarPathfinder.Result result = new AStarPathfinder(world, dangers, costs)
                         .findPath(start, goal, budget, timeBudgetMs, cancelFlag::get);
                 stats.record(result);
                 return result.path();
