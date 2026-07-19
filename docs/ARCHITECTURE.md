@@ -915,3 +915,12 @@ s kolizním systémem (analýza [docs/PATHFINDING_V3.md](PATHFINDING_V3.md)).
   `Material.isAir` (to sahá na server Registry – vrstva tasků patří
   nad `WorldView`). `BotActions` a `InventoryHelper` přestaly být
   `final` kvůli dvojníkům.
+- **v3.4 výkon – uzavřeno měřením, přepis zamítnut**: ruční benchmark
+  (`PerfBenchTest`, @Disabled) ukázal ~252 uzlů/ms v adversariálním
+  bludišti a žádný dominantní hotspot (alokace ~2 %, prioritní fronta
+  ~12 %, zbytek memo dotazy rozprostřené po smyčce). Bucket queue by
+  přinesla ~12 % za riziko změny tie-breaku, long-přepis ~2 % za
+  čitelnost jádra – nevyplatí se. Časový rozpočet 25 ms správně ořezává
+  nejtěžší hledání a vzor „nedosažitelný cíl pálí celý rozpočet" řeší
+  migrace goalů na `near`/`anyNear`. Tím je roadmapa pathfindingu v3
+  kompletní (proudy vody zůstávají vědomě odložené).

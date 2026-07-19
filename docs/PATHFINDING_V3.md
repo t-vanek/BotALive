@@ -193,6 +193,20 @@ plán ↔ assist.
 > stačily bloky – plán teď mezi skoky čeká na dopad. Navíc
 > `PlaceBlockTask` verifikace přešla z `Material.isAir` (sahá na server
 > Registry) na traits – vrstva tasků zůstává nad `WorldView` abstrakcí.
+>
+> **Stav: v3.4 uzavřeno měřením – přepis zamítnut.** Benchmark
+> (`PerfBenchTest`, ruční, @Disabled): bludiště 6 665 uzlů / 26 ms
+> (~252 uzlů/ms), otevřená pláň 61 uzlů / 0,19 ms, členitý terén
+> s nedosažitelným cílem 8 000 uzlů (strop) / 41 ms. Rozklad nákladů:
+> alokace `BlockPos` ~2 % (malé recordy v TLAB), prioritní fronta ~12 %,
+> zbytek memoizované trait dotazy a pochozí výšky rozprostřené po smyčce
+> – žádný dominantní hotspot. Bucket queue by dala ~12 % za riziko změny
+> tie-breaku (přeuspořádání rovnocenných tras), long-přepis ~2 % za
+> čitelnost celého jádra – slibované „až 2×" není kde vzít bez přepisu
+> všeho najednou. Časový rozpočet 25 ms dělá přesně svou práci (ořízne
+> adversariální hledání na ~6 000 uzlů) a nejhorší vzor „nedosažitelný
+> cíl pálí celý rozpočet" už řeší `near`/`anyNear` migrace goalů.
+> Roadmapa v3 je tím KOMPLETNÍ (P7 proudy vody zůstává vědomě odloženo).
 
 ## 2. Doporučené fázování
 
@@ -202,7 +216,7 @@ plán ↔ assist.
 | **v3.1 dokončení migrace** ✅ | P3 zbylé `near` cíle (End/Nether/drak/vozidla/průzkum) | S | nízké | konec pálení rozpočtu, drift throttle všude |
 | **v3.2 kvalita výběru** ✅ | P4 `anyNear` v goalech s kandidáty (ruda/kmen/postel; truhly záměrně ne – identita) + zpětná vazba „který kandidát vyšel" | M | střední | méně marných výpočtů a blacklist smyček, přirozenější volby |
 | **v3.3 parita akcí** ✅ | P8 žebříkové hrany ✅ + BotTask-level simulace ✅ (odhalila a opravila slabý skok, vzdušný mantle a vzdušné plánování pilíře) | M | střední | poslední reaktivní eskalace pod kontraktem |
-| **v3.4 výkon** | P6 bucket queue / long smyčka – jen po benchmarku | M | střední | až 2× rychlejší jádro, ale nejdřív důkaz |
+| **v3.4 výkon** ✅ (zamítnuto měřením) | P6 bucket queue / long smyčka – benchmark ukázal ~12 % + ~2 % bez dominantního hotspotu, přepis se nevyplatí | M | střední | čitelné jádro > drobný zisk; rozpočty dělají svou práci |
 | odloženo | P7 proudy vody | L | vyšší | malý viditelný zisk |
 
 Pořadí drží zásadu celé série: nejdřív korektnost (P1/P2/P5 jsou
