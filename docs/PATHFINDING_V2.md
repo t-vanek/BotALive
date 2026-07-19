@@ -261,6 +261,14 @@ by vypadalo stroze), dva boti volí různé trasy = viditelná individualita.
 > cílů, validace cesty proti změnám světa (`PathValidator`), sekce
 > `pathfinding.*`, metriky `PathfindingStats` a příkaz `/botalive path`.
 > Detaily viz ARCHITECTURE.md, fáze 19.
+>
+> **Navíc: simulační kontrakt plánovač ↔ fyzika**
+> (`PathExecutionSimulationTest`, 32 scénářů) – každá naplánovaná cesta se
+> v testu fyzicky odejde přes `BotPhysics`. Odhalil a opravil 5 mezer
+> exekuce (potápění, tolerance vodních waypointů, sestup po žebříku,
+> falešné gap-skoky nad jámami, deadlock okna vyhlazení) + 1 ve fyzice
+> (step-up mantloval bota ven ze šachty se žebříkem). Repertoár pohybů
+> je tím pokrytý end-to-end, ne jen na úrovni plánu.
 
 | Fáze | Obsah | Náročnost | Riziko | Hlavní přínos |
 |---|---|---|---|---|

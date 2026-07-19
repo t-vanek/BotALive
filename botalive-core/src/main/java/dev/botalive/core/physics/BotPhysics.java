@@ -376,8 +376,11 @@ public final class BotPhysics {
 
         boolean collidedHorizontally = dx != motion.x() || dz != motion.z();
 
-        // Step-up: pokud jsme narazili do zdi a jsme na zemi, zkusit posun o schod výš.
-        if (collidedHorizontally && (onGround || motion.y() < 0)) {
+        // Step-up: pokud jsme narazili do zdi a jsme na zemi, zkusit posun o schod
+        // výš. Nikdy na žebříku/liáně – zbytková vodorovná rychlost při sestupu
+        // šachtou by bota „vymantlovala" přes okraj ven (vanilla po žebřících
+        // taky nedovolí nedobrovolný výstup na hranu).
+        if (collidedHorizontally && !onClimbable && (onGround || motion.y() < 0)) {
             AABB stepBox = AABB.playerAt(position);
             double stepUp = clipAxis(stepBox, STEP_HEIGHT, Axis.Y);
             stepBox = stepBox.move(0, stepUp, 0);

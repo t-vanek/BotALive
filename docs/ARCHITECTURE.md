@@ -619,3 +619,31 @@ Hotovo ve fázi 19: pathfinding v2.0 – evoluce jádra a chytřejší replannin
   prázdné, timeouty, zrušení, průměr a maximum uzlů i ms) a příkaz
   `/botalive path <bot>` – cíl, segment, postup po waypointech, běžící
   výpočet a agregované metriky. Rozpočty ladí sekce `pathfinding.*`.
+- **Simulační kontrakt plánovač ↔ fyzika**
+  (`PathExecutionSimulationTest`): naplánovaná cesta se v testu skutečně
+  **odejde** – tick smyčka zrcadlí `BotImpl.tick` (navigator → LiquidReflex
+  → FallReflex → `BotPhysics.step`) a scénář selže, když bot fyzicky
+  nedorazí, utrpí pád, vkročí do hazardu, nebo navigace eskaluje k zásahu
+  do terénu. Matice: chůze/diagonály, terasy, schody, desky, sníh, seskoky,
+  mezery 1–2 (i diagonální, i s dopadem níž, i s ledovým rozběhem), voda
+  (přeplavání, vynoření, **potopení na dno**, podvodní tunel, skok z výšky
+  do hlubiny), žebříky (výstup 10 bloků s mantlem, **sestup šachtou**),
+  úzký most, klikatá chodba, nízký tunel, led u hrany útesu, zeď postavená
+  uprostřed chůze (validace → obchůzka), daleká segmentová trasa a 20
+  seedů náhodného terénu (každá krajina s kompletním plánem musí být
+  fyzicky průchozí). Simulace odhalila a opravila pět reálných mezer
+  exekuce: (1) bot s hlavou pod vodou držel skok bezpodmínečně a
+  naplánovaný sestup vodou nikdy neprovedl – potápěcí waypoint teď skok
+  pouští (o dech se dál stará `LiquidReflex`); (2) volná svislá tolerance
+  waypointů ve vodě „dokončovala" sestupy vysoko nad cílem a záchranný
+  reflex bota vynesl zpět k hladině – při klesání je tolerance těsná;
+  (3) sestup po žebříku posílal vodorovný vstup, který fyzika (vanilla)
+  bere jako „šplhej vzhůru" – bot teď nad kolmým waypointem žebřík pustí
+  a sjíždí; (4) heuristika skoku přes mezeru se řídila jen vzdáleností
+  waypointu a „spadni do jámy o buňku dál" přeskakovala sprintem tam
+  a zpět – skok se pozná podle rozestupu waypointů ≥ 2 (kontrakt
+  plánovače); (5) odbavování waypointů při vyhlazení šlo jen podle
+  blízkosti, diagonální zkratka nechala rohový waypoint stranou a okno
+  vyhlazení se zaseklo – waypointy se odbavují i projekcí „je za botem".
+  Ve fyzice navíc step-up nikdy nezabírá na žebříku/liáně – zbytková
+  rychlost při sestupu šachtou bota „vymantlovávala" přes okraj ven.

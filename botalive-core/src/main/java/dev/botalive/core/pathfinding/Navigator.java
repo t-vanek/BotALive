@@ -373,9 +373,13 @@ public final class Navigator {
         Vec3 target = waypoint.center();
         Vec3 delta = target.sub(position);
 
-        // Waypoint dosažen? (ve vodě je svislá tolerance volnější – plave se šikmo)
+        // Waypoint dosažen? Ve vodě je svislá tolerance při stoupání volnější
+        // (plave se šikmo) – ale při klesání těsná: potápěcí waypointy odbavené
+        // z dálky by cestu „dokončily" vysoko nad hlubokým cílem a záchranný
+        // reflex by bota vynesl zpátky k hladině.
+        double verticalTolerance = inWater ? (delta.y() < 0 ? 0.6 : 1.6) : 1.2;
         if (delta.horizontalLength() < WAYPOINT_TOLERANCE
-                && Math.abs(delta.y()) < (inWater ? 1.6 : 1.2)) {
+                && Math.abs(delta.y()) < verticalTolerance) {
             waypointIndex++;
             if (waypointIndex >= path.waypoints().size()) {
                 BlockPos feet = position.toBlockPos();
@@ -421,12 +425,27 @@ public final class Navigator {
             doorClickCooldown = 8;
         }
 
+        // Sestup po žebříku/liáně: bot visí na šplhatelném bloku a waypoint je
+        // pod ním. Vodorovný vstup by fyzika brala jako „šplhej vzhůru" (vanilla:
+        // tlak do stěny = stoupání) a driftoval by bota pryč od cíle – správný
+        // sestup je pustit se a nechat ho sjíždět (−0.15/tick). Podmínka na
+        // vodorovnou odchylku drží zásah jen nad kolmým waypointem.
+        if (!inWater && delta.y() < -0.6 && delta.horizontalLength() < 0.6
+                && world.traitsAt(position.toBlockPos()).climbable()) {
+            return MoveInput.IDLE;
+        }
+
         boolean jump;
         if (inWater) {
             // Plavání: skok = stoupání. Drž ho, když je waypoint na úrovni či výš,
             // nebo když má bot hlavu pod vodou – jinak by se potopil a utopil.
+            // Naplánovaný sestup (waypoint výrazně níž) ale skok pouští i pod
+            // hladinou: potápěcí úseky cesty (dno jámy, zatopený tunel) by jinak
+            // nešly vykonat a bot by věčně šlapal vodu u hladiny. O dech se
+            // stará LiquidReflex – při docházejícím vzduchu přebíjí vše vzhůru.
             boolean submerged = world.traitsAt(position.toBlockPos().up()).liquid();
-            jump = delta.y() > -0.4 || submerged;
+            boolean divePlanned = delta.y() < -0.6;
+            jump = (delta.y() > -0.4 || submerged) && !divePlanned;
         } else {
             // Po schodech se neskáče – step-up fyzika je vyjde plynule.
             boolean stairsAhead = world.traitsAt(waypoint.down()).stepFriendly();
@@ -443,11 +462,18 @@ public final class Navigator {
         }
         Vec3 direction = delta.horizontal().normalized();
 
-        // Skok přes mezeru: waypoint dál než sousední blok ve stejné výšce
-        // (nebo o blok níž – dopad s klesáním) znamená naplánovaný přeskok;
-        // pathfinder jiné dlouhé segmenty negeneruje. Rozběh sprintem a odraz
-        // přesně na hraně – u širší mezery je sprint nutný, aby doletěl.
-        boolean gapSegment = onGround && !inWater
+        // Skok přes mezeru: pathfinder generuje dlouhé segmenty (waypointy
+        // vzdálené ≥ 2 bloky) JEN pro naplánované přeskoky – rozestup vůči
+        // předchozímu waypointu je proto spolehlivý rozpoznávací znak. Samotná
+        // vzdálenost bota od waypointu nestačí: waypoint „spadni do jámy
+        // o buňku dál" by se z protější hrany tvářil stejně a bot by jámu
+        // sprint-skokem přeskakoval tam a zpět. Rozběh sprintem a odraz přesně
+        // na hraně – u širší mezery je sprint nutný, aby doletěl.
+        BlockPos gapOrigin = waypointIndex > 0
+                ? path.waypoints().get(waypointIndex - 1) : position.toBlockPos();
+        boolean plannedGap = Math.abs(waypoint.x() - gapOrigin.x()) > 1
+                || Math.abs(waypoint.z() - gapOrigin.z()) > 1;
+        boolean gapSegment = plannedGap && onGround && !inWater
                 && delta.y() > -1.6 && delta.y() < 0.6
                 && delta.horizontalLength() > 1.4;
         if (gapSegment) {
@@ -464,10 +490,20 @@ public final class Navigator {
         if (smooth > waypointIndex && !inWater) {
             direction = path.waypoints().get(smooth).center().sub(position)
                     .horizontal().normalized();
-            // Rohy, kolem kterých bot zkratkou prošel, odbavit.
-            while (waypointIndex < smooth
-                    && path.waypoints().get(waypointIndex).center().sub(position)
-                            .horizontalLength() < 1.3) {
+            // Rohy, kolem kterých bot zkratkou prošel, odbavit. Blízkost
+            // nestačí: diagonální zkratka nechá rohový waypoint stranou dál
+            // než toleranci a okno vyhlazení by se na něm zaseklo – waypoint
+            // je odbavený i tehdy, když vůči směru zkratky přestal být před
+            // botem (projekce ≤ ~0.35 bloku).
+            while (waypointIndex < smooth) {
+                Vec3 toWaypoint = path.waypoints().get(waypointIndex).center()
+                        .sub(position).horizontal();
+                boolean close = toWaypoint.horizontalLength() < 1.3;
+                boolean behind = toWaypoint.x() * direction.x()
+                        + toWaypoint.z() * direction.z() < 0.35;
+                if (!close && !behind) {
+                    break;
+                }
                 waypointIndex++;
             }
         }
