@@ -136,6 +136,23 @@ class PathExecutionSimulationTest {
     }
 
     @Test
+    void preplaveTekouciRekuNapric() {
+        FakeWorldView world = new FakeWorldView(FLOOR);
+        // Řeka (x 3..5) tekoucí podél +z v pásu z −3..3 (hladiny 1→7),
+        // okolo zdrojová voda. Bot plave napříč – proud ho fyzicky snáší
+        // po směru toku a navigace musí kurz průběžně korigovat.
+        for (int x = 3; x <= 5; x++) {
+            for (int z = -8; z <= 8; z++) {
+                world.set(x, FEET, z, z >= -3 && z <= 3
+                        ? FakeWorldView.flowing(Math.min(7, z + 4))
+                        : FakeWorldView.WATER);
+                world.set(x, FLOOR, z, FakeWorldView.WATER);
+            }
+        }
+        simulate(world, at(0), new BlockPos(8, FEET, 0), 1500);
+    }
+
+    @Test
     void preplaveVodniPrikop() {
         FakeWorldView world = new FakeWorldView(FLOOR);
         for (int x = 3; x <= 4; x++) {

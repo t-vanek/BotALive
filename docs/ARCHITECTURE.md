@@ -924,3 +924,27 @@ s kolizním systémem (analýza [docs/PATHFINDING_V3.md](PATHFINDING_V3.md)).
   nejtěžší hledání a vzor „nedosažitelný cíl pálí celý rozpočet" řeší
   migrace goalů na `near`/`anyNear`. Tím je roadmapa pathfindingu v3
   kompletní (proudy vody zůstávají vědomě odložené).
+
+Hotovo ve fázi 27: proudy vody (P7 – poslední odložený bod analýzy v3).
+
+- **Světový model**: `BlockTraits.liquidLevel` – 0 zdroj, 1–7 tekoucí
+  (vyšší = tenčí), 8 padající sloupec, −1 ne-tekutina. Hladinu čte state
+  vrstva (`Levelled`, voda i láva nově state-sensitive); materiálová
+  úroveň a testové zdroje mají hladinu zdroje → nulový proud a chování
+  beze změny (jezera, oceány, všechny stávající vodní scénáře).
+- **`WaterFlow.at(traits, pos)`**: směr proudu z gradientu hladin
+  sousedů + přepad přes hrany + tah dolů v padajícím sloupci (vanilla
+  `FlowingFluid.getFlow` zjednodušeně). Bere lookup funkci – pathfinding
+  počítá proud nad svou memo cache (nula dotazů navíc), fyzika nad
+  živým světem.
+- **Fyzika**: tekoucí voda bota snáší ~0.014/tick po směru proudu
+  (terminální snos ~1,1 m/s, vanilla hodnota); test nečinného plavce
+  unášeného kanálem.
+- **Plánovač**: přirážka za horizontální plavání PROTI proudu
+  (`COST_AGAINST_CURRENT` 15) – jen přirážka, sleva po proudu by
+  rozbila přípustnost heuristiky (stejná lekce jako u preference
+  cestiček); zdrojová voda se odbaví bez výpočtu proudu. Test: bot
+  v koridoru volí klidnou řadu místo plavání proti proudu.
+- **Simulační kontrakt**: `preplaveTekouciRekuNapric` – řeka fyzicky
+  snáší plavajícího bota po směru toku a navigace kurz průběžně
+  koriguje; bot dorazí bez assistu. Analýza v3 je tím vyčerpaná celá.

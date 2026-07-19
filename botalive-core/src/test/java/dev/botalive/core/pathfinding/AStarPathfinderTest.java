@@ -1188,6 +1188,36 @@ class AStarPathfinderTest {
     }
 
     @Test
+    void vybereKlidnouVoduMistoProtiproudu() {
+        FakeWorldView world = new FakeWorldView(FLOOR);
+        // Vodní koridor (bedrock mantinely, z −1..1): prostřední řada (z=0)
+        // teče PROTI směru plavání (zdroj u cíle, hladiny řídnou ke startu),
+        // krajní řady jsou klidná zdrojová voda. Bez proudu by vyhrála přímá
+        // trasa středem; přirážka za protiproud ji má vyhnout do klidné řady.
+        for (int x = -1; x <= 10; x++) {
+            for (int y = FEET; y <= FEET + 1; y++) {
+                world.set(x, y, -2, org.bukkit.Material.BEDROCK, FakeWorldView.SOLID);
+                world.set(x, y, 2, org.bukkit.Material.BEDROCK, FakeWorldView.SOLID);
+            }
+        }
+        for (int x = 1; x <= 8; x++) {
+            int level = Math.max(1, Math.min(7, 9 - x)); // u startu tenká, u cíle zdroj
+            for (int z = -1; z <= 1; z++) {
+                world.set(x, FEET, z, z == 0 ? FakeWorldView.flowing(level) : FakeWorldView.WATER);
+                world.set(x, FLOOR, z, FakeWorldView.WATER);
+            }
+        }
+        Path path = new AStarPathfinder(world)
+                .findPath(new BlockPos(0, FEET, 0), new BlockPos(9, FEET, 0), 0);
+
+        assertTrue(path.complete());
+        assertTrue(path.waypoints().stream()
+                        .filter(p -> p.x() >= 2 && p.x() <= 7)
+                        .allMatch(p -> p.z() != 0),
+                "plavat se má klidnou řadou, ne proti proudu: " + path.waypoints());
+    }
+
+    @Test
     void drziSeCesticky() {
         FakeWorldView world = new FakeWorldView(FLOOR);
         // Udusaná cestička běží o řadu vedle přímé spojnice start–cíl.

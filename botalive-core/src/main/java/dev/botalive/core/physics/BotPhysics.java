@@ -28,6 +28,8 @@ public final class BotPhysics {
     private static final double JUMP_VELOCITY = 0.42;
     private static final double STEP_HEIGHT = 0.6;
     private static final double WATER_DRAG = 0.8;
+    /** Síla snosu proudem tekoucí vody (vanilla ~0.014/tick). */
+    private static final double WATER_FLOW_PUSH = 0.014;
     /** Rychlost šplhání vzhůru po žebříku (vanilla 0.2 bloku/tick). */
     private static final double CLIMB_UP_SPEED = 0.2;
     /** Nejrychlejší pád po žebříku (vanilla −0.15). */
@@ -221,6 +223,14 @@ public final class BotPhysics {
             vy = input.jump() ? Math.min(vy + 0.04, 0.12) : (vy - 0.02) * WATER_DRAG;
             vx *= WATER_DRAG;
             vz *= WATER_DRAG;
+            // Proud: tekoucí voda bota snáší po směru gradientu hladin
+            // (vanilla ~0.014/tick; s dragem 0.8 vychází terminální snos
+            // ~0.056 bloku/tick ≈ 1,1 m/s). Zdrojová tůň proud nemá.
+            Vec3 flow = dev.botalive.core.world.WaterFlow.at(
+                    world::traitsAt, position.toBlockPos());
+            vx += flow.x() * WATER_FLOW_PUSH;
+            vy += flow.y() * WATER_FLOW_PUSH;
+            vz += flow.z() * WATER_FLOW_PUSH;
         } else if (inWeb) {
             // Pavučina: pohyb drasticky vázne v obou osách (vanilla stuck
             // multiplikátory), rychlost se mezi ticky neakumuluje.

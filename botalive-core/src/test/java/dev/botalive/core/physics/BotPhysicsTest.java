@@ -76,6 +76,24 @@ class BotPhysicsTest {
     }
 
     @Test
+    void proudUnasiPlavajicihoBota() {
+        FakeWorldView world = new FakeWorldView(FLOOR);
+        // Kanál tekoucí vody podél +x: zdroj na x=0, hladiny řídnou k x=12.
+        world.set(0, (int) FEET_Y, 0, FakeWorldView.WATER);
+        for (int x = 1; x <= 12; x++) {
+            world.set(x, (int) FEET_Y, 0, FakeWorldView.flowing(Math.min(7, x)));
+        }
+        BotPhysics physics = new BotPhysics(world, new Vec3(2.5, FEET_Y, 0.5));
+
+        for (int i = 0; i < 60; i++) {
+            physics.step(MoveInput.IDLE); // bot nic nedělá – nese ho proud
+        }
+
+        assertTrue(physics.position().x() > 3.5,
+                "proud má bota unášet po gradientu: x=" + physics.position().x());
+    }
+
+    @Test
     void plavecSeSkokemVyhoupneNaBreh() {
         FakeWorldView world = new FakeWorldView(FLOOR);
         // Bazén (x 0..2) o blok zapuštěný; břeh od x=3 v úrovni FEET_Y.

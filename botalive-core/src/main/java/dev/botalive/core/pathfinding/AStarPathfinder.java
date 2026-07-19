@@ -1,6 +1,7 @@
 package dev.botalive.core.pathfinding;
 
 import dev.botalive.core.util.BlockPos;
+import dev.botalive.core.util.Vec3;
 import dev.botalive.core.world.BlockTraits;
 import dev.botalive.core.world.WorldView;
 import it.unimi.dsi.fastutil.longs.Long2DoubleOpenHashMap;
@@ -68,6 +69,15 @@ public final class AStarPathfinder {
     private static final int COST_NEAR_HAZARD = 60;
     /** Přirážka za pomalý povrch (soul sand, med) – vyplatí se obejít. */
     private static final int COST_SLOW_SURFACE = 15;
+    /**
+     * Přirážka za horizontální plavání PROTI proudu tekoucí vody. Jen
+     * přirážka, žádná sleva po proudu – minimální cena kroku zůstává
+     * {@link #COST_STRAIGHT} a heuristika přípustná (stejná lekce jako
+     * u preference cestiček). Zdrojová voda (jezera, oceány) proud nemá
+     * a nic neplatí; postihuje se jen tekoucí voda (řeky, přepady).
+     */
+    private static final int COST_AGAINST_CURRENT = 15;
+
     /**
      * Přirážka za šlapání terénu HNED VEDLE cestového povrchu (udusaná
      * cestička, štěrk, prkna). Preference cestiček je schválně dvakrát krotká:
@@ -606,7 +616,8 @@ public final class AStarPathfinder {
             if (!Double.isNaN(targetFeet)) {
                 double rise = targetFeet - curFeet;
                 if (rise <= STEP_UP + EPS) {
-                    tryAdd(current, target, base + terrainPenalty(target));
+                    tryAdd(current, target,
+                            base + terrainPenalty(target) + currentPenalty(current.pos, target));
                     return;
                 }
                 // Vyšší částečný blok ve stejné buňce (6–7 vrstev sněhu) – výskok.
@@ -1096,6 +1107,21 @@ public final class AStarPathfinder {
                 return Double.NaN;
             }
             return feet.y() + fh;
+        }
+
+        /**
+         * Přirážka za horizontální plavání proti proudu: cíl je tekoucí voda
+         * a její proud míří proti směru kroku. Zdrojová voda (hladina 0) se
+         * odbaví levně bez výpočtu proudu; gradient se čte z memo cache.
+         */
+        private int currentPenalty(BlockPos from, BlockPos to) {
+            BlockTraits t = traits(to);
+            if (t.liquidLevel() <= 0) {
+                return 0; // suchý cíl nebo zdrojová voda – bez proudu
+            }
+            Vec3 flow = dev.botalive.core.world.WaterFlow.at(this::traits, to);
+            double dot = flow.x() * (to.x() - from.x()) + flow.z() * (to.z() - from.z());
+            return dot < -0.3 ? COST_AGAINST_CURRENT : 0;
         }
 
         /**

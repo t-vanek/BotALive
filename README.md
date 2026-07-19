@@ -214,7 +214,9 @@ inventář a historii; po restartu serveru pokračuje tam, kde skončil.
   vyplavou, u břehu se výskokem vyhoupnou na souš („water hop") a
   pathfinding vodou počítá – plavou svisle vodním sloupcem, přeplavávají
   jezera a z výšky smí seskočit do hluboké vody (2+ bloky), nikdy do
-  mělčiny nebo lávy.
+  mělčiny nebo lávy. Tekoucí voda má **proud**: řeka bota fyzicky snáší
+  po směru toku (navigace kurz koriguje) a plavání proti proudu se
+  v plánu prodražuje, takže bot radši volí klidnou vodu či břeh.
 - **Láva a propasti** – lávě se cesty vyhýbají obloukem; když ale jiná
   cesta není, bot si přes lávové jezero **postaví most** (blok po bloku,
   jako hráč) a úzký pruh zvládne přeskočit sprintem. Krátkou díru

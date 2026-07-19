@@ -63,6 +63,11 @@ import java.util.concurrent.ConcurrentHashMap;
  * @param pathSurface  „cestový" povrch – udusaná cestička, štěrk, prkna;
  *                     pathfinding chůzi mimo tyto povrchy mírně přirazí,
  *                     takže boti viditelně drží vesnické cestičky
+ * @param liquidLevel  hladina tekutiny: 0 = zdrojový blok, 1–7 tekoucí
+ *                     (vyšší = tenčí), 8 = padající sloupec; −1 = žádná
+ *                     tekutina. Materiálová úroveň hladinu nezná – tekutina
+ *                     se bere jako zdroj (nulový proud), přesnou hladinu
+ *                     dodává state vrstva ({@code Levelled})
  * @param boxes       kolizní boxy v lokálních souřadnicích buňky, po šesticích
  *                    {@code minX,minY,minZ,maxX,maxY,maxZ}; prázdné pole = bez kolize
  */
@@ -83,6 +88,7 @@ public record BlockTraits(
         boolean web,
         boolean stepFriendly,
         boolean pathSurface,
+        int liquidLevel,
         double[] boxes
 ) {
 
@@ -124,21 +130,28 @@ public record BlockTraits(
                                      boolean powderSnow) {
         return new BlockTraits(passable, solid, liquid, climbable, door, hazard, openable, softLanding,
                 powderSnow, false, solid ? 1.0 : 0.0, 1.0, DEFAULT_SLIPPERINESS, false, false, false,
-                solid ? FULL_BOXES : NO_BOXES);
+                liquid ? 0 : -1, solid ? FULL_BOXES : NO_BOXES);
     }
 
     /** @return kopie s jinými kolizními boxy (floorHeight a stepFriendly se přepočítají) */
     public BlockTraits withBoxes(double[] newBoxes) {
         return new BlockTraits(passable, solid, liquid, climbable, door, hazard, openable, softLanding,
                 powderSnow, portal, floorOf(newBoxes), speedFactor, slipperiness, web, stepFriendlyOf(newBoxes),
-                pathSurface, newBoxes);
+                pathSurface, liquidLevel, newBoxes);
+    }
+
+    /** @return kopie s danou hladinou tekutiny (pro testy tekoucí vody) */
+    public BlockTraits withLiquidLevel(int level) {
+        return new BlockTraits(passable, solid, liquid, climbable, door, hazard, openable, softLanding,
+                powderSnow, portal, floorHeight, speedFactor, slipperiness, web, stepFriendly,
+                pathSurface, level, boxes);
     }
 
     /** @return kopie označená jako „cestový" povrch (pro testy) */
     public BlockTraits asPathSurface() {
         return new BlockTraits(passable, solid, liquid, climbable, door, hazard, openable, softLanding,
                 powderSnow, portal, floorHeight, speedFactor, slipperiness, web, stepFriendly,
-                true, boxes);
+                true, liquidLevel, boxes);
     }
 
     /** @return {@code true} pokud blok nemá žádnou kolizi (tělo jím projde) */
@@ -256,7 +269,8 @@ public record BlockTraits(
                 // zavřené (bot je před průchodem otevře; otevřený stav zjemní
                 // až computeState).
                 handOpenable, hazard, openable, softLanding, powderSnow, portal,
-                floorOf(boxes), speed, slip, web, stepFriendlyOf(boxes), pathSurface, boxes);
+                floorOf(boxes), speed, slip, web, stepFriendlyOf(boxes), pathSurface,
+                liquid ? 0 : -1, boxes);
     }
 
     /** Kolizní boxy odhadnuté z materiálu (bez znalosti stavu). */
@@ -300,6 +314,11 @@ public record BlockTraits(
 
         boolean liquid = base.liquid()
                 || (data instanceof Waterlogged wl && wl.isWaterlogged());
+        // Hladina tekutiny (proud): 0 zdroj, 1–7 tekoucí, 8+ padající sloupec
+        // (ořez na 8). Waterlogged bloky a vodní rostliny jsou plné zdroje.
+        int liquidLevel = !liquid ? -1
+                : (data instanceof org.bukkit.block.data.Levelled lv && base.liquid()
+                        ? Math.min(lv.getLevel(), 8) : 0);
 
         boolean open = data instanceof Openable o && o.isOpen();
         // door flag = zavřená překážka otevíratelná rukou (dveře, vrata, branky).
@@ -312,7 +331,7 @@ public record BlockTraits(
         return new BlockTraits(passable, base.solid(), liquid, base.climbable(), door,
                 base.hazard(), base.openable(), base.softLanding(), base.powderSnow(),
                 base.portal(), floor, base.speedFactor(), base.slipperiness(), base.web(),
-                stepFriendlyOf(boxes), base.pathSurface(), boxes);
+                stepFriendlyOf(boxes), base.pathSurface(), liquidLevel, boxes);
     }
 
     /** Kolizní boxy pro konkrétní stav – přesné z registrů serveru, jinak heuristika. */
@@ -428,6 +447,9 @@ public record BlockTraits(
         set.addAll(Tag.FENCES.getValues());
         set.addAll(Tag.WALLS.getValues());
         set.add(Material.SNOW);
+        // Hladina tekutin (proudy) se čte z block dat.
+        set.add(Material.WATER);
+        set.add(Material.LAVA);
         return set;
     }
 }

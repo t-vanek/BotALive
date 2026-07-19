@@ -207,6 +207,23 @@ plán ↔ assist.
 > adversariální hledání na ~6 000 uzlů) a nejhorší vzor „nedosažitelný
 > cíl pálí celý rozpočet" už řeší `near`/`anyNear` migrace goalů.
 > Roadmapa v3 je tím KOMPLETNÍ (P7 proudy vody zůstává vědomě odloženo).
+>
+> **Stav: P7 implementováno – proudy vody přes všechny vrstvy.**
+> `BlockTraits.liquidLevel` (0 zdroj, 1–7 tekoucí, 8 padající; state
+> vrstva čte `Levelled`, materiálová úroveň = zdroj → nulový proud,
+> chování beze změny), `WaterFlow.at(traits, pos)` – směr proudu
+> z gradientu hladin sousedů s přepadem přes hrany (vanilla
+> `FlowingFluid.getFlow` zjednodušeně; bere lookup funkci, takže
+> pathfinding počítá nad memo cache a fyzika nad živým světem).
+> Fyzika: snos ~0.014/tick po směru proudu (terminálně ~1,1 m/s),
+> zdrojové tůně beze změny. Plánovač: přirážka za horizontální plavání
+> PROTI proudu (`COST_AGAINST_CURRENT`, jen přirážka – sleva po proudu
+> by rozbila přípustnost, stejná lekce jako u cestiček; zdrojová voda
+> se odbaví bez výpočtu). Testy: směry proudu (gradient, přepad,
+> padající sloupec), fyzický snos nečinného plavce, volba klidné řady
+> místo protiproudu v koridoru a simulace příčného přeplavání tekoucí
+> řeky se snosem a korekcí kurzu. Tím padá i poslední odložený bod –
+> analýza v3 je vyčerpaná CELÁ.
 
 ## 2. Doporučené fázování
 
@@ -217,7 +234,7 @@ plán ↔ assist.
 | **v3.2 kvalita výběru** ✅ | P4 `anyNear` v goalech s kandidáty (ruda/kmen/postel; truhly záměrně ne – identita) + zpětná vazba „který kandidát vyšel" | M | střední | méně marných výpočtů a blacklist smyček, přirozenější volby |
 | **v3.3 parita akcí** ✅ | P8 žebříkové hrany ✅ + BotTask-level simulace ✅ (odhalila a opravila slabý skok, vzdušný mantle a vzdušné plánování pilíře) | M | střední | poslední reaktivní eskalace pod kontraktem |
 | **v3.4 výkon** ✅ (zamítnuto měřením) | P6 bucket queue / long smyčka – benchmark ukázal ~12 % + ~2 % bez dominantního hotspotu, přepis se nevyplatí | M | střední | čitelné jádro > drobný zisk; rozpočty dělají svou práci |
-| odloženo | P7 proudy vody | L | vyšší | malý viditelný zisk |
+| ~~odloženo~~ P7 ✅ | proudy vody: liquidLevel + WaterFlow + snos ve fyzice + přirážka proti proudu | L | vyšší | řeky snáší fyzicky, plán jim rozumí |
 
 Pořadí drží zásadu celé série: nejdřív korektnost (P1/P2/P5 jsou
 poslední známé rozpory plánu s fyzikou), pak dokončit rozdělanou
