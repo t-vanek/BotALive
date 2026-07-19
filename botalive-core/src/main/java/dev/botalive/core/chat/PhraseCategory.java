@@ -80,6 +80,9 @@ public enum PhraseCategory {
 
     /** Nový člen převzal chybějící řemeslo ({@code {name}} = název role). */
     SETTLEMENT_ROLE_TAKEN,
+
+    /** Bot daleko od domova si na noc rozdělává tábor (bez placeholderu). */
+    CAMP_SETUP,
     /** Běh pro věci po smrti – vyrážím. */
     RECOVER_RUN,
     /** Věci po smrti zachráněné. */

@@ -269,6 +269,12 @@ phrases:
     - "nobody here worked as {name}, so I'm taking it up"
     - "the village needs a {name} around – that's me now"
     - "changing trades, we simply had no {name} here"
+
+  camp-setup:
+    - "home is far away, I'll light a fire here and wait out the night"
+    - "not marching through the night, making camp here"
+    - "sleeping rough tonight then. at least there'll be a fire"
+    - "pitch dark and home is nowhere near – setting up camp"
     - "packing up, following my friends"
   recover-run:
     - "my stuff! hope it's still there"
