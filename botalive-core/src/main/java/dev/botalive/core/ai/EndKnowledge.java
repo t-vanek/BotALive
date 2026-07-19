@@ -22,7 +22,24 @@ public final class EndKnowledge {
     /** Hodnota data {@code type} portálu do Endu. */
     public static final String TYPE_END = "end";
 
+    /** Klíč data: stav očí v rámu portálu (zapisuje {@code EndTravelGoal}). */
+    public static final String DATA_EYES = "eyes";
+
+    /** Hodnota {@link #DATA_EYES}: rám je nezaplněný a čeká na oči Enderu. */
+    public static final String EYES_MISSING = "missing";
+
     private EndKnowledge() {
+    }
+
+    /**
+     * Čeká rám tohoto portálu na oči Enderu? (poznamenáno po návštěvě
+     * nezaplněného rámu – bez zásoby očí nemá cena k němu chodit znovu)
+     *
+     * @param record PORTAL záznam
+     * @return {@code true} pokud je rám podle paměti nezaplněný
+     */
+    public static boolean frameAwaitsEyes(MemoryRecord record) {
+        return EYES_MISSING.equals(record.data().get(DATA_EYES));
     }
 
     /**

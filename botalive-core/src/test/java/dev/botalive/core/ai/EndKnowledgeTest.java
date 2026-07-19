@@ -64,6 +64,16 @@ class EndKnowledgeTest {
     }
 
     @Test
+    void ramCekaNaOci() {
+        // Poznámka eyes=missing z neúspěšného zaplňování rámu.
+        assertTrue(EndKnowledge.frameAwaitsEyes(record(MemoryKind.PORTAL, "world", 0, 30, 0,
+                Map.of("type", "end", "eyes", "missing"), 0)));
+        // Bez poznámky (nebo po aktivaci, kdy se maže) rám nečeká.
+        assertFalse(EndKnowledge.frameAwaitsEyes(record(MemoryKind.PORTAL, "world", 0, 30, 0,
+                Map.of("type", "end"), 0)));
+    }
+
+    @Test
     void drakovaTrofej() {
         assertFalse(EndKnowledge.dragonSlain(List.of()));
         assertTrue(EndKnowledge.dragonSlain(List.of(

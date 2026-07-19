@@ -403,6 +403,8 @@ Placeholder `{name}` se nahrazuje jménem protistrany. Kategorie: `greetings`,
 - End: vnější ostrovy (end gateway, end cities, shulkeři, elytra) zatím
   nejsou – boti operují na hlavním ostrově; chorus sklízejí, jen když na
   něj narazí. Průlet gatewayí hozenou perlou je na roadmapě.
-- Strongholdy boti sami nehledají (oči Enderu se zatím necraftí) – portál
-  do Endu se naučí průchodem, náhodným objevem, drby, nebo od admina
-  (`/botalive end portal`).
+- Strongholdy boti sami nehledají (oči Enderu se na triangulaci nehází) –
+  portál do Endu se naučí průchodem, náhodným objevem, drby, nebo od admina
+  (`/botalive end portal`). Oči Enderu se ale craftí (perla + blaze prach
+  z netherové kořisti) a nezaplněný rám si bot u portálu doplní sám;
+  když očí nemá dost, poznamená si to a vrátí se s plnou zásobou.

@@ -358,6 +358,36 @@ class CraftPlannerTest {
     }
 
     @Test
+    void retezOciEnderu() {
+        // Perla + rod bez prachu: nejdřív se mele prach (1 rod = 2 prachy).
+        CraftPlanner.Plan powder = CraftPlanner.next(plus(fullKit(),
+                Material.ENDER_PEARL, 2, Material.BLAZE_ROD, 2));
+        assertEquals("blaze prach", powder.id());
+        assertEquals(1, powder.ingredients().get(Material.BLAZE_ROD));
+
+        // S prachem po ruce se skládá oko (perla + prach, 2×2 bez ponku).
+        CraftPlanner.Plan eye = CraftPlanner.next(plus(fullKit(),
+                Material.ENDER_PEARL, 2, Material.BLAZE_POWDER, 2));
+        assertEquals("oko Enderu", eye.id());
+        assertFalse(eye.needsTable());
+        assertEquals(1, eye.ingredients().get(Material.ENDER_PEARL));
+        assertEquals(1, eye.ingredients().get(Material.BLAZE_POWDER));
+
+        // Bez perly se rody nemelou – zůstávají vcelku (budoucí vaření).
+        assertNull(CraftPlanner.next(plus(fullKit(), Material.BLAZE_ROD, 3)));
+        // Bez prachu a rodů se z perel nic nesloží.
+        assertNull(CraftPlanner.next(plus(fullKit(), Material.ENDER_PEARL, 5)));
+
+        // Strop 12 očí: rám portálu má 12 slotů, víc jich bot nepotřebuje.
+        assertNull(CraftPlanner.next(plus(fullKit(), Material.ENDER_EYE, 12,
+                Material.ENDER_PEARL, 3, Material.BLAZE_POWDER, 3)));
+        CraftPlanner.Plan last = CraftPlanner.next(plus(fullKit(),
+                Material.ENDER_EYE, 11, Material.ENDER_PEARL, 1,
+                Material.BLAZE_POWDER, 1));
+        assertEquals("oko Enderu", last.id());
+    }
+
+    @Test
     void vsechnyPlanyMajiValidniMatice() {
         // Sanity: každý plán z progrese má neprázdnou matici a ingredience.
         CraftPlanner.Plan plan = CraftPlanner.next(state(Material.OAK_LOG, 3));
@@ -370,5 +400,15 @@ class CraftPlannerTest {
         System.arraycopy(base, 0, out, 0, base.length);
         System.arraycopy(extra, 0, out, base.length, extra.length);
         return out;
+    }
+
+    /** Stav rozšířený o další itemy (nad základem, typicky plnou výbavou). */
+    private static CraftPlanner.State plus(CraftPlanner.State base, Object... pairs) {
+        Map<Material, Integer> items = new HashMap<>(base.items());
+        for (int i = 0; i < pairs.length; i += 2) {
+            items.merge((Material) pairs[i], (Integer) pairs[i + 1], Integer::sum);
+        }
+        return new CraftPlanner.State(items, base.logType(), base.plankType(),
+                base.stoneType(), base.woolType());
     }
 }

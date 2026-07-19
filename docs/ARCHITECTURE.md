@@ -585,6 +585,17 @@ i netheritu, a na draka dojde, když je odvaha dominantní rys; `Ambition.progre
 portálu, trofej), gating `end.enabled` drží `BotImpl` (enum zůstává
 čistý). Ceník trhu zná `ender_pearl`, chorus ovoce je nouzové jídlo
 (`isEmergencyFood` – jí se až při hladu ≤ 8, teleport je menší zlo).
+(6) **Řetěz očí Enderu** – `CraftPlanner` mele blaze prach (1 rod =
+2 prachy; mele se, jen když na něj čeká perla – přebytek rodů zůstává
+vcelku na budoucí vaření) a oči Enderu (perla + prach, strop 12 = sloty
+rámu). `end-travel` u rámu bez portálu obejde prstenec a proklikne oko
+do každého rámu – vyplněné rámy vklad ignorují a stav oka se z paketů
+nepřečte, takže se klikají všechny naslepo (jako hráč bez F3); po
+probuzení portálu se vstupuje. Když očí není dost, anotují se PORTAL
+záznamy `eyes=missing`: utility pak bez zásoby očí výpravu nepustí,
+po aktivaci se poznámka maže a drby (`gossipStamp`) ji šíří dál.
+Házení očí (triangulace strongholdů) záměrně chybí – portál se pořád
+musí nejdřív znát.
 
 Hotovo ve fázi 19: pathfinding v2.0 – evoluce jádra a chytřejší replanning
 (analýza a plán dalších fází: [docs/PATHFINDING_V2.md](PATHFINDING_V2.md)).
