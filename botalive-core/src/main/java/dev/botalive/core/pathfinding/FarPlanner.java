@@ -52,6 +52,10 @@ public final class FarPlanner {
     private static final int UNKNOWN_MULTIPLIER = 3;
     /** Přirážka za výškový rozdíl povrchů (stoupání i klesání stojí kroky). */
     private static final int COST_CLIMB_PER_BLOCK = 2;
+    /** Přirážka koridorové buňky poblíž danger bodu (vzpomínka, hrozba). */
+    private static final int COST_DANGER_FAR = 60;
+    /** Vodorovný dosah vlivu danger bodu na koridor (bloky). */
+    private static final int DANGER_RADIUS_FAR = 12;
     /** Váha blízkosti cíle při výběru částečného koridoru (viz AStarPathfinder). */
     private static final int PARTIAL_H_WEIGHT = 16;
 
@@ -86,6 +90,22 @@ public final class FarPlanner {
      * @return koridor (může být částečný či prázdný)
      */
     public static Corridor plan(WorldView world, BlockPos from, BlockPos to) {
+        return plan(world, from, to, java.util.List.of());
+    }
+
+    /**
+     * Varianta se špatnými vzpomínkami a živými hrozbami: koridorové buňky
+     * v jejich okolí nesou přirážku, takže hrubá trasa zóny smrti obchází
+     * a low-level plán pak nebojuje se segmentovými mezicíli uvnitř nich.
+     *
+     * @param world   pohled na svět
+     * @param from    start
+     * @param to      cíl
+     * @param dangers danger body (může být prázdné)
+     * @return koridor (i částečný)
+     */
+    public static Corridor plan(WorldView world, BlockPos from, BlockPos to,
+                                java.util.List<BlockPos> dangers) {
         int goalCx = Math.floorDiv(to.x(), CELL);
         int goalCz = Math.floorDiv(to.z(), CELL);
         int startCx = Math.floorDiv(from.x(), CELL);
@@ -118,14 +138,15 @@ public final class FarPlanner {
                 best = current;
                 bestScore = score;
             }
-            expand(world, current, goalCx, goalCz, open, visited);
+            expand(world, current, goalCx, goalCz, open, visited, dangers);
         }
         return new Corridor(reconstruct(best), false);
     }
 
     /** Expanduje 8 sousedních buněk (na hrubé mřížce se rohy neřežou). */
     private static void expand(WorldView world, Node current, int goalCx, int goalCz,
-                               PriorityQueue<Node> open, Long2ObjectOpenHashMap<Node> visited) {
+                               PriorityQueue<Node> open, Long2ObjectOpenHashMap<Node> visited,
+                               java.util.List<BlockPos> dangers) {
         for (int dx = -1; dx <= 1; dx++) {
             for (int dz = -1; dz <= 1; dz++) {
                 if (dx == 0 && dz == 0) {
@@ -157,6 +178,10 @@ public final class FarPlanner {
                 } else {
                     continue; // načteno a bez povrchu (láva, void, strop) – zeď
                 }
+                // Zóny smrti a živé hrozby: buňka v okolí danger bodu nese
+                // přirážku – hrubá trasa je obchází, místo aby low-level plán
+                // bojoval se segmentovými mezicíli uvnitř nich.
+                cost += dangerPenalty(dangers, x, z);
 
                 long cellKey = key(cx, cz);
                 int g = current.g + cost;
@@ -173,6 +198,17 @@ public final class FarPlanner {
     }
 
     /** Oktilová heuristika na mřížce buněk. */
+    /** Přirážka za blízkost danger bodu (vodorovně, koridorová hrubost). */
+    private static int dangerPenalty(java.util.List<BlockPos> dangers, int x, int z) {
+        for (BlockPos danger : dangers) {
+            if (Math.abs(danger.x() - x) <= DANGER_RADIUS_FAR
+                    && Math.abs(danger.z() - z) <= DANGER_RADIUS_FAR) {
+                return COST_DANGER_FAR;
+            }
+        }
+        return 0;
+    }
+
     private static int heuristic(int cx, int cz, int goalCx, int goalCz) {
         int dx = Math.abs(cx - goalCx);
         int dz = Math.abs(cz - goalCz);

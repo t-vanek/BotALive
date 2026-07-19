@@ -38,6 +38,8 @@ public final class FarmGoal extends AbstractGoal {
 
     private Phase phase = Phase.FIND;
     private BlockPos crop;
+    /** Kandidátní zralé plodiny – sklízí se ta, ke které se došlo (anyNear). */
+    private java.util.List<BlockPos> crops = java.util.List.of();
     private Material cropType;
     private MineBlockTask harvestTask;
     private int replantTicks;
@@ -77,6 +79,7 @@ public final class FarmGoal extends AbstractGoal {
     public void start(Bot bot) {
         phase = Phase.FIND;
         crop = null;
+        crops = java.util.List.of();
         harvestTask = null;
         harvested = 0;
     }
@@ -86,24 +89,39 @@ public final class FarmGoal extends AbstractGoal {
         BotContext ctx = ctx(bot);
         switch (phase) {
             case FIND -> {
-                crop = findMatureCrop(ctx);
-                if (crop == null) {
+                crops = findMatureCrops(ctx);
+                if (crops.isEmpty()) {
                     cooldownTicks = 900; // v okolí nic zralého
                     phase = Phase.DONE;
                     return;
                 }
+                crop = crops.getFirst();
                 cropType = ctx.worldView().materialAt(crop);
                 phase = Phase.GO;
             }
             case GO -> {
-                double distSq = crop.center().distanceSquared(ctx.position());
-                if (distSq > 3.5 * 3.5) {
-                    ctx.navigator().navigateTo(ctx.position(), PathGoal.near(crop, 2));
+                // Sklízí se plodina, ke které se skutečně došlo – o pořadí
+                // kandidátů rozhoduje dosažitelnost (anyNear), ne vzdušná čára.
+                BlockPos reachable = null;
+                double bestDist = 3.5 * 3.5;
+                for (BlockPos candidate : crops) {
+                    double dist = candidate.center().distanceSquared(ctx.position());
+                    if (dist <= bestDist) {
+                        bestDist = dist;
+                        reachable = candidate;
+                    }
+                }
+                if (reachable == null) {
+                    ctx.navigator().navigateTo(ctx.position(), crops.size() > 1
+                            ? PathGoal.anyNear(crops, 2)
+                            : PathGoal.near(crop, 2));
                     if (!ctx.navigator().navigating()) {
                         phase = Phase.FIND; // nedosažitelné – hledat jinde
                     }
                     return;
                 }
+                crop = reachable;
+                cropType = ctx.worldView().materialAt(crop);
                 ctx.navigator().stop();
                 harvestTask = new MineBlockTask(crop);
                 phase = Phase.HARVEST;
@@ -170,14 +188,13 @@ public final class FarmGoal extends AbstractGoal {
     }
 
     /** Sken okolí na zralou plodinu (Ageable s max věkem). */
-    private BlockPos findMatureCrop(BotContext ctx) {
+    private java.util.List<BlockPos> findMatureCrops(BotContext ctx) {
         WorldView world = ctx.worldView();
         if (world == null) {
-            return null;
+            return java.util.List.of();
         }
         BlockPos center = ctx.position().toBlockPos();
-        BlockPos best = null;
-        double bestDist = Double.MAX_VALUE;
+        java.util.ArrayList<BlockPos> found = new java.util.ArrayList<>();
         int radius = 12;
         for (int dx = -radius; dx <= radius; dx++) {
             for (int dy = -3; dy <= 3; dy++) {
@@ -192,15 +209,13 @@ public final class FarmGoal extends AbstractGoal {
                             || ageable.getAge() < ageable.getMaximumAge()) {
                         continue;
                     }
-                    double dist = pos.distanceSquared(center);
-                    if (dist < bestDist) {
-                        bestDist = dist;
-                        best = pos;
-                    }
+                    found.add(pos);
                 }
             }
         }
-        return best;
+        found.sort(java.util.Comparator.comparingDouble(p -> p.distanceSquared(center)));
+        return found.size() > 6 ? java.util.List.copyOf(found.subList(0, 6))
+                : java.util.List.copyOf(found);
     }
 
     @Override

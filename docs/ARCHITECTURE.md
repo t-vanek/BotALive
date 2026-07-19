@@ -948,3 +948,63 @@ Hotovo ve fázi 27: proudy vody (P7 – poslední odložený bod analýzy v3).
 - **Simulační kontrakt**: `preplaveTekouciRekuNapric` – řeka fyzicky
   snáší plavajícího bota po směru toku a navigace kurz průběžně
   koriguje; bot dorazí bez assistu. Analýza v3 je tím vyčerpaná celá.
+
+Hotovo ve fázi 28: boj × navigace (v4.0 – analýza
+[docs/PATHFINDING_V4.md](PATHFINDING_V4.md)).
+
+- **Hybridní bojový pohyb**: mikropohyb (strafing, rozestupy, timing
+  úderů, štít) zůstává přímému řízení `CombatController`u, ale když
+  přímá cesta nefunguje – chybí volná spojnice (voxelový raycast po půl
+  bloku), nebo se nejlepší dosažená vzdálenost ≥ 30 ticků nezlepšuje
+  mimo strafovací pásmo (příkop, plot se spojnicí) – převezme
+  přiblížení `navigateTo(near(cíl, 2))` s drift throttlem pohyblivých
+  cílů. `tick` vrací `null` a bojové goaly nechají pohyb navigátoru;
+  hystereze drží obcházení až na dosah úderu. Konec kitingu: cíl za
+  rohem, plotem či příkopem se obchází, simulace
+  `obejdeZedKeKitujicimuCili` to fyzicky dokazuje.
+- **Plánovaný ústup v boji**: při nízkém zdraví dvoustupňově – okamžitá
+  panika (nově přes `EdgeGuard`: i pár slepých ticků s rozběhem umělo
+  skončit v lávě za zády) a jakmile je plán, `awayFrom(hrozba, 12)` po
+  pochozím terénu. Simulace `ustoupiKolemLavyPoPochozimTerenu`.
+- **Nález simulace – latentní deadlock dvoustupňového útěku**:
+  `hasPath()` se překlápí až v `navigator.tick()`, který při
+  `requestMove(panika)` v BotImplu vůbec neběží – plánovaný útěk
+  SurviveGoalu se tak v produkci nikdy neujal řízení a vzor tiše
+  degradoval na čistou paniku. Nový `Navigator.pathReady()` vidí
+  i dopočítanou, ještě nepřevzatou cestu; SurviveGoal i bojový ústup
+  jedou přes něj.
+- Vědomé meze: navigované přiblížení končí až na dosah melee
+  (lučištník bez spojnice dojde k cíli pěšky) a s běžícím bojem se
+  neaktivují akční hrany (bot se v souboji neprokopává – gate
+  `!combat.engaged()` trvá).
+- **Dav ustupuje přesným taskům (v4.1)**: steering `CrowdAvoidance` se
+  neaplikuje, dokud běží `obstacleTask` nebo čeká zásah z plánu –
+  pilíř a žebřík drží střed sloupce, pokládka a kopání míří na blok.
+  Simulace `davNestrkaDoPilirujicihoBota` měří, že strkání souseda
+  dotlačí stavitele až na hranu vlastního pilíře (odstup od středu
+  > 0,4 bloku – pád o centimetry); kolemjdoucí se vyhne sám, jeho
+  steering stojícího vidí.
+- **Živé hrozby v plánování (v4.1)**: `dangerSupplier` vedle vzpomínek
+  (DEATH/DANGER) přidává pozice viditelných hostilů (okruh 24, strop 8)
+  – nové trasy obcházejí creepera obloukem přes stávající `COST_DANGER`
+  mechanismus, místo spoléhání na paniku uprostřed cesty. Aktuální cíl
+  boje se vynechává (k němu se přibližovat má). Dav dál záměrně uhýbá
+  jen hráčům/botům.
+- **Perturbační kontrakt (v4.2)**: `PerturbationSimulationTest` – exekuce
+  cest pod rušením přes produkční knockback kanál
+  (`BotPhysics.setVelocity`). Opakované strkání při chůzi, sražení do
+  příkopu, strčení uprostřed sprint-skoku nad jámou s vodním dnem
+  i srážení ze žebříku: bot se pokaždé vzpamatuje a dorazí bez poškození
+  a bez eskalace k terraformingu. Mechanismy zotavení z v2/v3 (catch-up
+  projekce, validace, reflexy, replán) obstály bez oprav – vrstva teď
+  hlídá regrese trvale. Roadmapa v4 je tím kompletní (čluny a drobnosti
+  vědomě odloženy).
+- **P6 drobnosti (dokončení série)**: FarPlanner zná danger body –
+  koridorové buňky do 12 bloků od špatné vzpomínky či živé hrozby nesou
+  přirážku a hrubá trasa zóny smrti obchází (`zonuSmrtiKoridorObchazi`);
+  Navigator je bere z téhož `dangerSupplier` jako low-level plán.
+  Proudy na hrubosti 8×8 záměrně nemodelujeme (lokální gradient nemá
+  na volbě buňky co říct, voda nese ×2). `FarmGoal` (plodiny, strop 6)
+  a `EndHarvestGoal` (end stone/chorus, strop 4) přešly na kandidáty
+  s `anyNear` – sklízí se to, k čemu skutečně vede cesta. Z celé série
+  analýz v2–v4 zbývá jediné vědomé odložení: čluny (BoatPhysics gate).

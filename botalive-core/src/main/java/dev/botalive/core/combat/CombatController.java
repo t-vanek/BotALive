@@ -8,9 +8,13 @@ import dev.botalive.core.entity.TrackedEntity;
 import dev.botalive.core.human.Humanizer;
 import dev.botalive.core.inventory.InventoryHelper;
 import dev.botalive.core.network.BotActions;
+import dev.botalive.core.pathfinding.Navigator;
+import dev.botalive.core.pathfinding.PathGoal;
 import dev.botalive.core.physics.MoveInput;
 import dev.botalive.core.util.BotRandom;
 import dev.botalive.core.util.Vec3;
+import dev.botalive.core.world.BlockTraits;
+import dev.botalive.core.world.WorldView;
 import org.bukkit.Material;
 
 /**
@@ -27,6 +31,16 @@ import org.bukkit.Material;
  *       knockback (technika zkušených hráčů, řízená obtížností).</li>
  *   <li><b>Ústup</b>: při nízkém zdraví (práh podle odvahy) couvá od cíle.</li>
  * </ul>
+ *
+ * <p><b>Hybrid s navigací</b>: mikropohyb (strafing, rozestupy, timing úderů)
+ * zůstává přímému řízení, ale když přímá cesta nefunguje – chybí volná
+ * spojnice (zeď, roh), nebo se vzdálenost přes snahu nezmenšuje (příkop,
+ * plot) – převezme přiblížení pathfinding ({@code near(cíl, 2)} s drift
+ * throttlem pohyblivých cílů). Ústup při nízkém zdraví je dvoustupňový jako
+ * v SurviveGoalu: okamžité přímé couvání drží bota v pohybu a jakmile se
+ * dopočítá plánovaný útěk {@code awayFrom} po pochozím terénu (obchází lávu,
+ * hrany i slepé kouty), převezme řízení navigace. {@link #tick} pak vrací
+ * {@code null} – volající nechá pohyb navigátoru.</p>
  */
 public final class CombatController {
 
@@ -42,6 +56,12 @@ public final class CombatController {
     /** Maximální efektivní dostřel. */
     private static final double RANGED_MAX_DISTANCE = 32.0;
 
+    /** Ticky bez postupu k cíli, po kterých přiblížení převezme navigace. */
+    private static final int NO_PROGRESS_TICKS = 30;
+
+    /** Cílová vzdálenost plánovaného ústupu (bloky, vodorovně). */
+    private static final int RETREAT_DISTANCE = 12;
+
     private final BotActions actions;
     private final Humanizer humanizer;
     private final BotRandom rng;
@@ -50,6 +70,16 @@ public final class CombatController {
     private final CombatDifficulty difficulty;
     private final InventoryHelper inventory;
     private final RangedAttack ranged;
+
+    private Navigator navigator;
+    private WorldView world;
+    /** Přiblížení řídí navigace (bez spojnice / bez postupu). */
+    private boolean navigatingApproach;
+    /** Ústup řídí navigace (plánovaný útěk awayFrom). */
+    private boolean navigatingRetreat;
+    /** Nejlepší dosažená vzdálenost k cíli (detekce marného přibližování). */
+    private double bestApproachDistance = Double.MAX_VALUE;
+    private int noProgressTicks;
 
     private TrackedEntity target;
     private int attackCooldown;
@@ -82,6 +112,25 @@ public final class CombatController {
     }
 
     /**
+     * Napojí navigaci – boj s ní obchází překážky (kiting) a plánuje ústup.
+     * Bez napojení zůstává čistě přímé řízení (testy, degradovaný režim).
+     *
+     * @param navigator navigátor bota
+     */
+    public void navigation(Navigator navigator) {
+        this.navigator = navigator;
+    }
+
+    /**
+     * Napojí pohled na svět (kontrola volné spojnice na cíl).
+     *
+     * @param world svět bota
+     */
+    public void world(WorldView world) {
+        this.world = world;
+    }
+
+    /**
      * Zahájí boj s cílem.
      *
      * @param newTarget cílová entita
@@ -94,6 +143,8 @@ public final class CombatController {
                     (config.reactionMinMs() + config.reactionMaxMs()) / 2L,
                     (config.reactionMaxMs() - config.reactionMinMs()) / 2L);
             this.reactionTicks = (int) (reactionMs / 50) + difficulty.extraReactionTicks();
+            this.bestApproachDistance = Double.MAX_VALUE;
+            this.noProgressTicks = 0;
         }
     }
 
@@ -102,6 +153,7 @@ public final class CombatController {
         target = null;
         ranged.reset();
         shieldBlockTicks = 0;
+        stopNavigation();
     }
 
     /** @return aktuální cíl, nebo {@code null} */
@@ -121,11 +173,14 @@ public final class CombatController {
      * @param health     zdraví bota
      * @param onGround   bot na zemi
      * @param snapshot   server-side snapshot (výběr zbraně, štít); může být null
-     * @return pohybový vstup pro fyziku
+     * @return pohybový vstup pro fyziku, nebo {@code null} když řízení
+     *         převzala navigace (přiblížení bez spojnice, plánovaný ústup)
+     *         – volající nechá pohyb navigátoru
      */
     public MoveInput tick(Vec3 position, float health, boolean onGround,
                           ServerSideView.Snapshot snapshot) {
         if (target == null || !config.enabled()) {
+            stopNavigation();
             return MoveInput.IDLE;
         }
         Vec3 targetPos = target.position();
@@ -136,11 +191,39 @@ public final class CombatController {
         double distance = position.distance(targetPos);
         Vec3 toTarget = targetPos.sub(position).horizontal().normalized();
 
-        // Ústup při nízkém zdraví – práh závisí na odvaze.
+        // Ústup při nízkém zdraví – práh závisí na odvaze. Dvoustupňově:
+        // okamžité přímé couvání drží bota v pohybu, a jakmile se dopočítá
+        // plánovaný útěk po pochozím terénu (obchází lávu, hrany, slepé
+        // kouty), převezme řízení navigace.
         double retreatThreshold = 6 + (1.0 - personality.trait(Trait.COURAGE)) * 8;
         if (health <= retreatThreshold) {
             ranged.reset();
-            return MoveInput.of(toTarget.mul(-1), true, onGround && rng.chance(0.15));
+            if (navigator != null) {
+                navigatingRetreat = true;
+                navigatingApproach = false;
+                navigator.navigateTo(position,
+                        PathGoal.awayFrom(targetPos.toBlockPos(), RETREAT_DISTANCE));
+                if (navigator.pathReady()) {
+                    return null;
+                }
+            }
+            // Panika couvá s ochranou hran a lávy – i pár slepých ticků
+            // s rozběhem umí skončit v hazardu hned za zády.
+            MoveInput panic = MoveInput.of(toTarget.mul(-1), true,
+                    onGround && rng.chance(0.15));
+            return world != null
+                    ? dev.botalive.core.physics.EdgeGuard.apply(world, position, panic)
+                    : panic;
+        }
+        if (navigatingRetreat) {
+            stopNavigation(); // zdraví se zvedlo (jídlo, lektvar) – ústup končí
+        }
+
+        // Přiblížení navigací, když přímý pohyb nefunguje: bez volné spojnice
+        // (zeď, roh), nebo se vzdálenost přes snahu nezmenšuje (příkop, plot
+        // se spojnicí). V dosahu úderu se řízení vrací přímému mikropohybu.
+        if (updateApproach(position, targetPos, distance)) {
+            return null;
         }
 
         // Střelba na dálku, pokud je čím střílet.
@@ -211,5 +294,79 @@ public final class CombatController {
         }
         boolean jump = onGround && rng.chance(0.03); // občasný poskok
         return MoveInput.of(movement, sprint, jump);
+    }
+
+    /**
+     * Rozhodne, zda přiblížení řídí navigace, a případně ji krmí cílem.
+     *
+     * @return {@code true} když pohyb tento tick řídí navigátor
+     */
+    private boolean updateApproach(Vec3 position, Vec3 targetPos, double distance) {
+        if (navigator == null || world == null) {
+            return false; // bez napojení zůstává čistě přímé řízení
+        }
+        if (distance <= ATTACK_RANGE) {
+            // Dorazil na dosah – melee mikropohyb je přímý.
+            if (navigatingApproach) {
+                stopNavigation();
+            }
+            bestApproachDistance = distance;
+            noProgressTicks = 0;
+            return false;
+        }
+        if (navigatingApproach) {
+            // Hystereze: jednou zahájené obcházení se drží až na dosah úderu
+            // (drift throttle pohyblivých cílů tlumí replány sám).
+            navigator.navigateTo(position, PathGoal.near(targetPos.toBlockPos(), 2));
+            if (navigator.navigating() || navigator.hasPath()) {
+                return true;
+            }
+            navigatingApproach = false; // navigace to vzdala – nouzově přímo
+            return false;
+        }
+        // Detektor marného přibližování: mimo strafovací pásmo se musí
+        // nejlepší dosažená vzdálenost zlepšovat, jinak bot buší do překážky
+        // (příkop, plot – spojnice volná, cesta žádná).
+        if (distance < bestApproachDistance - 0.3) {
+            bestApproachDistance = distance;
+            noProgressTicks = 0;
+        } else if (distance > ATTACK_RANGE + 1.5) {
+            noProgressTicks++;
+        }
+        boolean blocked = !lineOfSight(position.add(0, 1.62, 0), targetPos.add(0, 1.2, 0));
+        if (blocked || noProgressTicks > NO_PROGRESS_TICKS) {
+            navigatingApproach = true;
+            noProgressTicks = 0;
+            bestApproachDistance = distance;
+            navigator.navigateTo(position, PathGoal.near(targetPos.toBlockPos(), 2));
+            return true;
+        }
+        return false;
+    }
+
+    /** Volná spojnice očí bota a trupu cíle (vzorky po půl bloku). */
+    private boolean lineOfSight(Vec3 from, Vec3 to) {
+        double length = from.distance(to);
+        if (length < 1.0E-6) {
+            return true;
+        }
+        Vec3 direction = to.sub(from).mul(1.0 / length);
+        for (double d = 0.5; d < length; d += 0.5) {
+            Vec3 point = from.add(direction.mul(d));
+            BlockTraits t = world.traitsAt(point.toBlockPos());
+            if (!t.noCollision() && !t.lowProfile()) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /** Ukončí navigační režimy a vrátí řízení přímému pohybu. */
+    private void stopNavigation() {
+        if ((navigatingApproach || navigatingRetreat) && navigator != null) {
+            navigator.stop();
+        }
+        navigatingApproach = false;
+        navigatingRetreat = false;
     }
 }

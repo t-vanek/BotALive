@@ -65,7 +65,10 @@ inventář a historii; po restartu serveru pokračuje tam, kde skončil.
   překlad spadá po kategoriích na vestavěnou vrstvu – botům nikdy nedojde řeč.
 - **Boj s obtížnostmi** – strafing, sprint reset, útoky s jitterem, ústup podle
   odvahy; profily easy/normal/hard/nightmare. Na dálku luk i kuše (predikce
-  pohybu cíle, balistická kompenzace), v melee blokování štítem.
+  pohybu cíle, balistická kompenzace), v melee blokování štítem. Boj
+  spolupracuje s navigací: cíl za rohem, plotem či příkopem bot **obejde**
+  (kiting nefunguje) a ústup při nízkém zdraví vede plánovaně po pochozím
+  terénu – nikdy pozpátku do lávy.
 - **PvP a aliance** – boti bojují mezi sebou i s hráči (volitelné, výchozí
   vypnuto): napadený se brání nebo utíká podle odvahy, svolá spojence
   („pomoc!“ v chatu) a přátelé z paměti mu přijdou na pomoc – společný boj

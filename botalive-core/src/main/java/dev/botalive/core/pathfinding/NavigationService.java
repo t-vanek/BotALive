@@ -119,9 +119,24 @@ public final class NavigationService {
      */
     public CompletableFuture<FarPlanner.Corridor> planCorridor(WorldView world,
                                                                BlockPos from, BlockPos to) {
+        return planCorridor(world, from, to, java.util.List.of());
+    }
+
+    /**
+     * Varianta s danger body – koridor obchází zóny smrti a živé hrozby.
+     *
+     * @param world   pohled na svět
+     * @param from    start
+     * @param to      cíl
+     * @param dangers danger body (může být prázdné)
+     * @return future s koridorem (nikdy neselže – při chybě nese prázdný koridor)
+     */
+    public CompletableFuture<FarPlanner.Corridor> planCorridor(WorldView world,
+                                                               BlockPos from, BlockPos to,
+                                                               java.util.List<BlockPos> dangers) {
         return CompletableFuture.supplyAsync(() -> {
             try {
-                return FarPlanner.plan(world, from, to);
+                return FarPlanner.plan(world, from, to, dangers);
             } catch (Throwable t) {
                 LOG.warn("Plánování koridoru selhalo ({} -> {}): {}", from, to, t.toString());
                 return FarPlanner.Corridor.EMPTY;

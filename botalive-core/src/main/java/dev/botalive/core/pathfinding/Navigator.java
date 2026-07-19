@@ -353,6 +353,18 @@ public final class Navigator {
         return path != null && waypointIndex < path.waypoints().size();
     }
 
+    /**
+     * @return {@code true} když je cesta rozpracovaná NEBO už dopočítaná ve
+     *         frontě (převzetí proběhne v příštím {@link #tick}). Pro
+     *         dvoustupňové vzory „přímá panika, dokud se plán nedopočítá"
+     *         (ústup v boji, SurviveGoal): samotné {@link #hasPath} se
+     *         překlápí až v ticku navigátoru – když paniku vydává
+     *         {@code requestMove}, tick neběží a panika by nikdy neskončila.
+     */
+    public boolean pathReady() {
+        return hasPath() || (pendingPath != null && pendingPath.isDone());
+    }
+
     /** @return {@code true} pokud navigace směřuje k cíli (i když se cesta teprve počítá) */
     public boolean navigating() {
         return destination != null;
@@ -466,7 +478,9 @@ public final class Navigator {
         if (!service.farCorridors() || world == null || destination == null) {
             return;
         }
-        pendingCorridor = service.planCorridor(world, from, destination);
+        java.util.List<BlockPos> corridorDangers = dangerSupplier != null
+                ? dangerSupplier.get() : java.util.List.of();
+        pendingCorridor = service.planCorridor(world, from, destination, corridorDangers);
     }
 
     /**

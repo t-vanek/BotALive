@@ -87,8 +87,12 @@ public final class HuntGoal extends AbstractGoal {
         }
 
         // Zbraň do ruky a lovecký pohyb řídí bojový kontrolér.
-        ctx.requestMove(ctx.combat().tick(ctx.position(), ctx.clientState().health(),
-                ctx.onGround(), ctx.serverView().latest()));
+        dev.botalive.core.physics.MoveInput huntMove = ctx.combat().tick(
+                ctx.position(), ctx.clientState().health(),
+                ctx.onGround(), ctx.serverView().latest());
+        if (huntMove != null) {
+            ctx.requestMove(huntMove); // null = přiblížení/ústup řídí navigace
+        }
     }
 
     @Override

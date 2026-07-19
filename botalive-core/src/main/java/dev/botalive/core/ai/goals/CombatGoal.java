@@ -118,6 +118,9 @@ public final class CombatGoal extends AbstractGoal {
         // zůstává pohyb volný – guard by blokoval přiblížení přes seskok.
         MoveInput combatMove = ctx.combat().tick(ctx.position(), ctx.clientState().health(),
                 ctx.onGround(), ctx.serverView().latest());
+        if (combatMove == null) {
+            return; // přiblížení/ústup řídí navigace
+        }
         if (ctx.dimension() == dev.botalive.core.world.WorldDimension.END) {
             combatMove = dev.botalive.core.physics.EdgeGuard.apply(
                     ctx.worldView(), ctx.position(), combatMove);
