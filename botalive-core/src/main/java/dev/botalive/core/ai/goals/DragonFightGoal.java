@@ -19,6 +19,7 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import dev.botalive.core.pathfinding.PathGoal;
 
 /**
  * Souboj s ender drakem – vrchol výpravy do Endu.
@@ -136,7 +137,7 @@ public final class DragonFightGoal extends AbstractGoal {
         if (centerTarget == null) {
             centerTarget = new BlockPos(0, (int) pos.y(), 0);
         }
-        ctx.navigator().navigateTo(pos, centerTarget);
+        ctx.navigator().navigateTo(pos, PathGoal.near(centerTarget, 8));
     }
 
     @Override
@@ -243,7 +244,7 @@ public final class DragonFightGoal extends AbstractGoal {
                 crystalApproachId = crystal.entityId();
                 crystalApproach = base.toBlockPos();
             }
-            ctx.navigator().navigateTo(pos, crystalApproach);
+            ctx.navigator().navigateTo(pos, PathGoal.near(crystalApproach, 4));
             return;
         }
         if (baseDistance < CRYSTAL_MIN_DISTANCE) {

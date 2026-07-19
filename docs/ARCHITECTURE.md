@@ -858,3 +858,13 @@ s kolizním systémem (analýza [docs/PATHFINDING_V3.md](PATHFINDING_V3.md)).
   neřežou roh (bot je při diagonále neotvírá a odíral se o kolizi)
   a neskáče se skrz ně (letová dráha je dřív brala za průchozí jako
   chůze). Otevřené dveře nevadí – jsou bez kolize.
+- **Dokončení `near` migrace (v3.1)**: zbylých 16 blokových cílů mimo
+  overworld přešlo na `near` s poloměrem uvnitř prahu goalu – dračí
+  souboj (střed ostrova, přiblížení ke krystalu na dostřel), End (rám
+  portálu, vzpomínka na portál, end stone), Nether (základna, těžený
+  blok, strukturní truhla, piglin k barteru), vozidla (vozík, loď,
+  kolej), hlídka, návrat domů a průzkum (bod expedice v koruně stromu
+  či jezeře už nepálí rozpočet). Záměrně blokové zůstávají cíle „stoupni
+  si přesně sem": sběr dropů, stanoviště kopání a rybaření, dekorace,
+  stavební buňky. Vzor „na neprůchozí blok se nedá dojít" je tím
+  vyřešený v celé kódové základně.

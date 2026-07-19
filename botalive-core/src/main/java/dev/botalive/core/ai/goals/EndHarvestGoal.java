@@ -16,6 +16,7 @@ import org.bukkit.Material;
 
 import java.util.Map;
 import java.util.Optional;
+import dev.botalive.core.pathfinding.PathGoal;
 
 /**
  * Kořist z Endu – aby výprava nebyla jen o drakovi.
@@ -176,7 +177,7 @@ public final class EndHarvestGoal extends AbstractGoal {
                 approachTicks = 0;
                 return false; // k bloku se nejde dostat – zkusit něco jiného
             }
-            ctx.navigator().navigateTo(pos, block);
+            ctx.navigator().navigateTo(pos, PathGoal.near(block, 2));
             activity = why;
             return true;
         }

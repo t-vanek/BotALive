@@ -22,6 +22,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import dev.botalive.core.pathfinding.PathGoal;
 
 /**
  * Výprava do Endu – cesta ke známému portálu a skok do neznáma.
@@ -185,7 +186,7 @@ public final class EndTravelGoal extends AbstractGoal {
                         giveUp(1200);
                         return;
                     }
-                    ctx.navigator().navigateTo(pos, rememberedPortal);
+                    ctx.navigator().navigateTo(pos, PathGoal.near(rememberedPortal, 8));
                     return;
                 }
                 // U portálu: najít skutečné portálové bloky (paměť je ±pár
@@ -255,7 +256,7 @@ public final class EndTravelGoal extends AbstractGoal {
                     return;
                 }
                 if (frame.center().distanceSquared(pos) > 3.2 * 3.2) {
-                    ctx.navigator().navigateTo(pos, frame);
+                    ctx.navigator().navigateTo(pos, PathGoal.near(frame, 2));
                     return;
                 }
                 var snapshot = ctx.serverView().latest();

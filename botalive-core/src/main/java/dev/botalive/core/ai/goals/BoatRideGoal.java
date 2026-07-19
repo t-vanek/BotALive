@@ -12,6 +12,7 @@ import dev.botalive.core.world.WorldView;
 
 import java.util.Map;
 import java.util.Optional;
+import dev.botalive.core.pathfinding.PathGoal;
 
 /**
  * Plavba lodí – bot použije loď k výpravě po vodní ploše.
@@ -93,7 +94,7 @@ public final class BoatRideGoal extends AbstractGoal {
                 }
                 Vec3 boatPos = boat.get().position();
                 if (boatPos.distanceSquared(ctx.position()) > 2.5 * 2.5) {
-                    ctx.navigator().navigateTo(ctx.position(), boatPos.toBlockPos());
+                    ctx.navigator().navigateTo(ctx.position(), PathGoal.near(boatPos.toBlockPos(), 1));
                     if (!ctx.navigator().navigating()) {
                         finish(ctx, 1200); // loď nedosažitelná (uprostřed jezera)
                     }

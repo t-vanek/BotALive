@@ -7,6 +7,7 @@ import dev.botalive.core.ai.BotContext;
 import dev.botalive.core.util.BlockPos;
 
 import java.util.Optional;
+import dev.botalive.core.pathfinding.PathGoal;
 
 /**
  * Návrat domů – na noc nebo když je bot moc daleko od základny.
@@ -75,7 +76,7 @@ public final class ReturnHomeGoal extends AbstractGoal {
         }
         double distSq = ctx.position().toBlockPos().distanceSquared(home);
         if (distSq > 9) {
-            ctx.navigator().navigateTo(ctx.position(), home);
+            ctx.navigator().navigateTo(ctx.position(), PathGoal.near(home, 2));
             if (!ctx.navigator().navigating() && !ctx.navigator().hasPath()) {
                 restTicks++; // cesta selhala – po chvíli to vzdát
             }

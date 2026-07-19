@@ -11,6 +11,7 @@ import dev.botalive.core.util.Vec3;
 import dev.botalive.core.world.WorldDimension;
 import dev.botalive.core.world.WorldView;
 import org.bukkit.Material;
+import dev.botalive.core.pathfinding.PathGoal;
 
 /**
  * Návrat z Endu – výstupním portálem domů.
@@ -126,7 +127,7 @@ public final class EndReturnGoal extends AbstractGoal {
                     if (centerTarget == null) {
                         centerTarget = new BlockPos(0, (int) pos.y(), 0);
                     }
-                    ctx.navigator().navigateTo(pos, centerTarget);
+                    ctx.navigator().navigateTo(pos, PathGoal.near(centerTarget, 8));
                     return;
                 }
                 // U fontány: existuje výstupní portál? (jen po smrti draka)

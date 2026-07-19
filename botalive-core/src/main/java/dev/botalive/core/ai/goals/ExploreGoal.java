@@ -9,6 +9,7 @@ import dev.botalive.core.util.Vec3;
 import dev.botalive.core.world.WorldView;
 
 import java.util.Map;
+import dev.botalive.core.pathfinding.PathGoal;
 
 /**
  * Průzkum – dlouhé výpravy do neznámých oblastí.
@@ -55,7 +56,7 @@ public final class ExploreGoal extends AbstractGoal {
                 cooldownTicks = 200;
                 return;
             }
-            ctx.navigator().navigateTo(ctx.position(), expedition);
+            ctx.navigator().navigateTo(ctx.position(), PathGoal.near(expedition, 2));
         }
         // Průběžné ukládání navštívených míst (jednou za ~10 s).
         if (--rememberCooldown <= 0) {

@@ -130,13 +130,23 @@ plán ↔ assist.
 > zavřené dveře už neřežou roh (`diagonalaNerezeRohPresZavreneDvere`)
 > a neskáče se skrz ně (`neskaceSkrzZavreneDvere` – nález nad rámec
 > analýzy: letová dráha dveře „otvírala" taky).
+>
+> **Stav: v3.1 implementováno.** Zbylých 16 blokových cílů migrováno na
+> `near` s poloměrem uvnitř prahu goalu: dračí souboj (střed ostrova r=8
+> na práh 12, krystal r=4 na dostřel 30), End (rám r=2 na 3,2; vzpomínka
+> na portál r=8 na 10; end stone r=2 na dokopnutí), Nether (základna r=1
+> na 2,5; těžený blok r=2 na 4,2; truhla r=2; piglin r=2 na 4), vozidla
+> (vozík/loď r=1 na 2,5; kolej r=2), hlídka/domov r=2, průzkum r=2.
+> Záměrně blokové zůstávají: sběr dropů po barteru, stanoviště kopání
+> a rybaření, dekorace, stavební buňky. Tím je vzor „na neprůchozí blok
+> se nedá dojít" vyřešený v celé kódové základně.
 
 ## 2. Doporučené fázování
 
 | Fáze | Obsah | Náročnost | Riziko | Přínos |
 |---|---|---|---|---|
 | **v3.0 korektnost** ✅ | P1 gravity guard kopání, P2 hluboký sken + příplatek za skok nad pádem/voidem (škálovaný opatrností), P5 roh bez dveří | S | nízké | plán a kolize se přestanou rozcházet v posledních známých místech |
-| **v3.1 dokončení migrace** | P3 zbylé `near` cíle (End/Nether/drak/vozidla/průzkum) | S | nízké | konec pálení rozpočtu, drift throttle všude |
+| **v3.1 dokončení migrace** ✅ | P3 zbylé `near` cíle (End/Nether/drak/vozidla/průzkum) | S | nízké | konec pálení rozpočtu, drift throttle všude |
 | **v3.2 kvalita výběru** | P4 `anyOf` v goalech s kandidáty (strom/ruda/truhla/postel) + zpětná vazba „který kandidát vyšel" | M | střední | méně marných výpočtů a blacklist smyček, přirozenější volby |
 | **v3.3 parita akcí** | P8 žebříkové hrany + BotTask-level simulace | M | střední | poslední reaktivní eskalace pod kontraktem |
 | **v3.4 výkon** | P6 bucket queue / long smyčka – jen po benchmarku | M | střední | až 2× rychlejší jádro, ale nejdřív důkaz |
