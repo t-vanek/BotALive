@@ -17,7 +17,8 @@ public final class RoleProfiles {
 
     private static final Map<BotRole, Map<String, Double>> WEIGHTS = Map.of(
             BotRole.BUILDER, Map.of(
-                    "shelter", 2.5, "house", 3.0, "craft", 1.4, "mine", 1.3, "home", 1.3,
+                    "shelter", 2.5, "house", 3.0, "communal-build", 2.5,
+                    "craft", 1.4, "mine", 1.3, "home", 1.3,
                     "maintain", 2.2),
             BotRole.MINER, Map.of(
                     "mine", 2.5, "collect", 1.3, "craft", 1.2, "smelt", 1.3,

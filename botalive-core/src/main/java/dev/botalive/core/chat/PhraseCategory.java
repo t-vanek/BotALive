@@ -71,6 +71,12 @@ public enum PhraseCategory {
 
     /** Sídlo dorostlo na vesnici ({@code {name}} = jméno sídla). */
     SETTLEMENT_VILLAGE_UP,
+
+    /** Bot začíná stavět studnu sídla ({@code {name}} = jméno sídla). */
+    SETTLEMENT_WELL_START,
+
+    /** Studna sídla dokončena ({@code {name}} = jméno sídla). */
+    SETTLEMENT_WELL_DONE,
     /** Běh pro věci po smrti – vyrážím. */
     RECOVER_RUN,
     /** Věci po smrti zachráněné. */

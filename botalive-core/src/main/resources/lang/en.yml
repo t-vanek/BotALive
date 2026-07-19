@@ -254,6 +254,16 @@ phrases:
     - "enough of us live here now, {name} is a real village"
     - "look at {name} grow. that's a village if I ever saw one!"
     - "one more house done and {name} is no longer just a few shacks"
+
+  settlement-well-start:
+    - "off to build a well on the square, {name} deserves one"
+    - "grabbing stone, {name} needs a proper well"
+    - "we have enough houses, time for a well in {name}"
+
+  settlement-well-done:
+    - "well's done! the square in {name} finally looks like something"
+    - "there, {name} has a well. no stone carried, no water!"
+    - "finished, the well stands. come see the square"
     - "packing up, following my friends"
   recover-run:
     - "my stuff! hope it's still there"
