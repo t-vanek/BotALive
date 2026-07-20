@@ -80,8 +80,12 @@ public final class BotRepository {
     public CompletableFuture<Void> purgeBot(UUID id) {
         return db.async(connection -> {
             String botId = id.toString();
+            // ba_employment musí být v seznamu: offline UUID je odvozené ze
+            // jména, takže bot vytvořený znovu pod týmž jménem dostane totéž id
+            // a zdědil by starou pracovní smlouvu.
             for (String table : List.of("ba_memories", "ba_personalities", "ba_wallets",
-                    "ba_transactions", "ba_stats", "ba_settlement_members", "ba_bots")) {
+                    "ba_transactions", "ba_stats", "ba_settlement_members",
+                    "ba_employment", "ba_bots")) {
                 String column = table.equals("ba_bots") ? "id" : "bot_id";
                 try (PreparedStatement ps = connection.prepareStatement(
                         "DELETE FROM " + table + " WHERE " + column + " = ?")) {
@@ -159,6 +163,46 @@ public final class BotRepository {
             } catch (SQLException e) {
                 throw new IllegalStateException(e);
             }
+        });
+    }
+
+    /**
+     * Zjistí, zda bot už dostal startovní kit.
+     *
+     * @param botId UUID bota
+     * @return {@code true} pokud kit už dostal (nebo řádek neexistuje)
+     */
+    public CompletableFuture<Boolean> kitGiven(UUID botId) {
+        return db.async(connection -> {
+            try (PreparedStatement ps = connection.prepareStatement(
+                    "SELECT kit_given FROM ba_bots WHERE id = ?")) {
+                ps.setString(1, botId.toString());
+                try (ResultSet rs = ps.executeQuery()) {
+                    // Chybějící řádek = radši nedávat (kit řeší až upsert při spawnu).
+                    return !rs.next() || rs.getInt(1) != 0;
+                }
+            } catch (SQLException e) {
+                throw new IllegalStateException(e);
+            }
+        });
+    }
+
+    /**
+     * Označí, že bot startovní kit dostal.
+     *
+     * @param botId UUID bota
+     * @return future dokončení
+     */
+    public CompletableFuture<Void> markKitGiven(UUID botId) {
+        return db.async(connection -> {
+            try (PreparedStatement ps = connection.prepareStatement(
+                    "UPDATE ba_bots SET kit_given = 1 WHERE id = ?")) {
+                ps.setString(1, botId.toString());
+                ps.executeUpdate();
+            } catch (SQLException e) {
+                throw new IllegalStateException(e);
+            }
+            return null;
         });
     }
 
