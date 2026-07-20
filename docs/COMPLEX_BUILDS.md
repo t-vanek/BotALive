@@ -41,8 +41,9 @@ Vedlejší důsledek: tier **MĚSTO je fakticky nedosažitelný**
 - **Rozmanité domy**: patra, okna, sedlové střechy ze schodů, palety
   podle biomu/profese/povahy – každý dům trochu jiný, deterministicky
   ze seedu.
-- **Civilní stavby sídel**: tržiště (odemkne skutečné MĚSTO), zvonice,
-  radnice – přes stejné jádro, designy jako data.
+- **Civilní stavby sídel**: tržiště (odemkne skutečné MĚSTO), radnice,
+  zvonice, kostel – přes stejné jádro, designy jako data, velké stavby
+  na vícparcelových staveništích.
 - Jedno sdílené jádro místo čtyř kopií smyčky; stavby přežívají
   přerušení, noc i restart.
 
@@ -152,9 +153,10 @@ kliku (přesně jako u hráče, žádná magie s block state).
 - Po `build.substitute-after-minutes` bez pokroku povolí paleta
   náhradu (další materiál v pořadí role, nakonec generický blok).
   Stavba má charakter, ale nikdy se nezasekne navždy.
-- Civilní stavby (V2c): **zásobovací truhla na staveništi** – materiál
-  nosí kterýkoli člen (přebytky jako u trhu), staví držitel claimu.
-  Předstupeň spolupráce bez dělení stavební práce.
+- Civilní stavby: materiál řeší **zásobovací truhla na staveništi**
+  a stav SUPPLY projektu (viz životní cyklus níže) – nosí všichni,
+  staví držitel claimu. Předstupeň spolupráce bez dělení stavební
+  práce.
 
 ## Persistence (migrace v8)
 
@@ -181,13 +183,22 @@ ba_builds(id, owner_bot NULL, settlement_id NULL, kind,
   katastr, posouzení na místě) zůstávají beze změny; TERRAFORM/BUILD/
   FURNISH nahrazuje `BuildSession`, přibývá SUPPLY. `siteCost` škáluje
   `MAX_FILLS/MAX_DIGS` plochou půdorysu.
-- **Kapacita parcely**: max půdorys = `plot-spacing − 5` (u výchozích
-  12 ⇒ 7×7) – rozestupy a cestičky zůstávají, **existující vesnice se
-  nemění** (spacing přepisovat nelze, odvozují se z něj origins parcel).
-  Větší archetypy si vybírají jen boti, kterým se vejdou.
+- **Kapacita parcely (domy)**: max půdorys domu = `plot-spacing − 5`
+  (u výchozích 12 ⇒ 7×7; to je zároveň default `build.max-footprint`,
+  konfigurací lze zvednout spolu se spacingem) – rozestupy a cestičky
+  zůstávají, **existující vesnice se nemění** (spacing přepisovat
+  nelze, odvozují se z něj origins parcel).
+- **Vícparcelová staveniště (civilní stavby)**: velikost civilní
+  stavby určuje šablona, ne strop domů. Projekt si podle půdorysu
+  rezervuje **obdélník sousedních parcel** – 1×2 podél prstence
+  (~7×19 využitelné plochy), 2×2 přes prstence (~19×19). Rezervace je
+  čistá geometrie nad `PlotLayout`; rezervované parcely se nenabízejí
+  domům. Kostel 9×13 se tak vejde bez zásahu do spacingu existujících
+  vesnic.
 - **`HouseDesigner`**: archetyp váží povaha (pracovitý/chamtivý větší,
-  líný menší), profese (stavitel výstavnější), ambice „útulný domov"
-  a biom; deterministicky z persistovaného seedu.
+  líný menší), profese (stavitel výstavnější), ambice „útulný domov",
+  biom a **stupeň sídla** (žebřík níže – honosnější archetypy se
+  odemykají s tierem); deterministicky z persistovaného seedu.
 - **`CommunalBuildGoal`**: `if/else` dispatch nahradí registr
   blueprintů podle `ProjectKind`; rozšíření o `MARKET_STALL` (V2c) –
   `SettlementTier.of(houses, well, townInfra)` konečně dostane
@@ -195,6 +206,48 @@ ba_builds(id, owner_bot NULL, settlement_id NULL, kind,
   prestižní projekt města (není podmínkou tieru – substance, ne dekret).
 - **`MaintainHomeGoal`**: diff proti plánu z HOME (design/params),
   legacy rekonstrukce 4×4 zůstává.
+
+## Žebřík stupňů: tvrdá brána, pořád substance
+
+Postup sídla je stupňovitý program: **do dalšího stupně se jde až se
+splněnými podmínkami toho současného – dokončené stavby stupně
+a zajištěný materiál na projekt**. Podmínky tieru zůstávají odvozené
+ze substance (nic se nedekretuje), nové je, že stupeň zpětně odemyká,
+co se smí stavět:
+
+| Stupeň | Podmínka (jako dnes) | Co stupeň odemyká |
+|---|---|---|
+| **Osada** | 1+ dokončený dům | základní archetypy domů (chaloupka 5×5), projekt **studna** |
+| **Vesnice** | ≥ 4 domy + studna | větší archetypy (6×6 s podkrovím, patrový 5×7), projekty **sýpka** a **tržiště** |
+| **Město** | ≥ 8 domů + sýpka + tržiště | honosné archetypy, prestižní projekty **radnice, zvonice, kostel** (vícparcelové; nejsou podmínkou tieru) |
+
+„Zajištěný materiál" není utility gate v batohu jednoho bota, ale stav
+projektu – viz životní cyklus níže. Důsledek pro domy: nový člen
+v mladé osadě staví skromně; honosný dům je vidět až tam, kde sídlo
+skutečně vyrostlo.
+
+## Životní cyklus projektu: SITE → SUPPLY → BUILD → DONE
+
+Rozšíření stavů z `SETTLEMENTS_GROWTH.md` (SITE/BUILD/DONE) o **SUPPLY**
+– odpověď na „stavba stojí, došel materiál":
+
+1. **SITE** – projekt vznikne na nástěnce sídla, zarezervuje parcely
+   a první stavitel na staveniště položí **zásobovací truhlu**
+   (jediný blok – staví se jako dnes stanice přes `placeOwnStation`).
+2. **SUPPLY** – nástěnka zveřejní rozpis materiálu (BOM po etapách).
+   Členové nosí příspěvky do truhly: přebytky (rozšíření `StashGoal`)
+   i cílené shánění (build wishlist), ochota váží HELPFULNESS a roli.
+   Truhla je fyzická autorita – co v ní je, to je zajištěno; restart
+   nic neztratí.
+3. **BUILD** – jakmile truhla kryje aktuální etapu, držitel claimu
+   staví; materiál si bere z truhly (ne z vlastního batohu), při
+   vyčerpání se projekt vrací do SUPPLY, claim drží. Etapové krytí
+   znamená, že se začíná dřív, než je sneseno úplně všechno.
+4. **DONE** – jako dnes (fyzická stavba autorita, záznam cache);
+   truhla zůstává sídlu (u tržiště se hodí, jinde ji stavitel vyklidí).
+
+Sólo domy truhlu nepotřebují – tam zůstává osobní fáze SUPPLY
+(vlastní truhla → těžba/kácení → craft → náhrady).
 
 ## Fázový plán
 
@@ -205,13 +258,15 @@ ba_builds(id, owner_bot NULL, settlement_id NULL, kind,
   `PathExecutionSimulationTest`. Portál a oltář se zatím nemigrují
   (verify obsidiánu, lebka naposled – specifika, viz V2d).
 - **V2b – rozmanité domy**: `PlacementHints` (schody, půlbloky, dveře,
-  postel), palety + BOM + SUPPLY, migrace v8, `HouseDesigner`
+  postel), palety + BOM + osobní SUPPLY, migrace v8, `HouseDesigner`
   s 3–4 archetypy (chaloupka 5×5, dům 6×6 s podkrovím a sedlovou
-  střechou, patrový 5×7), okna, interiér podle profese;
-  `MaintainHomeGoal` na nové plány; hlášky.
+  střechou, patrový 5×7) odemykanými stupněm sídla, okna, interiér
+  podle profese; `MaintainHomeGoal` na nové plány; hlášky.
 - **V2c – civilní stavby**: šablonový loader (`structures/*.yml`),
+  životní cyklus SITE→SUPPLY→BUILD→DONE se zásobovací truhlou,
   `MARKET_STALL` + ukotvení `SellGoal` k tržišti (fáze D růstové
-  roadmapy), zvonice/radnice pro město, zásobovací truhla staveniště.
+  roadmapy), vícparcelová rezervace a prestižní stavby města
+  (radnice, zvonice, kostel).
 - **V2d – konsolidace**: portál a wither oltář na engine (jejich
   invarianty přebírá planner), lešení, pokud ho V2c stavby ukázaly
   jako potřebné.
@@ -231,7 +286,8 @@ ba_builds(id, owner_bot NULL, settlement_id NULL, kind,
 ```yaml
 build:
   complex: true                 # vypnutí = dnešní chování (legacy 4×4)
-  max-footprint: 7              # strop půdorysu (dál ořezán kapacitou parcely)
+  max-footprint: 7              # strop půdorysu DOMŮ (min. default; civilní
+                                # stavby řídí šablona + rezervace parcel)
   max-floors: 2
   substitute-after-minutes: 20  # kdy paleta povolí náhradu materiálu
 ```
