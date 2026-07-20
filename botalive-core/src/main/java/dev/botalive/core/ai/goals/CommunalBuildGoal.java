@@ -56,15 +56,10 @@ public final class CommunalBuildGoal extends AbstractGoal {
     public double utility(Bot bot) {
         BotContext ctx = ctx(bot);
         if (cooldownTicks > 0) {
-            cooldownTicks--;
+            cooldownTicks -= ctx.config().ai().decisionIntervalTicks();
             return 0;
         }
         if (ctx.worldView() == null || ctx.dimension() != WorldDimension.OVERWORLD) {
-            return 0;
-        }
-        // Staví se za světla, jako domy.
-        long time = ctx.worldTime();
-        if (time >= 11500 && time <= 23000) {
             return 0;
         }
         if (ctx.settlements() == null) {
@@ -74,15 +69,26 @@ public final class CommunalBuildGoal extends AbstractGoal {
         if (needed.isEmpty()) {
             return 0;
         }
-        BotNeeds needs = BotNeeds.assess(ctx.serverView().latest());
-        if (needs.buildingBlocks() < blueprintFor(needed.get().kind()).blocksNeeded() + BLOCK_RESERVE) {
-            return 0;
-        }
-        int chestsNeeded = chestsNeededFor(needed.get().kind());
-        if (chestsNeeded > 0
-                && ctx.inventory().countItem(ctx.serverView().latest(), Material.CHEST)
-                        < chestsNeeded) {
-            return 0; // sýpka/tržiště bez truhel je jen kůlna
+        // Vstupní brány platí jen pro ZAHÁJENÍ – rozdělaná stavba smí doběhnout
+        // i po setmění a s ubývajícím materiálem (jinak zůstane torzo).
+        boolean inProgress = session != null || claimed;
+        if (!inProgress) {
+            // Staví se za světla, jako domy.
+            long time = ctx.worldTime();
+            if (time >= 11500 && time <= 23000) {
+                return 0;
+            }
+            BotNeeds needs = BotNeeds.assess(ctx.serverView().latest());
+            if (needs.buildingBlocks()
+                    < blueprintFor(needed.get().kind()).blocksNeeded() + BLOCK_RESERVE) {
+                return 0;
+            }
+            int chestsNeeded = chestsNeededFor(needed.get().kind());
+            if (chestsNeeded > 0
+                    && ctx.inventory().countItem(ctx.serverView().latest(), Material.CHEST)
+                            < chestsNeeded) {
+                return 0; // sýpka/tržiště bez truhel je jen kůlna
+            }
         }
         double helpfulness = bot.personality().trait(Trait.HELPFULNESS);
         // Závazek: kdo si stavbu zamluvil, drží se jí – bez bonusu si stavitelé

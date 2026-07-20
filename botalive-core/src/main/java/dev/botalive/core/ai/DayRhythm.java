@@ -23,12 +23,15 @@ public final class DayRhythm {
             Phase.MORNING, Map.of(
                     "farm", 1.6, "craft", 1.3, "eat", 1.3, "fish", 1.3, "hunt", 1.2,
                     "compost", 1.4, "repair", 1.3),
+            // "sell"/"buy" dřív v rytmu vůbec nefigurovaly (vždy ×1.0), zatímco
+            // konkurenční "stash" má večer ×1.4 – trh tím byl trvale v nevýhodě.
             Phase.DAY, Map.of(
                     "mine", 1.4, "house", 1.5, "explore", 1.3, "trade", 1.3,
-                    "hunt", 1.2, "farm", 1.1, "nether", 1.3),
+                    "hunt", 1.2, "farm", 1.1, "nether", 1.3,
+                    "sell", 1.4, "buy", 1.3),
             Phase.EVENING, Map.of(
                     "socialize", 1.6, "home", 1.5, "stash", 1.4, "share", 1.5,
-                    "craft", 1.2, "smelt", 1.3, "mine", 0.8),
+                    "craft", 1.2, "smelt", 1.3, "mine", 0.8, "sell", 1.2),
             Phase.NIGHT, Map.of(
                     "home", 1.6, "shelter", 1.3, "socialize", 0.7, "mine", 0.6,
                     "explore", 0.6, "farm", 0.5, "trade", 0.6, "guard", 1.2)

@@ -38,7 +38,12 @@ public final class BotEventLoop {
             Object group = field.get(null);
             if (group instanceof EventLoopGroup elg) {
                 elg.shutdownGracefully(50, 2000, TimeUnit.MILLISECONDS).await(3000);
-                field.set(null, null);
+                // Pole se ZÁMĚRNĚ nenuluje. Knihovna si v createEventLoopGroup()
+                // registruje JVM shutdown hook, který na EVENT_LOOP_GROUP volá
+                // shutdownGracefully – s vynulovaným polem hook spadl na NPE
+                // ("Exception in thread Thread-5") při každém vypnutí serveru.
+                // Opakované shutdownGracefully na už ukončené skupině je v netty
+                // no-op, takže ponechaná reference je bezpečná.
             }
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();

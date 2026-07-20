@@ -37,6 +37,8 @@ public final class ContainerService implements dev.botalive.core.station.ChestSt
 
     /** Kolik kusů stavebního materiálu si bot nechává na stavění/crafting. */
     private static final int KEEP_BUILDING_BLOCKS = 32;
+    /** Bez domova: rezerva na celý dům (7×7 chce ~153 bloků) + zbytek na opravy. */
+    private static final int KEEP_BUILDING_BLOCKS_HOMELESS = 176;
 
     /** Stropy nouzového výběru: bot krade jen to, co teď potřebuje. */
     private static final int STEAL_FOOD_LIMIT = 8;
@@ -104,7 +106,27 @@ public final class ContainerService implements dev.botalive.core.station.ChestSt
     @Override
     public CompletableFuture<Integer> depositJunk(dev.botalive.core.ai.BotContext ctx,
                                                   String worldName, BlockPos chestPos) {
-        return depositJunk(ctx.bot().id(), worldName, chestPos);
+        return depositJunk(ctx.bot().id(), worldName, chestPos, keepBuildingFor(ctx));
+    }
+
+    /**
+     * Kolik stavebních bloků si bot u truhly nechá.
+     *
+     * <p>Dokud nemá dům, musí si ušetřit na celou stavbu – s rezervou 32 se
+     * {@code BuildHouseGoal} nikdy nedostal přes vstupní bránu (generovaný dům
+     * chce 80–153 bloků), takže bot ukládal materiál a stavbu už nezačal.
+     *
+     * @param ctx kontext bota
+     * @return počet bloků, které zůstanou v inventáři
+     */
+    private static int keepBuildingFor(dev.botalive.core.ai.BotContext ctx) {
+        for (var home : ctx.bot().memory().recall(
+                dev.botalive.api.memory.MemoryKind.HOME)) {
+            if ("house".equals(home.data().get("type"))) {
+                return KEEP_BUILDING_BLOCKS;
+            }
+        }
+        return KEEP_BUILDING_BLOCKS_HOMELESS;
     }
 
     /**
@@ -116,6 +138,11 @@ public final class ContainerService implements dev.botalive.core.station.ChestSt
      * @return future s počtem přesunutých kusů (0 = nic/chyba)
      */
     public CompletableFuture<Integer> depositJunk(UUID botId, String worldName, BlockPos chestPos) {
+        return depositJunk(botId, worldName, chestPos, KEEP_BUILDING_BLOCKS);
+    }
+
+    private CompletableFuture<Integer> depositJunk(UUID botId, String worldName,
+                                                   BlockPos chestPos, int keepBuildingLimit) {
         World world = Bukkit.getWorld(worldName);
         Player player = Bukkit.getPlayer(botId);
         if (world == null || player == null) {
@@ -142,7 +169,7 @@ public final class ContainerService implements dev.botalive.core.station.ChestSt
                 }
                 // Stavební bloky si částečně nechat.
                 if (InventoryHelper.isBuildingBlock(stack.getType())
-                        && keptBuilding < KEEP_BUILDING_BLOCKS) {
+                        && keptBuilding < keepBuildingLimit) {
                     keptBuilding += stack.getAmount();
                     continue;
                 }

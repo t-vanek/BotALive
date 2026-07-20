@@ -24,7 +24,9 @@ public enum Ambition {
     /** Chce útulný domov. */
     COZY_HOME("mít útulný domov", Set.of("house", "mine", "craft", "hunt")),
     /** Chce zbohatnout. */
-    RICH("zbohatnout", Set.of("mine", "trade", "farm", "fish", "stash")),
+    // "sell" tu dřív chybělo: „zbohatnutí" táhlo jen těžbu, tedy ražbu peněz
+    // z ničeho, a obchod se na cestě k bohatství vůbec neuplatnil.
+    RICH("zbohatnout", Set.of("mine", "trade", "farm", "fish", "stash", "sell")),
     /** Chce dobýt Nether a povýšit výbavu na netherit. */
     NETHERITE("mít netheritovou výbavu", Set.of("nether", "mine", "smelt", "craft", "smith")),
     /** Chce skolit ender draka. */

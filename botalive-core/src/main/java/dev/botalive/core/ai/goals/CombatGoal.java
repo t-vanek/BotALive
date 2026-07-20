@@ -22,6 +22,13 @@ public final class CombatGoal extends AbstractGoal {
     private int lostTargetTicks;
     /** Útočný splash se hází nejvýš jednou za souboj. */
     private boolean splashThrown;
+    /**
+     * Cíle, ke kterým se bot v tomhle souboji nedokázal dostat.
+     *
+     * <p>Bez blacklistu by si mob za zdí vybral znovu hned příští tick a bot
+     * by u něj stál dál – jen s krátkou pauzou navíc.</p>
+     */
+    private final java.util.Set<Integer> unreachableTargets = new java.util.HashSet<>();
 
     /** Vytvoří cíl. */
     public CombatGoal() {
@@ -53,6 +60,9 @@ public final class CombatGoal extends AbstractGoal {
     public void start(Bot bot) {
         lostTargetTicks = 0;
         splashThrown = false;
+        // Nový souboj = nový pokus i na dřív nedosažitelné cíle (bot se mezitím
+        // přesunul, mob slezl z římsy).
+        unreachableTargets.clear();
         equipShieldToOffhand(ctx(bot), bot);
     }
 
@@ -85,6 +95,17 @@ public final class CombatGoal extends AbstractGoal {
     public void tick(Bot bot) {
         BotContext ctx = ctx(bot);
         TrackedEntity current = ctx.combat().target();
+
+        // Nedosažitelný cíl (mob přes vodu, za zdí, na římse) se musí pustit.
+        // Dřív zůstal "platný" – byl v dosahu trackeru – takže lostTargetTicks
+        // nerostlo, finished() nenastalo a bot u něj stál, dokud ho něco
+        // nezabilo. Byl to zdaleka nejčastější zdroj nehybných botů.
+        if (current != null && ctx.combat().targetUnreachable()) {
+            unreachableTargets.add(current.entityId());
+            ctx.combat().disengage();
+            lostTargetTicks = Integer.MAX_VALUE / 2; // cíl skončí, mozek rozhodne znovu
+            return;
+        }
 
         // Ztráta cíle (zabit/despawn/utekl) → zkusit najít nový.
         boolean currentValid = current != null
@@ -189,7 +210,10 @@ public final class CombatGoal extends AbstractGoal {
     private Optional<TrackedEntity> findTarget(BotContext ctx, Bot bot) {
         double viewDistance = ctx.config().ai().viewDistanceBlocks();
         Optional<TrackedEntity> hostile = ctx.entities()
-                .nearest(ctx.position(), viewDistance, TrackedEntity::isHostile);
+                .nearby(ctx.position(), viewDistance, TrackedEntity::isHostile)
+                .stream()
+                .filter(e -> !unreachableTargets.contains(e.entityId()))
+                .findFirst();
         if (hostile.isPresent()) {
             return hostile;
         }
@@ -198,6 +222,7 @@ public final class CombatGoal extends AbstractGoal {
         return ctx.entities().nearby(ctx.position(), viewDistance,
                         e -> !e.isPlayer() && e.uuid() != null)
                 .stream()
+                .filter(e -> !unreachableTargets.contains(e.entityId()))
                 .filter(e -> recentAggressor(bot, e))
                 .findFirst();
     }

@@ -50,6 +50,7 @@ public final class BotManagerImpl implements BotManager {
     private final GoalRegistry goalRegistry;
     private final BotImpl.SharedServices services;
     private final BotNameGenerator nameGenerator;
+    private final dev.botalive.core.inventory.StarterKitService starterKit;
 
     private final Map<UUID, BotImpl> byId = new ConcurrentHashMap<>();
     private final Map<String, UUID> byName = new ConcurrentHashMap<>();
@@ -71,6 +72,7 @@ public final class BotManagerImpl implements BotManager {
         this.repository = repository;
         this.goalRegistry = goalRegistry;
         this.services = services;
+        this.starterKit = new dev.botalive.core.inventory.StarterKitService(services.bridge());
         this.nameGenerator = new BotNameGenerator(config.bots().namePool(), config.bots().nameStyle());
     }
 
@@ -193,6 +195,7 @@ public final class BotManagerImpl implements BotManager {
                     return bot.connect(host, port);
                 })
                 .thenCompose(bot -> applySpawnLocation(bot, spec))
+                .thenCompose(bot -> maybeGiveStarterKit(bot).thenApply(ignored -> bot))
                 .whenComplete((bot, error) -> {
                     if (error != null) {
                         LOG.error("Vytvoření bota '{}' selhalo: {}", spec.name(), error.getMessage());
@@ -203,6 +206,31 @@ public final class BotManagerImpl implements BotManager {
                         }
                     }
                 });
+    }
+
+    /**
+     * Předá startovní kit, pokud ho bot ještě nedostal.
+     *
+     * <p>Pořadí vůči {@code upsertBot} je zaručené: oba dotazy jdou přes tentýž
+     * jednovláknový DB executor, takže řádek už v době čtení existuje.</p>
+     *
+     * @param bot právě naspawnovaný bot
+     * @return future dokončení (kit je fire-and-forget na hlavním vlákně)
+     */
+    private CompletableFuture<Void> maybeGiveStarterKit(Bot bot) {
+        if (!config.bots().starterKit()) {
+            return CompletableFuture.completedFuture(null);
+        }
+        return repository.kitGiven(bot.id()).thenCompose(given -> {
+            if (given) {
+                return CompletableFuture.completedFuture(null);
+            }
+            starterKit.give(bot.id(), bot.role());
+            return repository.markKitGiven(bot.id());
+        }).exceptionally(error -> {
+            LOG.warn("Startovní kit pro '{}' selhal: {}", bot.name(), error.toString());
+            return null;
+        });
     }
 
     /** Přenos identity mezi fázemi async pipeline. */
@@ -226,9 +254,32 @@ public final class BotManagerImpl implements BotManager {
 
     /** Po spawnu přemístí serverového hráče-bota podle konfigurace/specu. */
     private CompletableFuture<Bot> applySpawnLocation(Bot bot, BotSpawnSpec spec) {
-        Location target = spec.spawnLocation() != null
-                ? spec.spawnLocation()
-                : configuredSpawn();
+        if (spec.spawnLocation() != null) {
+            return teleportTo(bot, spec.spawnLocation());
+        }
+        // Výpočet čte svět (výškové mapy, bloky) → MUSÍ běžet na hlavním vlákně.
+        // Dřív se volal rovnou z tick vlákna a getHighestBlockYAt si tam
+        // vynucoval synchronní načtení chunku mimo hlavní vlákno.
+        World world = spawnWorld();
+        if (world == null) {
+            return CompletableFuture.completedFuture(bot);
+        }
+        return services.bridge()
+                .callAt(new Location(world, config.spawn().x(), 64, config.spawn().z()),
+                        this::configuredSpawn)
+                .thenCompose(target -> target == null
+                        ? CompletableFuture.completedFuture(bot)
+                        : teleportTo(bot, target));
+    }
+
+    /** Svět pro spawn podle configu (prázdné = první svět serveru). */
+    private World spawnWorld() {
+        String name = config.spawn().world();
+        return name.isBlank() ? Bukkit.getWorlds().getFirst() : Bukkit.getWorld(name);
+    }
+
+    /** Přemístí bota na danou lokaci (přes vlákno entity, Folia-safe). */
+    private CompletableFuture<Bot> teleportTo(Bot bot, Location target) {
         if (target == null) {
             return CompletableFuture.completedFuture(bot);
         }
@@ -250,27 +301,82 @@ public final class BotManagerImpl implements BotManager {
                 .thenApply(result -> bot);
     }
 
-    /** Spawn lokace podle config.yml (world-spawn | fixed | random-around). */
+    /**
+     * Spawn lokace podle config.yml (world-spawn | fixed | random-around).
+     *
+     * <p>Čte výškovou mapu světa – volat jen z hlavního vlákna.</p>
+     *
+     * @return cílová lokace, nebo {@code null} když se má nechat na serveru
+     */
     private Location configuredSpawn() {
         BotAliveConfig.Spawn spawn = config.spawn();
-        World world = spawn.world().isBlank()
-                ? Bukkit.getWorlds().getFirst()
-                : Bukkit.getWorld(spawn.world());
+        World world = spawnWorld();
         if (world == null) {
             return null;
         }
         return switch (spawn.mode().toLowerCase(Locale.ROOT)) {
             case "fixed" -> new Location(world, spawn.x(), spawn.y(), spawn.z());
-            case "random-around" -> {
-                ThreadLocalRandom random = ThreadLocalRandom.current();
-                double angle = random.nextDouble(Math.PI * 2);
-                double distance = random.nextDouble(spawn.radius());
-                double x = spawn.x() + Math.cos(angle) * distance;
-                double z = spawn.z() + Math.sin(angle) * distance;
-                yield new Location(world, x, world.getHighestBlockYAt((int) x, (int) z) + 1, z);
-            }
+            case "random-around" -> scatter(world, spawn);
             default -> null; // world-spawn: nechat na serveru
         };
+    }
+
+    /**
+     * Rozptýlí bota do mezikruží kolem středu.
+     *
+     * <p>Tři věci, které dřív chyběly a kvůli kterým se boti kupili na jednom
+     * místě:</p>
+     * <ul>
+     *   <li>střed je standardně <b>spawn světa</b>, ne pevná nula z configu;</li>
+     *   <li>vzdálenost jde přes {@code sqrt} – rovnoměrné losování poloměru
+     *       sype dvě třetiny botů do vnitřní třetiny plochy (hustota ~1/r);</li>
+     *   <li>{@code min-radius} drží boty z bezprostředního okolí spawnu.</li>
+     * </ul>
+     *
+     * <p>Několik pokusů hledá souš: přistání v oceánu nebo v lávě by bota
+     * rovnou zabilo a shluklo zpátky k spawnu po respawnu.</p>
+     *
+     * @param world svět
+     * @param spawn konfigurace spawnu
+     * @return bezpečná lokace na povrchu
+     */
+    private Location scatter(World world, BotAliveConfig.Spawn spawn) {
+        Location center = spawn.aroundWorldSpawn()
+                ? world.getSpawnLocation()
+                : new Location(world, spawn.x(), spawn.y(), spawn.z());
+        ThreadLocalRandom random = ThreadLocalRandom.current();
+        int min = Math.max(0, spawn.minRadius());
+        int max = Math.max(min + 1, spawn.radius());
+        Location fallback = null;
+        for (int attempt = 0; attempt < 12; attempt++) {
+            double angle = random.nextDouble(Math.PI * 2);
+            // sqrt → rovnoměrně po PLOŠE mezikruží, ne po poloměru
+            double t = random.nextDouble();
+            double distance = Math.sqrt(min * min + t * (max * max - min * min));
+            double x = center.getX() + Math.cos(angle) * distance;
+            double z = center.getZ() + Math.sin(angle) * distance;
+            Location candidate = new Location(world,
+                    x, world.getHighestBlockYAt((int) x, (int) z) + 1, z);
+            if (fallback == null) {
+                fallback = candidate;
+            }
+            if (isSafeGround(world, candidate)) {
+                return candidate;
+            }
+        }
+        return fallback;
+    }
+
+    /** @return {@code true} když je pod nohama souš (ne voda, láva ani void) */
+    private boolean isSafeGround(World world, Location location) {
+        var below = world.getBlockAt(location.getBlockX(),
+                location.getBlockY() - 1, location.getBlockZ()).getType();
+        if (below.isAir() || !below.isSolid()) {
+            return false;
+        }
+        return below != org.bukkit.Material.LAVA && below != org.bukkit.Material.WATER
+                && below != org.bukkit.Material.MAGMA_BLOCK
+                && location.getBlockY() > world.getMinHeight() + 1;
     }
 
     @Override

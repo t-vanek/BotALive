@@ -325,6 +325,18 @@ public final class CraftPlanner {
                     Material.FLINT, 1, Material.STICK, 4, Material.FEATHER, 7), true);
         }
 
+        // ---- rybářský prut (jídlo z vody). Dřív se prut vyráběl jen v larvě
+        // "houba na prutu" pod podmínkou sedlo+houba, takže FishGoal (a s ním
+        // celá role RYBÁŘ) se nikdy nespustil – prut nebylo kde vzít.
+        // Provázek se dělí s lukem: dokud luk není, nechá se mu jeho porce.
+        if (s.hasTable() && !s.has(Material.FISHING_ROD) && s.sticks() >= 3
+                && s.count(Material.STRING) >= ((s.has(Material.BOW)
+                        || s.has(Material.CROSSBOW)) ? 2 : 5)) {
+            return new Plan("rybářský prut", matrix(
+                    Material.STICK, 2, Material.STICK, 4, Material.STRING, 5,
+                    Material.STICK, 6, Material.STRING, 8), true);
+        }
+
         // ---- výbava do Netheru (má smysl až s diamantovým krumpáčem –
         // obsidián se jiným nevytěží; křesadlo viz výše před šípy)
         if (netherPrep && s.hasTable() && s.count(Material.GOLD_INGOT) >= 6
@@ -527,6 +539,16 @@ public final class CraftPlanner {
             return new Plan("postel", matrix(
                     s.woolType(), 0, s.woolType(), 1, s.woolType(), 2,
                     plank, 3, plank, 4, plank, 5), true);
+        }
+
+        // ---- druhá truhla, až je vybavení hotové (nesmí předběhnout kovadlinu,
+        // composter ani loďku). Sýpka jich chce 2 a StashGoal jednu spotřebuje
+        // položením – s jedinou se tier MĚSTO nedal odemknout vůbec.
+        if (s.hasTable() && s.planks() >= 20 && plank != null
+                && s.count(Material.CHEST) < 2) {
+            return new Plan("truhla do zásoby", matrix(
+                    plank, 0, plank, 1, plank, 2, plank, 3, plank, 5,
+                    plank, 6, plank, 7, plank, 8), true);
         }
         return null;
     }

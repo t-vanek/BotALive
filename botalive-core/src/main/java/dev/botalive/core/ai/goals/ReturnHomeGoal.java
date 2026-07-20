@@ -19,8 +19,16 @@ import dev.botalive.core.pathfinding.PathGoal;
  */
 public final class ReturnHomeGoal extends AbstractGoal {
 
+    /** Pauza po marném pokusu dojít domů – ať dostane slovo jiný cíl. */
+    private static final int UNREACHABLE_COOLDOWN_TICKS = 600;
+
     private BlockPos home;
     private int restTicks;
+    /** Cíl už běží – drží se, dokud sám neskončí (viz {@link #utility}). */
+    private boolean active;
+    /** Bot se během běhu cíle dostal k domovu (odlišuje odpočinek od selhání). */
+    private boolean arrived;
+    private int cooldownTicks;
 
     /** Vytvoří cíl. */
     public ReturnHomeGoal() {
@@ -31,6 +39,13 @@ public final class ReturnHomeGoal extends AbstractGoal {
     public double utility(Bot bot) {
         BotContext ctx = ctx(bot);
         if (ctx.worldView() == null) {
+            return 0;
+        }
+        // Po marném pokusu chvíli nezkoušet: s hysterezí níže by se jinak cíl
+        // hned znovu vybral, bot by u nedosažitelného domova jen stál a žádný
+        // jiný cíl by se ke slovu nedostal.
+        if (cooldownTicks > 0) {
+            cooldownTicks -= ctx.config().ai().decisionIntervalTicks();
             return 0;
         }
         BlockPos pos = ctx.position().toBlockPos();
@@ -44,6 +59,16 @@ public final class ReturnHomeGoal extends AbstractGoal {
         boolean night = time >= 12000 && time <= 23500;
         double caution = bot.personality().trait(Trait.CAUTION);
 
+        // Hystereze: zapíná se na 12 blocích, ale běžící cíl se drží až do
+        // finished() (odpočinek u domova). Dřív byl zapínací i vypínací poloměr
+        // stejný, takže bot na prstenci osciloval a k domovu (3 bloky) nikdy
+        // nedošel – restTicks se neinkrementoval a finished() byl mrtvý kód.
+        if (active) {
+            if (night) {
+                return 15 + caution * 25;
+            }
+            return ctx.thundering() ? 13 + caution * 20 : 8 + caution * 15;
+        }
         if (night && distance > 12) {
             return 15 + caution * 25; // na noc domů
         }
@@ -57,8 +82,20 @@ public final class ReturnHomeGoal extends AbstractGoal {
     }
 
     @Override
+    public void stop(Bot bot) {
+        active = false;
+        // Skončili jsme, aniž bot domov viděl → cesta tam nevede (jeskyně,
+        // jiný svět, zavalený vchod). Pauza, ať se nezacyklí na místě.
+        if (!arrived) {
+            cooldownTicks = UNREACHABLE_COOLDOWN_TICKS;
+        }
+    }
+
+    @Override
     public void start(Bot bot) {
         BotContext ctx = ctx(bot);
+        active = true;
+        arrived = false;
         restTicks = 0;
         BlockPos pos = ctx.position().toBlockPos();
         home = bot.memory()
@@ -81,6 +118,7 @@ public final class ReturnHomeGoal extends AbstractGoal {
                 restTicks++; // cesta selhala – po chvíli to vzdát
             }
         } else {
+            arrived = true;
             ctx.navigator().stop();
             restTicks++;
         }

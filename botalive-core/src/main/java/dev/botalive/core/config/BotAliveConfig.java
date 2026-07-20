@@ -187,7 +187,7 @@ public record BotAliveConfig(
      */
     public record Bots(int maxCount, boolean autoSpawnEnabled, int autoSpawnCount,
                        int autoSpawnDelayS, List<String> namePool, String nameStyle,
-                       boolean randomRoles) {
+                       boolean randomRoles, boolean starterKit) {
     }
 
     /**
@@ -340,7 +340,8 @@ public record BotAliveConfig(
      * @param z      pevná souřadnice Z
      * @param radius poloměr pro random-around
      */
-    public record Spawn(String mode, String world, double x, double y, double z, int radius) {
+    public record Spawn(String mode, String world, double x, double y, double z, int radius,
+                        int minRadius, boolean aroundWorldSpawn) {
     }
 
     /**

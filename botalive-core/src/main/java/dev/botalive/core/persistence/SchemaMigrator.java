@@ -230,6 +230,14 @@ public final class SchemaMigrator {
                             last_delivery BIGINT NOT NULL DEFAULT 0
                         )
                         """
+                ),
+                // v8 – příznak, že bot už dostal startovní kit. Kit se dává jen
+                // při prvním spawnu; po smrti se neopakuje, aby smrt něco stála.
+                List.of(
+                        "ALTER TABLE ba_bots ADD COLUMN kit_given INTEGER NOT NULL DEFAULT 0",
+                        // Stávající boti kit zpětně nedostanou – už si vybavení
+                        // obstarali sami. Týká se jen nově založených řádků.
+                        "UPDATE ba_bots SET kit_given = 1"
                 )
         );
     }

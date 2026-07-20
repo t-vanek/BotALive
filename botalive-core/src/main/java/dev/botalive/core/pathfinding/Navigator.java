@@ -378,10 +378,22 @@ public final class Navigator {
         requestPath(from);
     }
 
-    /** Zásah do terénu není možný – navigaci vzdát (cíl si vybere jinak). */
-    public void assistFailed() {
+    /**
+     * Zásah do terénu není možný – navigaci vzdát (cíl si vybere jinak).
+     *
+     * <p>Backoff se musí kotvit k ŽIVÉ pozici. Dřív se sem předával
+     * {@code lastProgressPos}, který se plní jen uvnitř {@code detectStuck()},
+     * tedy pouze když bot po nějaké cestě fyzicky šel. Když A* vrátil prázdnou
+     * cestu hned napoprvé (typicky jeskynní bot s povrchovým cílem), byla
+     * kotva z minulé navigace nebo {@code Vec3.ZERO} – {@code isUnreachable()}
+     * ji pak vyhodnotil jako „bot se přesunul“, záznam zahodil a bot mlel
+     * prázdné výpočty dokola.
+     *
+     * @param from aktuální pozice bota
+     */
+    public void assistFailed(Vec3 from) {
         assistNeeded = false;
-        markUnreachable(lastProgressPos);
+        markUnreachable(from);
         stop();
     }
 
@@ -953,7 +965,12 @@ public final class Navigator {
             return false;
         }
         if (from.toBlockPos().distanceSquared(entry.origin) > UNREACHABLE_RESET_SQ) {
-            unreachable.remove(anchor.asLong());
+            // Bránu odblokovat (z jiného místa cesta existovat může), ale
+            // historii selhání NEmazat – jinak si bot ukopáním pár bloků
+            // resetoval failures na 0 a exponenciální eskalace se nikdy
+            // neuplatnila (backoff navždy na minimu = replán bouře).
+            entry.retryAt = 0;
+            entry.origin = from.toBlockPos();
             return false;
         }
         return System.currentTimeMillis() < entry.retryAt;

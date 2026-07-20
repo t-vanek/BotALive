@@ -149,7 +149,11 @@ public final class FarmGoal extends AbstractGoal {
                     ctx.stats().addMined();
                     rememberFarm(ctx, bot);
                     // Přesazení, pokud má bot osivo v hotbaru.
-                    Material seed = CROP_SEEDS.get(cropType);
+                    // cropType může být null: materialAt() ho vrací pro
+                    // nenacachovaný chunk (TTL 3 s) a CROP_SEEDS je Map.of(),
+                    // které na null klíči hodí NPE (na rozdíl od HashMap).
+                    // Bez téhle pojistky celý cíl spadl a mozek ho deaktivoval.
+                    Material seed = cropType == null ? null : CROP_SEEDS.get(cropType);
                     var snapshot = ctx.serverView().latest();
                     if (seed != null && snapshot != null
                             && snapshot.findHotbarSlot(m -> m == seed) >= 0) {

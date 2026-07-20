@@ -65,7 +65,8 @@ public final class ConfigLoader {
                 c.getInt("bots.auto-spawn.delay-seconds", 10),
                 c.getStringList("bots.name-pool"),
                 c.getString("bots.name-style", "mixed"),
-                c.getBoolean("bots.random-roles", true)
+                c.getBoolean("bots.random-roles", true),
+                c.getBoolean("bots.starter-kit", true)
         );
 
         var ai = new BotAliveConfig.Ai(
@@ -129,12 +130,14 @@ public final class ConfigLoader {
         );
 
         var spawn = new BotAliveConfig.Spawn(
-                c.getString("spawn.mode", "world-spawn"),
+                c.getString("spawn.mode", "random-around"),
                 c.getString("spawn.world", ""),
                 c.getDouble("spawn.x", 0),
                 c.getDouble("spawn.y", 64),
                 c.getDouble("spawn.z", 0),
-                c.getInt("spawn.radius", 64)
+                c.getInt("spawn.radius", 320),
+                c.getInt("spawn.min-radius", 64),
+                c.getBoolean("spawn.around-world-spawn", true)
         );
 
         var teleport = new BotAliveConfig.Teleport(

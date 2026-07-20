@@ -97,6 +97,13 @@ bots:
   # lovec, kovář, enchanter, obchodník, rybář, farmář). Role násobí priority
   # souvisejících činností; /botalive role ji umí kdykoli změnit.
   random-roles: true
+  # Startovní výbava při PRVNÍM spawnu bota (po smrti se neopakuje).
+  # Základ pro všechny: kamenné nástroje, 16 chleba, 64 dlažebek, 16 pochodní,
+  # verpánek. Podle role navíc to, co jí odemyká vlastní práci – rybář prut,
+  # farmář osivo a motyku, obchodník smaragdy, lovec luk se šípy atd.
+  # Bez kitu se boti na čerstvém světě zacyklí v boji o přežití: nemají z čeho
+  # postavit ani nouzový úkryt a v noci umírají dokola.
+  starter-kit: true
   auto-spawn:
     enabled: false
     count: 3
@@ -229,13 +236,22 @@ worlds:
   blacklist: []
 
 spawn:
-  # world-spawn = nechá spawn na serveru | fixed = pevná pozice | random-around = náhodně kolem bodu
-  mode: world-spawn
+  # world-spawn = nechá spawn na serveru | fixed = pevná pozice | random-around = rozptyl
+  # Výchozí je random-around: s world-spawn se všichni boti objeví na jednom
+  # bodě, drží se pohromadě a založí jedinou osadu přímo na spawnu.
+  mode: random-around
   world: ""
   x: 0
   y: 64
   z: 0
-  radius: 64
+  # Vnější poloměr rozptylu (bloky). Boti se losují rovnoměrně po PLOŠE
+  # mezikruží, ne po poloměru – jinak by se dvě třetiny sesypaly doprostřed.
+  radius: 320
+  # Vnitřní poloměr – drží boty z bezprostředního okolí spawnu, ať hráči
+  # nevznikne osada na hlavě.
+  min-radius: 64
+  # true = střed rozptylu je spawn světa; false = souřadnice x/z výše.
+  around-world-spawn: true
 
 pvp:
   # PvP botů. Vypnuto = boti hráče ani jiné boty nikdy nenapadají (PvE zůstává).

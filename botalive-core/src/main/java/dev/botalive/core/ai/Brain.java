@@ -35,6 +35,8 @@ public final class Brain {
     /** Volatile: čtou je i cizí vlákna (příkazy, snapshoty). */
     private volatile Goal current;
     private volatile String forcedGoalId;
+    /** Ticky od vynucení cíle – jen pro diagnostický log při jeho ukončení. */
+    private int forcedGoalTicks;
     private int ticksToDecision;
 
     /**
@@ -106,6 +108,7 @@ public final class Brain {
         boolean exists = goals.stream().anyMatch(g -> g.id().equals(goalId));
         if (exists) {
             forcedGoalId = goalId;
+            forcedGoalTicks = 0;
             ticksToDecision = 0;
         }
         return exists;
@@ -130,6 +133,9 @@ public final class Brain {
      * Jeden tick mozku – případné přerozhodnutí + tick aktivního cíle.
      */
     public void tick() {
+        if (forcedGoalId != null) {
+            forcedGoalTicks++;
+        }
         if (--ticksToDecision <= 0) {
             ticksToDecision = decisionInterval;
             decide();
@@ -142,6 +148,12 @@ public final class Brain {
                     // Vynucení uvolnit HNED: decide() by jinak viděl current == null
                     // a vynucený (už hotový) cíl donekonečna restartoval.
                     if (goal.id().equals(forcedGoalId)) {
+                        // Bez tohohle logu nešlo rozeznat „cíl se vůbec nespustil"
+                        // od „spustil se a hned se vzdal" – operátor viděl jen
+                        // hlášku „cíl vynucen" a pak už nic.
+                        LOG.info("[{}] Vynucený cíl '{}' skončil po {} ticích"
+                                + " – rozhodování se vrací mozku",
+                                bot.name(), goal.id(), forcedGoalTicks);
                         forcedGoalId = null;
                     }
                     switchTo(null);
