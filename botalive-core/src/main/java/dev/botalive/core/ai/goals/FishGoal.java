@@ -63,7 +63,7 @@ public final class FishGoal extends AbstractGoal {
             return 0;
         }
         var snapshot = ctx.serverView().latest();
-        if (snapshot == null || snapshot.findHotbarSlot(m -> m == Material.FISHING_ROD) < 0) {
+        if (snapshot == null || !snapshot.hasItem(m -> m == Material.FISHING_ROD)) {
             return 0;
         }
         if (nearestOpenWater(ctx) == null) {
@@ -118,13 +118,12 @@ public final class FishGoal extends AbstractGoal {
             }
             case CAST -> {
                 var snapshot = ctx.serverView().latest();
-                int slot = snapshot == null ? -1
-                        : snapshot.findHotbarSlot(m -> m == Material.FISHING_ROD);
-                if (slot < 0) {
+                // equipItem prut v případě potřeby vytáhne z inventáře do hotbaru
+                // (dřív se hledal jen v hotbaru – po nakraftění tam být nemusí).
+                if (!ctx.inventory().equipItem(snapshot, Material.FISHING_ROD)) {
                     finish(ctx, bot, 1200);
                     return;
                 }
-                ctx.actions().selectHotbar(slot);
                 // Zamířit kus za vodní blok, ať splávek dopadne do vody.
                 ctx.humanizer().lookAt(ctx.position().add(0, 1.62, 0),
                         water.center().add(0, 0.9, 0));

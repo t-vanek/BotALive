@@ -37,8 +37,15 @@ public final class SellGoal extends AbstractGoal {
     private record Sale(Material material, int count, double price) {
     }
 
-    /** Kolik ticků má bot-kupec na dojití a předávku. */
-    private static final int BOT_HANDOVER_TICKS = 700;
+    /**
+     * Kolik ticků má bot-kupec na dojití a předávku.
+     *
+     * <p>MUSÍ být větší než cestovní rozpočet kupce ({@code BuyGoal}: 900) –
+     * jinak prodejce stáhne nabídku dřív, než kupec vůbec dojde, a každý obchod
+     * na vzdálenost přes ~35 s cesty systematicky selhal. Zároveň se musí vejít
+     * pod {@code MarketBoard.DEAL_TTL_MS} (90 s = 1800 ticků).
+     */
+    private static final int BOT_HANDOVER_TICKS = 1000;
     /** Hráč potřebuje čas dojít a napsat /pay (~90 s). */
     private static final int PLAYER_HANDOVER_TICKS = 1800;
 
@@ -101,7 +108,12 @@ public final class SellGoal extends AbstractGoal {
             return 0;
         }
         double greed = bot.personality().trait(Trait.GREED);
-        return 4 + greed * 9;
+        // Musí být v pásmu stash (8 + greed*10 + zaplněnost*1.5, až ~29):
+        // obojí se spouští na TÉŽE podmínce (přebytek v inventáři), takže se
+        // starým základem 4 + greed*9 (max 13) prodej nikdy nevyhrál – bot
+        // přebytek vždy uložil do truhly, nabídka na trhu nevznikla a s ní ani
+        // poptávka (BuyGoal nemá co koupit). Trh proto stál úplně.
+        return 10 + greed * 14;
     }
 
     @Override
