@@ -1,6 +1,7 @@
 # Složitější stavby: stavební engine v2
 
-Návrh a fázový plán. Navazuje na fáze 13–15 (vesnice, parcely, údržba
+Návrh a fázový plán; prováděcí rozpad je v `COMPLEX_BUILDS_IMPL.md`.
+Navazuje na fáze 13–15 (vesnice, parcely, údržba
 domu) a na `SETTLEMENTS_GROWTH.md`, jehož „Vědomé meze" (hradby, radnice,
 větší budovy) tímto přestávají být mezemi. Drží DNA projektu: **každé
 jádro rozhodování je čistá, jednotkově testovatelná funkce**, **fyzický
