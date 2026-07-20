@@ -22,8 +22,8 @@ import dev.botalive.core.world.BlockTraits;
  */
 public final class BridgeTask implements BotTask {
 
-    /** Nejvýš tolik položených segmentů (šířka překonatelné překážky). */
-    private static final int MAX_SEGMENTS = 12;
+    /** Výchozí strop položených segmentů (šířka překonatelné překážky). */
+    public static final int DEFAULT_MAX_SEGMENTS = 12;
     /** Tvrdý časový strop celého mostu (ticky) – pojistka proti zacyklení. */
     private static final int BUDGET_TICKS = 1200;
     /** Tolerance dosažení středu segmentu při přechodu (bloky, vodorovně). */
@@ -33,6 +33,7 @@ public final class BridgeTask implements BotTask {
 
     private final int sx;
     private final int sz;
+    private final int maxSegments;
 
     private Phase phase = Phase.PLAN;
     private PlaceBlockTask placing;
@@ -43,12 +44,28 @@ public final class BridgeTask implements BotTask {
     private boolean succeeded;
 
     /**
+     * Most s výchozím stropem {@value #DEFAULT_MAX_SEGMENTS} segmentů.
+     *
      * @param sx krok mostu po ose X (-1/0/1); právě jedna osa nenulová
      * @param sz krok mostu po ose Z (-1/0/1)
      */
     public BridgeTask(int sx, int sz) {
+        this(sx, sz, DEFAULT_MAX_SEGMENTS);
+    }
+
+    /**
+     * Most s vlastním stropem: delší lávové mosty povoluje konfigurace
+     * ({@code nether.lava-bridge-limit}), void lávky k end city dostávají
+     * vyšší strop od {@code EndOuterGoal} (end stone je zadarmo).
+     *
+     * @param sx          krok mostu po ose X (-1/0/1); právě jedna osa nenulová
+     * @param sz          krok mostu po ose Z (-1/0/1)
+     * @param maxSegments strop položených segmentů
+     */
+    public BridgeTask(int sx, int sz, int maxSegments) {
         this.sx = sx;
         this.sz = sz;
+        this.maxSegments = Math.max(1, maxSegments);
     }
 
     /** @return {@code true} pokud most došel na pevný břeh */
@@ -82,7 +99,7 @@ public final class BridgeTask implements BotTask {
                     phase = Phase.DONE;
                     return true;
                 }
-                if (segments >= MAX_SEGMENTS) {
+                if (segments >= maxSegments) {
                     phase = Phase.DONE;
                     return true;
                 }

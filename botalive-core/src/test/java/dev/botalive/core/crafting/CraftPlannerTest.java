@@ -388,6 +388,83 @@ class CraftPlannerTest {
     }
 
     @Test
+    void striderskyRetezHoubaNaPrutu() {
+        // Sedlo + houba bez prutu: nejdřív rybářský prut (string jinak
+        // patří luku – ten už fullKit má).
+        CraftPlanner.Plan rod = CraftPlanner.next(plus(fullKit(),
+                Material.SADDLE, 1, Material.WARPED_FUNGUS, 1, Material.STRING, 2));
+        assertEquals("rybářský prut", rod.id());
+        // S prutem po ruce: houba na prutu (2×2, bez ponku).
+        CraftPlanner.Plan steering = CraftPlanner.next(plus(fullKit(),
+                Material.SADDLE, 1, Material.WARPED_FUNGUS, 1,
+                Material.FISHING_ROD, 1));
+        assertEquals("houba na prutu", steering.id());
+        assertFalse(steering.needsTable());
+        // Bez sedla nemá řízení stridera smysl.
+        CraftPlanner.Plan noSaddle = CraftPlanner.next(plus(fullKit(),
+                Material.WARPED_FUNGUS, 1, Material.FISHING_ROD, 1));
+        assertTrue(noSaddle == null || !"houba na prutu".equals(noSaddle.id()));
+    }
+
+    @Test
+    void vareniAKotvaRespawnu() {
+        // Stojan: bradavice (je co vařit) + blaze rod + kámen.
+        CraftPlanner.Plan stand = CraftPlanner.next(plus(fullKit(),
+                Material.NETHER_WART, 3, Material.BLAZE_ROD, 1));
+        assertEquals("varný stojan", stand.id());
+        // Bez bradavice se stojan nestaví (rod zůstává vcelku – oči Enderu).
+        CraftPlanner.Plan noWart = CraftPlanner.next(plus(fullKit(),
+                Material.BLAZE_ROD, 1));
+        assertTrue(noWart == null || !"varný stojan".equals(noWart.id()));
+        // Lahve ze skla, jakmile stojí stojan.
+        CraftPlanner.Plan bottles = CraftPlanner.next(plus(fullKit(),
+                Material.BREWING_STAND, 1, Material.GLASS, 3));
+        assertEquals("skleněné lahve", bottles.id());
+        // Palivo: stojan + bradavice bez prachu → mele se jeden rod.
+        CraftPlanner.Plan fuel = CraftPlanner.next(plus(fullKit(),
+                Material.BREWING_STAND, 1, Material.NETHER_WART, 2,
+                Material.BLAZE_ROD, 1));
+        assertEquals("blaze prach (palivo)", fuel.id());
+
+        // Kotva respawnu: nejdřív glowstone z prachu, pak kotva samotná.
+        CraftPlanner.Plan glow = CraftPlanner.next(plus(fullKit(),
+                Material.CRYING_OBSIDIAN, 6, Material.GLOWSTONE_DUST, 8));
+        assertEquals("glowstone", glow.id());
+        CraftPlanner.Plan anchor = CraftPlanner.next(plus(fullKit(),
+                Material.CRYING_OBSIDIAN, 6, Material.GLOWSTONE, 4));
+        assertEquals("kotva respawnu", anchor.id());
+        assertEquals(6, anchor.ingredients().get(Material.CRYING_OBSIDIAN));
+        assertEquals(3, anchor.ingredients().get(Material.GLOWSTONE));
+    }
+
+    @Test
+    void raketyAShulkerBox() {
+        // Rakety jen s elytrami (papír + střelný prach, 2×2).
+        CraftPlanner.Plan rockets = CraftPlanner.next(plus(fullKit(),
+                Material.ELYTRA, 1, Material.PAPER, 2, Material.GUNPOWDER, 3));
+        assertEquals("rakety", rockets.id());
+        assertFalse(rockets.needsTable());
+        // Bez elytr rakety nemají co pohánět.
+        CraftPlanner.Plan noWings = CraftPlanner.next(plus(fullKit(),
+                Material.PAPER, 2, Material.GUNPOWDER, 3));
+        assertTrue(noWings == null || !"rakety".equals(noWings.id()));
+        // Papír z třtiny, když chybí (rakety čekají na prach i papír).
+        CraftPlanner.Plan paper = CraftPlanner.next(plus(fullKit(),
+                Material.ELYTRA, 1, Material.SUGAR_CANE, 6, Material.GUNPOWDER, 3));
+        assertEquals("papír", paper.id());
+
+        // Shulker box: 2 ulity + truhla (tu fullKit má).
+        CraftPlanner.Plan box = CraftPlanner.next(plus(fullKit(),
+                Material.SHULKER_SHELL, 2));
+        assertEquals("shulker box", box.id());
+        assertEquals(2, box.ingredients().get(Material.SHULKER_SHELL));
+        // Jedna ulita nestačí.
+        CraftPlanner.Plan oneShell = CraftPlanner.next(plus(fullKit(),
+                Material.SHULKER_SHELL, 1));
+        assertTrue(oneShell == null || !"shulker box".equals(oneShell.id()));
+    }
+
+    @Test
     void vsechnyPlanyMajiValidniMatice() {
         // Sanity: každý plán z progrese má neprázdnou matici a ingredience.
         CraftPlanner.Plan plan = CraftPlanner.next(state(Material.OAK_LOG, 3));

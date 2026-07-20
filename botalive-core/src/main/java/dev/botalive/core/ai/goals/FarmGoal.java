@@ -23,6 +23,11 @@ import dev.botalive.core.pathfinding.PathGoal;
  * v hotbaru osivo, znovu je zasadí (UseItemOn na farmland – stejný paket jako
  * hráč s pravým klikem). Nalezené pole si pamatuje jako
  * {@link MemoryKind#FARM} a vrací se k němu.</p>
+ *
+ * <p>Vedle klasických plodin zvládá i <b>netherovou bradavici</b> (roste na
+ * soul sandu i v overworldu – záhon si bot založí sám z netherové kořisti,
+ * vaření lektvarů tak nezávisí na pevnostech) a <b>cukrovou třtinu</b>
+ * (sklízí se druhý článek, základ dorůstá; třtina = papír = rakety).</p>
  */
 public final class FarmGoal extends AbstractGoal {
 
@@ -31,10 +36,14 @@ public final class FarmGoal extends AbstractGoal {
             Material.WHEAT, Material.WHEAT_SEEDS,
             Material.CARROTS, Material.CARROT,
             Material.POTATOES, Material.POTATO,
-            Material.BEETROOTS, Material.BEETROOT_SEEDS
+            Material.BEETROOTS, Material.BEETROOT_SEEDS,
+            Material.NETHER_WART, Material.NETHER_WART
     );
 
-    private enum Phase { FIND, GO, HARVEST, REPLANT, DONE }
+    /** Velikost zakládaného záhonu bradavice (bloky soul sandu). */
+    private static final int WART_BED_SIZE = 3;
+
+    private enum Phase { FIND, GO, HARVEST, REPLANT, BED_PLACE, BED_PLANT, DONE }
 
     private Phase phase = Phase.FIND;
     private BlockPos crop;
@@ -45,6 +54,10 @@ public final class FarmGoal extends AbstractGoal {
     private int replantTicks;
     private int cooldownTicks;
     private int harvested;
+    /** Zakládání záhonu bradavice: kam přijde soul sand / sadba. */
+    private final java.util.ArrayDeque<BlockPos> bedQueue = new java.util.ArrayDeque<>();
+    private dev.botalive.core.tasks.PlaceBlockTask bedTask;
+    private int bedTicks;
 
     /** Vytvoří cíl. */
     public FarmGoal() {
@@ -91,6 +104,9 @@ public final class FarmGoal extends AbstractGoal {
             case FIND -> {
                 crops = findMatureCrops(ctx);
                 if (crops.isEmpty()) {
+                    if (startWartBed(ctx, bot)) {
+                        return; // z netherové kořisti se zakládá záhon
+                    }
                     cooldownTicks = 900; // v okolí nic zralého
                     phase = Phase.DONE;
                     return;
@@ -154,10 +170,152 @@ public final class FarmGoal extends AbstractGoal {
                     phase = Phase.FIND;
                 }
             }
+            case BED_PLACE -> tickBedPlace(ctx);
+            case BED_PLANT -> tickBedPlant(ctx, bot);
             case DONE -> {
                 // finished() ukončí
             }
         }
+    }
+
+    /**
+     * Založení záhonu bradavice: bot s netherovou kořistí (soul sand
+     * + bradavice navíc) položí u domova/pole řádek soul sandu a osází ho.
+     * Vaření lektvarů tak přestává záviset na návratech do pevnosti.
+     *
+     * @return {@code true} pokud se záhon začal zakládat
+     */
+    private boolean startWartBed(BotContext ctx, dev.botalive.api.bot.Bot bot) {
+        var snapshot = ctx.serverView().latest();
+        if (snapshot == null || !ctx.config().nether().brewing()
+                || dev.botalive.core.inventory.InventoryHelper.countItem(
+                        snapshot, Material.SOUL_SAND) < WART_BED_SIZE
+                || dev.botalive.core.inventory.InventoryHelper.countItem(
+                        snapshot, Material.NETHER_WART) < WART_BED_SIZE + 1) {
+            return false;
+        }
+        // Záhon patří k zázemí – zakládá se jen u domova nebo známého pole.
+        BlockPos feet = ctx.position().toBlockPos();
+        boolean nearBase = ctx.worldView() != null && (bot.memory()
+                .recallNearest(MemoryKind.HOME, ctx.worldView().worldName(),
+                        feet.x(), feet.y(), feet.z())
+                .map(r -> r.distanceSquared(feet.x(), feet.y(), feet.z()) < 32 * 32)
+                .orElse(false)
+                || bot.memory().recallNearest(MemoryKind.FARM, ctx.worldView().worldName(),
+                        feet.x(), feet.y(), feet.z())
+                .map(r -> r.distanceSquared(feet.x(), feet.y(), feet.z()) < 32 * 32)
+                .orElse(false));
+        if (!nearBase) {
+            return false;
+        }
+        // Řádek volných buněk s pevnou podlahou vedle bota (žádná chůze –
+        // do dosahu pokládky se vejde řádek hned za zády).
+        bedQueue.clear();
+        int[][] dirs = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}};
+        for (int[] d : dirs) {
+            bedQueue.clear();
+            for (int i = 1; i <= WART_BED_SIZE; i++) {
+                BlockPos cell = feet.offset(d[0] * 2, 0, d[1] * 2)
+                        .offset(d[1] * (i - 2), 0, d[0] * (i - 2));
+                if (ctx.worldView().traitsAt(cell).passable()
+                        && ctx.worldView().traitsAt(cell.up()).passable()
+                        && ctx.worldView().traitsAt(cell.down()).solid()) {
+                    bedQueue.add(cell);
+                }
+            }
+            if (bedQueue.size() == WART_BED_SIZE) {
+                break;
+            }
+        }
+        if (bedQueue.size() < WART_BED_SIZE) {
+            bedQueue.clear();
+            return false;
+        }
+        bedTask = null;
+        phase = Phase.BED_PLACE;
+        return true;
+    }
+
+    /** Pokládka soul sandu záhonu (PlaceBlockTask po buňkách). */
+    private void tickBedPlace(BotContext ctx) {
+        if (bedTask != null) {
+            if (bedTask.tick(ctx)) {
+                bedTask = null;
+            }
+            return;
+        }
+        BlockPos next = bedQueue.poll();
+        if (next == null) {
+            // Sand položený – najít ho ve světě a osázet.
+            collectBedForPlanting(ctx);
+            bedTicks = 0;
+            phase = Phase.BED_PLANT;
+            return;
+        }
+        var snapshot = ctx.serverView().latest();
+        if (snapshot == null
+                || !ctx.inventory().equipItem(snapshot, Material.SOUL_SAND)) {
+            phase = Phase.FIND; // sand došel/nejde vzít – záhon jindy
+            bedQueue.clear();
+            return;
+        }
+        bedTask = new dev.botalive.core.tasks.PlaceBlockTask(next);
+    }
+
+    /** Najde čerstvě položený soul sand kolem bota pro osázení. */
+    private void collectBedForPlanting(BotContext ctx) {
+        bedQueue.clear();
+        BlockPos feet = ctx.position().toBlockPos();
+        for (int dx = -4; dx <= 4; dx++) {
+            for (int dy = -1; dy <= 1; dy++) {
+                for (int dz = -4; dz <= 4; dz++) {
+                    BlockPos pos = feet.offset(dx, dy, dz);
+                    if (ctx.worldView().materialAt(pos) == Material.SOUL_SAND
+                            && ctx.worldView().traitsAt(pos.up()).passable()) {
+                        bedQueue.add(pos);
+                    }
+                }
+            }
+        }
+    }
+
+    /** Sázení bradavice na položený soul sand (use na horní plochu). */
+    private void tickBedPlant(BotContext ctx, dev.botalive.api.bot.Bot bot) {
+        if (--bedTicks > 0) {
+            return;
+        }
+        BlockPos sand = bedQueue.poll();
+        if (sand == null) {
+            BlockPos feet = ctx.position().toBlockPos();
+            if (ctx.worldView() != null) {
+                bot.memory().remember(MemoryKind.FARM, ctx.worldView().worldName(),
+                        feet.x(), feet.y(), feet.z(), null,
+                        Map.of("crop", Material.NETHER_WART.name()), 0.7);
+            }
+            if (ctx.rng().chance(0.6)) {
+                ctx.chat().say("zahonek bradavice, at nemusim porad do pekla");
+            }
+            cooldownTicks = 900;
+            phase = Phase.DONE;
+            return;
+        }
+        var snapshot = ctx.serverView().latest();
+        int seed = snapshot == null ? -1
+                : snapshot.findHotbarSlot(m -> m == Material.NETHER_WART);
+        if (seed < 0) {
+            if (snapshot != null) {
+                ctx.inventory().equipItem(snapshot, Material.NETHER_WART);
+            }
+            bedTicks = 4;
+            bedQueue.addFirst(sand);
+            return;
+        }
+        ctx.actions().selectHotbar(seed);
+        ctx.humanizer().lookAt(ctx.position().add(0, 1.62, 0),
+                sand.center().add(0, 0.5, 0));
+        ctx.actions().useItemOn(sand, Direction.UP);
+        ctx.stats().addPlaced();
+        bedTicks = ctx.rng().rangeInt(5, 10);
     }
 
     @Override
@@ -166,6 +324,11 @@ public final class FarmGoal extends AbstractGoal {
             harvestTask.cancel(ctx(bot));
             harvestTask = null;
         }
+        if (bedTask != null) {
+            bedTask.cancel(ctx(bot));
+            bedTask = null;
+        }
+        bedQueue.clear();
         super.stop(bot);
     }
 
@@ -201,6 +364,16 @@ public final class FarmGoal extends AbstractGoal {
                 for (int dz = -radius; dz <= radius; dz++) {
                     BlockPos pos = center.offset(dx, dy, dz);
                     Material material = world.materialAt(pos);
+                    if (material == Material.SUGAR_CANE) {
+                        // Třtina: sklízí se druhý článek (základ zůstává
+                        // a dorůstá) – papír je základ raket na elytry.
+                        if (world.materialAt(pos.down()) == Material.SUGAR_CANE
+                                && world.materialAt(pos.down().down())
+                                        != Material.SUGAR_CANE) {
+                            found.add(pos);
+                        }
+                        continue;
+                    }
                     if (material == null || !CROP_SEEDS.containsKey(material)) {
                         continue;
                     }

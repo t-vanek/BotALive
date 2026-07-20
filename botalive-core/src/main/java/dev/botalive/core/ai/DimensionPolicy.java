@@ -51,7 +51,9 @@ public final class DimensionPolicy {
             Map.entry("smith", 0.0),      // kovářský stůl do Endu nepatří
             Map.entry("war-raid", 0.0),   // vesnice (a jejich války) jsou doma
             Map.entry("bodyguard", 0.0),  // zaměstnání je záležitost overworldu
-            Map.entry("deliver-work", 0.0)
+            Map.entry("deliver-work", 0.0),
+            Map.entry("brew", 0.0),       // stojan a voda na lahve jsou doma
+            Map.entry("wither-fight", 0.0) // oltář se staví v Netheru
     );
 
     /**
@@ -81,15 +83,17 @@ public final class DimensionPolicy {
             Map.entry("war-raid", 0.0),
             Map.entry("bodyguard", 0.0),
             Map.entry("deliver-work", 0.0),
-            Map.entry("end-outer", 0.0)
+            Map.entry("end-outer", 0.0),
+            Map.entry("brew", 0.0)        // lahve se plní u vody – doma
     );
 
-    /** Cíle, které mají smysl jen v Endu. */
+    /** Cíle, které mají smysl jen v Endu (a wither jen v Netheru). */
     private static final Map<String, Double> OVERWORLD = Map.of(
             "dragon-fight", 0.0,
             "end-harvest", 0.0,
             "end-return", 0.0,
-            "end-outer", 0.0
+            "end-outer", 0.0,
+            "wither-fight", 0.0
     );
 
     private DimensionPolicy() {

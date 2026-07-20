@@ -151,6 +151,16 @@ public enum PhraseCategory {
     ELYTRA_FOUND,
     /** Návrat z vnějších ostrovů na hlavní ostrov. */
     END_OUTER_RETURN,
+    /** Raketový přelet voidu k end city (start letu). */
+    END_FLIGHT,
+    /** Nasednutí na osedlaného stridera (přejezd lávového oceánu). */
+    STRIDER_RIDE,
+    /** Dovařená seance lektvarů (spokojenost alchymisty). */
+    BREW_DONE,
+    /** Stavba oltáře witheru (odhodlání před vyvoláním bosse). */
+    WITHER_SUMMON,
+    /** Oslava skolení withera (nether star!). */
+    WITHER_SLAIN,
     /** Najatý bot si říká o mzdu předem ({name} = cena). */
     HIRE_PAY_REQUEST,
     /** Bot přijímá práci ({name} = zaměstnavatel). */

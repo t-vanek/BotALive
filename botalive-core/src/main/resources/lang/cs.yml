@@ -504,6 +504,31 @@ phrases:
     - "zpátky na hlavním ostrově, kapsy plné pokladů z end city"
     - "vnější ostrovy pokořeny. Teď už jen domů"
     - "přežil jsem shulkery i void – a nesu si křídla!"
+  end-flight:
+    - "rakety v kapse, křídla na zádech – přes void letím!"
+    - "tak se ukažte, elytry. Do end city vzduchem!"
+    - "startuju! Kdo nikdy neletěl přes void, nežil"
+    - "tři, dva, jedna... a letím jak ohňostroj"
+  strider-ride:
+    - "no tak, kamaráde, převez mě přes tu lávu"
+    - "jedu na striderovi! Kdo to kdy viděl, po lávě suchou nohou"
+    - "hyjé! Přes lávový oceán jak po silnici"
+    - "strider pode mnou ani nemrkne. Láva? Jaká láva"
+  brew-done:
+    - "lektvary dovařené, láhve cinkají v batohu"
+    - "alchymie hotova – tohle se v pekle bude hodit"
+    - "stojan dobublal, dneska vařím jak lektvarník z knížky"
+    - "bublalo to, smrdělo to, ale výsledek stojí za to"
+  wither-summon:
+    - "tři lebky, čtyři soul sandy... jestli tohle přežiju, jsem legenda"
+    - "stavím oltář witheru. Modlete se za mě"
+    - "dneska buď padne wither, nebo já. Sázky přijímám"
+    - "poslední lebka a začne peklo v pekle"
+  wither-slain:
+    - "WITHER JE MRTVÝ! Nether star je můj!!"
+    - "skolil jsem withera! Já! Vlastníma rukama!"
+    - "boss padl. Nether star do kapsy a klobouk dolů přede mnou"
+    - "tak tohle nikomu vyprávět nebudu, stejně by mi to nevěřili"
   war-declared:
     - "dost bylo křivd! Vyhlašujeme válku vesnici {name}!"
     - "trpělivost došla – {name} si o válku koledovala dost dlouho"

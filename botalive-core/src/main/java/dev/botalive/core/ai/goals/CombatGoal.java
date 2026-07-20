@@ -137,7 +137,7 @@ public final class CombatGoal extends AbstractGoal {
      * balistika je hrubá (mírné nadhození dle vzdálenosti), AoE odpustí.
      */
     private void maybeThrowSplash(BotContext ctx) {
-        if (splashThrown) {
+        if (splashThrown || !ctx.config().combat().splashPotions()) {
             return;
         }
         TrackedEntity target = ctx.combat().target();

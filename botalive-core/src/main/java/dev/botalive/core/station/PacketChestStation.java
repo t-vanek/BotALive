@@ -106,4 +106,38 @@ public final class PacketChestStation implements ChestStation {
             return moved;
         });
     }
+
+    @Override
+    public CompletableFuture<Integer> depositLoot(BotContext ctx, String worldName,
+                                                  BlockPos chestPos) {
+        return StationFlow.run("haul-" + ctx.bot().name(), 0, () -> {
+            ItemMapper mapper = ctx.itemMapper();
+            if (mapper == null) {
+                return 0;
+            }
+            ContainerView view = StationFlow.awaitWindow(ctx,
+                    v -> v.containerSlots() > 0 && v.type() != ContainerType.MERCHANT, 3_000);
+            if (view == null) {
+                return 0;
+            }
+            int moved = 0;
+            for (int slot = Windows.playerStart(view); slot < view.totalSlots(); slot++) {
+                Material material = Windows.materialAt(view, mapper, slot);
+                if (material == null || !ContainerService.isHaul(material)) {
+                    continue;
+                }
+                int before = Windows.amountAt(view, slot);
+                ctx.clicker().shiftClick(view.containerId(), slot);
+                StationFlow.humanPause();
+                final int slotIndex = slot;
+                StationFlow.await(() -> Windows.amountAt(view, slotIndex) != before, 600);
+                int after = Windows.amountAt(view, slot);
+                moved += Math.max(0, before - after);
+                if (after == before) {
+                    break; // box je plný – server klik nepřijal
+                }
+            }
+            return moved;
+        });
+    }
 }

@@ -89,7 +89,8 @@ public final class ConfigLoader {
                 c.getInt("combat.reaction-min-ms", 150),
                 c.getInt("combat.reaction-max-ms", 450),
                 c.getBoolean("combat.strafing", true),
-                c.getBoolean("combat.shield-use", true)
+                c.getBoolean("combat.shield-use", true),
+                c.getBoolean("combat.splash-potions", true)
         );
 
         var employment = new BotAliveConfig.Employment(
@@ -177,12 +178,23 @@ public final class ConfigLoader {
                 war
         );
 
+        var wither = new BotAliveConfig.Wither(
+                c.getBoolean("nether.wither.enabled", false),
+                Math.min(1, Math.max(0, c.getDouble("nether.wither.min-courage", 0.75))),
+                Math.max(3, c.getInt("nether.wither.max-fight-minutes", 12))
+        );
+
         var nether = new BotAliveConfig.Nether(
                 c.getBoolean("nether.enabled", true),
                 c.getBoolean("nether.build-portals", true),
                 c.getBoolean("nether.barter", true),
                 Math.max(3, c.getInt("nether.max-trip-minutes", 20)),
-                Math.min(5, Math.max(3, c.getInt("nether.min-gear-tier", 4)))
+                Math.min(5, Math.max(3, c.getInt("nether.min-gear-tier", 4))),
+                c.getBoolean("nether.striders", true),
+                c.getBoolean("nether.brewing", true),
+                c.getBoolean("nether.respawn-anchor", true),
+                Math.min(64, Math.max(4, c.getInt("nether.lava-bridge-limit", 12))),
+                wither
         );
 
         var endOuter = new BotAliveConfig.Outer(
@@ -191,7 +203,10 @@ public final class ConfigLoader {
                 c.getBoolean("end.outer.locate-assist", true),
                 Math.max(1, c.getInt("end.outer.pearl-reserve", 2)),
                 Math.max(64, c.getInt("end.outer.max-city-distance", 400)),
-                c.getBoolean("end.outer.elytra", true)
+                c.getBoolean("end.outer.elytra", true),
+                c.getBoolean("end.outer.rockets", true),
+                c.getBoolean("end.outer.void-bridge", true),
+                c.getBoolean("end.outer.shulker-boxes", true)
         );
 
         var end = new BotAliveConfig.End(

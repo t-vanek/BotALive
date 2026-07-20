@@ -14,6 +14,14 @@ import java.util.concurrent.atomic.AtomicReference;
  */
 public final class TrackedEntity {
 
+    /**
+     * Index položky „peek" v metadatech shulkera (base entita 0–7, living
+     * 8–14, mob 15, shulker: 16 = strana přichycení, <b>17 = peek</b>,
+     * 18 = barva). Verze indexů je vázaná na protokol zabudované
+     * MCProtocolLib – stejná úmluva jako u všech paketů.
+     */
+    private static final int SHULKER_PEEK_INDEX = 17;
+
     private final int entityId;
     private final UUID uuid;
     private final EntityType type;
@@ -24,6 +32,9 @@ public final class TrackedEntity {
     private volatile float yaw;
     private volatile float pitch;
     private volatile long lastUpdateMs;
+
+    /** Shulker: vysunutí z krunýře 0–100 z entity metadat (-1 = neznámé). */
+    private volatile int shulkerPeek = -1;
 
     /**
      * @param entityId síťové id entity
@@ -211,5 +222,31 @@ public final class TrackedEntity {
     /** @return {@code true} pokud jde o shulkera */
     public boolean isShulker() {
         return type == EntityType.SHULKER;
+    }
+
+    /**
+     * Aplikuje položku entity metadat (SetEntityData paket, síťové vlákno).
+     * Parsuje se jen to, co bot skutečně používá: u shulkera stav krunýře
+     * („peek") – zbytek metadat se záměrně ignoruje.
+     *
+     * @param id    index položky metadat
+     * @param value hodnota položky
+     */
+    public void applyMetadata(int id, Object value) {
+        if (type == EntityType.SHULKER && id == SHULKER_PEEK_INDEX
+                && value instanceof Byte peek) {
+            shulkerPeek = peek & 0xFF;
+        }
+    }
+
+    /**
+     * Zavřený shulker má pancíř krunýře (+20) a šípy odráží – útočit má smysl
+     * až na otevřený (střílet ostatně musí s otevřeným krunýřem sám). Bez
+     * známých metadat (-1) se vrací {@code false} – bot se chová postaru.
+     *
+     * @return {@code true} pokud je shulker prokazatelně zavřený v krunýři
+     */
+    public boolean shulkerClosed() {
+        return type == EntityType.SHULKER && shulkerPeek == 0;
     }
 }

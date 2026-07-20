@@ -117,12 +117,12 @@ public final class FurnaceService implements dev.botalive.core.station.FurnaceSt
     }
 
     /** Pořadí obětování paliva – cenné suroviny až jako poslední. */
+    // Blaze rody v peci nefigurují vůbec (viz FUEL): jsou to suroviny –
+    // blaze prach živí oči Enderu a varný stojan (BrewGoal).
     private static final java.util.List<java.util.function.Predicate<Material>> FUEL_PRIORITY =
             java.util.List.of(
                     m -> m == Material.COAL || m == Material.CHARCOAL
                             || m == Material.COAL_BLOCK,
-                    // Blaze rody z Netheru: bez brewingu jsou to jen výborná
-                    // paliva (12 vsázek/kus) – pálí se před prkny.
                     m -> m.name().endsWith("_PLANKS") || m == Material.STICK,
                     m -> m.name().endsWith("_LOG"));
 

@@ -60,9 +60,12 @@ public final class ContainerService implements dev.botalive.core.station.ChestSt
     }
 
     /**
-     * Cennosti strukturálních truhel (pevnosti, bastiony) – to, co stojí za
-     * odnesení z Netheru: kovářské šablony (netherite upgrade!), zlato,
-     * diamanty, obsidián a hotové netheritové suroviny.
+     * Cennosti strukturálních truhel (pevnosti, bastiony, end cities) – to,
+     * co stojí za odnesení: kovářské šablony (netherite upgrade!), zlato,
+     * diamanty, obsidián, hotové netheritové suroviny – a suroviny vedlejších
+     * řetězů: sedlo (strider), netherová bradavice a přísady (vaření),
+     * střelný prach a papír (rakety), ulity shulkerů (boxy) a lebka wither
+     * skeletona (oltář witheru).
      *
      * @param material materiál
      * @return {@code true} pokud jde o kořist hodnou vyloupení
@@ -76,9 +79,26 @@ public final class ContainerService implements dev.botalive.core.station.ChestSt
                  GOLDEN_CARROT, DIAMOND, IRON_INGOT, OBSIDIAN, CRYING_OBSIDIAN,
                  ANCIENT_DEBRIS, NETHERITE_SCRAP, NETHERITE_INGOT, ENCHANTED_BOOK,
                  ARROW, SPECTRAL_ARROW, TIPPED_ARROW, POTION, SPLASH_POTION, STRING,
-                 ENDER_PEARL, BLAZE_ROD -> true;
+                 ENDER_PEARL, BLAZE_ROD, SADDLE, NETHER_WART, MAGMA_CREAM,
+                 GHAST_TEAR, SPIDER_EYE, GLASS_BOTTLE, GUNPOWDER, PAPER,
+                 SUGAR_CANE, FIREWORK_ROCKET, SHULKER_SHELL,
+                 WITHER_SKELETON_SKULL, GLOWSTONE_DUST -> true;
             default -> false;
         };
+    }
+
+    /**
+     * Kořist k uskladnění do shulker boxu na výpravě: cennosti
+     * ({@link #isValuableLoot}) bez spotřebáku cesty – perly (zpáteční
+     * gateway) a rakety (let) zůstávají v batohu.
+     *
+     * @param material materiál
+     * @return {@code true} pokud kus patří do boxu
+     */
+    public static boolean isHaul(Material material) {
+        return isValuableLoot(material)
+                && material != Material.ENDER_PEARL
+                && material != Material.FIREWORK_ROCKET;
     }
 
     @Override
@@ -262,6 +282,48 @@ public final class ContainerService implements dev.botalive.core.station.ChestSt
                 taken += moved;
             }
             return taken;
+        }).exceptionally(t -> 0);
+    }
+
+    @Override
+    public CompletableFuture<Integer> depositLoot(dev.botalive.core.ai.BotContext ctx,
+                                                  String worldName, BlockPos chestPos) {
+        UUID botId = ctx.bot().id();
+        World world = Bukkit.getWorld(worldName);
+        Player player = Bukkit.getPlayer(botId);
+        if (world == null || player == null) {
+            return CompletableFuture.completedFuture(0);
+        }
+        Location location = new Location(world, chestPos.x(), chestPos.y(), chestPos.z());
+        return bridge.callAt(location, () -> {
+            if (player.getLocation().distanceSquared(location) > 6 * 6) {
+                return 0;
+            }
+            if (!(world.getBlockAt(chestPos.x(), chestPos.y(), chestPos.z())
+                    .getState() instanceof Container container)) {
+                return 0;
+            }
+            Inventory chest = container.getInventory();
+            var playerInventory = player.getInventory();
+            int moved = 0;
+            for (int slot = 0; slot < 36; slot++) {
+                ItemStack stack = playerInventory.getItem(slot);
+                if (stack == null || !isHaul(stack.getType())) {
+                    continue;
+                }
+                int amount = stack.getAmount();
+                var leftover = chest.addItem(stack.clone());
+                if (leftover.isEmpty()) {
+                    playerInventory.setItem(slot, null);
+                    moved += amount;
+                } else {
+                    ItemStack rest = leftover.values().iterator().next();
+                    playerInventory.setItem(slot, rest);
+                    moved += amount - rest.getAmount();
+                    break; // kontejner je plný
+                }
+            }
+            return moved;
         }).exceptionally(t -> 0);
     }
 }

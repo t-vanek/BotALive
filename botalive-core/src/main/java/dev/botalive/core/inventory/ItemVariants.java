@@ -32,6 +32,15 @@ public final class ItemVariants {
     /** Jed (útočný splash – na nemrtvé nefunguje). */
     public static final String POISON = "poison";
 
+    /** Síla (buff před witherem a nájezdy). */
+    public static final String STRENGTH = "strength";
+
+    /** Láhev vody (základ vaření – „efekt" v názvosloví PotionType). */
+    public static final String WATER = "water";
+
+    /** Awkward základ (bradavice + voda; z něj se vaří efekty). */
+    public static final String AWKWARD = "awkward";
+
     private ItemVariants() {
     }
 
@@ -119,5 +128,35 @@ public final class ItemVariants {
      */
     public static boolean hasPotion(ServerSideView.Snapshot snapshot, String effect) {
         return findPotionSlot(snapshot, effect) >= 0;
+    }
+
+    /**
+     * Počet pitelných lahví daného efektu/základu (lektvary se nestackují –
+     * počítají se sloty). Pro plánování vaření ({@code BrewPlanner.State}).
+     *
+     * @param snapshot snapshot inventáře
+     * @param effect   efekt či základ ({@link #WATER}, {@link #AWKWARD}…)
+     * @return počet lahví
+     */
+    public static int countPotions(ServerSideView.Snapshot snapshot, String effect) {
+        if (snapshot == null || snapshot.itemVariants() == null) {
+            return 0;
+        }
+        int count = 0;
+        Material[] hotbar = snapshot.hotbar();
+        for (int i = 0; i < hotbar.length; i++) {
+            if (hotbar[i] != null && isDrinkablePotion(hotbar[i])
+                    && effectIs(snapshot.itemVariants().get(i), effect)) {
+                count++;
+            }
+        }
+        Material[] main = snapshot.mainInventory();
+        for (int i = 0; i < main.length; i++) {
+            if (main[i] != null && isDrinkablePotion(main[i])
+                    && effectIs(snapshot.itemVariants().get(9 + i), effect)) {
+                count++;
+            }
+        }
+        return count;
     }
 }

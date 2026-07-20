@@ -70,9 +70,13 @@ Každý bot má vlastní identitu, osobnost, paměť, cíle, inventář a histor
 ### 🔥 Nether a 🌌 End
 
 - **Netherové výpravy** — vybavený bot najde portál z paměti, objeví cizí, nebo si **postaví vlastní** (vytěží 14 obsidiánu, postaví rám 4×5, zapálí křesadlem). V Netheru těží quartz, zlato a glowstone, dobývá **starodávné trosky**, vylupuje pevnosti a bastiony (kovářské šablony!), se zlatými botami směňuje s pigliny — a doma poví diamantovou výbavu na **netheritovou** se zachovanými enchanty i poškozením.
-- **Kolonizace** — předsunuté základny s truhlou u netherské strany portálu, lektvar odolnosti ohni před sestupem do hloubky a návratové pojistky na zdraví, hlad i plný batoh. Kořist se propisuje do života společenství: trh, peněženky, drby o portálech, kopírování šablon.
+- **Kolonizace** — předsunuté základny s truhlou u netherské strany portálu, lektvar odolnosti ohni před sestupem do hloubky a návratové pojistky na zdraví, hlad i plný batoh. U základny vyroste **kotva respawnu** z barterové kořisti (crying obsidián + glowstone) — smrt na výpravě vrací bota k portálu, ne přes půl světa. Kořist se propisuje do života společenství: trh, peněženky, drby o portálech, kopírování šablon.
+- **Jízda na striderech** — lávový oceán širší než mostní strop není konec cesty: bot se sedlem (kořist pevností) a houbou na prutu (houba z pokřiveného lesa, prut se vyrobí na počkání) stridera osedlá, nasedne a přejede na druhý břeh — klientská simulace vanilla kinematiky, vysednutí na pevnině.
+- **Vaření lektvarů** — netherová bradavice se v pevnostech sklízí zralá (a přesazuje!), soul sand se kope vedle a doma si bot založí **vlastní záhon** a vaří u vlastního stojanu: awkward základ, pak odolnost ohni (magma krém), léčení, síla (blaze prach) a jed — střelným prachem převrácený na **splash**. Útočné splash lektvary létají v boji po nepřátelích (nikdy po nemrtvých — zranění je léčí); odolnost ohni se pije před sestupem za troskami, síla před witherem.
+- **Wither** *(default vypnuto — jeho exploze jizví terén)* — nejodvážnější boti nasbírají tři lebky wither skeletonů, postaví oltář ze soul sandu daleko od vlastní základny (prostřední lebka poslední!), během 11 s růstu sprintem zmizí a pak bojují podle příručky: nad polovinou **boss baru** luk s odstupem, obrněnou druhou fázi (šípy se odráží) dobíjejí mečem. Nether star je trofej a odvaha roste.
 - **Výpravy do Endu** — bot, který se o portálu dozví (průchodem, toulkami, drby od kamaráda, nebo přes `/botalive end portal`), se vybaví a bojuje jako zkušený hráč: nejdřív sestřelit krystaly, endermanům se nekoukat do očí, ochrana hran proti pádu do voidu, usazeného draka mlátit, letícího střílet. Vítězství se slaví v chatu, ukládá jako trofej a zvedá odvahu.
-- **Vnější ostrovy a elytry** — po skolení draka bot s dostatkem perel jednu prohodí gatewayí, zapamatuje si zpáteční portál, najde end city (server-side hledání struktur; na cizích serverech sken purpuru), vyluští truhly věží, z end ship srazí **elytry** (item frame) a rovnou si je oblékne. Levitaci po zásahu shulkerem klient poctivě simuluje, takže se bot neroztrhne se serverem; s elytrami pak slétá z výšek konzervativním řízením letu (žádné střemhlavé nálety, podrovnání před dosedem).
+- **Vnější ostrovy a elytry** — po skolení draka bot s dostatkem perel jednu prohodí gatewayí, zapamatuje si zpáteční portál, najde end city (server-side hledání struktur; na cizích serverech sken purpuru), vyluští truhly věží, z end ship srazí **elytry** (item frame) a rovnou si je oblékne. Levitaci po zásahu shulkerem klient poctivě simuluje, takže se bot neroztrhne se serverem; **stav krunýře shulkera se čte z entity metadat**, takže bot vyčkává na otevřenou ulitu místo mlácení do pancíře jako začátečník.
+- **Rakety a skutečný let** — rakety (papír z vlastní třtiny + creeperův prach) mění konzervativní klouzání ve skutečný let: delší dolet, stoupání i start ze země. Vzdálené město se dosáhne **raketovým přeletem**, nebo **end stone lávkou přes void**; plný batoh se přeloží do **shulker boxu** (2 ulity + truhla), který se vykope *i s obsahem* a domů se nese v jednom slotu — tam skončí vedle domácí truhly jako rozšíření skladu.
 - **Dimenzní disciplína** — postel se v obou dimenzích nikdy nepoužívá (vybuchla by) a cesty se portálům vyhýbají, takže bot nikdy nezmění dimenzi omylem.
 
 ### 🏘️ Společenství a ekonomika
@@ -167,7 +171,10 @@ Hráčské teleporty mají konfigurovatelný cooldown (`teleport.player-cooldown
 | `pathfinding.*` | Uzlové/časové rozpočty, dálkový koridor, diagnostika |
 | `combat.*`, `pvp.*` | Profil obtížnosti, PvP přepínače, pojistka útoků na hráče |
 | `nether.*`, `end.*` | Prahy výbavy pro výpravy, rozpočty, pojistky |
-| `end.outer.*` | Vnější ostrovy: rozpočet výpravy, rezerva perel, hledání struktur, elytrové lety |
+| `nether.striders`, `nether.brewing`, `nether.respawn-anchor` | Jízda na striderech, vaření lektvarů + záhon bradavice, kotva respawnu u základny |
+| `nether.lava-bridge-limit`, `nether.wither.*` | Strop reaktivního lávového mostu; souboj s witherem (výchozí vypnuto) |
+| `combat.splash-potions` | Útočné splash lektvary v boji |
+| `end.outer.*` | Vnější ostrovy: rozpočet výpravy, rezerva perel, hledání struktur, elytrové lety, rakety, lávky přes void, shulker boxy |
 | `settlement.*` | Vesnice, parcely, osvětlení, cestičky |
 | `settlement.war.*` | Války a diplomacie: váhy napětí, velikost a kadence nájezdů, příměří, reparace (výchozí vypnuto) |
 | `economy.*` | Integrace Vaultu, trh mezi boty |
@@ -191,7 +198,7 @@ Placeholder `{name}` se nahrazuje jménem protistrany.
 <details>
 <summary>Kategorie frází</summary>
 
-`greetings`, `confused`, `agreement`, `disagreement`, `youre-welcome`, `idle-chatter`, `death-reactions`, `combat-taunts`, `meet-player`, `pvp-help-calls`, `pvp-assist`, `pvp-taunts`, `nether-depart`, `nether-arrive`, `nether-return`, `nether-loot`, `end-depart`, `end-arrive`, `dragon-slain`, `end-return`, `end-outer-depart`, `end-city-found`, `elytra-found`, `end-outer-return`, `war-declared`, `war-raid-depart`, `war-raid-taunts`, `war-truce-offer`, `war-truce-agreed`, `hire-pay-request`, `hire-accept`, `hire-decline`, `hire-expired`, `hire-quit`, `hire-deliver`, `guard-defend`, `emojis`
+`greetings`, `confused`, `agreement`, `disagreement`, `youre-welcome`, `idle-chatter`, `death-reactions`, `combat-taunts`, `meet-player`, `pvp-help-calls`, `pvp-assist`, `pvp-taunts`, `nether-depart`, `nether-arrive`, `nether-return`, `nether-loot`, `end-depart`, `end-arrive`, `dragon-slain`, `end-return`, `end-outer-depart`, `end-city-found`, `elytra-found`, `end-outer-return`, `end-flight`, `strider-ride`, `brew-done`, `wither-summon`, `wither-slain`, `war-declared`, `war-raid-depart`, `war-raid-taunts`, `war-truce-offer`, `war-truce-agreed`, `hire-pay-request`, `hire-accept`, `hire-decline`, `hire-expired`, `hire-quit`, `hire-deliver`, `guard-defend`, `emojis`
 
 </details>
 
@@ -238,8 +245,8 @@ Rozhodnutí a trade-offy popisuje [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md); 
 ## Známá omezení a roadmapa
 
 - **Vyžadován offline mode** — boti jsou nepodepsaní klienti. Na online-mode serveru se plugin korektně odmítne připojit a vysvětlí proč.
-- **Nether** — boti nejezdí na striderech a přes velké lávové oceány nestaví dlouhé mosty (strop 12 bloků; cesta se hledá jinudy). Brewing, respawn anchor a boj s witherem nejsou v plánu; nether wart se sbírá jen jako kořist z truhel. Chybí útočné házení splash lektvarů (bot si je hází jen sám pod sebe jako nouzovou záchranu).
-- **Vnější ostrovy Endu** — elytrový let je zatím jen klouzání (bez raket), krunýř shulkera se nečte (entity metadata zůstávají neparsovaná — bot občas máchne do zavřeného krunýře jako začátečník) a města za `end.outer.max-city-distance` se vzdávají, přes void se nemostí. Shulker boxy se necraftí ani nepoužívají.
+- **Nether** — souboj s witherem je **výchozí vypnutý** (`nether.wither.enabled`): jeho exploze jizví terén a boss opuštěný po nezdařeném pokusu se toulá po Netheru — zapnutí je rozhodnutí admina. Vaření pokrývá lektvary, které boti skutečně používají (odolnost ohni, léčení, síla, splash jed); lingering lektvary, obalené šípy a plný alchymistický strom v plánu nejsou, stejně jako beacon z nether staru. Strop reaktivního lávového mostu je konfigurovatelný (`nether.lava-bridge-limit`); oceány patří striderům.
+- **Vnější ostrovy Endu** — let na elytrách zůstává záměrně konzervativní (žádné střemhlavé nálety, rozpočet raket na let) a `end.outer.max-city-distance` je tvrdý strop výpravy: města uvnitř se dosáhnou přeletem nebo end stone lávkou, města za ním se dál vzdávají. Shulker boxy slouží jako zavazadlo výprav a druhá truhla doma; obsah si boti dál neorganizují.
 - **Strongholdy** — boti netriangulují očima Enderu; portál se naučí průchodem, náhodným objevem, drby, nebo přes `/botalive end portal`. Oči Enderu si ale craftí (perla + blaze prach z netherové kořisti) a nezaplněný rám portálu si doplní sami.
 - **Války** — nájezdy jen bojují (nerabují a nezapalují), hráčů se nikdy netýkají a vesnice v různých světech spolu neválčí (nájezdník mezi světy nedojde).
 

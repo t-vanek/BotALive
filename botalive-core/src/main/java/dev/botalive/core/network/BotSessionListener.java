@@ -126,6 +126,20 @@ public final class BotSessionListener extends SessionAdapter {
                         entities.byId(p.getId()).ifPresent(e -> e.setPosition(
                                 new Vec3(p.getPosition().getX(), p.getPosition().getY(), p.getPosition().getZ()),
                                 p.getYRot(), p.getXRot()));
+                // Entity metadata: parsuje se jediná položka, kterou bot
+                // potřebuje – stav krunýře shulkera (peek). Ostatní metadata
+                // (pózy, jména, plameny) bot nečte.
+                case org.geysermc.mcprotocollib.protocol.packet.ingame.clientbound.entity
+                        .ClientboundSetEntityDataPacket p ->
+                        entities.byId(p.getEntityId()).ifPresent(e -> {
+                            for (var meta : p.getMetadata()) {
+                                e.applyMetadata(meta.getId(), meta.getValue());
+                            }
+                        });
+                // Boss bar – lidsky viditelný ukazatel zdraví withera/draka;
+                // bot z něj čte fáze souboje (obrněný wither pod polovinou).
+                case org.geysermc.mcprotocollib.protocol.packet.ingame.clientbound
+                        .ClientboundBossEventPacket p -> handleBossBar(p);
                 case ClientboundSetEntityMotionPacket p -> handleMotion(p);
                 case org.geysermc.mcprotocollib.protocol.packet.ingame.clientbound.entity
                         .ClientboundSetPassengersPacket p -> handlePassengers(p);
@@ -243,6 +257,22 @@ public final class BotSessionListener extends SessionAdapter {
             }
             default -> {
                 // ostatní game eventy bot nepotřebuje
+            }
+        }
+    }
+
+    /**
+     * Boss bar (wither, drak): sleduje se zlomek zdraví posledního bosse –
+     * jediná informace o zdraví bosse, kterou vidí i lidský hráč. Přidání
+     * a update přepisují, odebrání (boss padl / mimo dosah) stav čistí.
+     */
+    private void handleBossBar(org.geysermc.mcprotocollib.protocol.packet.ingame
+                                       .clientbound.ClientboundBossEventPacket packet) {
+        switch (packet.getAction()) {
+            case ADD, UPDATE_HEALTH -> state.bossBar(packet.getUuid(), packet.getHealth());
+            case REMOVE -> state.bossBarRemoved(packet.getUuid());
+            default -> {
+                // titulek, styl, vlajky – bot nepotřebuje
             }
         }
     }

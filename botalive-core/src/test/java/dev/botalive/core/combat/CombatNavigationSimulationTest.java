@@ -113,7 +113,7 @@ class CombatNavigationSimulationTest {
         navigator.world(world);
         CombatController combat = new CombatController(ctx.actions(), ctx.humanizer(),
                 new BotRandom(7), personality(),
-                new BotAliveConfig.Combat(true, 120, 250, true, false),
+                new BotAliveConfig.Combat(true, 120, 250, true, false, false),
                 CombatDifficulty.NORMAL, ctx.inventory());
         combat.navigation(navigator);
         combat.world(world);

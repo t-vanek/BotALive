@@ -47,4 +47,17 @@ public interface ChestStation {
      * @return future s počtem vzatých kusů (0 = nic/chyba)
      */
     CompletableFuture<Integer> lootValuables(BotContext ctx, String worldName, BlockPos chestPos);
+
+    /**
+     * Uloží do kontejneru nasbíranou kořist (opak {@link #lootValuables}) –
+     * plní shulker box na výpravě, aby se uvolnil batoh. Nechává si perly
+     * a rakety (spotřebák cesty); klasifikaci sdílí obě implementace
+     * ({@code ContainerService.isHaul}). Bot musí stát u kontejneru.
+     *
+     * @param ctx       kontext bota (stojí u otevřeného kontejneru)
+     * @param worldName svět kontejneru
+     * @param chestPos  pozice kontejneru
+     * @return future s počtem uložených kusů (0 = nic/chyba)
+     */
+    CompletableFuture<Integer> depositLoot(BotContext ctx, String worldName, BlockPos chestPos);
 }

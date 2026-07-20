@@ -13,14 +13,16 @@ import org.geysermc.mcprotocollib.protocol.packet.ingame.serverbound.level.Serve
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
- * Řízení vozidel (lodě; mount/dismount primitivy i pro minecarty).
+ * Řízení vozidel (lodě, minecarty, strideři; mount/dismount primitivy).
  *
  * <p>Nasednutí/vysednutí jde přes reálné pakety (interact / sneak) a server je
  * potvrzuje paketem SetPassengers – stav drží {@link BotClientState}. Při
  * plavbě bot – stejně jako vanilla klient – simuluje loď ({@link BoatPhysics})
  * a každý tick posílá PlayerInput (klávesy), PaddleBoat (animace pádel)
- * a MoveVehicle (autoritativní pozice vozidla). Korekce od serveru se
- * přijímají ze síťového vlákna přes atomickou schránku.</p>
+ * a MoveVehicle (autoritativní pozice vozidla). Strider na lávě jede stejným
+ * vzorem ({@link StriderPhysics} + PlayerInput/MoveVehicle, bez pádel);
+ * řízení drží houba na prutu v ruce jezdce. Korekce od serveru se přijímají
+ * ze síťového vlákna přes atomickou schránku.</p>
  */
 public final class VehicleController {
 
@@ -29,6 +31,7 @@ public final class VehicleController {
 
     private BoatPhysics boat;
     private MinecartPhysics cart;
+    private StriderPhysics strider;
     private Vec3 cruiseTarget;
     private boolean lastForward;
 
@@ -96,16 +99,32 @@ public final class VehicleController {
         }
     }
 
+    /**
+     * Zahájí jízdu na osedlaném striderovi přes lávu.
+     *
+     * @param world      pohled na svět
+     * @param striderPos aktuální pozice stridera (z trackeru entit)
+     * @param yaw        aktuální natočení stridera
+     * @param target     cílový bod (typicky protější břeh)
+     */
+    public void startLavaRide(WorldView world, Vec3 striderPos, float yaw, Vec3 target) {
+        stopCruise();
+        this.strider = new StriderPhysics(world, striderPos, yaw);
+        this.cruiseTarget = target;
+        this.lastForward = false;
+    }
+
     /** Ukončí plavbu/jízdu (simulace se zahodí; vozidlo zůstává). */
     public void stopCruise() {
         boat = null;
         cart = null;
+        strider = null;
         cruiseTarget = null;
     }
 
     /** @return {@code true} pokud probíhá plavba/jízda */
     public boolean cruising() {
-        return boat != null || cart != null;
+        return boat != null || cart != null || strider != null;
     }
 
     /** @return pozice vozidla ze simulace, nebo {@code null} mimo plavbu/jízdu */
@@ -113,6 +132,10 @@ public final class VehicleController {
         BoatPhysics currentBoat = boat;
         if (currentBoat != null) {
             return currentBoat.position();
+        }
+        StriderPhysics currentStrider = strider;
+        if (currentStrider != null) {
+            return currentStrider.position();
         }
         MinecartPhysics currentCart = cart;
         return currentCart == null ? null : currentCart.position();
@@ -136,12 +159,23 @@ public final class VehicleController {
         return current != null && current.waterAhead(distance);
     }
 
-    /** @return {@code true} pokud loď doplula k cíli plavby */
+    /** @return {@code true} pokud strider vystoupal z lávy na pevný břeh */
+    public boolean ashore() {
+        StriderPhysics current = strider;
+        return current != null && current.ashore();
+    }
+
+    /** @return {@code true} pokud jízda na striderovi uvázla (zeď/korekce) */
+    public boolean striderStuck() {
+        StriderPhysics current = strider;
+        return current != null && current.stuck();
+    }
+
+    /** @return {@code true} pokud vozidlo dojelo k cíli plavby/jízdy */
     public boolean arrived() {
-        BoatPhysics current = boat;
-        return current != null && cruiseTarget != null
-                && current.position().horizontal()
-                        .distanceSquared(cruiseTarget.horizontal()) < 3 * 3;
+        Vec3 pos = vehiclePosition();
+        return pos != null && cruiseTarget != null
+                && pos.horizontal().distanceSquared(cruiseTarget.horizontal()) < 3 * 3;
     }
 
     /**
@@ -162,6 +196,7 @@ public final class VehicleController {
         if (mounted()) {
             tickBoat();
             tickCart();
+            tickStrider();
         }
         connection.send(ServerboundClientTickEndPacket.INSTANCE);
     }
@@ -190,6 +225,29 @@ public final class VehicleController {
         connection.send(new ServerboundPaddleBoatPacket(
                 forward || current.turningRight(), forward || current.turningLeft()));
         sendVehiclePosition(current.position(), current.yaw(), false);
+    }
+
+    /** Tick jízdy na striderovi. */
+    private void tickStrider() {
+        StriderPhysics current = strider;
+        if (current == null || cruiseTarget == null) {
+            return;
+        }
+        VehicleSync correction = pendingCorrection.getAndSet(null);
+        if (correction != null) {
+            current.correct(correction.position(), correction.yaw());
+        }
+        current.stepToward(cruiseTarget);
+
+        // Klávesy: W drženo po dobu jízdy (posílat při změně, jako vanilla).
+        // Řízení dělá pohled jezdce s houbou na prutu – žádná pádla.
+        boolean forward = !current.ashore() && !current.stuck();
+        if (forward != lastForward) {
+            connection.send(new ServerboundPlayerInputPacket(
+                    forward, false, false, false, false, false, false));
+            lastForward = forward;
+        }
+        sendVehiclePosition(current.position(), current.yaw(), true);
     }
 
     /** Tick jízdy minecartem. */

@@ -209,9 +209,13 @@ public record BotAliveConfig(
      * @param reactionMaxMs nejpomalejší reakce na útok
      * @param strafing      zda boti při boji strafují
      * @param shieldUse     zda boti používají štít
+     * @param splashPotions ofenzivní házení splash lektvarů (zranění/jed) na
+     *                      cíl boje – na nemrtvé se nehází nikdy (zranění je
+     *                      léčí, jed na ně nefunguje); lektvary jsou z vaření,
+     *                      barteru a kořisti
      */
     public record Combat(boolean enabled, int reactionMinMs, int reactionMaxMs,
-                         boolean strafing, boolean shieldUse) {
+                         boolean strafing, boolean shieldUse, boolean splashPotions) {
     }
 
     /**
@@ -414,19 +418,56 @@ public record BotAliveConfig(
      * v Netheru těží quartz, zlato, glowstone a starodávné trosky a vrací se
      * domů; z trosek pak taví netherit a u kovářského stolu povyšuje výbavu.
      *
-     * @param enabled        hlavní vypínač – vypnuto = boti do Netheru sami
-     *                       nechodí (portály ve světě dál obcházejí obloukem)
-     * @param buildPortals   smí si boti stavět vlastní portály (14 obsidiánu
-     *                       + křesadlo); vypnuto = používají jen nalezené
-     * @param barter         výměnný obchod s pigliny – bot se zlatou zbrojí
-     *                       jim hází zlaté ingoty a sbírá, co za ně padne
-     * @param maxTripMinutes časový rozpočet jedné výpravy (minuty); po
-     *                       vyčerpání se bot vrací k portálu domů
-     * @param minGearTier    minimální tier zbraně a zbroje pro výpravu
-     *                       (4 = železo, 5 = diamant) – méně vybavení = smrt
+     * @param enabled         hlavní vypínač – vypnuto = boti do Netheru sami
+     *                        nechodí (portály ve světě dál obcházejí obloukem)
+     * @param buildPortals    smí si boti stavět vlastní portály (14 obsidiánu
+     *                        + křesadlo); vypnuto = používají jen nalezené
+     * @param barter          výměnný obchod s pigliny – bot se zlatou zbrojí
+     *                        jim hází zlaté ingoty a sbírá, co za ně padne
+     * @param maxTripMinutes  časový rozpočet jedné výpravy (minuty); po
+     *                        vyčerpání se bot vrací k portálu domů
+     * @param minGearTier     minimální tier zbraně a zbroje pro výpravu
+     *                        (4 = železo, 5 = diamant) – méně vybavení = smrt
+     * @param striders        jízda na striderech: bot se sedlem a houbou na
+     *                        prutu osedlá stridera a přejede lávový oceán,
+     *                        přes který se nemostí
+     * @param brewing         vaření lektvarů – kotlík progrese: netherová
+     *                        bradavice (pevnosti + vlastní záhon na soul
+     *                        sandu), varný stojan a lektvary odolnosti ohni,
+     *                        síly, léčení a jedu (splash)
+     * @param respawnAnchor   kotva respawnu: z crying obsidiánu a glowstonu
+     *                        u netherového outpostu – smrt na výpravě vrací
+     *                        bota k portálu, ne přes celý overworld
+     * @param lavaBridgeLimit strop reaktivního mostu přes lávu (bloky);
+     *                        delší lávové plochy se objíždějí nebo přejíždějí
+     *                        na striderovi
+     * @param wither          souboj s witherem (nether star) – default
+     *                        vypnuto: exploze witheru ničí terén serveru
      */
     public record Nether(boolean enabled, boolean buildPortals, boolean barter,
-                         int maxTripMinutes, int minGearTier) {
+                         int maxTripMinutes, int minGearTier, boolean striders,
+                         boolean brewing, boolean respawnAnchor, int lavaBridgeLimit,
+                         Wither wither) {
+    }
+
+    /**
+     * Souboj s witherem – vrchol netherové progrese, default vypnutý.
+     *
+     * <p>Bot s dostatkem odvahy nasbírá v pevnosti 3 lebky wither skeletonů
+     * a soul sand, daleko od portálu i outpostu postaví oltář, vyvolá withera
+     * a bojuje: zdraví bosse čte z boss baru, do poloviny střílí lukem,
+     * obrněnou druhou fázi dobíjí mečem. Nether star je trofej. Vypnuto
+     * default – exploze witheru ničí terén (byť „jen" v Netheru), server ho
+     * musí chtít.</p>
+     *
+     * @param enabled         hlavní vypínač souboje (sběr lebek se bez něj
+     *                        neplánuje)
+     * @param minCourage      minimální rys COURAGE – na withera jdou jen
+     *                        ti nejodvážnější
+     * @param maxFightMinutes rozpočet souboje (minuty); po vyčerpání bot
+     *                        prchá a nechá withera witherem
+     */
+    public record Wither(boolean enabled, double minCourage, int maxFightMinutes) {
     }
 
     /**
@@ -480,9 +521,20 @@ public record BotAliveConfig(
      * @param pearlReserve    kolik perel si bot nechává na návrat
      * @param maxCityDistance nejdál, kam se za nalezeným městem půjde (bloky)
      * @param elytra          smí boti létat na elytrách (klouzavé slety)
+     * @param rockets         rakety při letu na elytrách – boost prodlužuje
+     *                        dolet, umožňuje start ze země a přelet voidu
+     *                        k městům mimo klouzavý dosah
+     * @param voidBridge      mostění přes void: město v dosahu
+     *                        {@code maxCityDistance}, ke kterému nevede
+     *                        ostrovní cesta, se dosáhne end stone lávkou
+     *                        (rozpočet z inventáře) místo vzdání
+     * @param shulkerBoxes    shulker boxy: craft z ulit, přenosná truhla na
+     *                        výpravě (box se vykope i s obsahem) a druhá
+     *                        truhla vedle domácí bedny
      */
     public record Outer(boolean enabled, int maxTripMinutes, boolean locateAssist,
-                        int pearlReserve, int maxCityDistance, boolean elytra) {
+                        int pearlReserve, int maxCityDistance, boolean elytra,
+                        boolean rockets, boolean voidBridge, boolean shulkerBoxes) {
     }
 
     /**

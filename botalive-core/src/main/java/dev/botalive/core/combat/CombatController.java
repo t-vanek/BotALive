@@ -226,6 +226,33 @@ public final class CombatController {
             return null;
         }
 
+        // Zavřený shulker: pancíř krunýře odráží šípy a údery do zavřené
+        // ulity jsou zelenáčská ztráta času. Bot si nachystá zbraň, drží se
+        // na dosah a čeká – střílet musí shulker s otevřeným krunýřem,
+        // a v tu chvíli je zranitelný.
+        if (target.shulkerClosed()) {
+            if (attackCooldown > 0) {
+                attackCooldown--;
+            }
+            if (reactionTicks > 0) {
+                reactionTicks--;
+            }
+            inventory.equipWeapon(snapshot);
+            if (distance > ATTACK_RANGE) {
+                // Dojít na dosah (bez sprintu – nikam se nespěchá).
+                return MoveInput.of(toTarget, false, false);
+            }
+            if (--strafeTicks <= 0) {
+                strafeDirection = -strafeDirection;
+                strafeTicks = rng.rangeInt(12, 30);
+            }
+            // Vyčkávací kroužení: směr udává znaménko, rychlost řeší fyzika
+            // (MoveInput směr normalizuje – násobky velikosti nemají smysl).
+            Vec3 wait = new Vec3(-toTarget.z(), 0, toTarget.x())
+                    .mul(strafeDirection);
+            return MoveInput.of(wait, false, false);
+        }
+
         // Střelba na dálku, pokud je čím střílet.
         if (distance >= RANGED_MIN_DISTANCE && distance <= RANGED_MAX_DISTANCE
                 && ranged.canUse(snapshot)) {

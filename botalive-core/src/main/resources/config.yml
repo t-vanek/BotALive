@@ -148,6 +148,11 @@ combat:
   reaction-max-ms: 450
   strafing: true
   shield-use: true
+  # Ofenzivní splash lektvary: bot v boji hodí po cíli lektvar zranění nebo
+  # jedu (z vaření, barteru či kořisti). Na nemrtvé se nehází nikdy – zranění
+  # je léčí a jed na ně nefunguje. Házení je vzácné a řídí ho inteligence
+  # a agresivita povahy; splash pod vlastní nohy (záchrana) funguje vždy.
+  splash-potions: true
 
 economy:
   enabled: true
@@ -334,6 +339,34 @@ nether:
   # Minimální tier zbraně a zbroje pro výpravu (4 = železo, 5 = diamant).
   # S horší výbavou se do pekla nechodí.
   min-gear-tier: 4
+  # Jízda na striderech: bot se sedlem (kořist z pevností a bastionů) a houbou
+  # na prutu (warped fungus + prut, houbu natrhá v pokřiveném lese) osedlá
+  # stridera a přejede lávový oceán, přes který se nemostí.
+  striders: true
+  # Vaření lektvarů: netherová bradavice z pevností (a vlastního záhonu na
+  # soul sandu u domu), varný stojan z blaze rodu a lektvary progrese –
+  # odolnost ohni (magma krém), síla (blaze prach), léčení, jed (splash).
+  # Palivem je blaze prach, lahve se plní u vody.
+  brewing: true
+  # Kotva respawnu u netherového outpostu (crying obsidián z barteru
+  # + glowstone z těžby): smrt na výpravě vrací bota k portálu do Netheru,
+  # ne přes půlku overworldu. Nabíjí se glowstonem (4 použití).
+  respawn-anchor: true
+  # Strop reaktivního mostu přes lávu (bloky). Širší lávové plochy se
+  # objíždějí, s aktivní odolností ohni mostí dál, nebo přejíždějí na
+  # striderovi. Zvýšení zrychlí přesuny, ale prodlouží expozici nad lávou.
+  lava-bridge-limit: 12
+  # Souboj s witherem – vrchol netherové progrese. Bot s dostatkem odvahy
+  # nasbírá v pevnosti 3 lebky wither skeletonů, postaví daleko od portálu
+  # oltář ze soul sandu, vyvolá withera a skolí ho (nether star = trofej).
+  # DEFAULT VYPNUTO: exploze witheru ničí terén (byť v Netheru) – zapněte,
+  # jen pokud to na svém serveru chcete.
+  wither:
+    enabled: false
+    # Minimální odvaha (rys COURAGE 0-1) – na withera jdou jen nejodvážnější.
+    min-courage: 0.75
+    # Rozpočet souboje (minuty); po vyčerpání bot prchá a nechá bosse být.
+    max-fight-minutes: 12
 
 end:
   # Výpravy do dimenze End. Bot, který zná portál (prošel jím, našel ho při
@@ -374,11 +407,24 @@ end:
     locate-assist: true
     # Kolik perel si bot vždy nechává na zpáteční průchod gatewayí.
     pearl-reserve: 2
-    # Nejdál, kam se za nalezeným městem půjde (bloky) – přes větší dálky
-    # se přes prázdné ostrovy nemostí.
+    # Nejdál, kam se za nalezeným městem půjde (bloky) – tvrdý strop výpravy.
+    # Město uvnitř tohoto okruhu se dosáhne pěšky po ostrovech, end stone
+    # lávkou přes void (void-bridge), nebo raketovým přeletem (rockets).
     max-city-distance: 400
     # Smí boti létat na elytrách (klouzavé slety z výšek).
     elytra: true
+    # Rakety při letu: boost prodlužuje dolet za klouzavý poměr, umožňuje
+    # start ze země a přelet voidu k městu. Rakety si bot vyrábí z papíru
+    # a střelného prachu (creepeři, kořist).
+    rockets: true
+    # Mostění přes void: k městu v dosahu max-city-distance, ke kterému
+    # nevede ostrovní cesta, se staví end stone lávka (rozpočet z inventáře,
+    # end stone se těží cestou). Vypnuto = město bez cesty se vzdává.
+    void-bridge: true
+    # Shulker boxy: z ulit shulkerů a truhly bot skládá box, na výpravě ho
+    # plní kořistí a vykopává i s obsahem (dvojnásobný náklad), doma ho
+    # staví vedle vlastní truhly jako rozšíření skladu.
+    shulker-boxes: true
 
 pathfinding:
   # Rozpočet expandovaných uzlů jednoho výpočtu A*; při vyčerpání se vrací

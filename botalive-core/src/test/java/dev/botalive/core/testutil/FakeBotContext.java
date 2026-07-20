@@ -234,6 +234,16 @@ public final class FakeBotContext implements BotContext {
     }
 
     @Override
+    public void startRocketBoost(int ticks) {
+        throw unused();
+    }
+
+    @Override
+    public boolean rocketBoosting() {
+        return false;
+    }
+
+    @Override
     public void gainExperience(
             dev.botalive.core.personality.PersonalityEvolution.BotExperience experience) {
         // tasky hlásí zážitky mimochodem – v simulaci se zahazují
