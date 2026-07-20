@@ -468,3 +468,14 @@ persistence:
     pool-size: 8
   # Perioda write-behind flushe (sekundy).
   flush-seconds: 15
+
+build:
+  # Rozmanité domy místo dnešního domku 4×4. Vypnuto = plná zpětná
+  # kompatibilita; zapnuto = generovaný dům z místního dřeva (větší
+  # půdorys, okna, valbová střecha), stavěný stejným enginem.
+  complex: false
+  # Šířka i hloubka půdorysu (lichá, >= 5). 5 je bezpečně dosažitelná
+  # z jednoho stanoviště; větší půdorysy budou chtít víc stanovišť.
+  width: 5
+  # Výška zdí.
+  wall-height: 3

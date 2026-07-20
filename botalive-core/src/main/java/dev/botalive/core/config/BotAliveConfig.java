@@ -27,6 +27,7 @@ import java.util.List;
  * @param pathfinding rozpočty výpočtu cest
  * @param performance výkonnostní laditelné parametry
  * @param persistence databáze
+ * @param build       rozmanité stavby (engine v2 – větší domy z palet)
  */
 public record BotAliveConfig(
         Network network,
@@ -46,8 +47,21 @@ public record BotAliveConfig(
         End end,
         Pathfinding pathfinding,
         Performance performance,
-        Persistence persistence
+        Persistence persistence,
+        Build build
 ) {
+
+    /**
+     * Rozmanité stavby (stavební engine v2). Vypnuto = dnešní domek 4×4
+     * (plná zpětná kompatibilita); zapnuto = generované domy z palet podle
+     * místního dřeva (větší půdorys, okna, valbová střecha).
+     *
+     * @param complex    zapnout generované domy místo legacy 4×4
+     * @param width      šířka půdorysu (lichá, ≥ 5; dosažitelná z jednoho stanoviště)
+     * @param wallHeight výška zdí
+     */
+    public record Build(boolean complex, int width, int wallHeight) {
+    }
 
     /**
      * Síťové nastavení – kam se boti připojují.

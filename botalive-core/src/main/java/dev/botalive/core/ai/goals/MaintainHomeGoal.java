@@ -86,6 +86,12 @@ public final class MaintainHomeGoal extends AbstractGoal {
                 || !ctx.worldView().worldName().equals(home.world())) {
             return 0;
         }
+        // Generovaný dům (engine v2) má vlastní geometrii i materiály –
+        // legacy diff proti domku 4×4 by ho poškodil. Design-aware oprava je
+        // navazující krok; do té doby se generované domy neopravují.
+        if (home.data().containsKey("design")) {
+            return 0;
+        }
         // Kontroluje se jen poblíž domova (ráno po probuzení je bot doma).
         BlockPos homePos = new BlockPos(home.x(), home.y(), home.z());
         if (ctx.position().toBlockPos().distanceSquared(homePos) > 64 * 64) {

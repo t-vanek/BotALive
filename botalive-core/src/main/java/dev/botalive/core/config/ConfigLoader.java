@@ -246,8 +246,18 @@ public final class ConfigLoader {
                 c.getInt("persistence.flush-seconds", 15)
         );
 
+        int buildWidth = Math.max(5, c.getInt("build.width", 5));
+        if (buildWidth % 2 == 0) {
+            buildWidth++; // lichý půdorys – čistý střed pro stavitele
+        }
+        var build = new BotAliveConfig.Build(
+                c.getBoolean("build.complex", false),
+                buildWidth,
+                Math.max(2, c.getInt("build.wall-height", 3))
+        );
+
         return new BotAliveConfig(network, gateway, bots, ai, chat, combat, economy, memory,
                 worlds, spawn, teleport, pvp, settlement, nether, end, pathfinding,
-                performance, persistence);
+                performance, persistence, build);
     }
 }

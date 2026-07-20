@@ -12,6 +12,8 @@ import dev.botalive.core.build.plan.Blueprints;
 import dev.botalive.core.build.plan.BuildPlan;
 import dev.botalive.core.build.plan.BuildPlanner;
 import dev.botalive.core.build.plan.BuildSession;
+import dev.botalive.core.build.plan.HouseDesigner;
+import dev.botalive.core.build.plan.HouseGenerator;
 import dev.botalive.core.util.Cardinal;
 import dev.botalive.core.chat.PhraseCategory;
 import dev.botalive.core.settlement.SettlementService;
@@ -74,6 +76,8 @@ public final class BuildHouseGoal extends AbstractGoal {
     private Cardinal facing = Cardinal.NORTH;
     /** Vlastní stavbu (terén, pokládka, vybavení) vede sdílený engine. */
     private BuildSession session;
+    /** Návrh generovaného domu pro tuto seanci ({@code null} = legacy 4×4). */
+    private HouseDesigner.HouseDesign design;
     private DecorWorker decor;
     private int cooldownTicks;
     /** Pojistka proti opakované stavbě, kdyby paměť HOME zmergovala metadata. */
@@ -128,9 +132,9 @@ public final class BuildHouseGoal extends AbstractGoal {
         if (houseBuilt || hasHouse(bot, ctx)) {
             return 0;
         }
-        // Bez dostatku bloků nemá cenu začínat.
+        // Bez dostatku bloků nemá cenu začínat (generovaný dům jich chce víc).
         BotNeeds needs = BotNeeds.assess(ctx.serverView().latest());
-        if (needs.buildingBlocks() < HouseBlueprint.blocksNeeded()) {
+        if (needs.buildingBlocks() < blocksNeededFor(ctx)) {
             return 0;
         }
         double intelligence = bot.personality().trait(Trait.INTELLIGENCE);
@@ -144,6 +148,7 @@ public final class BuildHouseGoal extends AbstractGoal {
         origin = null;
         facing = Cardinal.NORTH;
         session = null;
+        design = null;
         decor = null;
         announcedOutOfBlocks = false;
         plan = null;
@@ -615,10 +620,28 @@ public final class BuildHouseGoal extends AbstractGoal {
             plotFailedSessions = 0;
         }
         // Terén, pokládku i vybavení vede sdílený engine; výběr staveniště
-        // (výška, katastr, resume) zůstal na cíli.
-        BuildPlan buildPlan = BuildPlan.of(Blueprints.house(), origin, facing);
-        session = new BuildSession(BuildPlanner.schedule(buildPlan, ctx.worldView()));
+        // (výška, katastr, resume) zůstal na cíli. Complex režim staví
+        // generovaný dům z palety, jinak legacy domek 4×4.
+        var buildCfg = ctx.config().build();
+        if (buildCfg.complex()) {
+            design = HouseDesigner.design(bot, ctx.serverView().latest(), buildCfg);
+            BuildPlan buildPlan = BuildPlan.of(design.blueprint(), origin, facing);
+            session = new BuildSession(
+                    BuildPlanner.schedule(buildPlan, ctx.worldView()), design.palette());
+        } else {
+            design = null;
+            BuildPlan buildPlan = BuildPlan.of(Blueprints.house(), origin, facing);
+            session = new BuildSession(BuildPlanner.schedule(buildPlan, ctx.worldView()));
+        }
         return true;
+    }
+
+    /** Kolik bloků chce dům, na který se právě chystá (legacy vs generovaný). */
+    private int blocksNeededFor(BotContext ctx) {
+        var buildCfg = ctx.config().build();
+        return buildCfg.complex()
+                ? new HouseGenerator(buildCfg.width(), buildCfg.wallHeight()).blocksNeeded()
+                : HouseBlueprint.blocksNeeded();
     }
 
     /**
@@ -693,7 +716,9 @@ public final class BuildHouseGoal extends AbstractGoal {
             // Když založení nevyšlo (vesnice mezitím vyrostla vedle),
             // dům stojí a bot prostě bydlí po svém.
         }
-        BlockPos stand = HouseBlueprint.standPoint(origin, facing);
+        BlockPos stand = design != null
+                ? design.blueprint().standPoint(origin, facing)
+                : HouseBlueprint.standPoint(origin, facing);
         if (ctx.worldView() != null) {
             Map<String, String> data = new HashMap<>();
             data.put("type", "house");
@@ -702,6 +727,11 @@ public final class BuildHouseGoal extends AbstractGoal {
             data.put("oy", String.valueOf(origin.y()));
             data.put("oz", String.valueOf(origin.z()));
             data.put("facing", facing.name());
+            // Marker generovaného domu: legacy údržba ho přeskočí (design-aware
+            // oprava je navazující krok), stavěl se jiným plánem než 4×4.
+            if (design != null) {
+                data.put("design", design.key());
+            }
             if (settlements != null) {
                 settlements.settlementIdOf(bot.id()).ifPresent(
                         id -> data.put("settlement", String.valueOf(id)));
