@@ -62,6 +62,15 @@ gateway:
   # gateway, např. -Dminecraft.api.session.host=http://127.0.0.1:41000,
   # (3) http.enabled: true. Pokročilé – pro běžný offline server nechte false.
   client-auth: false
+  # Přeposílat dotazy pro NEznámá jména/UUID (tj. reální hráči) na skutečný
+  # Mojang. Díky tomu jeden online-mode server ověří ZÁROVEŇ boty (lokálně přes
+  # gateway) i reální hráče (přes Mojang), zatímco cizí falešní boti neprojdou
+  # ani jednou cestou. Vyžaduje stejné nasazení jako client-auth
+  # (online-mode + session host na gateway + http.enabled: true) a odchozí
+  # HTTPS na Mojang. Vypnuté (false) = neznámá jména se odmítnou (204).
+  mojang-proxy: false
+  # Základní URL skutečného session serveru pro proxy (běžně měnit netřeba).
+  mojang-host: "https://sessionserver.mojang.com"
 
 bots:
   # Tvrdý strop počtu botů.

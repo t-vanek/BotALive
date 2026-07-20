@@ -49,7 +49,9 @@ public final class ConfigLoader {
                 c.getInt("gateway.http.port", 41000),
                 Math.max(5, c.getInt("gateway.token-ttl-seconds", 120)),
                 c.getBoolean("gateway.client-auth", false),
-                c.getString("gateway.secret", "")
+                c.getString("gateway.secret", ""),
+                c.getBoolean("gateway.mojang-proxy", false),
+                c.getString("gateway.mojang-host", "https://sessionserver.mojang.com")
         );
 
         var bots = new BotAliveConfig.Bots(

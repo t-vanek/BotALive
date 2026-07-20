@@ -82,12 +82,22 @@ public final class CompositionRoot {
                         config.gateway().tokenTtlMs(), true));
         // Volitelná HTTP gateway ve tvaru Mojang session API (online-mode/proxy/fleet).
         if (config.gateway().enabled() && config.gateway().httpEnabled()) {
+            // Volitelná proxy na skutečný Mojang – online-mode server pak ověří
+            // zároveň boty (lokálně) i reální hráče (přes Mojang).
+            dev.botalive.core.gateway.MojangProxy proxy = config.gateway().mojangProxy()
+                    ? new dev.botalive.core.gateway.MojangProxy(config.gateway().mojangHost(),
+                            java.time.Duration.ofSeconds(6))
+                    : null;
             dev.botalive.core.gateway.MojangGatewayServer server =
                     new dev.botalive.core.gateway.MojangGatewayServer(
-                            config.gateway().bind(), config.gateway().port(), authority);
+                            config.gateway().bind(), config.gateway().port(), authority, proxy);
             try {
                 server.start();
                 this.gatewayServer = server;
+                if (proxy != null) {
+                    LOG.info("HTTP gateway: proxy na Mojang zapnutá ({}) – reální hráči se ověří "
+                            + "u Mojangu, boti lokálně.", config.gateway().mojangHost());
+                }
             } catch (java.io.IOException e) {
                 LOG.warn("HTTP gateway se nepodařilo spustit ({}:{}): {} – server-side pojistka "
                         + "loginu funguje i bez ní.", config.gateway().bind(),
