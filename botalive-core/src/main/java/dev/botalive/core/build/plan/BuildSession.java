@@ -13,25 +13,23 @@ import java.util.Deque;
 
 /**
  * Sdílený vykonavatel stavby: odbaví {@link BuildSchedule} po krocích místo
- * čtyř opsaných smyček v cílech. Fáze:
+ * opsaných smyček v cílech. Fáze:
  *
  * <ol>
- *   <li><b>TERRAFORM</b> – vytěžit překážky, zasypat díry v podlaze
- *       (zaměnitelný blok; jako {@code planTerraform}).</li>
- *   <li><b>GOTO_STAND</b> – stoupnout si přesně na stanoviště (u studny do
- *       šachty); už-na-místě je no-op, takže cíl, který bota přivedl,
- *       navigaci znovu nespouští.</li>
- *   <li><b>PLACE</b> – položit stavbu v pořadí s oporou; už pevná pozice se
- *       přeskočí (resume world-diffem), došlý materiál vrátí
- *       {@link State#BLOCKED_MATERIAL}.</li>
- *   <li><b>FURNISH</b> – osadit dveře/světlo/postel/truhlu; co chybí v batohu
- *       nebo už stojí, přeskočí (vybavení je bonus).</li>
+ *   <li><b>TERRAFORM</b> – vytěžit překážky, zasypat díry v podlaze.</li>
+ *   <li><b>UNIT</b> – pro každou {@link WorkUnit dávku}: dojít na stanoviště
+ *       (u studny/sýpky/generovaného domu přesně, u legacy 4×4 stačí okolí)
+ *       a položit její bloky. Velká stavba má víc stanovišť – bot přechází po
+ *       vnitřní podlaze, aby na každý blok pohodlně dosáhl.</li>
+ *   <li><b>FURNISH</b> – z vnitřního stanoviště osadit dveře/světlo/postel/
+ *       truhlu; co chybí v batohu nebo už stojí, přeskočí (bonus).</li>
  * </ol>
  *
- * <p>Pokládku bloků i výkopy počítá {@code PlaceBlockTask}/{@code MineBlockTask}
- * samy (statistika se tím počítá jednou, ne jako dřív dvakrát). Session drží
- * per-cíl stav v paměti; po přerušení/restartu ji cíl sestaví znovu z plánu
- * a world-diff přeskočí hotové – fyzická stavba je autorita.</p>
+ * <p>Pořadí bloků napříč jednotkami drží oporu; už pevná pozice se přeskočí
+ * (resume world-diffem), došlý materiál vrátí {@link State#BLOCKED_MATERIAL}.
+ * Pokládku i výkopy počítá {@code PlaceBlockTask}/{@code MineBlockTask} samy.
+ * Session drží per-cíl stav v paměti; po přerušení ji cíl sestaví znovu
+ * z plánu a world-diff přeskočí hotové – fyzická stavba je autorita.</p>
  */
 public final class BuildSession {
 
@@ -47,22 +45,27 @@ public final class BuildSession {
         UNREACHABLE
     }
 
-    private enum Phase { TERRAFORM, GOTO_STAND, PLACE, FURNISH, DONE }
+    private enum Phase { TERRAFORM, UNIT_GOTO, UNIT_PLACE, FURNISH_GOTO, FURNISH, DONE }
 
     /** Tolerance dokročení u tolerantní stavby (dům): stačí okolí stanoviště. */
     private static final int STAND_TOLERANCE_SQ = 2;
+    /** Kolik ticků nejvýš zkoušet dojít na stanoviště, než to bot vzdá. */
+    private static final int NAV_BUDGET = 300;
 
-    private final BlockPos stand;
+    private final BlockPos furnishStand;
     private final boolean standExact;
     private final Palette palette;
     private final Deque<BlockPos> mine;
     private final Deque<BlockPos> fill;
-    private final Deque<PlacementCell> placements;
+    private final Deque<WorkUnit> units;
+    private final Deque<PlacementCell> placements = new ArrayDeque<>();
     private final Deque<FurnishCell> furnish;
 
     private Phase phase = Phase.TERRAFORM;
     private BotTask current;
     private boolean navigating;
+    private BlockPos target;
+    private int navTicks;
     private PaletteRole missing;
 
     /**
@@ -79,13 +82,14 @@ public final class BuildSession {
      * @param palette  materiály podle rolí (GENERIC = zaměnitelný blok)
      */
     public BuildSession(BuildSchedule schedule, Palette palette) {
-        this.stand = schedule.stand();
+        this.furnishStand = schedule.furnishStand();
         this.standExact = schedule.standExact();
         this.palette = palette;
         this.mine = new ArrayDeque<>(schedule.mine());
         this.fill = new ArrayDeque<>(schedule.fill());
-        this.placements = new ArrayDeque<>(schedule.placements());
+        this.units = new ArrayDeque<>(schedule.units());
         this.furnish = new ArrayDeque<>(schedule.furnishing());
+        this.target = furnishStand;
     }
 
     /**
@@ -97,19 +101,29 @@ public final class BuildSession {
     public State tick(BotContext ctx) {
         return switch (phase) {
             case TERRAFORM -> tickTerraform(ctx);
-            case GOTO_STAND -> tickGoto(ctx);
-            case PLACE -> tickPlace(ctx);
+            case UNIT_GOTO -> tickUnitGoto(ctx);
+            case UNIT_PLACE -> tickPlace(ctx);
+            case FURNISH_GOTO -> tickFurnishGoto(ctx);
             case FURNISH -> tickFurnish(ctx);
             case DONE -> State.DONE;
         };
     }
 
-    /** @return počet zbývajících bloků stavby (pro {@code explain}) */
-    public int remaining() {
-        return placements.size() + (phase == Phase.PLACE && current != null ? 1 : 0);
+    /** @return stanoviště, kam session právě míří (pro simulaci/diagnostiku). */
+    public BlockPos currentStand() {
+        return target;
     }
 
-    /** @return role materiálu, který došel (platné jen po {@link State#BLOCKED_MATERIAL}) */
+    /** @return počet zbývajících bloků stavby (pro {@code explain}). */
+    public int remaining() {
+        int left = placements.size() + (current instanceof PlaceBlockTask ? 1 : 0);
+        for (WorkUnit unit : units) {
+            left += unit.placements().size();
+        }
+        return left;
+    }
+
+    /** @return role materiálu, který došel (platné jen po {@link State#BLOCKED_MATERIAL}). */
     public PaletteRole missing() {
         return missing;
     }
@@ -138,35 +152,34 @@ public final class BuildSession {
         }
         BlockPos hole = fill.poll();
         if (hole != null) {
-            // Zásyp podlahy zaměnitelným blokem; jako dnešní tickTasks se
-            // výsledek equip neřeší (zásypů je pár, materiál je zajištěn gate).
+            // Zásyp podlahy zaměnitelným blokem (zásypů je pár, materiál je zajištěn gate).
             ctx.inventory().equipBuildingBlock(ctx.serverView().latest());
             current = new PlaceBlockTask(hole);
             return State.RUNNING;
         }
-        phase = Phase.GOTO_STAND;
+        phase = Phase.UNIT_GOTO;
         return State.RUNNING;
     }
 
-    private State tickGoto(BotContext ctx) {
-        BlockPos feet = ctx.position().toBlockPos();
-        boolean arrived = standExact
-                ? feet.equals(stand)                          // studna/sýpka – přesně dovnitř
-                : feet.distanceSquared(stand) <= STAND_TOLERANCE_SQ; // dům – stačí okolí
-        if (arrived) {
-            if (navigating) {
-                ctx.navigator().stop();
-                navigating = false;
+    private State tickUnitGoto(BotContext ctx) {
+        if (placements.isEmpty()) {
+            WorkUnit unit = units.poll();
+            if (unit == null) {
+                target = furnishStand;
+                phase = Phase.FURNISH_GOTO;
+                return State.RUNNING;
             }
-            phase = Phase.PLACE;
+            placements.addAll(unit.placements());
+            target = unit.stand();
+            navTicks = 0;
+            // Nové stanoviště – příchod se ověří příští tick (po přesunu).
             return State.RUNNING;
         }
-        ctx.navigator().navigateTo(ctx.position(), stand);
-        navigating = true;
-        if (!ctx.navigator().navigating() && !ctx.navigator().hasPath()) {
-            return State.UNREACHABLE;
+        if (arrived(ctx, target)) {
+            phase = Phase.UNIT_PLACE;
+            return State.RUNNING;
         }
-        return State.RUNNING;
+        return navigate(ctx, target);
     }
 
     private State tickPlace(BotContext ctx) {
@@ -178,7 +191,7 @@ public final class BuildSession {
         }
         PlacementCell cell = placements.peek();
         if (cell == null) {
-            phase = Phase.FURNISH;
+            phase = Phase.UNIT_GOTO; // další jednotka (nebo vybavení)
             return State.RUNNING;
         }
         // Už pevná pozice → hotová (návrat ke stavbě, world-diff).
@@ -195,20 +208,12 @@ public final class BuildSession {
         return State.RUNNING;
     }
 
-    /**
-     * Vezme do ruky materiál role: zamýšlený z palety, a když došel, jakýkoli
-     * zaměnitelný stavební blok (náhrada – stavba se nezasekne). U
-     * {@link Palette#GENERIC} rovnou zaměnitelný blok jako dnes.
-     *
-     * @return {@code false} když nezbývá vůbec žádný stavební blok
-     */
-    private boolean equipFor(BotContext ctx, PaletteRole role) {
-        var snapshot = ctx.serverView().latest();
-        Material intended = palette.intended(role).orElse(null);
-        if (intended != null && ctx.inventory().equipItem(snapshot, intended)) {
-            return true;
+    private State tickFurnishGoto(BotContext ctx) {
+        if (furnish.isEmpty() || arrived(ctx, furnishStand)) {
+            phase = Phase.FURNISH;
+            return State.RUNNING;
         }
-        return ctx.inventory().equipBuildingBlock(snapshot);
+        return navigate(ctx, furnishStand);
     }
 
     private State tickFurnish(BotContext ctx) {
@@ -233,5 +238,51 @@ public final class BuildSession {
         }
         current = new PlaceBlockTask(step.pos());
         return State.RUNNING;
+    }
+
+    // ---------------------------------------------------------------- pomocné
+
+    /** Dorazil bot na stanoviště? (generované/studna přesně, legacy dům okolí). */
+    private boolean arrived(BotContext ctx, BlockPos t) {
+        BlockPos feet = ctx.position().toBlockPos();
+        boolean here = standExact
+                ? feet.equals(t)
+                : feet.distanceSquared(t) <= STAND_TOLERANCE_SQ;
+        if (here && navigating) {
+            ctx.navigator().stop();
+            navigating = false;
+        }
+        if (here) {
+            navTicks = 0;
+        }
+        return here;
+    }
+
+    private State navigate(BotContext ctx, BlockPos t) {
+        ctx.navigator().navigateTo(ctx.position(), t);
+        navigating = true;
+        // Nedosažitelné (backoff) nebo příliš dlouho bez příchodu → vzdát se;
+        // cíl to ošetří cooldownem a případně stavbu dokončí jindy (resume).
+        if ((!ctx.navigator().navigating() && !ctx.navigator().hasPath())
+                || ++navTicks > NAV_BUDGET) {
+            return State.UNREACHABLE;
+        }
+        return State.RUNNING;
+    }
+
+    /**
+     * Vezme do ruky materiál role: zamýšlený z palety, a když došel, jakýkoli
+     * zaměnitelný stavební blok (náhrada – stavba se nezasekne). U
+     * {@link Palette#GENERIC} rovnou zaměnitelný blok jako dnes.
+     *
+     * @return {@code false} když nezbývá vůbec žádný stavební blok
+     */
+    private boolean equipFor(BotContext ctx, PaletteRole role) {
+        var snapshot = ctx.serverView().latest();
+        Material intended = palette.intended(role).orElse(null);
+        if (intended != null && ctx.inventory().equipItem(snapshot, intended)) {
+            return true;
+        }
+        return ctx.inventory().equipBuildingBlock(snapshot);
     }
 }

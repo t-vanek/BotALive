@@ -475,8 +475,8 @@ build:
   # stejným enginem a opravovaný proti svému plánu. Vypnutí (false) vrátí
   # původní domek 4×4 (plná zpětná kompatibilita).
   complex: true
-  # Šířka i hloubka půdorysu (lichá, >= 5). 5 je bezpečně dosažitelná
-  # z jednoho stanoviště; větší půdorysy budou chtít víc stanovišť.
-  width: 5
+  # Šířka i hloubka půdorysu (lichá, >= 5). Malý dům (5) staví bot z jednoho
+  # místa, větší (7+) z několika stanovišť po vnitřní podlaze.
+  width: 7
   # Výška zdí.
   wall-height: 3
