@@ -6,6 +6,8 @@ import dev.botalive.core.tasks.MineBlockTask;
 import dev.botalive.core.tasks.PlaceBlockTask;
 import dev.botalive.core.util.BlockPos;
 
+import org.bukkit.Material;
+
 import java.util.ArrayDeque;
 import java.util.Deque;
 
@@ -52,6 +54,7 @@ public final class BuildSession {
 
     private final BlockPos stand;
     private final boolean standExact;
+    private final Palette palette;
     private final Deque<BlockPos> mine;
     private final Deque<BlockPos> fill;
     private final Deque<PlacementCell> placements;
@@ -63,11 +66,22 @@ public final class BuildSession {
     private PaletteRole missing;
 
     /**
+     * Legacy stavba: zaměnitelný stavební blok pro všechny bloky.
+     *
      * @param schedule rozvrh sestavený {@link BuildPlanner}
      */
     public BuildSession(BuildSchedule schedule) {
+        this(schedule, Palette.GENERIC);
+    }
+
+    /**
+     * @param schedule rozvrh sestavený {@link BuildPlanner}
+     * @param palette  materiály podle rolí (GENERIC = zaměnitelný blok)
+     */
+    public BuildSession(BuildSchedule schedule, Palette palette) {
         this.stand = schedule.stand();
         this.standExact = schedule.standExact();
+        this.palette = palette;
         this.mine = new ArrayDeque<>(schedule.mine());
         this.fill = new ArrayDeque<>(schedule.fill());
         this.placements = new ArrayDeque<>(schedule.placements());
@@ -172,13 +186,29 @@ public final class BuildSession {
             placements.poll();
             return State.RUNNING;
         }
-        if (!ctx.inventory().equipBuildingBlock(ctx.serverView().latest())) {
+        if (!equipFor(ctx, cell.spec().role())) {
             missing = cell.spec().role();
             return State.BLOCKED_MATERIAL;
         }
         placements.poll();
         current = new PlaceBlockTask(cell.pos());
         return State.RUNNING;
+    }
+
+    /**
+     * Vezme do ruky materiál role: zamýšlený z palety, a když došel, jakýkoli
+     * zaměnitelný stavební blok (náhrada – stavba se nezasekne). U
+     * {@link Palette#GENERIC} rovnou zaměnitelný blok jako dnes.
+     *
+     * @return {@code false} když nezbývá vůbec žádný stavební blok
+     */
+    private boolean equipFor(BotContext ctx, PaletteRole role) {
+        var snapshot = ctx.serverView().latest();
+        Material intended = palette.intended(role).orElse(null);
+        if (intended != null && ctx.inventory().equipItem(snapshot, intended)) {
+            return true;
+        }
+        return ctx.inventory().equipBuildingBlock(snapshot);
     }
 
     private State tickFurnish(BotContext ctx) {

@@ -3,14 +3,24 @@ package dev.botalive.core.build.plan;
 /**
  * Role bloku ve stavbě – „co ten blok je", ne „z čeho je".
  *
- * <p>Paleta (fáze V2b) mapuje roli na konkrétní materiál podle biomu, profese
- * a dostupnosti; jedno místo pravdy pro world-diff, náhrady i vybavení. Ve
- * fázi V2a existuje jen {@link #GENERIC} – legacy stavby (dům, studna, sýpka)
- * kladou zaměnitelný stavební blok, přesně jako dnes, takže se paleta ještě
- * nezapojuje.</p>
+ * <p>{@link Palette} mapuje roli na konkrétní materiál podle místního dřeva
+ * a seedu; jedno místo pravdy pro vybavení, rozpis materiálu ({@code BOM})
+ * i přijatelnost při opravě ({@code AcceptancePolicy}). Legacy stavby (dům
+ * 4×4, studna, sýpka) používají jen {@link #GENERIC} – zaměnitelný stavební
+ * blok jako dnes.</p>
  */
 public enum PaletteRole {
 
     /** Zaměnitelný stavební blok (dnešní {@code equipBuildingBlock}). */
-    GENERIC
+    GENERIC,
+    /** Základová / spodní obruba stavby (kámen). */
+    FOUNDATION,
+    /** Hlavní zdivo. */
+    WALL,
+    /** Nároží a rámy (kontrastní, typicky kmeny). */
+    WALL_ACCENT,
+    /** Okno (sklo). */
+    WINDOW,
+    /** Střešní krytina. */
+    ROOF
 }
