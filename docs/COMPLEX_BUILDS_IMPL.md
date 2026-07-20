@@ -11,19 +11,23 @@ k `3604c6f`.
 > invariantními a simulačními testy; `CommunalBuildGoal` i `BuildHouseGoal`
 > migrované na sdílený engine.
 >
-> V2b dosud: `Palette`/`PaletteResolver` (dřevo + seed), `AcceptancePolicy`,
+> V2b hotovo: `Palette`/`PaletteResolver` (dřevo + seed), `AcceptancePolicy`,
 > `BillOfMaterials`; `BuildSession` klade podle role (zeď prkna, okno sklo)
-> s náhradou; `HouseGenerator` (dům 5×5, okna, valbová střecha, celý na
-> dosah z jednoho stanoviště – reach-invariant test); `HouseDesigner`;
-> zapojeno do `BuildHouseGoal` za `build.complex` (výchozí **false** =
-> beze změny chování). Celá sada 709 testů zelená.
+> s náhradou; `HouseGenerator` (okna, valbová střecha); `HouseDesigner`;
+> **multi-standpoint** – `BuildPlanner` rozdělí velký dům na `WorkUnit`
+> dávky po stanovištích (vnitřní podlaha, dosah s rezervou), `BuildSession`
+> mezi nimi přechází; **design-aware údržba** (`MaintainHomeGoal` je
+> blueprint-driven, opraví legacy 4×4 i generovaný dům proti jeho plánu).
+> Zapojeno do `BuildHouseGoal`, **`build.complex` výchozí `true`, `width`
+> výchozí 7** (uživatelské minimum, přes multi-standpoint). Celá sada
+> 714 testů zelená.
 >
-> **Zbývá ve V2b** (vědomě odloženo, viz report): design-aware oprava
-> generovaných domů v `MaintainHomeGoal` (zatím se bezpečně přeskočí);
-> multi-standpoint pro 7×7+ (bot na vlastní stavbě); cílené shánění
-> materiálu (build wishlist z `BillOfMaterials`); orientované bloky
-> (schody/dveře – kurzorový `useItemOn`, chce ověření na živém serveru);
-> default-on po doladění. Pak **V2c** (civilní stavby).
+> **Zbývá** (viz report): cílené shánění materiálu (build wishlist
+> z `BillOfMaterials` – zatím náhrada zajišťuje, že se stavba nezasekne);
+> orientované bloky (schody/dveře – kurzorový `useItemOn`, chce ověření na
+> živém serveru); škálování velikosti/patra podle tieru sídla. Pak
+> **V2c** (civilní stavby – tržiště, radnice, kostel na vícparcelových
+> staveništích). Doporučeno: smoke test na serveru (`build.complex: true`).
 
 ## Inventura dotčeného kódu
 
