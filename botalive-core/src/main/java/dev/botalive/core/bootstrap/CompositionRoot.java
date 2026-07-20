@@ -105,6 +105,19 @@ public final class CompositionRoot {
             }
         }
 
+        // Velocity forwarding: jednorázová startovní diagnostika (samotné
+        // odpovídání řeší per-connection listener v BotConnection).
+        BotAliveConfig.Network.Velocity velocity = config.network().velocity();
+        if (velocity.enabled()) {
+            if (velocity.secret().isBlank()) {
+                LOG.warn("network.velocity.enabled=true, ale secret je prázdný – boti se za "
+                        + "Velocity neověří. Doplň forwarding.secret z Velocity.");
+            } else {
+                LOG.info("Velocity modern forwarding zapnutý – boti se ověří u offline-mode "
+                        + "backendu za Velocity proxy.");
+            }
+        }
+
         // Infrastruktura.
         MainThreadBridge bridge = container.register(MainThreadBridge.class,
                 new MainThreadBridge(plugin));

@@ -37,6 +37,10 @@ public final class ConfigLoader {
                         c.getLong("network.reconnect.delay-min-ms", 3_000L),
                         c.getLong("network.reconnect.delay-max-ms", 15_000L),
                         c.getInt("network.reconnect.max-attempts", 10)
+                ),
+                new BotAliveConfig.Network.Velocity(
+                        c.getBoolean("network.velocity.enabled", false),
+                        c.getString("network.velocity.secret", "")
                 )
         );
 

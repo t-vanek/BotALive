@@ -111,6 +111,15 @@ public final class BotConnection {
         // Follow transfers – kdyby server bota přesměroval (velocity apod.).
         newSession.setFlag(MinecraftConstants.FOLLOW_TRANSFERS, true);
 
+        // Velocity modern forwarding: offline-mode backend za Velocity si při
+        // loginu vyžádá podepsaný identity payload. Bot jde přímo na backend
+        // (ne přes proxy), takže si ho podepíše sám sdíleným secretem.
+        BotAliveConfig.Network.Velocity velocity = config.velocity();
+        if (velocity.enabled() && !velocity.secret().isBlank()) {
+            newSession.addListener(new VelocityForwardingListener(
+                    botName, botId, velocity.secretBytes()));
+        }
+
         newSession.addListener(listener);
         this.session = newSession;
 
