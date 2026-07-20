@@ -64,4 +64,15 @@ public interface Blueprint {
 
     /** @return kolik stavebních bloků stavba spotřebuje (bez vybavení) */
     int blocksNeeded();
+
+    /**
+     * Musí stavitel stát <b>přesně</b> na stanovišti (studna – šachta, sýpka –
+     * vnitřek), nebo stačí okolí (dům se staví, kam bot dojde)? Rozhoduje, jak
+     * přísně {@code BuildSession} dokročí před pokládkou.
+     *
+     * @return {@code true} když je nutné stát přesně na {@code standPoint}
+     */
+    default boolean standExact() {
+        return false;
+    }
 }

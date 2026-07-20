@@ -16,11 +16,13 @@ import java.util.List;
  * @param placements  bloky stavby v pořadí pokládky (každý má při pokládce oporu)
  * @param stand       stanoviště stavitele
  * @param furnishing  kroky vybavení (bonus, přeskočí se, co chybí)
+ * @param standExact  musí stavitel dokročit přesně na {@code stand}?
  */
 public record BuildSchedule(
         List<BlockPos> mine,
         List<BlockPos> fill,
         List<PlacementCell> placements,
         BlockPos stand,
-        List<FurnishCell> furnishing) {
+        List<FurnishCell> furnishing,
+        boolean standExact) {
 }

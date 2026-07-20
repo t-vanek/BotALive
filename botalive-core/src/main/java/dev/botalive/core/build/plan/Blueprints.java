@@ -100,6 +100,13 @@ public final class Blueprints {
             return HouseBlueprint.blocksNeeded();
         }
 
+        @Override
+        public boolean standExact() {
+            // Sýpka se staví přesně z vnitřku (jako dřív CommunalBuildGoal
+            // STEP_IN); dům se staví, kam bot na parcele dojde (tolerantně).
+            return granary;
+        }
+
         /**
          * Druhá půlka dvojtruhly: vnitřní soused truhly, který není
          * stanovištěm stavitele ani místem pochodně (parita s privátní
@@ -166,6 +173,11 @@ public final class Blueprints {
         @Override
         public int blocksNeeded() {
             return WellBlueprint.blocksNeeded();
+        }
+
+        @Override
+        public boolean standExact() {
+            return true; // stavitel musí stát ve středu šachty
         }
     }
 

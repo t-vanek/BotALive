@@ -47,7 +47,11 @@ public final class BuildSession {
 
     private enum Phase { TERRAFORM, GOTO_STAND, PLACE, FURNISH, DONE }
 
+    /** Tolerance dokročení u tolerantní stavby (dům): stačí okolí stanoviště. */
+    private static final int STAND_TOLERANCE_SQ = 2;
+
     private final BlockPos stand;
+    private final boolean standExact;
     private final Deque<BlockPos> mine;
     private final Deque<BlockPos> fill;
     private final Deque<PlacementCell> placements;
@@ -63,6 +67,7 @@ public final class BuildSession {
      */
     public BuildSession(BuildSchedule schedule) {
         this.stand = schedule.stand();
+        this.standExact = schedule.standExact();
         this.mine = new ArrayDeque<>(schedule.mine());
         this.fill = new ArrayDeque<>(schedule.fill());
         this.placements = new ArrayDeque<>(schedule.placements());
@@ -131,7 +136,10 @@ public final class BuildSession {
 
     private State tickGoto(BotContext ctx) {
         BlockPos feet = ctx.position().toBlockPos();
-        if (feet.equals(stand)) {
+        boolean arrived = standExact
+                ? feet.equals(stand)                          // studna/sýpka – přesně dovnitř
+                : feet.distanceSquared(stand) <= STAND_TOLERANCE_SQ; // dům – stačí okolí
+        if (arrived) {
             if (navigating) {
                 ctx.navigator().stop();
                 navigating = false;

@@ -93,7 +93,8 @@ public final class BuildPlanner {
             }
         }
         List<PlacementCell> ordered = order(plan.cells(), plan.groundColumns());
-        return new BuildSchedule(mine, fill, ordered, plan.stand(), plan.furnishing());
+        return new BuildSchedule(mine, fill, ordered, plan.stand(), plan.furnishing(),
+                plan.standExact());
     }
 
     /** Má pozice pevného souseda v 6-okolí? (parita s {@code PlaceBlockTask}). */

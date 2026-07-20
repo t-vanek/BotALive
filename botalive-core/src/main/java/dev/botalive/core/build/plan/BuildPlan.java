@@ -19,6 +19,7 @@ import java.util.Optional;
  * @param furnishing   kroky vybavení
  * @param stand        stanoviště stavitele
  * @param doorCell     spodní buňka dveří (exit), nebo prázdné
+ * @param standExact   musí stavitel stát přesně na {@code stand}?
  */
 public record BuildPlan(
         List<PlacementCell> cells,
@@ -26,7 +27,8 @@ public record BuildPlan(
         List<BlockPos> groundColumns,
         List<FurnishCell> furnishing,
         BlockPos stand,
-        Optional<BlockPos> doorCell) {
+        Optional<BlockPos> doorCell,
+        boolean standExact) {
 
     /**
      * Vyhodnotí blueprint na daném místě.
@@ -43,6 +45,7 @@ public record BuildPlan(
                 blueprint.groundColumns(origin, facing),
                 blueprint.furnishing(origin, facing),
                 blueprint.standPoint(origin, facing),
-                blueprint.doorCell(origin, facing));
+                blueprint.doorCell(origin, facing),
+                blueprint.standExact());
     }
 }
