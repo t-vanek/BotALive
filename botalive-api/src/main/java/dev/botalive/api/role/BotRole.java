@@ -42,7 +42,34 @@ public enum BotRole {
     FISHERMAN("rybář"),
 
     /** Farmář – pěstování a sklizeň plodin. */
-    FARMER("farmář");
+    FARMER("farmář"),
+
+    /** Alchymista – vaření lektvarů u stojanu, výpravy pro bradavici. */
+    ALCHEMIST("alchymista"),
+
+    /** Strážce – hlídání návsi, ochrana ostatních, boj v čele. */
+    GUARDIAN("strážce"),
+
+    /** Průzkumník – dálkové výpravy, lodě, vozíky, tábory v terénu. */
+    SCOUT("průzkumník"),
+
+    /** Krotitel – ochočování zvířat a péče o ně. */
+    BEASTMASTER("krotitel"),
+
+    /** Zloděj – krádeže z truhel a loupeže; strůjce konfliktů. */
+    THIEF("zloděj"),
+
+    /** Vyjednavač – družení, sdílení, urovnávání sporů mezi osadami. */
+    DIPLOMAT("vyjednavač"),
+
+    /** Dobrodruh – Nether, End, souboje s bossy. */
+    ADVENTURER("dobrodruh"),
+
+    /** Poslíček – rozvoz zakázek, doplňování truhel, sběr. */
+    COURIER("poslíček"),
+
+    /** Kuchař – vaření jídla v peci a jeho rozdělování. */
+    COOK("kuchař");
 
     private final String displayName;
 
