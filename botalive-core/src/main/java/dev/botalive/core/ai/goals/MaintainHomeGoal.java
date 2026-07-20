@@ -5,7 +5,13 @@ import dev.botalive.api.memory.MemoryKind;
 import dev.botalive.api.memory.MemoryRecord;
 import dev.botalive.api.personality.Trait;
 import dev.botalive.core.ai.BotContext;
-import dev.botalive.core.build.HouseBlueprint;
+import dev.botalive.core.build.plan.Blueprint;
+import dev.botalive.core.build.plan.Blueprints;
+import dev.botalive.core.build.plan.FurnishCell;
+import dev.botalive.core.build.plan.HouseDesigner;
+import dev.botalive.core.build.plan.Palette;
+import dev.botalive.core.build.plan.PaletteRole;
+import dev.botalive.core.build.plan.PlacementCell;
 import dev.botalive.core.util.Cardinal;
 import dev.botalive.core.chat.PhraseCategory;
 import dev.botalive.core.settlement.SettlementService;
@@ -16,23 +22,27 @@ import dev.botalive.core.util.BlockPos;
 import dev.botalive.core.world.BlockTraits;
 import dev.botalive.core.world.WorldView;
 
+import org.bukkit.Material;
+
 import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.List;
-import java.util.Set;
 
 /**
  * Údržba vlastního domu – creeper díry, vytlučené zdi, chybějící dveře.
  *
  * <p>Bot čas od času (a jen když je poblíž domova) projde svůj dům proti
- * plánu ({@link HouseBlueprint}): doplní chybějící bloky zdí a střechy,
- * vykope, co se připletlo do dveřního otvoru, a osadí nové dveře, má-li je
- * u sebe. Uzavírá smyčku postav → bydli → <b>opravuj</b>; bez ní by po
- * prvním creeperu vesnice nevratně chátraly.</p>
+ * jeho plánu ({@link Blueprint}): doplní chybějící bloky zdí a střechy
+ * správným materiálem (paleta podle role), vykope, co se připletlo do
+ * dveřního otvoru, a osadí nové dveře, má-li je u sebe. Uzavírá smyčku
+ * postav → bydli → <b>opravuj</b>; bez ní by po prvním creeperu vesnice
+ * nevratně chátraly.</p>
  *
- * <p>Orientace domu: člen vesnice ji zná z parcely, novější sólo domy
- * z HOME dat ({@code ox/oy/oz/facing}); starým domům bez metadat se origin
- * zrekonstruuje z bodu uložení (stand point, sever).</p>
+ * <p>Plán domu: legacy domek 4×4, nebo generovaný dům rekonstruovaný
+ * z HOME dat (šířka, výška, dřevo, seed). Orientace: člen vesnice ji zná
+ * z parcely, novější sólo domy z HOME dat ({@code ox/oy/oz/facing});
+ * starým domům bez metadat se origin zrekonstruuje z bodu uložení
+ * (stand point, sever).</p>
  */
 public final class MaintainHomeGoal extends AbstractGoal {
 
@@ -53,7 +63,13 @@ public final class MaintainHomeGoal extends AbstractGoal {
     private Phase phase = Phase.GOTO;
     private BlockPos origin;
     private Cardinal facing = Cardinal.NORTH;
-    private final Deque<BotTask> repairs = new ArrayDeque<>();
+    /** Plán a materiály domu (legacy 4×4, nebo rekonstruovaný generovaný). */
+    private Blueprint blueprint;
+    private Palette palette = Palette.GENERIC;
+    /** Ucpávky ve vchodu k vykopání. */
+    private final Deque<BlockPos> clears = new ArrayDeque<>();
+    /** Chybějící bloky stavby k doplnění (nesou roli pro správný materiál). */
+    private final Deque<PlacementCell> refills = new ArrayDeque<>();
     private final Deque<FurnishStep> furnish = new ArrayDeque<>();
     private DecorWorker decor;
     private BotTask current;
@@ -99,12 +115,39 @@ public final class MaintainHomeGoal extends AbstractGoal {
     @Override
     public void start(Bot bot) {
         phase = Phase.GOTO;
-        repairs.clear();
+        clears.clear();
+        refills.clear();
         furnish.clear();
         decor = null;
         current = null;
         repairedCount = 0;
         resolveOriginAndFacing(bot);
+        resolveDesign(bot);
+    }
+
+    /**
+     * Zjistí plán a materiály domu: generovaný z HOME dat (šířka, výška, dřevo,
+     * seed), jinak legacy domek 4×4. Poškozená metadata generovaného domu
+     * raději neopravovat ({@code origin=null}) než ho poškodit legacy plánem.
+     */
+    private void resolveDesign(Bot bot) {
+        blueprint = Blueprints.house();
+        palette = Palette.GENERIC;
+        MemoryRecord home = houseRecord(bot);
+        if (home == null || !home.data().containsKey("design")) {
+            return;
+        }
+        try {
+            var design = new HouseDesigner.HouseDesign(
+                    Integer.parseInt(home.data().get("bw")),
+                    Integer.parseInt(home.data().get("bh")),
+                    Material.valueOf(home.data().get("bwood")),
+                    Long.parseLong(home.data().get("bseed")));
+            blueprint = design.blueprint();
+            palette = design.palette();
+        } catch (RuntimeException e) {
+            origin = null; // neúplný design – neopravovat (bezpečné)
+        }
     }
 
     @Override
@@ -135,7 +178,8 @@ public final class MaintainHomeGoal extends AbstractGoal {
             decor.cancel(ctx(bot));
             decor = null;
         }
-        repairs.clear();
+        clears.clear();
+        refills.clear();
         furnish.clear();
         super.stop(bot);
     }
@@ -149,7 +193,7 @@ public final class MaintainHomeGoal extends AbstractGoal {
     public String explain(Bot bot) {
         return switch (phase) {
             case GOTO -> "jdu zkontrolovat dům";
-            case REPAIR -> "opravuju dům (zbývá " + (repairs.size()
+            case REPAIR -> "opravuju dům (zbývá " + (clears.size() + refills.size()
                     + (current != null ? 1 : 0)) + " bloků)";
             case FURNISH -> "doplňuju vybavení – dveře, postel, světlo";
             case DECOR -> "obnovuju cestičku a pochodně před domem";
@@ -198,7 +242,7 @@ public final class MaintainHomeGoal extends AbstractGoal {
 
     /** Dojít k domu a sepsat, co chybí. */
     private void gotoHome(BotContext ctx, Bot bot) {
-        BlockPos stand = HouseBlueprint.standPoint(origin, facing);
+        BlockPos stand = blueprint.standPoint(origin, facing);
         if (ctx.position().toBlockPos().distanceSquared(stand) > 9) {
             ctx.navigator().navigateTo(ctx.position(), stand);
             if (!ctx.navigator().navigating()) {
@@ -218,62 +262,52 @@ public final class MaintainHomeGoal extends AbstractGoal {
      */
     private void planRepairs(BotContext ctx, Bot bot) {
         WorldView world = ctx.worldView();
-        BlockPos doorBottom = HouseBlueprint.doorBottom(origin, facing);
-        BlockPos doorTop = doorBottom.up();
-        List<BlockPos> structure = HouseBlueprint.placements(origin, facing);
-        Set<BlockPos> doorway = Set.of(doorBottom, doorTop);
 
+        // Chybějící bloky stavby proti plánu (díra = nepevná pozice); materiál
+        // se doplní podle role (AcceptancePolicy rozhodne, co už je v pořádku).
         int missing = 0;
-        for (BlockPos pos : structure) {
-            BlockTraits traits = world.traitsAt(pos);
+        for (PlacementCell cell : blueprint.cells(origin, facing)) {
+            BlockTraits traits = world.traitsAt(cell.pos());
             if (traits == BlockTraits.UNKNOWN) {
                 cooldownTicks = BUSY_COOLDOWN; // okolí nedotažené – příště
                 phase = Phase.DONE;
                 return;
             }
             if (!traits.solid() && missing < MAX_REPAIRS) {
-                repairs.add(new PlaceBlockTask(pos));
+                refills.add(cell);
                 missing++;
             }
         }
         var snapshot = ctx.serverView().latest();
-        // Vchod: co tam nepatří, vykopat; dveře osadit, pokud chybí a jsou.
-        for (BlockPos pos : doorway) {
-            var material = world.materialAt(pos);
-            if (world.traitsAt(pos).solid()) {
-                repairs.add(new MineBlockTask(pos));
-            } else if (pos.equals(doorBottom)
-                    && (material == null || !material.name().endsWith("_DOOR"))
-                    && snapshot != null
-                    && snapshot.hasItem(m -> m.name().endsWith("_DOOR"))) {
-                furnish.add(new FurnishStep(m -> m.name().endsWith("_DOOR"), doorBottom));
+        // Vchod: co se tam připletlo (pevný blok, ne dveře), vykopat.
+        blueprint.doorCell(origin, facing).ifPresent(doorBottom -> {
+            for (BlockPos pos : List.of(doorBottom, doorBottom.up())) {
+                if (world.traitsAt(pos).solid()) {
+                    clears.add(pos);
+                }
             }
-        }
-        // Vybavení uvnitř: ukradená/zničená postel = ztracený spawn point,
-        // zhaslá pochodeň = mobové v obýváku.
-        BlockPos bedSpot = HouseBlueprint.bedSpot(origin, facing);
-        var bedMaterial = world.materialAt(bedSpot);
-        if ((bedMaterial == null || !bedMaterial.name().endsWith("_BED"))
-                && !world.traitsAt(bedSpot).solid()
-                && snapshot != null && snapshot.hasItem(m -> m.name().endsWith("_BED"))) {
-            furnish.add(new FurnishStep(m -> m.name().endsWith("_BED"), bedSpot));
-        }
-        BlockPos torchSpot = HouseBlueprint.torchSpot(origin, facing);
-        if (world.materialAt(torchSpot) != org.bukkit.Material.TORCH
-                && !world.traitsAt(torchSpot).solid()
-                && snapshot != null
-                && snapshot.hasItem(m -> m == org.bukkit.Material.TORCH)) {
-            furnish.add(new FurnishStep(m -> m == org.bukkit.Material.TORCH, torchSpot));
+        });
+        // Vybavení: chybějící dveře (ztracený vchod), postel (spawn) i pochodeň
+        // (mobové uvnitř) – co bot má u sebe, doplní.
+        for (FurnishCell step : blueprint.furnishing(origin, facing)) {
+            var predicate = Blueprints.itemFor(step.kind());
+            var material = world.materialAt(step.pos());
+            boolean satisfied = material != null && predicate.test(material);
+            if (!satisfied && !world.traitsAt(step.pos()).solid()
+                    && snapshot != null && snapshot.hasItem(predicate)) {
+                furnish.add(new FurnishStep(predicate, step.pos()));
+            }
         }
         // Cestička a veřejné osvětlení (jen členové vesnice, plán je idempotentní).
         planDecor(ctx, bot);
 
-        if (repairs.isEmpty() && furnish.isEmpty() && (decor == null || !decor.hasWork())) {
+        if (clears.isEmpty() && refills.isEmpty() && furnish.isEmpty()
+                && (decor == null || !decor.hasWork())) {
             cooldownTicks = CALM_COOLDOWN; // všechno drží pohromadě
             phase = Phase.DONE;
             return;
         }
-        if (!repairs.isEmpty() && ctx.rng().chance(0.5)) {
+        if (!refills.isEmpty() && ctx.rng().chance(0.5)) {
             ctx.chat().sayFrom(PhraseCategory.HOME_REPAIR, null);
         }
         phase = Phase.REPAIR;
@@ -299,30 +333,44 @@ public final class MaintainHomeGoal extends AbstractGoal {
         }
     }
 
-    /** Opravuje frontu: kopání ucpávek a doplňování bloků. */
+    /** Opravuje frontu: nejdřív vykopat ucpávky vchodu, pak doplnit bloky. */
     private void tickRepair(BotContext ctx) {
-        if (current == null) {
-            current = repairs.poll();
-            if (current == null) {
-                phase = Phase.FURNISH;
-                return;
-            }
-            if (current instanceof PlaceBlockTask
-                    && !ctx.inventory().equipBuildingBlock(ctx.serverView().latest())) {
-                // Došly bloky – zbytek oprav příště, vybavení se zkusí i tak.
+        if (current != null) {
+            if (current.tick(ctx)) {
+                if (current instanceof PlaceBlockTask) {
+                    repairedCount++; // pokládku počítá PlaceBlockTask sám (statistika)
+                }
                 current = null;
-                repairs.clear();
-                phase = Phase.FURNISH;
-                return;
             }
+            return;
         }
-        if (current.tick(ctx)) {
-            if (current instanceof PlaceBlockTask) {
-                repairedCount++;
-                ctx.stats().addPlaced();
-            }
-            current = null;
+        BlockPos clear = clears.poll();
+        if (clear != null) {
+            current = new MineBlockTask(clear);
+            return;
         }
+        PlacementCell cell = refills.poll();
+        if (cell == null) {
+            phase = Phase.FURNISH;
+            return;
+        }
+        if (!equipFor(ctx, cell.spec().role())) {
+            // Došly bloky – zbytek oprav příště, vybavení se zkusí i tak.
+            refills.clear();
+            phase = Phase.FURNISH;
+            return;
+        }
+        current = new PlaceBlockTask(cell.pos());
+    }
+
+    /** Vezme materiál role z palety (náhrada zaměnitelným blokem, jako engine). */
+    private boolean equipFor(BotContext ctx, PaletteRole role) {
+        var snapshot = ctx.serverView().latest();
+        Material intended = palette.intended(role).orElse(null);
+        if (intended != null && ctx.inventory().equipItem(snapshot, intended)) {
+            return true;
+        }
+        return ctx.inventory().equipBuildingBlock(snapshot);
     }
 
     /** Doplní vybavení (dveře, postel, pochodeň); co chybí v batohu, přeskočí. */

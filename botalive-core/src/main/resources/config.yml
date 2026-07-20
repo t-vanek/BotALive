@@ -468,3 +468,17 @@ persistence:
     pool-size: 8
   # Perioda write-behind flushe (sekundy).
   flush-seconds: 15
+
+build:
+  # Rozmanité domy místo dřívějšího domku 4×4 (zapnuto). Generovaný dům
+  # z místního dřeva – větší půdorys, okna, valbová střecha, stavěný
+  # stejným enginem a opravovaný proti svému plánu. Vypnutí (false) vrátí
+  # původní domek 4×4 (plná zpětná kompatibilita).
+  complex: true
+  # Strop šířky/hloubky půdorysu (lichá, >= 5). Skutečnou velikost volí bot
+  # podle stupně sídla a povahy: osada staví útulné 5×5, vesnice a město
+  # větší až k tomuto stropu (líný bot staví malý). Malý dům postaví bot
+  # z jednoho místa, větší z několika stanovišť po vnitřní podlaze.
+  width: 7
+  # Výška zdí.
+  wall-height: 3

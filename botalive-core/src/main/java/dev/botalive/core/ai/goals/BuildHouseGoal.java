@@ -8,20 +8,22 @@ import dev.botalive.core.ai.BotContext;
 import dev.botalive.core.ai.BotNeeds;
 import dev.botalive.core.build.HouseBlueprint;
 import dev.botalive.core.build.VillageDecor;
+import dev.botalive.core.build.plan.Blueprints;
+import dev.botalive.core.build.plan.BuildPlan;
+import dev.botalive.core.build.plan.BuildPlanner;
+import dev.botalive.core.build.plan.BuildSession;
+import dev.botalive.core.build.plan.HouseDesigner;
+import dev.botalive.core.build.plan.HouseGenerator;
 import dev.botalive.core.util.Cardinal;
 import dev.botalive.core.chat.PhraseCategory;
 import dev.botalive.core.settlement.SettlementService;
+import dev.botalive.core.settlement.SettlementTier;
 import dev.botalive.core.settlement.SocialView;
-import dev.botalive.core.tasks.BotTask;
-import dev.botalive.core.tasks.MineBlockTask;
-import dev.botalive.core.tasks.PlaceBlockTask;
 import dev.botalive.core.util.BlockPos;
 import dev.botalive.core.util.Vec3;
 import dev.botalive.core.world.BlockTraits;
 import dev.botalive.core.world.WorldView;
 
-import java.util.ArrayDeque;
-import java.util.Deque;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -68,24 +70,17 @@ public final class BuildHouseGoal extends AbstractGoal {
     /** Bonus zakladatele za stromy do 32 bloků. */
     private static final int WOOD_BONUS = 2;
 
-    private enum Phase { FIND_SITE, RELOCATE, GOTO_SITE, TERRAFORM, BUILD, FURNISH,
-        DECORATE, DONE }
-
-    /** Krok vybavování domu: co vzít do ruky a kam to položit. */
-    private record FurnishStep(java.util.function.Predicate<org.bukkit.Material> item,
-                               dev.botalive.core.util.BlockPos target) {
-    }
+    private enum Phase { FIND_SITE, RELOCATE, GOTO_SITE, SESSION, DECORATE, DONE }
 
     private Phase phase = Phase.FIND_SITE;
     private BlockPos origin;
     private Cardinal facing = Cardinal.NORTH;
-    private final Deque<BotTask> terraform = new ArrayDeque<>();
-    private final Deque<BlockPos> placements = new ArrayDeque<>();
-    private final Deque<FurnishStep> furnish = new ArrayDeque<>();
+    /** Vlastní stavbu (terén, pokládka, vybavení) vede sdílený engine. */
+    private BuildSession session;
+    /** Návrh generovaného domu pro tuto seanci ({@code null} = legacy 4×4). */
+    private HouseDesigner.HouseDesign design;
     private DecorWorker decor;
-    private BotTask current;
     private int cooldownTicks;
-    private int placedCount;
     /** Pojistka proti opakované stavbě, kdyby paměť HOME zmergovala metadata. */
     private boolean houseBuilt;
     /** „Došly bloky" hlásit jen jednou za seanci. */
@@ -138,9 +133,9 @@ public final class BuildHouseGoal extends AbstractGoal {
         if (houseBuilt || hasHouse(bot, ctx)) {
             return 0;
         }
-        // Bez dostatku bloků nemá cenu začínat.
+        // Bez dostatku bloků nemá cenu začínat (generovaný dům jich chce víc).
         BotNeeds needs = BotNeeds.assess(ctx.serverView().latest());
-        if (needs.buildingBlocks() < HouseBlueprint.blocksNeeded()) {
+        if (needs.buildingBlocks() < blocksNeededFor(ctx, bot)) {
             return 0;
         }
         double intelligence = bot.personality().trait(Trait.INTELLIGENCE);
@@ -153,12 +148,9 @@ public final class BuildHouseGoal extends AbstractGoal {
         phase = Phase.FIND_SITE;
         origin = null;
         facing = Cardinal.NORTH;
-        terraform.clear();
-        placements.clear();
-        furnish.clear();
+        session = null;
+        design = null;
         decor = null;
-        current = null;
-        placedCount = 0;
         announcedOutOfBlocks = false;
         plan = null;
         sessionView = null;
@@ -182,9 +174,7 @@ public final class BuildHouseGoal extends AbstractGoal {
             case FIND_SITE -> findSite(ctx, bot);
             case RELOCATE -> relocate(ctx);
             case GOTO_SITE -> gotoSite(ctx, bot);
-            case TERRAFORM -> tickTasks(ctx, terraform, Phase.BUILD);
-            case BUILD -> tickBuild(ctx, bot);
-            case FURNISH -> tickFurnish(ctx, bot);
+            case SESSION -> tickSession(ctx, bot);
             case DECORATE -> tickDecor(ctx, bot);
             case DONE -> {
             }
@@ -193,16 +183,13 @@ public final class BuildHouseGoal extends AbstractGoal {
 
     @Override
     public void stop(Bot bot) {
-        if (current != null) {
-            current.cancel(ctx(bot));
-            current = null;
+        if (session != null) {
+            session.cancel(ctx(bot));
         }
         if (decor != null) {
             decor.cancel(ctx(bot));
             decor = null;
         }
-        terraform.clear();
-        placements.clear();
         super.stop(bot);
     }
 
@@ -223,10 +210,8 @@ public final class BuildHouseGoal extends AbstractGoal {
             case FIND_SITE -> "hledám místo na dům" + where;
             case RELOCATE -> "stěhuju se dál, tady stavět nechci";
             case GOTO_SITE -> "jdu na staveniště" + where;
-            case TERRAFORM -> "srovnávám staveniště pro dům" + where;
-            case BUILD -> "stavím si dům" + where + " (zbývá " + (placements.size()
-                    + (current != null ? 1 : 0)) + " bloků)";
-            case FURNISH -> "zabydluju se – dveře, světlo, postel";
+            case SESSION -> "stavím si dům" + where
+                    + (session != null ? " (zbývá " + session.remaining() + " bloků)" : "");
             case DECORATE -> "zvelebuju okolí – cestička a pochodně";
             case DONE -> null;
         };
@@ -576,7 +561,7 @@ public final class BuildHouseGoal extends AbstractGoal {
         if (pos.toBlockPos().distanceSquared(stand) <= 2) {
             ctx.navigator().stop();
             if (prepareSite(ctx, bot)) {
-                phase = terraform.isEmpty() ? Phase.BUILD : Phase.TERRAFORM;
+                phase = Phase.SESSION;
             }
             return;
         }
@@ -635,119 +620,70 @@ public final class BuildHouseGoal extends AbstractGoal {
         if (claimedIndex != null) {
             plotFailedSessions = 0;
         }
-        planTerraform(ctx);
+        // Terén, pokládku i vybavení vede sdílený engine; výběr staveniště
+        // (výška, katastr, resume) zůstal na cíli. Complex režim staví
+        // generovaný dům z palety, jinak legacy domek 4×4.
+        var buildCfg = ctx.config().build();
+        if (buildCfg.complex()) {
+            design = HouseDesigner.design(bot, ctx.serverView().latest(), buildCfg,
+                    settlementTier(ctx, bot));
+            BuildPlan buildPlan = BuildPlan.of(design.blueprint(), origin, facing);
+            session = new BuildSession(
+                    BuildPlanner.schedule(buildPlan, ctx.worldView()), design.palette());
+        } else {
+            design = null;
+            BuildPlan buildPlan = BuildPlan.of(Blueprints.house(), origin, facing);
+            session = new BuildSession(BuildPlanner.schedule(buildPlan, ctx.worldView()));
+        }
         return true;
     }
 
+    /** Stupeň sídla bota pro volbu velikosti domu (osada / bez sídla = OSADA). */
+    private SettlementTier settlementTier(BotContext ctx, Bot bot) {
+        SettlementService settlements = ctx.settlements();
+        if (settlements == null) {
+            return SettlementTier.OSADA;
+        }
+        return settlements.settlementOf(bot.id())
+                .map(SettlementService.SettlementInfo::tier).orElse(SettlementTier.OSADA);
+    }
+
+    /** Kolik bloků chce dům, na který se právě chystá (legacy vs generovaný). */
+    private int blocksNeededFor(BotContext ctx, Bot bot) {
+        var buildCfg = ctx.config().build();
+        if (!buildCfg.complex()) {
+            return HouseBlueprint.blocksNeeded();
+        }
+        int width = HouseDesigner.widthFor(settlementTier(ctx, bot),
+                bot.personality().trait(Trait.LAZINESS), buildCfg.width());
+        return new HouseGenerator(width, buildCfg.wallHeight()).blocksNeeded();
+    }
+
     /**
-     * Naplánuje výkopy překážek a zásypy děr v podlaze. Pozice patřící domu
-     * samotnému se nekopou: přírodní blok ve zdi se stane součástí zdi a
-     * hlavně se nesmí bourat vlastní rozestavěná stavba při návratu na parcelu.
+     * Vede vlastní stavbu přes {@link BuildSession}. Došlý materiál nechá dům
+     * rozestavěný (dostaví se jindy, resume world-diffem); nedostupné
+     * staveniště se vzdá; hotová stavba pokračuje do zvelebení okolí.
      */
-    private void planTerraform(BotContext ctx) {
-        WorldView world = ctx.worldView();
-        Set<BlockPos> structure = structureOf(origin, facing);
-        for (BlockPos space : HouseBlueprint.clearVolume(origin)) {
-            if (structure.contains(space)) {
-                continue;
+    private void tickSession(BotContext ctx, Bot bot) {
+        switch (session.tick(ctx)) {
+            case RUNNING -> {
             }
-            if (world.traitsAt(space).solid()) {
-                terraform.add(new MineBlockTask(space));
+            case DONE -> {
+                planDecor(ctx, bot);
+                phase = Phase.DECORATE;
             }
-        }
-        for (BlockPos ground : HouseBlueprint.groundColumns(origin)) {
-            if (!world.traitsAt(ground).solid()) {
-                terraform.add(new PlaceBlockTask(ground));
-            }
-        }
-        placements.addAll(HouseBlueprint.placements(origin, facing));
-    }
-
-    /** Odbaví frontu tasků (terraform) a přepne do další fáze. */
-    private void tickTasks(BotContext ctx, Deque<BotTask> queue, Phase next) {
-        if (current == null) {
-            current = queue.poll();
-            if (current == null) {
-                phase = next;
-                return;
-            }
-            if (current instanceof PlaceBlockTask) {
-                ctx.inventory().equipBuildingBlock(ctx.serverView().latest());
-            }
-        }
-        if (current.tick(ctx)) {
-            current = null;
-        }
-    }
-
-    /** Staví domek blok po bloku z místa uvnitř. */
-    private void tickBuild(BotContext ctx, Bot bot) {
-        if (current == null) {
-            BlockPos next = placements.poll();
-            if (next == null) {
-                planFurnish(ctx);
-                phase = Phase.FURNISH;
-                return;
-            }
-            // Průchozí pozici přeskočit jen pokud tam už blok je.
-            if (ctx.worldView() != null && ctx.worldView().traitsAt(next).solid()) {
-                return;
-            }
-            if (!ctx.inventory().equipBuildingBlock(ctx.serverView().latest())) {
-                // Došly bloky – dům zůstal rozestavěný, zkusit dostavět jindy.
+            case BLOCKED_MATERIAL -> {
                 cooldownTicks = 2400;
                 phase = Phase.DONE;
                 if (!announcedOutOfBlocks && ctx.rng().chance(0.5)) {
                     announcedOutOfBlocks = true;
                     ctx.chat().say("dosly mi bloky, dum dostavim pozdejc");
                 }
-                return;
             }
-            current = new PlaceBlockTask(next);
-        }
-        if (current.tick(ctx)) {
-            current = null;
-            placedCount++;
-            ctx.stats().addPlaced();
-        }
-    }
-
-    /** Naplánuje vybavení: dveře do otvoru, pochodeň a postel dovnitř. */
-    private void planFurnish(BotContext ctx) {
-        var snapshot = ctx.serverView().latest();
-        if (snapshot == null) {
-            return;
-        }
-        if (snapshot.hasItem(m -> m.name().endsWith("_DOOR"))) {
-            furnish.add(new FurnishStep(m -> m.name().endsWith("_DOOR"),
-                    HouseBlueprint.doorBottom(origin, facing)));
-        }
-        if (snapshot.hasItem(m -> m == org.bukkit.Material.TORCH)) {
-            furnish.add(new FurnishStep(m -> m == org.bukkit.Material.TORCH,
-                    HouseBlueprint.torchSpot(origin, facing)));
-        }
-        if (snapshot.hasItem(m -> m.name().endsWith("_BED"))) {
-            furnish.add(new FurnishStep(m -> m.name().endsWith("_BED"),
-                    HouseBlueprint.bedSpot(origin, facing)));
-        }
-    }
-
-    /** Osadí dveře/pochodeň/postel; co nejde vybavit, přeskočí. */
-    private void tickFurnish(BotContext ctx, Bot bot) {
-        if (current == null) {
-            FurnishStep step = furnish.poll();
-            if (step == null) {
-                planDecor(ctx, bot);
-                phase = Phase.DECORATE;
-                return;
+            case UNREACHABLE -> {
+                cooldownTicks = 1200;
+                phase = Phase.DONE;
             }
-            if (!ctx.inventory().equipMatching(ctx.serverView().latest(), step.item())) {
-                return; // item mezitím zmizel – další krok příští tick
-            }
-            current = new PlaceBlockTask(step.target());
-        }
-        if (current.tick(ctx)) {
-            current = null;
         }
     }
 
@@ -795,7 +731,9 @@ public final class BuildHouseGoal extends AbstractGoal {
             // Když založení nevyšlo (vesnice mezitím vyrostla vedle),
             // dům stojí a bot prostě bydlí po svém.
         }
-        BlockPos stand = HouseBlueprint.standPoint(origin, facing);
+        BlockPos stand = design != null
+                ? design.blueprint().standPoint(origin, facing)
+                : HouseBlueprint.standPoint(origin, facing);
         if (ctx.worldView() != null) {
             Map<String, String> data = new HashMap<>();
             data.put("type", "house");
@@ -804,6 +742,15 @@ public final class BuildHouseGoal extends AbstractGoal {
             data.put("oy", String.valueOf(origin.y()));
             data.put("oz", String.valueOf(origin.z()));
             data.put("facing", facing.name());
+            // Generovaný dům: uložit parametry, aby ho údržba (MaintainHomeGoal)
+            // zrekonstruovala a opravovala proti správnému plánu, ne proti 4×4.
+            if (design != null) {
+                data.put("design", design.key());
+                data.put("bw", String.valueOf(design.width()));
+                data.put("bh", String.valueOf(design.wallHeight()));
+                data.put("bwood", design.wood().name());
+                data.put("bseed", String.valueOf(design.seed()));
+            }
             if (settlements != null) {
                 settlements.settlementIdOf(bot.id()).ifPresent(
                         id -> data.put("settlement", String.valueOf(id)));

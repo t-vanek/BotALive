@@ -314,7 +314,9 @@ public final class FakeBotContext implements BotContext {
                 return; // pevný blok do vlastního těla server odmítne
             }
             items.merge(equipped, -1, Integer::sum);
-            world.set(target.x(), target.y(), target.z(),
+            // Zaznamená i materiál (paleta: okno=sklo, zeď=prkna) – materialAt
+            // pak vrací, co bot skutečně položil.
+            world.set(target.x(), target.y(), target.z(), equipped,
                     ladder ? FakeWorldView.CLIMBABLE : FakeWorldView.SOLID);
             placed++;
         }
@@ -367,7 +369,19 @@ public final class FakeBotContext implements BotContext {
         @Override
         public boolean equipBuildingBlock(ServerSideView.Snapshot snapshot) {
             for (Map.Entry<Material, Integer> entry : items.entrySet()) {
-                if (entry.getKey() != Material.LADDER && entry.getValue() > 0) {
+                if (entry.getValue() > 0 && InventoryHelper.isBuildingBlock(entry.getKey())) {
+                    equipped = entry.getKey();
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        @Override
+        public boolean equipMatching(ServerSideView.Snapshot snapshot,
+                                     java.util.function.Predicate<Material> predicate) {
+            for (Map.Entry<Material, Integer> entry : items.entrySet()) {
+                if (entry.getValue() > 0 && predicate.test(entry.getKey())) {
                     equipped = entry.getKey();
                     return true;
                 }

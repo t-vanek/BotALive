@@ -188,8 +188,8 @@ public final class SettlementService {
     /** Druh společné stavby sídla. */
     public enum ProjectKind {
         WELL,
-        GRANARY
-        // MARKET_STALL přibude ve fázi D růstové roadmapy.
+        GRANARY,
+        MARKET_STALL
     }
 
     /**
@@ -688,8 +688,11 @@ public final class SettlementService {
 
     /** Odvozený stupeň sídla z dostavěných domů a společných staveb. */
     private SettlementTier tierOf(Settlement settlement) {
+        // Město = sýpka + tržiště (městská infrastruktura), ne jen počet domů.
+        boolean townInfra = projectDone(settlement, ProjectKind.GRANARY)
+                && projectDone(settlement, ProjectKind.MARKET_STALL);
         return SettlementTier.of(houses(settlement),
-                projectDone(settlement, ProjectKind.WELL), false);
+                projectDone(settlement, ProjectKind.WELL), townInfra);
     }
 
     /** @return {@code true} pokud má sídlo dokončenou danou společnou stavbu */
@@ -755,6 +758,12 @@ public final class SettlementService {
                 && projectDone(settlement, ProjectKind.WELL)
                 && !projectDone(settlement, ProjectKind.GRANARY)) {
             return ProjectKind.GRANARY;
+        }
+        // Tržiště je druhá půlka městské infrastruktury – po sýpce dělá z vesnice město.
+        if (houses >= SettlementTier.TOWN_HOUSES
+                && projectDone(settlement, ProjectKind.GRANARY)
+                && !projectDone(settlement, ProjectKind.MARKET_STALL)) {
+            return ProjectKind.MARKET_STALL;
         }
         return null;
     }
