@@ -58,6 +58,16 @@ public final class CombatController {
 
     /** Ticky bez postupu k cíli, po kterých přiblížení převezme navigace. */
     private static final int NO_PROGRESS_TICKS = 30;
+    /**
+     * Strop obcházení k jednomu cíli (ticky).
+     *
+     * <p>Bez něj se bot zamkl na nedosažitelném mobovi (přes vodu, za zdí, na
+     * římse): {@code navigatingApproach} se držel „až na dosah úderu“, cíl byl
+     * pořád v dosahu trackeru, takže ani {@code lostTargetTicks} nerostlo a
+     * {@code CombatGoal.finished()} nikdy nenastalo. V měření to byl zdaleka
+     * nejčastější zdroj nehybných botů (208 z 211 hlášení watchdogu).</p>
+     */
+    private static final int APPROACH_TIMEOUT_TICKS = 200;
 
     /** Cílová vzdálenost plánovaného ústupu (bloky, vodorovně). */
     private static final int RETREAT_DISTANCE = 12;
@@ -80,6 +90,10 @@ public final class CombatController {
     /** Nejlepší dosažená vzdálenost k cíli (detekce marného přibližování). */
     private double bestApproachDistance = Double.MAX_VALUE;
     private int noProgressTicks;
+    /** Jak dlouho už bot obchází k aktuálnímu cíli (ticky). */
+    private int approachTicks;
+    /** Cíl je nedosažitelný – {@code CombatGoal} má boj ukončit. */
+    private boolean targetUnreachable;
 
     private TrackedEntity target;
     private int attackCooldown;
@@ -145,6 +159,8 @@ public final class CombatController {
             this.reactionTicks = (int) (reactionMs / 50) + difficulty.extraReactionTicks();
             this.bestApproachDistance = Double.MAX_VALUE;
             this.noProgressTicks = 0;
+            this.approachTicks = 0;
+            this.targetUnreachable = false;
         }
     }
 
@@ -153,7 +169,16 @@ public final class CombatController {
         target = null;
         ranged.reset();
         shieldBlockTicks = 0;
+        approachTicks = 0;
+        targetUnreachable = false;
         stopNavigation();
+    }
+
+    /**
+     * @return {@code true} když se k cíli nedá dojít a boj nemá smysl držet
+     */
+    public boolean targetUnreachable() {
+        return targetUnreachable;
     }
 
     /** @return aktuální cíl, nebo {@code null} */
@@ -339,11 +364,18 @@ public final class CombatController {
             }
             bestApproachDistance = distance;
             noProgressTicks = 0;
+            approachTicks = 0;
             return false;
         }
         if (navigatingApproach) {
             // Hystereze: jednou zahájené obcházení se drží až na dosah úderu
-            // (drift throttle pohyblivých cílů tlumí replány sám).
+            // (drift throttle pohyblivých cílů tlumí replány sám) – ale jen do
+            // časového stropu, jinak bot u nedosažitelného cíle stojí navždy.
+            if (++approachTicks > APPROACH_TIMEOUT_TICKS) {
+                targetUnreachable = true;
+                stopNavigation();
+                return false;
+            }
             navigator.navigateTo(position, PathGoal.near(targetPos.toBlockPos(), 2));
             if (navigator.navigating() || navigator.hasPath()) {
                 return true;
