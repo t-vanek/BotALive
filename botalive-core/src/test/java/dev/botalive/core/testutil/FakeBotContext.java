@@ -367,7 +367,19 @@ public final class FakeBotContext implements BotContext {
         @Override
         public boolean equipBuildingBlock(ServerSideView.Snapshot snapshot) {
             for (Map.Entry<Material, Integer> entry : items.entrySet()) {
-                if (entry.getKey() != Material.LADDER && entry.getValue() > 0) {
+                if (entry.getValue() > 0 && InventoryHelper.isBuildingBlock(entry.getKey())) {
+                    equipped = entry.getKey();
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        @Override
+        public boolean equipMatching(ServerSideView.Snapshot snapshot,
+                                     java.util.function.Predicate<Material> predicate) {
+            for (Map.Entry<Material, Integer> entry : items.entrySet()) {
+                if (entry.getValue() > 0 && predicate.test(entry.getKey())) {
                     equipped = entry.getKey();
                     return true;
                 }
