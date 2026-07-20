@@ -5,13 +5,25 @@ fáze **V2a** (jádro s paritou chování), fáze V2b–V2d jsou rozepsané do
 konkrétních pracovních položek s known-facts z kódu. Čísla řádků platí
 k `3604c6f`.
 
-> **Stav: V2a hotová** (kroky K1–K6). Package `core/build/plan`
-> (`Blueprint`, `BuildPlan`, `BuildPlanner`, `BuildSession`, `Blueprints`)
-> s paritními, invariantními a simulačními testy; `CommunalBuildGoal`
-> i `BuildHouseGoal` migrované na sdílený engine. Celá sada 695 testů
-> zelená. Vědomé mikrozměny: statistika pokládky se počítá jednou (dřív
-> dvakrát); dům se staví tolerantně z okolí, studna/sýpka přesně z vnitřku
-> (`standExact`). Další na řadě: **V2b** (rozmanité domy).
+> **Stav: V2a hotová** (K1–K6) + **V2b částečně** (palety, generátor,
+> zapojení jako opt-in). Package `core/build/plan` (`Blueprint`,
+> `BuildPlan`, `BuildPlanner`, `BuildSession`, `Blueprints`) s paritními,
+> invariantními a simulačními testy; `CommunalBuildGoal` i `BuildHouseGoal`
+> migrované na sdílený engine.
+>
+> V2b dosud: `Palette`/`PaletteResolver` (dřevo + seed), `AcceptancePolicy`,
+> `BillOfMaterials`; `BuildSession` klade podle role (zeď prkna, okno sklo)
+> s náhradou; `HouseGenerator` (dům 5×5, okna, valbová střecha, celý na
+> dosah z jednoho stanoviště – reach-invariant test); `HouseDesigner`;
+> zapojeno do `BuildHouseGoal` za `build.complex` (výchozí **false** =
+> beze změny chování). Celá sada 709 testů zelená.
+>
+> **Zbývá ve V2b** (vědomě odloženo, viz report): design-aware oprava
+> generovaných domů v `MaintainHomeGoal` (zatím se bezpečně přeskočí);
+> multi-standpoint pro 7×7+ (bot na vlastní stavbě); cílené shánění
+> materiálu (build wishlist z `BillOfMaterials`); orientované bloky
+> (schody/dveře – kurzorový `useItemOn`, chce ověření na živém serveru);
+> default-on po doladění. Pak **V2c** (civilní stavby).
 
 ## Inventura dotčeného kódu
 
