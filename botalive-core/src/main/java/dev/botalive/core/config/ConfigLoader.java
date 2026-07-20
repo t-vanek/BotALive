@@ -92,12 +92,22 @@ public final class ConfigLoader {
                 c.getBoolean("combat.shield-use", true)
         );
 
+        var employment = new BotAliveConfig.Employment(
+                c.getBoolean("economy.employment.enabled", true),
+                c.getBoolean("economy.employment.require-payment", true),
+                Math.max(1, c.getInt("economy.employment.max-bots-per-player", 2)),
+                Math.max(1, c.getInt("economy.employment.max-days", 7)),
+                Math.max(0, c.getDouble("economy.employment.worker-wage-per-day", 12.0)),
+                Math.max(0, c.getDouble("economy.employment.guard-wage-per-day", 18.0))
+        );
+
         var economy = new BotAliveConfig.Economy(
                 c.getBoolean("economy.enabled", true),
                 c.getDouble("economy.starting-balance", 100.0),
                 c.getBoolean("economy.vault", true),
                 c.getBoolean("economy.bot-trade", true),
-                c.getBoolean("economy.player-trade", true)
+                c.getBoolean("economy.player-trade", true),
+                employment
         );
 
         var memory = new BotAliveConfig.Memory(
@@ -135,6 +145,22 @@ public final class ConfigLoader {
                 Math.max(1, c.getInt("pvp.max-attackers-per-target", 2))
         );
 
+        var war = new BotAliveConfig.War(
+                c.getBoolean("settlement.war.enabled", false),
+                Math.max(1.0, c.getDouble("settlement.war.declare-threshold", 6.0)),
+                Math.max(0, c.getDouble("settlement.war.theft-weight", 1.5)),
+                Math.max(0, c.getDouble("settlement.war.assault-weight", 0.75)),
+                Math.max(0, c.getDouble("settlement.war.decay-per-hour", 0.5)),
+                Math.max(2, c.getInt("settlement.war.min-members", 3)),
+                Math.max(1, c.getInt("settlement.war.raid-size", 3)),
+                Math.max(5, c.getInt("settlement.war.raid-cooldown-minutes", 20)),
+                Math.max(1, c.getInt("settlement.war.weariness-deaths", 4)),
+                Math.max(1, c.getInt("settlement.war.max-war-hours", 6)),
+                Math.max(1, c.getInt("settlement.war.truce-hours", 12)),
+                c.getBoolean("settlement.war.reparations", true),
+                Math.max(0, c.getDouble("settlement.war.reparations-max", 40.0))
+        );
+
         var settlement = new BotAliveConfig.Settlement(
                 c.getBoolean("settlement.enabled", true),
                 Math.max(8, c.getInt("settlement.plot-spacing", 12)),
@@ -147,7 +173,8 @@ public final class ConfigLoader {
                 c.getBoolean("settlement.lighting", true),
                 c.getBoolean("settlement.paths", true),
                 Math.max(0, c.getInt("settlement.ghost-days", 7)),
-                Math.max(1, c.getInt("settlement.grudge-window-hours", 2))
+                Math.max(1, c.getInt("settlement.grudge-window-hours", 2)),
+                war
         );
 
         var nether = new BotAliveConfig.Nether(
@@ -158,13 +185,23 @@ public final class ConfigLoader {
                 Math.min(5, Math.max(3, c.getInt("nether.min-gear-tier", 4)))
         );
 
+        var endOuter = new BotAliveConfig.Outer(
+                c.getBoolean("end.outer.enabled", true),
+                Math.max(5, c.getInt("end.outer.max-trip-minutes", 25)),
+                c.getBoolean("end.outer.locate-assist", true),
+                Math.max(1, c.getInt("end.outer.pearl-reserve", 2)),
+                Math.max(64, c.getInt("end.outer.max-city-distance", 400)),
+                c.getBoolean("end.outer.elytra", true)
+        );
+
         var end = new BotAliveConfig.End(
                 c.getBoolean("end.enabled", true),
                 c.getBoolean("end.dragon-fight", true),
                 c.getBoolean("end.hunt-endermen", true),
                 Math.max(1, c.getInt("end.expedition-cooldown-minutes", 90)),
                 Math.min(1, Math.max(0, c.getDouble("end.min-courage", 0.5))),
-                Math.max(3, c.getInt("end.max-fight-minutes", 15))
+                Math.max(3, c.getInt("end.max-fight-minutes", 15)),
+                endOuter
         );
 
         var pathfinding = new BotAliveConfig.Pathfinding(

@@ -175,6 +175,17 @@ public class BotActions {
     }
 
     /**
+     * Rozevře elytry (start letu). Server přijme jen ve vzduchu s elytrami
+     * v hrudním slotu – volá se po odlepení od země.
+     */
+    public void startFallFlying() {
+        connection.send(new org.geysermc.mcprotocollib.protocol.packet.ingame.serverbound
+                .player.ServerboundPlayerCommandPacket(state.entityId(),
+                org.geysermc.mcprotocollib.protocol.data.game.entity.player.PlayerState
+                        .START_ELYTRA_FLYING));
+    }
+
+    /**
      * Prohodí držený item s offhandem (klávesa F) – např. štít do druhé ruky.
      */
     public void swapOffhand() {

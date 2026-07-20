@@ -68,6 +68,15 @@ public final class BotPhysics {
     /** Kolik ticků v kuse má bot hlavu pod hladinou (dochází mu dech). */
     private int submergedTicks;
 
+    /** Levitace (střela shulkera) – server ji aplikuje, klient musí taky. */
+    private boolean levitating;
+    /** Slow falling – gravitace klesá na 0.01 a pád nezraňuje. */
+    private boolean slowFalling;
+    /** Let na elytrách (fall flying) – řídí se pohledem, ne vstupem. */
+    private boolean fallFlying;
+    /** Směr pohledu pro elytrový let (jednotkový vektor). */
+    private Vec3 glideLook;
+
     /** Kumulovaná výška aktuálního pádu (bloky); nula, když bot nepadá. */
     private double fallDistance;
     /** Výška posledního dokončeného pádu v okamžiku dopadu (bloky). */
@@ -257,6 +266,41 @@ public final class BotPhysics {
             }
             vx = clamp(vx, -CLIMB_MAX_HORIZONTAL, CLIMB_MAX_HORIZONTAL);
             vz = clamp(vz, -CLIMB_MAX_HORIZONTAL, CLIMB_MAX_HORIZONTAL);
+        } else if (fallFlying && glideLook != null && !onGround) {
+            // Elytrový let – vanilla aerodynamika řízená pohledem. Pro
+            // jednotkový pohled platí cos(pitch) = vodorovná délka vektoru.
+            Vec3 look = glideLook;
+            double hLook = look.horizontalLength();
+            double sqPitchCos = hLook * hLook;
+            vy += -GRAVITY + sqPitchCos * 0.06; // vztlak křídel
+            double hSpeed = Math.sqrt(vx * vx + vz * vz);
+            if (vy < 0 && hLook > EPSILON) {
+                // Klesání se přetavuje v dopředný tah (klouzání).
+                double d = vy * -0.1 * sqPitchCos;
+                vy += d;
+                vx += look.x() / hLook * d;
+                vz += look.z() / hLook * d;
+            }
+            if (look.y() > 0 && hLook > EPSILON) {
+                // Pohled vzhůru: výměna rychlosti za výšku (flare).
+                double d = hSpeed * look.y() * 0.04;
+                vy += d * 3.2;
+                vx -= look.x() / hLook * d;
+                vz -= look.z() / hLook * d;
+            }
+            if (hLook > EPSILON) {
+                // Zatáčení – rychlost se stáčí za pohledem (10 %/tick).
+                vx += (look.x() / hLook * hSpeed - vx) * 0.1;
+                vz += (look.z() / hLook * hSpeed - vz) * 0.1;
+            }
+            vx *= 0.99;
+            vy *= 0.98;
+            vz *= 0.99;
+        } else if (levitating) {
+            // Levitace (vanilla): rychlost konverguje k +0.05/tick (amp. 0).
+            // Bez téhle větve by se klient po zásahu shulkerem rozjel se
+            // serverem – server bota zvedá, zatímco klient by padal.
+            vy += (0.05 - vy) * 0.2;
         } else {
             boolean jumped = false;
             if (input.jump() && onGround) {
@@ -276,7 +320,9 @@ public final class BotPhysics {
             // (pokládka pod nohy vyžaduje světlost ≥ 1,0) byl potichu nemožný
             // – odhalila to fyzická simulace PillarUpTasku.
             if (!jumped) {
-                vy = (vy - GRAVITY) * AIR_DRAG_Y;
+                // Slow falling (vanilla): gravitace při klesání jen 0.01.
+                double gravity = slowFalling && vy <= 0 ? 0.01 : GRAVITY;
+                vy = (vy - gravity) * AIR_DRAG_Y;
             }
             vy = Math.max(vy, MAX_FALL_SPEED);
         }
@@ -296,7 +342,11 @@ public final class BotPhysics {
         // doskok). Jinak přičítáme uraženou výšku klesání; v ticku dopadu
         // spočteme poškození a resetujeme.
         landedThisTick = false;
-        if (inWater || onClimbable || inPowderSnow || inWeb) {
+        if (inWater || onClimbable || inPowderSnow || inWeb || fallFlying
+                || slowFalling || levitating) {
+            // Měkké režimy pád nulují (elytry: konzervativní řízení letu
+            // nedovoluje strmé střemhlavé nálety, kinetická energie se
+            // nemodeluje; slow falling nezraňuje z principu).
             fallDistance = 0;
         } else if (moved.y() < 0) {
             fallDistance -= moved.y(); // moved.y je záporné → přičti kladnou výšku
@@ -312,10 +362,12 @@ public final class BotPhysics {
 
         // --- Tření ----------------------------------------------------------------
         // Pozemní tření závisí na kluzkosti opory (vanilla slip × 0.91):
-        // běžný blok 0.546, led 0.892 – bot na ledu klouže.
+        // běžný blok 0.546, led 0.892 – bot na ledu klouže. Elytrový let má
+        // vlastní odpor (0.99/0.98 ve větvi letu) – běžné vzdušné tření by
+        // klouzání zabilo (vanilla ho na letícího neaplikuje).
         double friction = onGround
                 ? supportTraits().slipperiness() * AIR_FRICTION
-                : AIR_FRICTION;
+                : fallFlying ? 1.0 : AIR_FRICTION;
         velocity = new Vec3(moved.x() * friction, moved.y(), moved.z() * friction);
         if (verticalCollision) {
             velocity = new Vec3(velocity.x(), 0, velocity.z());
@@ -332,6 +384,57 @@ public final class BotPhysics {
         if (inPowderSnow || inWeb) {
             velocity = Vec3.ZERO;
         }
+
+        // Přistání/voda let na elytrách ukončují (vanilla).
+        if (fallFlying && (onGround || inWater)) {
+            fallFlying = false;
+            glideLook = null;
+        }
+    }
+
+    /**
+     * Nastaví aktivní pohybové efekty (čte se z {@code BotClientState} před
+     * každým krokem – server je autorita, klient je musí simulovat taky).
+     *
+     * @param levitation  levitace (střela shulkera)
+     * @param slowFalling pomalé padání
+     */
+    public void effects(boolean levitation, boolean slowFalling) {
+        this.levitating = levitation;
+        this.slowFalling = slowFalling;
+    }
+
+    /**
+     * Zahájí let na elytrách (volá se po odlepení od země, spolu s odesláním
+     * {@code START_FALL_FLYING}).
+     *
+     * @param look jednotkový směr pohledu
+     */
+    public void startGliding(Vec3 look) {
+        this.fallFlying = true;
+        this.glideLook = look;
+    }
+
+    /**
+     * Průběžné řízení letu – směr pohledu určuje aerodynamiku.
+     *
+     * @param look jednotkový směr pohledu
+     */
+    public void glideLook(Vec3 look) {
+        if (fallFlying) {
+            this.glideLook = look;
+        }
+    }
+
+    /** Ukončí let (přistání řeší {@link #step} samo). */
+    public void stopGliding() {
+        this.fallFlying = false;
+        this.glideLook = null;
+    }
+
+    /** @return {@code true} během letu na elytrách */
+    public boolean gliding() {
+        return fallFlying;
     }
 
     /** Ořízne hodnotu do intervalu [min, max]. */

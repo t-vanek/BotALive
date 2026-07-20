@@ -228,9 +228,36 @@ public record BotAliveConfig(
      *                        („beru!"), zaplatí přes {@code /pay} a bot mu
      *                        předá zboží; funguje jen s Vault ekonomikou
      *                        (bez ní nelze ověřit příchozí platbu)
+     * @param employment      najímání botů hráči (dělník, bodyguard)
      */
     public record Economy(boolean enabled, double startingBalance, boolean vault,
-                          boolean botTrade, boolean playerTrade) {
+                          boolean botTrade, boolean playerTrade,
+                          Employment employment) {
+    }
+
+    /**
+     * Najímání botů hráči ({@code /botalive hire}).
+     *
+     * <p>Hráč si najme bota jako <b>dělníka</b> (bot se soustředí na
+     * produktivní práci a výtěžek pravidelně nosí zaměstnavateli) nebo
+     * <b>bodyguarda</b> (chodí s hráčem a brání ho před moby; proti hráčům
+     * a botům jen v mezích sekce {@code pvp}). Mzdu si bot řekne podle
+     * povahy – lakomí a líní jsou dražší, kamarádi dávají slevu – a platí
+     * se předem přes {@code /pay} (vyžaduje Vault). Zaměstnavatel, který
+     * svého bota napadne, o něj přijde bez náhrady.</p>
+     *
+     * @param enabled          hlavní vypínač najímání
+     * @param requirePayment   vyžadovat platbu předem přes Vault {@code /pay};
+     *                         vypnuto = boti pracují „za kamarádství"
+     *                         (servery bez ekonomiky)
+     * @param maxBotsPerPlayer kolik botů smí mít jeden hráč najato současně
+     * @param maxDays          strop délky smlouvy ve dnech
+     * @param workerWagePerDay základní denní mzda dělníka (před povahou/slevou)
+     * @param guardWagePerDay  základní denní mzda bodyguarda
+     */
+    public record Employment(boolean enabled, boolean requirePayment,
+                             int maxBotsPerPlayer, int maxDays,
+                             double workerWagePerDay, double guardWagePerDay) {
     }
 
     /**
@@ -335,12 +362,51 @@ public record BotAliveConfig(
      * @param grudgeWindowHours     jak čerstvá (hodiny) musí být zášť, aby
      *                              kvůli ní bot opustil vesnici – druhá
      *                              polovina knobu {@code grudgeThreshold}
+     * @param war                   války a diplomacie mezi vesnicemi
      */
     public record Settlement(boolean enabled, int plotSpacing, int maxMembers,
                              int joinRadius, int minVillageDistance,
                              double lonerSociability, double grudgeThreshold,
                              int changeCooldownMinutes, boolean lighting,
-                             boolean paths, int ghostDays, int grudgeWindowHours) {
+                             boolean paths, int ghostDays, int grudgeWindowHours,
+                             War war) {
+    }
+
+    /**
+     * Války a diplomacie mezi vesnicemi botů.
+     *
+     * <p>Křivdy mezi členy různých vesnic (odhalené krádeže, napadení) zvedají
+     * napětí mezi vesnicemi. Když napětí přeteče práh a starosta má dost
+     * bojovné povahy, vyhlásí válku: vesnice posílají nájezdy, obránce svolává
+     * stávající PvP mašinerie a padlí zvyšují únavu z války, dokud starostové
+     * nedojednají příměří. Vše je čistě mezi boty – hráčů se války netýkají –
+     * a nájezdy respektují sekci {@code pvp} (bez {@code pvp.enabled}
+     * a {@code pvp.attack-bots} se válčí jen studeně, beze zbraní).</p>
+     *
+     * @param enabled              hlavní vypínač válek (vypnuto = napětí se
+     *                             neměří a války se nevyhlašují)
+     * @param declareThreshold     napětí, při kterém starosta zvažuje válku
+     * @param theftWeight          napětí za odhalenou krádež mezi vesnicemi
+     * @param assaultWeight        napětí za napadení člena cizí vesnice
+     * @param decayPerHour         samovolný pokles napětí za hodinu klidu
+     * @param minMembers           minimální počet členů obou vesnic – malé
+     *                             osady války nevedou
+     * @param raidSize             kolik nejbojovnějších členů vyráží na nájezd
+     * @param raidCooldownMinutes  rozestup nájezdů jedné války (minuty)
+     * @param wearinessDeaths      padlí na vlastní straně, po kterých starosta
+     *                             žádá o příměří
+     * @param maxWarHours          tvrdý strop délky války (hodiny) – pak se
+     *                             uzavře příměří bez ohledu na ztráty
+     * @param truceHours           délka příměří (hodiny); napětí mezitím klesá
+     * @param reparations          poražená strana (více padlých) platí při
+     *                             příměří reparace z peněženky starosty
+     * @param reparationsMax       strop reparací (interní měna / Vault)
+     */
+    public record War(boolean enabled, double declareThreshold, double theftWeight,
+                      double assaultWeight, double decayPerHour, int minMembers,
+                      int raidSize, int raidCooldownMinutes, int wearinessDeaths,
+                      int maxWarHours, int truceHours, boolean reparations,
+                      double reparationsMax) {
     }
 
     /**
@@ -387,10 +453,36 @@ public record BotAliveConfig(
      *                                  po vyčerpání si bot dá pauzu (jídlo,
      *                                  kořist, pokus o návrat) a pak to zkusí
      *                                  znovu; bez rozpočtu by bojoval do smrti
+     * @param outer                     výpravy na vnější ostrovy (end cities,
+     *                                  elytry)
      */
     public record End(boolean enabled, boolean dragonFight, boolean huntEndermen,
                       int expeditionCooldownMinutes, double minCourage,
-                      int maxFightMinutes) {
+                      int maxFightMinutes, Outer outer) {
+    }
+
+    /**
+     * Výpravy na vnější ostrovy Endu (po skolení draka).
+     *
+     * <p>Bot s dostatkem perel prohodí perlu gatewayí (portál se objeví po
+     * smrti draka na okraji hlavního ostrova), na vnějších ostrovech najde
+     * end city – server-side asistencí {@code locateNearestStructure}
+     * (precedent §9) nebo skenem purpuru při průzkumu – vybojuje si cestu
+     * přes shulkery (levitaci klient simuluje), vyluští truhly, z lodi
+     * sundá <b>elytry</b> (item frame) a vrátí se gatewayí domů. S elytrami
+     * pak umí slétat z výšek klouzavým letem.</p>
+     *
+     * @param enabled         hlavní vypínač výprav na vnější ostrovy
+     * @param maxTripMinutes  časový rozpočet výpravy za gatewayí (minuty)
+     * @param locateAssist    server-side hledání end city
+     *                        ({@code locateNearestStructure}); vypnuto nebo
+     *                        v paketovém režimu se hledá skenem při průzkumu
+     * @param pearlReserve    kolik perel si bot nechává na návrat
+     * @param maxCityDistance nejdál, kam se za nalezeným městem půjde (bloky)
+     * @param elytra          smí boti létat na elytrách (klouzavé slety)
+     */
+    public record Outer(boolean enabled, int maxTripMinutes, boolean locateAssist,
+                        int pearlReserve, int maxCityDistance, boolean elytra) {
     }
 
     /**

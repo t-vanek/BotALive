@@ -113,6 +113,28 @@ public interface BotContext {
     void requestMove(MoveInput input);
 
     /**
+     * Rozevře elytry a zahájí let (pošle {@code START_FALL_FLYING} a přepne
+     * fyziku do režimu klouzání). Server přijme jen ve vzduchu s elytrami
+     * v hrudním slotu.
+     *
+     * @param look jednotkový směr pohledu (řídí aerodynamiku)
+     */
+    void startGliding(Vec3 look);
+
+    /**
+     * Průběžné kormidlování letu – směr pohledu určuje klouzání a zatáčení.
+     *
+     * @param look jednotkový směr pohledu
+     */
+    void glideSteer(Vec3 look);
+
+    /** Ukončí let na elytrách (přistání ukončuje fyzika sama). */
+    void stopGliding();
+
+    /** @return {@code true} během letu na elytrách */
+    boolean gliding();
+
+    /**
      * Zaznamená prožitek formující osobnost (vývoj rysů + persistence
      * + případný komentář bota k vlastní proměně).
      *

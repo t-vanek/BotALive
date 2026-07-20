@@ -439,6 +439,83 @@ phrases:
     - "pockets full, time to leave this emptiness"
     - "looking for the exit portal, home is calling"
     - "the End is nice and all, but home is home"
+  hire-pay-request:
+    - "deal. Send me {name} via /pay and we're on"
+    - "I'll do it for {name} – payment up front, /pay and we go"
+    - "agreed, that's {name}. The moment it arrives, I start"
+    - "{name} up front via /pay, I'm not a charity"
+  hire-accept:
+    - "on the clock, {name}! Where do we start?"
+    - "payment received, {name} is my new boss"
+    - "working for {name} now. Go easy on me"
+    - "alright, {name}, I'm your man"
+  hire-decline:
+    - "no payment came... never mind, {name}, offer's off"
+    - "waited for the money in vain. Forget it"
+    - "no pay, no work, {name}. Back to my own business"
+  hire-expired:
+    - "shift for {name} is over. It's been an honour!"
+    - "contract's up, {name}. You know where to find me"
+    - "that was the last shift for {name}. Clocking out!"
+  hire-quit:
+    - "you're hitting ME?! I quit, {name}, no boss does that!"
+    - "I resign! {name} found a punching bag, but not me"
+    - "not like this, {name}. Goodbye – and no refunds"
+  hire-deliver:
+    - "boss, bringing you the earnings! Catch"
+    - "delivery for {name}, freshly earned"
+    - "here's your share, {name}. Honest work"
+    - "payday in kind, {name} – take it while I'm carrying it"
+  guard-defend:
+    - "hands off the boss!"
+    - "you touch {name}, you deal with me!"
+    - "bodyguard on duty – nobody gets the boss!"
+    - "oh no you don't, that's my paycheck you're hitting!"
+  end-outer-depart:
+    - "pearl in hand, gateway ahead – outer islands, here I come!"
+    - "nothing left after the dragon, so I'm going further... past the edge of the map"
+    - "toss a pearl through the portal and see what's on the other side"
+    - "the outer islands are calling. They say ships fly out there"
+  end-city-found:
+    - "purpur towers on the horizon! An end city!"
+    - "so there it is... beautiful. Coming for the loot"
+    - "found an end city! Careful now, shulkers don't sleep"
+  elytra-found:
+    - "ELYTRA! I've got them! I'm going to FLY!!"
+    - "took them right off the ship! Wings! Real wings!"
+    - "so this is the treasure... the elytra are mine"
+    - "holding elytra and my hands are shaking"
+  end-outer-return:
+    - "back on the main island, pockets full of end city treasure"
+    - "outer islands conquered. Now just the way home"
+    - "survived the shulkers and the void – and I'm carrying wings!"
+  war-declared:
+    - "enough! We declare war on {name}!"
+    - "patience has run out – {name} has been asking for this"
+    - "that was the last straw. {name}, this means war!"
+    - "the folks of {name} thought they'd get away with it. They won't"
+    - "{name} stole our peace, so we'll take more back"
+  war-raid-depart:
+    - "let's go, everyone – target is {name}!"
+    - "heading out on a raid, {name} is in for a surprise"
+    - "sword's sharpened, {name} will see us up close"
+    - "for the village! Onward to {name}!"
+    - "mayor's orders – {name}, hold onto your hats"
+  war-raid-taunts:
+    - "tell that to the rest of {name}, if there's anyone left to tell"
+    - "another one from {name} down. Who's next?"
+    - "this one's for our chests!"
+    - "{name} will learn today who they picked a fight with"
+  war-truce-offer:
+    - "enough blood... {name}, how about a truce?"
+    - "this war costs us too much. I'm offering {name} peace"
+    - "sending {name} a truce offer, the dying has to stop"
+    - "pride aside – I propose {name} lay down arms"
+  war-truce-agreed:
+    - "truce with {name} sealed. May it hold"
+    - "the war with {name} is over, weapons go back in the chest"
+    - "peace with {name}. Won't bring back the fallen, but at least it's quiet"
+    - "so we shook hands with {name}. The fighting ends"
   emojis:
     - ":D"
     - ":)"

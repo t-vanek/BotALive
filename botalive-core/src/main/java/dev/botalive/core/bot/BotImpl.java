@@ -174,6 +174,8 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
     private int ticksSinceFlush;
     private int ticksSinceCohesion;
     private int ticksSinceWelcome;
+    private int ticksSinceDiplomacy;
+    private int ticksSinceEmployment;
     private long ambitionCompletedAt;
     private Vec3 lastDistancePos;
 
@@ -642,6 +644,18 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
         return current.weight(goalId, progress.complete());
     }
 
+    /**
+     * Násobič utility podle pracovní smlouvy (najatý dělník se soustředí
+     * na práci, bodyguard se drží šéfa). Bez smlouvy 1.0.
+     *
+     * @param goalId id cíle
+     * @return násobič
+     */
+    public double employmentWeight(String goalId) {
+        var employment = services.employment();
+        return employment == null ? 1.0 : employment.weight(id, goalId);
+    }
+
     /** @return řádka „životní cíl" pro příkazy, nebo {@code null} */
     public String ambitionLine() {
         var current = ambition;
@@ -874,8 +888,11 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
      * @param itemMapper  překlad item ID (jen režim packet, jinak {@code null})
      * @param crimeLog    sdílená kniha zločinů
      * @param settlements sdílená služba vesnic
+     * @param diplomacy   diplomacie sídel (napětí, války, příměří)
      * @param socialGraph sociální adresář (bot vs. hráč, drby)
      * @param market      tržiště botů (prodej hráčům přes chat)
+     * @param employment  najímání botů hráči (smlouvy, mzdy)
+     * @param authority   vydavatel a ověřovatel přihlašovacích pověření botů
      */
     public record SharedServices(
             BotAliveConfig config,
@@ -889,8 +906,10 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
             dev.botalive.core.world.state.ItemMapper itemMapper,
             dev.botalive.core.social.CrimeLog crimeLog,
             dev.botalive.core.settlement.SettlementService settlements,
+            dev.botalive.core.settlement.DiplomacyService diplomacy,
             dev.botalive.core.social.SocialGraph socialGraph,
             dev.botalive.core.economy.MarketBoard market,
+            dev.botalive.core.economy.EmploymentService employment,
             dev.botalive.core.gateway.CredentialAuthority authority
     ) {
     }
@@ -986,6 +1005,9 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
                 (int) pos.x(), (int) pos.y(), (int) pos.z(), null,
                 Map.of("cause", deathMessage == null ? "" : deathMessage), 0.8);
         gainExperience(dev.botalive.core.personality.PersonalityEvolution.BotExperience.DEATH);
+        if (services.diplomacy() != null) {
+            services.diplomacy().noteDeath(id); // válečné ztráty (padne-li ve válce)
+        }
         new BotDiedEvent(this, worldName, (int) pos.x(), (int) pos.y(), (int) pos.z()).callEvent();
 
         // Humanizovaný respawn: 1.5–6 s „vzpamatovávání".
@@ -1169,6 +1191,24 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
             ticksSinceWelcome = 0;
             tickVillageWelcome();
         }
+        // Diplomatická úvaha – řídce; skutečně rozhoduje jen starosta.
+        if (++ticksSinceDiplomacy >= 900 + (int) (Math.abs(id.getLeastSignificantBits()) % 400)
+                && !clientState.dead() && !paused.get()
+                && state.get() == BotLifecycleState.SPAWNED) {
+            ticksSinceDiplomacy = 0;
+            if (services.diplomacy() != null) {
+                services.diplomacy().maybeTick(this);
+            }
+        }
+        // Pracovní smlouvy – častěji (čeká se na příchozí /pay platbu).
+        if (++ticksSinceEmployment >= 200 + (int) (Math.abs(id.getMostSignificantBits()) % 100)
+                && !clientState.dead() && !paused.get()
+                && state.get() == BotLifecycleState.SPAWNED) {
+            ticksSinceEmployment = 0;
+            if (services.employment() != null) {
+                services.employment().tick(this);
+            }
+        }
 
         boolean alive = !clientState.dead();
         requestedMove = null;
@@ -1347,6 +1387,14 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
         boolean idle = input == MoveInput.IDLE && !combat.engaged() && obstacleTask == null;
         humanizer.tick(physics.position().add(0, 1.62, 0), idle && alive);
 
+        // Pohybové efekty (levitace po zásahu shulkerem, slow falling):
+        // server je aplikuje autoritativně, klientská simulace je musí
+        // replikovat, jinak se pozice rozjedou (rubberbanding).
+        physics.effects(
+                clientState.effectActive(org.geysermc.mcprotocollib.protocol.data.game
+                        .entity.Effect.LEVITATION),
+                clientState.effectActive(org.geysermc.mcprotocollib.protocol.data.game
+                        .entity.Effect.SLOW_FALLING));
         physics.step(input);
         movementSender.tick(physics.position(), humanizer.yaw(), humanizer.pitch(),
                 physics.onGround(), physics.horizontalCollision(), input);
@@ -2424,6 +2472,34 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
     @Override
     public void requestMove(MoveInput input) {
         this.requestedMove = input;
+    }
+
+    @Override
+    public void startGliding(Vec3 look) {
+        if (physics == null || physics.gliding()) {
+            return;
+        }
+        actions.startFallFlying();
+        physics.startGliding(look);
+    }
+
+    @Override
+    public void glideSteer(Vec3 look) {
+        if (physics != null) {
+            physics.glideLook(look);
+        }
+    }
+
+    @Override
+    public void stopGliding() {
+        if (physics != null) {
+            physics.stopGliding();
+        }
+    }
+
+    @Override
+    public boolean gliding() {
+        return physics != null && physics.gliding();
     }
 
     @Override

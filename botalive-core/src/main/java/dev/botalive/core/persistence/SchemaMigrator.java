@@ -192,6 +192,44 @@ public final class SchemaMigrator {
                             PRIMARY KEY (settlement_id, kind)
                         )
                         """
+                ),
+                // v6 – diplomacie sídel: napětí a válečný stav mezi dvojicemi
+                // vesnic. Dvojice je uspořádaná (settlement_a < settlement_b),
+                // aby vztah existoval právě jednou; padlí se počítají po
+                // stranách této dvojice. Aktivní nájezdy se nepersistují –
+                // restart je korektně zruší (rozkaz vyprší, válka trvá dál).
+                List.of(
+                        """
+                        CREATE TABLE IF NOT EXISTS ba_settlement_relations (
+                            settlement_a BIGINT NOT NULL,
+                            settlement_b BIGINT NOT NULL,
+                            tension DOUBLE PRECISION NOT NULL DEFAULT 0,
+                            state TEXT NOT NULL,
+                            state_since BIGINT NOT NULL,
+                            truce_until BIGINT NOT NULL DEFAULT 0,
+                            deaths_a INTEGER NOT NULL DEFAULT 0,
+                            deaths_b INTEGER NOT NULL DEFAULT 0,
+                            updated_at BIGINT NOT NULL,
+                            PRIMARY KEY (settlement_a, settlement_b)
+                        )
+                        """
+                ),
+                // v7 – najímání botů hráči: aktivní smlouva bota (jedna na
+                // bota – PK je bot_id). Nezaplacené nabídky se nepersistují,
+                // restart je korektně zahodí (hráč platbu zopakuje).
+                List.of(
+                        """
+                        CREATE TABLE IF NOT EXISTS ba_employment (
+                            bot_id TEXT PRIMARY KEY,
+                            employer TEXT NOT NULL,
+                            employer_name TEXT NOT NULL,
+                            kind TEXT NOT NULL,
+                            wage DOUBLE PRECISION NOT NULL,
+                            hired_at BIGINT NOT NULL,
+                            paid_until BIGINT NOT NULL,
+                            last_delivery BIGINT NOT NULL DEFAULT 0
+                        )
+                        """
                 )
         );
     }

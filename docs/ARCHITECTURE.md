@@ -1067,3 +1067,55 @@ vypínač `gateway.enabled`, vynucení `enforce-prelogin`, zdrojová politika
 `restrict-source`. Výchozí stav chrání běžný offline server hned a bez
 nutnosti cokoli na serveru přenastavovat; HTTP gateway a `client-auth`
 zůstávají pro pokročilá nasazení vypnuté.
+
+Hotovo ve fázi 30: velký obsahový balík – války sídel, najímání botů
+a vnější ostrovy Endu s elytrami.
+
+(1) **Diplomacie sídel** (`core/settlement/DiplomacyService`, migrace v6,
+`ba_settlement_relations`): křivdy mezi členy různých vesnic (odhalená
+krádež z knihy zločinů, napadení z damage eventu) zvedají napětí
+uspořádané dvojice sídel; napětí líně chladne (decay počítaný při dotyku
+vztahu). Rozhoduje **starosta na svém ticku** nad snímkem sídel – vzor
+`CohesionAction`: rozhodovací jádro (`mayorTick`) je čisté a testovatelné,
+hlášky a Bukkit eventy dělá obálka. Bojovnost starosty (agrese 0.6 +
+odvaha 0.4) škáluje práh vyhlášení; válka = nájezdové vlny (`WarRaidGoal`,
+výběr nejbojovnějších členů, cíle výhradně válečné vesnice přes
+`isWarEnemy` + `PvpCoordinator.mayEngage` a férovostní strop), obranu
+svolává stávající PvP mašinerie zadarmo. Padlí se válce přičítají jen
+s nedávnou vlnou (oddělené `nextRaidAt`/`lastWaveAt` – plánování vs.
+atribuce); únava vede k příměří s reparacemi poraženého (peněženky
+starostů). Bez `pvp.enabled`+`pvp.attack-bots` se válčí jen studeně.
+Rozkazy k nájezdům se nepersistují – restart je korektně zruší.
+
+(2) **Najímání botů hráči** (`core/economy/EmploymentService`, migrace v7,
+`ba_employment`): `/botalive hire <bot> <worker|guard> [dny]` s osobním
+jednáním (do 16 bloků). Mzda z čistého ceníku `EmploymentPrices`
+(chamtivost a lenost zdražují, ochota a kamarádství přes
+`ALLY_THRESHOLD` zlevňují); platba předem přes Vault `/pay` s detekcí
+baseline zůstatku (vzor `SellGoal`), `require-payment: false` pro servery
+bez ekonomiky. Dělník: násobiče produktivních cílů v mozku (nový krok
+v `Brain.decide` vedle ambicí) + pravidelná donáška výtěžku
+(`WorkDeliveryGoal`, předávka drop&pickup). Bodyguard (`BodyguardGoal`):
+následování zaměstnavatele + poplach z damage eventu skutečného hráče;
+moby bije vždy, hráče a boty jen v mezích sekce `pvp`. Napadení vlastního
+bota = okamžitá výpověď bez náhrady (čerstvá ENEMY vzpomínka). Nezaplacené
+nabídky žijí jen v paměti.
+
+(3) **Vnější ostrovy Endu a elytry** (`EndOuterGoal`, `GlideTask`,
+rozšíření `BotPhysics`): po drakovi bot prohodí perlu gatewayí (hod =
+precedent splash lektvarů; teleport se pozná skokem pozice), zapamatuje
+si zpáteční gateway, end city najde server-side
+`locateNearestStructure` přes `MainThreadBridge` (precedent §9; paketový
+režim skenuje purpur při průzkumu), vyluští truhly (`ChestStation`),
+z end ship sundá elytry (útok na item frame – jediná vanilla struktura
+s item framem v Endu, metadata netřeba) a oblékne je pravým klikem.
+Fyzika nově simuluje **levitaci** (zásah shulkerem – bez toho by se
+klient rozjel se serverem) a **slow falling**; elytrový let je plná
+vanilla aerodynamika (vztlak z cos²pitch, konverze klesání v tah, flare)
+– pozor, běžné vzdušné tření 0.91 se na letícího neaplikuje, jinak
+klouzání umře (odhalil test). `GlideTask` řídí slety konzervativně
+(klouzavost 6:1 s rezervou, omezený sklon, podrovnání před dosedem);
+`end-return`/`end-harvest` jsou mimo hlavní ostrov potlačené, aby bota
+netáhly přes void. Vědomé meze: bez raket (jen klouzání), krunýř
+shulkera se nečte (entity metadata zůstávají neparsovaná), města za
+`max-city-distance` se vzdávají – přes void se nemostí.

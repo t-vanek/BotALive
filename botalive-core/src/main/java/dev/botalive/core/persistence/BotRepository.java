@@ -533,6 +533,180 @@ public final class BotRepository {
     }
 
     /**
+     * Řádek diplomatického vztahu dvou sídel. Dvojice je uspořádaná
+     * ({@code settlementA < settlementB}), padlí se počítají po stranách.
+     *
+     * @param settlementA  menší id dvojice
+     * @param settlementB  větší id dvojice
+     * @param tension      aktuální napětí
+     * @param state        název {@code DiplomacyService.WarState}
+     * @param stateSince   od kdy stav platí (epoch ms)
+     * @param truceUntil   konec příměří (epoch ms; 0 mimo příměří)
+     * @param deathsA      padlí strany A v běžící/poslední válce
+     * @param deathsB      padlí strany B
+     */
+    public record SettlementRelationRow(long settlementA, long settlementB,
+                                        double tension, String state, long stateSince,
+                                        long truceUntil, int deathsA, int deathsB) {
+    }
+
+    /**
+     * Načte všechny diplomatické vztahy sídel.
+     */
+    public CompletableFuture<List<SettlementRelationRow>> loadSettlementRelations() {
+        return db.async(connection -> {
+            List<SettlementRelationRow> result = new ArrayList<>();
+            try (PreparedStatement ps = connection.prepareStatement(
+                    "SELECT settlement_a, settlement_b, tension, state, state_since, "
+                            + "truce_until, deaths_a, deaths_b FROM ba_settlement_relations");
+                 ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    result.add(new SettlementRelationRow(rs.getLong(1), rs.getLong(2),
+                            rs.getDouble(3), rs.getString(4), rs.getLong(5),
+                            rs.getLong(6), rs.getInt(7), rs.getInt(8)));
+                }
+                return result;
+            } catch (SQLException e) {
+                throw new IllegalStateException(e);
+            }
+        });
+    }
+
+    /**
+     * Uloží/aktualizuje diplomatický vztah dvou sídel.
+     */
+    public CompletableFuture<Void> upsertSettlementRelation(SettlementRelationRow row) {
+        String sql = "INSERT INTO ba_settlement_relations(settlement_a, settlement_b, "
+                + "tension, state, state_since, truce_until, deaths_a, deaths_b, updated_at) "
+                + "VALUES (?,?,?,?,?,?,?,?,?)"
+                + db.dialect().upsertSuffix("settlement_a, settlement_b",
+                "tension=excluded.tension, state=excluded.state, "
+                        + "state_since=excluded.state_since, truce_until=excluded.truce_until, "
+                        + "deaths_a=excluded.deaths_a, deaths_b=excluded.deaths_b, "
+                        + "updated_at=excluded.updated_at");
+        return db.async(connection -> {
+            try (PreparedStatement ps = connection.prepareStatement(sql)) {
+                ps.setLong(1, row.settlementA());
+                ps.setLong(2, row.settlementB());
+                ps.setDouble(3, row.tension());
+                ps.setString(4, row.state());
+                ps.setLong(5, row.stateSince());
+                ps.setLong(6, row.truceUntil());
+                ps.setInt(7, row.deathsA());
+                ps.setInt(8, row.deathsB());
+                ps.setLong(9, System.currentTimeMillis());
+                ps.executeUpdate();
+                return null;
+            } catch (SQLException e) {
+                throw new IllegalStateException(e);
+            }
+        });
+    }
+
+    /**
+     * Smaže všechny vztahy, ve kterých sídlo figuruje (zaniklé sídlo).
+     */
+    public CompletableFuture<Void> deleteSettlementRelations(long settlementId) {
+        return db.async(connection -> {
+            try (PreparedStatement ps = connection.prepareStatement(
+                    "DELETE FROM ba_settlement_relations "
+                            + "WHERE settlement_a = ? OR settlement_b = ?")) {
+                ps.setLong(1, settlementId);
+                ps.setLong(2, settlementId);
+                ps.executeUpdate();
+                return null;
+            } catch (SQLException e) {
+                throw new IllegalStateException(e);
+            }
+        });
+    }
+
+    /**
+     * Řádek pracovní smlouvy bota (najímání hráči).
+     *
+     * @param botId        UUID bota (jedna smlouva na bota)
+     * @param employer     UUID zaměstnavatele (hráče)
+     * @param employerName jméno zaměstnavatele (pro hlášky bez lookupů)
+     * @param kind         název {@code EmploymentService.Kind}
+     * @param wage         zaplacená mzda (celkem)
+     * @param hiredAt      začátek smlouvy (epoch ms)
+     * @param paidUntil    konec zaplaceného období (epoch ms)
+     * @param lastDelivery poslední donáška výtěžku (epoch ms; 0 = žádná)
+     */
+    public record EmploymentRow(UUID botId, UUID employer, String employerName,
+                                String kind, double wage, long hiredAt,
+                                long paidUntil, long lastDelivery) {
+    }
+
+    /**
+     * Načte všechny pracovní smlouvy.
+     */
+    public CompletableFuture<List<EmploymentRow>> loadEmployment() {
+        return db.async(connection -> {
+            List<EmploymentRow> result = new ArrayList<>();
+            try (PreparedStatement ps = connection.prepareStatement(
+                    "SELECT bot_id, employer, employer_name, kind, wage, hired_at, "
+                            + "paid_until, last_delivery FROM ba_employment");
+                 ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    result.add(new EmploymentRow(UUID.fromString(rs.getString(1)),
+                            UUID.fromString(rs.getString(2)), rs.getString(3),
+                            rs.getString(4), rs.getDouble(5), rs.getLong(6),
+                            rs.getLong(7), rs.getLong(8)));
+                }
+                return result;
+            } catch (SQLException e) {
+                throw new IllegalStateException(e);
+            }
+        });
+    }
+
+    /**
+     * Uloží/aktualizuje pracovní smlouvu bota.
+     */
+    public CompletableFuture<Void> upsertEmployment(EmploymentRow row) {
+        String sql = "INSERT INTO ba_employment(bot_id, employer, employer_name, kind, "
+                + "wage, hired_at, paid_until, last_delivery) VALUES (?,?,?,?,?,?,?,?)"
+                + db.dialect().upsertSuffix("bot_id",
+                "employer=excluded.employer, employer_name=excluded.employer_name, "
+                        + "kind=excluded.kind, wage=excluded.wage, "
+                        + "hired_at=excluded.hired_at, paid_until=excluded.paid_until, "
+                        + "last_delivery=excluded.last_delivery");
+        return db.async(connection -> {
+            try (PreparedStatement ps = connection.prepareStatement(sql)) {
+                ps.setString(1, row.botId().toString());
+                ps.setString(2, row.employer().toString());
+                ps.setString(3, row.employerName());
+                ps.setString(4, row.kind());
+                ps.setDouble(5, row.wage());
+                ps.setLong(6, row.hiredAt());
+                ps.setLong(7, row.paidUntil());
+                ps.setLong(8, row.lastDelivery());
+                ps.executeUpdate();
+                return null;
+            } catch (SQLException e) {
+                throw new IllegalStateException(e);
+            }
+        });
+    }
+
+    /**
+     * Smaže pracovní smlouvu bota (konec/výpověď).
+     */
+    public CompletableFuture<Void> deleteEmployment(UUID botId) {
+        return db.async(connection -> {
+            try (PreparedStatement ps = connection.prepareStatement(
+                    "DELETE FROM ba_employment WHERE bot_id = ?")) {
+                ps.setString(1, botId.toString());
+                ps.executeUpdate();
+                return null;
+            } catch (SQLException e) {
+                throw new IllegalStateException(e);
+            }
+        });
+    }
+
+    /**
      * Načte všechny vesnice.
      */
     public CompletableFuture<List<SettlementRow>> loadSettlements() {

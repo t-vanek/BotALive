@@ -5,6 +5,7 @@ import dev.botalive.api.memory.MemoryKind;
 import dev.botalive.api.personality.Trait;
 import dev.botalive.core.ai.BotContext;
 import dev.botalive.core.inventory.ContainerService;
+import dev.botalive.core.settlement.DiplomacyService;
 import dev.botalive.core.station.ChestStation;
 import dev.botalive.core.util.BlockPos;
 import dev.botalive.core.world.WorldView;
@@ -29,6 +30,7 @@ public final class StashGoal extends AbstractGoal {
     private enum Phase { FIND, GO, OPEN, DEPOSIT, CLOSE, DONE }
 
     private final ChestStation containers;
+    private final DiplomacyService diplomacy;
 
     private Phase phase = Phase.FIND;
     /** Sken přes studenou chunk cache (po teleportu) chvíli opakovat. */
@@ -41,10 +43,12 @@ public final class StashGoal extends AbstractGoal {
 
     /**
      * @param containers sdílená služba kontejnerů
+     * @param diplomacy  diplomacie sídel (krádež mezi vesnicemi zvedá napětí)
      */
-    public StashGoal(ChestStation containers) {
+    public StashGoal(ChestStation containers, DiplomacyService diplomacy) {
         super("stash");
         this.containers = containers;
+        this.diplomacy = diplomacy;
     }
 
     @Override
@@ -213,6 +217,11 @@ public final class StashGoal extends AbstractGoal {
                     bot.memory().remember(MemoryKind.ENEMY, ctx.worldView().worldName(),
                             chest.x(), chest.y(), chest.z(), theft.thief(),
                             Map.of("reason", "krádež z truhly"), 0.8);
+                    // Krádež mezi vesnicemi zvedá diplomatické napětí.
+                    if (diplomacy != null) {
+                        diplomacy.noteOffense(bot.id(), theft.thief(),
+                                DiplomacyService.Offense.THEFT);
+                    }
                     ctx.gainExperience(dev.botalive.core.personality.PersonalityEvolution
                             .BotExperience.WAS_ROBBED);
                 });

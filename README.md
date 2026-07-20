@@ -72,6 +72,7 @@ Every bot has its own identity, personality, memory, goals, inventory and histor
 - **Nether expeditions** — a properly equipped bot finds a portal from memory, discovers one, or **builds its own** (mines 14 obsidian, builds a 4×5 frame, lights it with flint and steel). In the Nether it mines quartz, gold and glowstone, digs for **ancient debris**, loots fortresses and bastions (smithing templates!), barters with piglins in gold boots — then comes home to forge **netherite upgrades** with enchantments and durability preserved.
 - **Colonization** — outposts with a chest on the Nether side of the portal, fire-resistance potions before deep dives, and return safeguards on health, hunger and a full inventory. Loot flows back into the community: markets, wallets, gossip about portals, template duplication.
 - **End expeditions** — a bot that learns of a portal (by walking through, by exploring, from a friend's gossip, or via `/botalive end portal`) gears up and fights like an experienced player: shoot the crystals first, never look endermen in the eye, edge-guard against void falls, melee the perched dragon and shoot the flying one. Victory is celebrated in chat, saved as a trophy and raises courage.
+- **Outer islands & elytra** — once the dragon falls, a bot with enough pearls throws one through a gateway, memorises the return gateway, finds an end city (server-side structure locate; purpur scanning on foreign servers), loots the towers, knocks the **elytra** off the end ship's item frame and equips them on the spot. Shulker levitation is simulated client-side so hits don't desync the bot; with elytra equipped, bots glide down from heights under a conservative flight controller (no dive-bombing, flare before touchdown).
 - **Dimension discipline** — beds are never used in either dimension (they explode), and paths route around portals so a bot never changes dimension by accident.
 
 ### 🏘️ Society & economy
@@ -80,6 +81,8 @@ Every bot has its own identity, personality, memory, goals, inventory and histor
 - **Bot-to-bot market** — surplus goods are offered in chat ("selling 5x bread for 12, anyone?"), reserved, delivered in person and paid for. Friends get discounts, the greedy add margins, and a hungry bot with money buys instead of stealing.
 - **Crime & consequence** — a starving bot may "borrow" from a stranger's chest or, in true desperation, rob someone (always respecting the `pvp` section; friends are off-limits). Thefts land in a shared crime book — the owner finds out, gets angry and remembers.
 - **Economy** — internal persistent wallets by default; with Vault installed, bots join the server economy (`/pay`, `/baltop`) and earnings from mining and trade are visible to everyone.
+- **Wars & diplomacy** (optional, off by default) — grudges between members of different villages (discovered thefts, assaults) raise tension between the settlements. Past a threshold a militant mayor declares war: raid parties march on the enemy green, defence is summoned by the same machinery as regular PvP, casualties build war-weariness, and tired mayors negotiate a truce — the losing side pays reparations from its mayor's wallet. Strictly bot-vs-bot, players are never targets; raids respect the `pvp` switches (without them wars stay "cold"). `/botalive diplomacy` shows tensions, wars and truces.
+- **Bots for hire** — players hire bots in person (`/botalive hire <bot> <worker|guard> [days]`, within 16 blocks): a **worker** focuses on productive goals and periodically walks his yield over to the employer; a **bodyguard** sticks with you and fights off attackers — mobs always, players and bots only within the `pvp` rules. Wages follow personality (greedy and lazy bots charge more, friends get the market discount) and are paid upfront via Vault `/pay`. Attack your own bot and he quits on the spot, keeping the money.
 
 ### 💬 Chat & human-like presence
 
@@ -135,6 +138,10 @@ Base command `/botalive`, aliases `/ba` and `/bots`.
 | `stats <name>` | Blocks mined and placed, deaths, kills, distance walked, money… |
 | `role <name> [role\|random]` | Show or assign a profession |
 | `settlements` | Overview of bot villages (name, green, founder, members) |
+| `diplomacy` | Tension, wars and truces between bot villages |
+| `hire <name> <worker\|guard> [days]` | Ask a bot for a wage quote (in person, within 16 blocks) |
+| `hire <name> confirm` | Confirm the hire — the bot then waits for `/pay` |
+| `dismiss <name>` | End your bot's contract early (no refund) |
 | `end portal <x> <y> <z> [world]` | Reveal an End portal location to all bots (gossip spreads it further) |
 | `path <name>` | Navigation diagnostics (target, waypoints, computation state) + A\* metrics |
 
@@ -160,8 +167,11 @@ Player teleports have a configurable cooldown (`teleport.player-cooldown-seconds
 | `pathfinding.*` | Node/time budgets, far corridor, path diagnostics |
 | `combat.*`, `pvp.*` | Difficulty profile, PvP toggles, player-attack safety switch |
 | `nether.*`, `end.*` | Expedition gear thresholds, budgets, safeguards |
+| `end.outer.*` | Outer-island expeditions: trip budget, pearl reserve, structure-locate assist, elytra flight |
 | `settlement.*` | Villages, plots, lighting, paths |
+| `settlement.war.*` | Wars & diplomacy: tension weights, raid size and cadence, truce terms, reparations (off by default) |
 | `economy.*` | Vault integration, bot-to-bot market |
+| `economy.employment.*` | Bots for hire: wages, contract caps, upfront-payment requirement |
 | `chat.*` | Language, typing and conversation behavior |
 | `memory.*`, `persistence.*` | Memory limits, SQLite/PostgreSQL |
 | `network.*` | World model (`packet`), protocol version check |
@@ -181,7 +191,7 @@ The `{name}` placeholder is replaced with the other party's name.
 <details>
 <summary>Phrase categories</summary>
 
-`greetings`, `confused`, `agreement`, `disagreement`, `youre-welcome`, `idle-chatter`, `death-reactions`, `combat-taunts`, `meet-player`, `pvp-help-calls`, `pvp-assist`, `pvp-taunts`, `nether-depart`, `nether-arrive`, `nether-return`, `nether-loot`, `end-depart`, `end-arrive`, `dragon-slain`, `end-return`, `emojis`
+`greetings`, `confused`, `agreement`, `disagreement`, `youre-welcome`, `idle-chatter`, `death-reactions`, `combat-taunts`, `meet-player`, `pvp-help-calls`, `pvp-assist`, `pvp-taunts`, `nether-depart`, `nether-arrive`, `nether-return`, `nether-loot`, `end-depart`, `end-arrive`, `dragon-slain`, `end-return`, `end-outer-depart`, `end-city-found`, `elytra-found`, `end-outer-return`, `war-declared`, `war-raid-depart`, `war-raid-taunts`, `war-truce-offer`, `war-truce-agreed`, `hire-pay-request`, `hire-accept`, `hire-decline`, `hire-expired`, `hire-quit`, `hire-deliver`, `guard-defend`, `emojis`
 
 </details>
 
@@ -206,7 +216,7 @@ bot.teleportToPlayer(player.getUniqueId());    // bot to a player
 bot.teleportPlayerToBot(player.getUniqueId()); // player to a bot
 ```
 
-Bukkit events (all fired asynchronously): `BotSpawnedEvent`, `BotRemovedEvent`, `BotChatEvent` (cancellable), `BotDiedEvent`, `BotGoalChangedEvent`.
+Bukkit events (all fired asynchronously): `BotSpawnedEvent`, `BotRemovedEvent`, `BotChatEvent` (cancellable), `BotDiedEvent`, `BotGoalChangedEvent`, `SettlementWarDeclaredEvent`, `SettlementTruceEvent`, `BotHiredEvent`, `BotDismissedEvent`.
 
 ## Building from Source
 
@@ -229,8 +239,9 @@ Design decisions and trade-offs are documented in [docs/ARCHITECTURE.md](docs/AR
 
 - **Offline mode is required** — bots are unsigned clients. On an online-mode server the plugin refuses to connect them and explains why.
 - **Nether** — bots don't ride striders and won't bridge large lava oceans (bridges cap at 12 blocks; routes are found elsewhere). Brewing, respawn anchors and the wither fight are out of scope; nether wart is collected only as chest loot. Offensive splash-potion throwing is missing (bots only splash themselves as an emergency save).
-- **End** — the outer islands (gateways, end cities, shulkers, elytra) are not covered yet; bots operate on the main island. Pearl-throwing through gateways is on the roadmap.
+- **End outer islands** — elytra flight is gliding only (no firework rockets yet), shulker shell state isn't read (entity metadata stays unparsed — bots sometimes swing at a closed shell like a rookie), and cities beyond `end.outer.max-city-distance` are given up rather than bridged across the void. Shulker boxes aren't crafted or used.
 - **Strongholds** — bots don't triangulate with eyes of ender; they learn portal locations by walking through, random discovery, gossip, or `/botalive end portal`. They do craft eyes of ender (pearl + blaze powder from Nether loot) and will fill an incomplete portal frame themselves.
+- **Wars** — sieges don't loot or burn (raids are combat-only), wars never involve players, and cross-world villages don't fight (raiders can't walk between worlds).
 
 ## Contributing
 
