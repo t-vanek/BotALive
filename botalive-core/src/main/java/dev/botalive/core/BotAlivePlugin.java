@@ -39,6 +39,9 @@ public final class BotAlivePlugin extends JavaPlugin {
 
         // Bukkit integrace.
         Bukkit.getPluginManager().registerEvents(root.get(ServerEventListener.class), this);
+        // Server-side pojistka proti zneužití identity bota (vlastní ověřování).
+        Bukkit.getPluginManager().registerEvents(
+                root.get(dev.botalive.core.gateway.BotLoginGuard.class), this);
         PluginCommand command = getCommand("botalive");
         if (command != null) {
             BotAliveCommand executor = root.get(BotAliveCommand.class);

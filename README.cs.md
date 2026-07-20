@@ -97,6 +97,7 @@ Každý bot má vlastní identitu, osobnost, paměť, cíle, inventář a histor
 - **Podpora Folie** — výhradně region-aware scheduler API.
 - **Hraje i na cizích serverech** — volitelný paketový world model (`network.world-model: packet`) parsuje geometrii přímo z chunk paketů a crafting, truhly, pece, obchod s vesničany i enchantování řídí protokolovými container kliky — plný survival na libovolném offline-mode serveru.
 - **Detekce ViaVersion** — nesoulad verzí protokolu se odhalí při startu a vytvoření bota se odmítne se srozumitelným návodem (ViaVersion / ViaBackwards) místo tichého selhání (`network.version-check`).
+- **Ověřování identity botů** — na offline serveru se kdokoli může připojit pod libovolným jménem, včetně jména bota. BotAlive vydá každému botu krátkodobé, jednorázové podepsané pověření a server-side pojistka (`AsyncPlayerPreLogin`) odmítne přihlášení, které předstírá identitu bota — hráčů s vlastními jmény se to netýká a server není třeba nijak přenastavovat. Vestavěná gateway ve tvaru Mojang session API (`gateway.*`) navíc umožní kryptografické online-mode ověření pro pokročilá nasazení.
 - **Persistence** — vestavěná SQLite, volitelně PostgreSQL, write-behind ukládání a slučování blízkých vzpomínek.
 
 ## Požadavky
@@ -116,7 +117,7 @@ Každý bot má vlastní identitu, osobnost, paměť, cíle, inventář a histor
 3. Spusťte `/botalive create` — první bot se připojí.
 
 > [!IMPORTANT]
-> Boti jsou nepodepsaní offline klienti, server (nebo backend za proxy) proto musí běžet s `online-mode=false`. Na online-mode serveru se plugin korektně odmítne připojit a vysvětlí proč.
+> Boti jsou nepodepsaní offline klienti, server (nebo backend za proxy) proto musí běžet s `online-mode=false`. Na online-mode serveru se plugin korektně odmítne připojit a vysvětlí proč. Vestavěná gateway BotAlive chrání před stinnou stránkou offline režimu — někým, kdo předstírá jméno bota — už ve výchozím stavu a umí boty ověřit i proti online-mode serveru nasměrovanému na ni (`gateway.client-auth`).
 
 ## Příkazy
 
@@ -174,6 +175,7 @@ Hráčské teleporty mají konfigurovatelný cooldown (`teleport.player-cooldown
 | `chat.*` | Jazyk, chování psaní a konverzace |
 | `memory.*`, `persistence.*` | Limity paměti, SQLite/PostgreSQL |
 | `network.*` | World model (`packet`), kontrola verze protokolu |
+| `gateway.*` | Ověřování identity botů (proti zneužití), vestavěná Mojang API gateway, online-mode ověření klienta |
 | `teleport.*` | Cooldowny hráčských teleportů |
 
 ## Lokalizace

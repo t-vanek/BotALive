@@ -219,7 +219,8 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
         this.packetWorlds = config.network().packetWorldModel()
                 ? new dev.botalive.core.world.PacketWorldManager(services.stateMapper())
                 : null;
-        this.connection = new BotConnection(name, id, config.network(),
+        this.connection = new BotConnection(name, id, config.network(), config.gateway(),
+                services.authority(),
                 new BotSessionListener(name, clientState, entities, clientInventory,
                         containerTracker, this, packetWorlds));
         this.containerClicker = new dev.botalive.core.container.ContainerClicker(
@@ -891,6 +892,7 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
      * @param socialGraph sociální adresář (bot vs. hráč, drby)
      * @param market      tržiště botů (prodej hráčům přes chat)
      * @param employment  najímání botů hráči (smlouvy, mzdy)
+     * @param authority   vydavatel a ověřovatel přihlašovacích pověření botů
      */
     public record SharedServices(
             BotAliveConfig config,
@@ -907,7 +909,8 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
             dev.botalive.core.settlement.DiplomacyService diplomacy,
             dev.botalive.core.social.SocialGraph socialGraph,
             dev.botalive.core.economy.MarketBoard market,
-            dev.botalive.core.economy.EmploymentService employment
+            dev.botalive.core.economy.EmploymentService employment,
+            dev.botalive.core.gateway.CredentialAuthority authority
     ) {
     }
 

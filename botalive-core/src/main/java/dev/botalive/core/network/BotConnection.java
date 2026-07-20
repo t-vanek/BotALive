@@ -1,6 +1,9 @@
 package dev.botalive.core.network;
 
 import dev.botalive.core.config.BotAliveConfig;
+import dev.botalive.core.gateway.BotCredential;
+import dev.botalive.core.gateway.CredentialAuthority;
+import dev.botalive.core.gateway.GatewaySessionService;
 import org.geysermc.mcprotocollib.auth.GameProfile;
 import org.geysermc.mcprotocollib.network.ClientSession;
 import org.geysermc.mcprotocollib.network.event.session.SessionListener;
@@ -37,6 +40,8 @@ public final class BotConnection {
     private final String botName;
     private final UUID botId;
     private final BotAliveConfig.Network config;
+    private final BotAliveConfig.Gateway gateway;
+    private final CredentialAuthority authority;
     private final SessionListener listener;
 
     private volatile ClientNetworkSession session;
@@ -46,15 +51,21 @@ public final class BotConnection {
     private volatile ExecutorService closingExecutor;
 
     /**
-     * @param botName  jméno bota (login jméno)
-     * @param botId    offline-mode UUID bota
-     * @param config   síťová konfigurace
-     * @param listener session listener (routing paketů)
+     * @param botName   jméno bota (login jméno)
+     * @param botId     offline-mode UUID bota
+     * @param config    síťová konfigurace
+     * @param gateway   konfigurace gateway a ověřování
+     * @param authority ověřovací autorita (vydává pověření před připojením)
+     * @param listener  session listener (routing paketů)
      */
-    public BotConnection(String botName, UUID botId, BotAliveConfig.Network config, SessionListener listener) {
+    public BotConnection(String botName, UUID botId, BotAliveConfig.Network config,
+                         BotAliveConfig.Gateway gateway, CredentialAuthority authority,
+                         SessionListener listener) {
         this.botName = botName;
         this.botId = botId;
         this.config = config;
+        this.gateway = gateway;
+        this.authority = authority;
         this.listener = listener;
     }
 
@@ -67,6 +78,11 @@ public final class BotConnection {
     public synchronized void connect(String host, int port) {
         disconnectQuietly("reconnect");
 
+        // Vlastní ověřovací proces: vystav krátkodobé pověření těsně před
+        // připojením (i při reconnectu). Offline cestu spotřebuje server-side
+        // pojistka BotLoginGuard, online cestu předloží GatewaySessionService.
+        BotCredential credential = gateway.enabled() ? authority.issue(botId, botName) : null;
+
         MinecraftProtocol protocol = new MinecraftProtocol(new GameProfile(botId, botName), null);
 
         // Jednovláknový executor na virtuálním vlákně: pořadí paketů zachováno,
@@ -78,8 +94,18 @@ public final class BotConnection {
         ClientNetworkSession newSession = new ClientNetworkSession(
                 new InetSocketAddress(host, port), protocol, executor, null, null);
 
-        // Offline-mode klient: žádná autentizace proti session serverům Mojangu.
-        newSession.setFlag(MinecraftConstants.SHOULD_AUTHENTICATE, false);
+        if (gateway.enabled() && gateway.clientAuth() && credential != null) {
+            // Online-mode nasazení: bot se ověří proti vlastní gateway BotAlive
+            // (ne proti session serverům Mojangu) předložením podepsaného tokenu.
+            newSession.setFlag(MinecraftConstants.SESSION_SERVICE_KEY,
+                    new GatewaySessionService(gateway.clientBaseUrl()));
+            newSession.setFlag(MinecraftConstants.ACCESS_TOKEN_KEY, credential.token());
+            newSession.setFlag(MinecraftConstants.SHOULD_AUTHENTICATE, true);
+        } else {
+            // Offline-mode klient: žádná autentizace v handshaku; identitu bota
+            // chrání server-side pojistka BotLoginGuard přes čekající autorizaci.
+            newSession.setFlag(MinecraftConstants.SHOULD_AUTHENTICATE, false);
+        }
         // Keep-alive odbavuje knihovna sama (nezávisle na tick smyčce bota).
         newSession.setFlag(MinecraftConstants.AUTOMATIC_KEEP_ALIVE_MANAGEMENT, true);
         // Follow transfers – kdyby server bota přesměroval (velocity apod.).
