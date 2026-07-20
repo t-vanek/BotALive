@@ -51,7 +51,7 @@ public final class CampGoal extends AbstractGoal {
     public double utility(Bot bot) {
         BotContext ctx = ctx(bot);
         if (cooldownTicks > 0) {
-            cooldownTicks--;
+            cooldownTicks -= ctx.config().ai().decisionIntervalTicks();
             return 0;
         }
         if (ctx.worldView() == null || ctx.dimension() != WorldDimension.OVERWORLD) {

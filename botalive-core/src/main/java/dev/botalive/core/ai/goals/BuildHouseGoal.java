@@ -124,19 +124,26 @@ public final class BuildHouseGoal extends AbstractGoal {
         if (outsideOverworld(ctx)) {
             return 0;
         }
-        // Dům se staví za světla.
-        long time = ctx.worldTime();
-        if (time >= 11500 && time <= 23000) {
-            return 0;
-        }
         // Už dům má → nestavět další.
         if (houseBuilt || hasHouse(bot, ctx)) {
             return 0;
         }
-        // Bez dostatku bloků nemá cenu začínat (generovaný dům jich chce víc).
-        BotNeeds needs = BotNeeds.assess(ctx.serverView().latest());
-        if (needs.buildingBlocks() < blocksNeededFor(ctx, bot)) {
-            return 0;
+        // Vstupní brány (denní doba, materiál) platí jen pro ZAHÁJENÍ stavby.
+        // Dřív se vyhodnocovaly i pro běžící cíl: jakmile během stavby ubyly
+        // bloky pod plný požadavek nebo padla noc, utility spadla na 0, mozek
+        // cíl opustil a start() smazal postup – ve světě zůstávala torza.
+        boolean inProgress = session != null || claimedIndex != null;
+        if (!inProgress) {
+            // Dům se staví za světla.
+            long time = ctx.worldTime();
+            if (time >= 11500 && time <= 23000) {
+                return 0;
+            }
+            // Bez dostatku bloků nemá cenu začínat (generovaný dům jich chce víc).
+            BotNeeds needs = BotNeeds.assess(ctx.serverView().latest());
+            if (needs.buildingBlocks() < blocksNeededFor(ctx, bot)) {
+                return 0;
+            }
         }
         double intelligence = bot.personality().trait(Trait.INTELLIGENCE);
         double caution = bot.personality().trait(Trait.CAUTION);
