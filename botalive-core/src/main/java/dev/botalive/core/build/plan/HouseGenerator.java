@@ -24,12 +24,25 @@ public final class HouseGenerator implements Blueprint {
 
     private final int width;
     private final int wallHeight;
+    private final boolean roofPeaked;
 
     /**
+     * Dům s plnou jehlanovou střechou do špičky.
+     *
      * @param width      šířka i hloubka půdorysu (lichá, ≥ 5)
      * @param wallHeight výška zdí (≥ 2)
      */
     public HouseGenerator(int width, int wallHeight) {
+        this(width, wallHeight, true);
+    }
+
+    /**
+     * @param width      šířka i hloubka půdorysu (lichá, ≥ 5)
+     * @param wallHeight výška zdí (≥ 2)
+     * @param roofPeaked plná jehlanová střecha do špičky, nebo valba s plochým
+     *                   vrcholem (o stupeň nižší) – variace vzhledu
+     */
+    public HouseGenerator(int width, int wallHeight, boolean roofPeaked) {
         if (width < 5 || width % 2 == 0) {
             throw new IllegalArgumentException("width musí být liché a ≥ 5: " + width);
         }
@@ -38,6 +51,7 @@ public final class HouseGenerator implements Blueprint {
         }
         this.width = width;
         this.wallHeight = wallHeight;
+        this.roofPeaked = roofPeaked;
     }
 
     private int center() {
@@ -49,9 +63,10 @@ public final class HouseGenerator implements Blueprint {
         return wallHeight - 1;
     }
 
-    /** Počet střešních stupňů (do špičky). */
+    /** Počet střešních stupňů: plná do špičky, nebo o stupeň nižší (plochý vrchol). */
     private int roofSteps() {
-        return (width - 1) / 2;
+        int full = (width - 1) / 2;
+        return roofPeaked ? full : Math.max(1, full - 1);
     }
 
     @Override

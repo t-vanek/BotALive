@@ -38,9 +38,9 @@ public final class HouseDesigner {
      */
     public record HouseDesign(int width, int wallHeight, Material wood, long seed) {
 
-        /** @return geometrie domu */
+        /** @return geometrie domu (tvar střechy odvozen ze seedu – variace vzhledu) */
         public Blueprint blueprint() {
-            return new HouseGenerator(width, wallHeight);
+            return new HouseGenerator(width, wallHeight, Math.floorMod(seed, 3) != 0);
         }
 
         /** @return materiály podle rolí */

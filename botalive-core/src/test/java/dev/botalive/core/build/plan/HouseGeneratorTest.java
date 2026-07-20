@@ -105,6 +105,49 @@ class HouseGeneratorTest {
         }
     }
 
+    @Test
+    void flatTopRoofVariantReachesSupportsAndBuilds() {
+        HouseGenerator gen = new HouseGenerator(5, 3, false); // valba s plochým vrcholem
+        // Nižší střecha než plná jehla.
+        assertTrue(gen.cells(ORIGIN, Cardinal.NORTH).size()
+                        < new HouseGenerator(5, 3, true).cells(ORIGIN, Cardinal.NORTH).size(),
+                "plochý vrchol má míň bloků než špička");
+        // Dosah z jednoho stanoviště a opora při pokládce.
+        BlockPos stand = gen.standPoint(ORIGIN, Cardinal.NORTH);
+        Vec3 eye = new Vec3(stand.x() + 0.5, stand.y() + 1.62, stand.z() + 0.5);
+        for (PlacementCell cell : gen.cells(ORIGIN, Cardinal.NORTH)) {
+            assertTrue(nearestDistance(eye, cell.pos()) <= REACH, "na dosah: " + cell.pos());
+        }
+        List<PlacementCell> ordered = BuildPlanner.order(
+                gen.cells(ORIGIN, Cardinal.NORTH), gen.groundColumns(ORIGIN, Cardinal.NORTH));
+        Set<Long> solid = new HashSet<>();
+        gen.groundColumns(ORIGIN, Cardinal.NORTH).forEach(g -> solid.add(g.asLong()));
+        for (PlacementCell cell : ordered) {
+            assertTrue(hasNeighbor(cell.pos(), solid), "opora: " + cell.pos());
+            solid.add(cell.pos().asLong());
+        }
+        // Postaví se celý.
+        FakeWorldView world = new FakeWorldView(FLOOR_Y);
+        Palette palette = PaletteResolver.resolve(Material.OAK_LOG, 4);
+        BuildPlan plan = BuildPlan.of(gen, ORIGIN, Cardinal.NORTH);
+        FakeBotContext ctx = new FakeBotContext(world, personality());
+        ctx.update(new Vec3(stand.x() + 0.5, stand.y(), stand.z() + 0.5), true);
+        ctx.give(Material.OAK_PLANKS, 300).give(Material.OAK_LOG, 60).give(Material.GLASS, 30)
+                .give(Material.COBBLESTONE, 300).give(Material.STONE_BRICKS, 200)
+                .give(Material.STONE, 100);
+        BuildSession session = new BuildSession(BuildPlanner.schedule(plan, world), palette);
+        BuildSession.State state = BuildSession.State.RUNNING;
+        for (int i = 0; i < 6000 && state == BuildSession.State.RUNNING; i++) {
+            state = session.tick(ctx);
+        }
+        assertEquals(BuildSession.State.DONE, state);
+        for (PlacementCell cell : plan.cells()) {
+            assertTrue(world.traitsAt(cell.pos()).solid(), "stojí: " + cell.pos());
+        }
+    }
+
+    private static final int FLOOR_Y = 63;
+
     // ------------------------------------------------------------------ pomocné
 
     private static int roleCount(List<PlacementCell> cells, PaletteRole role) {
