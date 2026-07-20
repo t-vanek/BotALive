@@ -1,9 +1,11 @@
 package dev.botalive.core.build.plan;
 
 import dev.botalive.api.bot.Bot;
+import dev.botalive.api.personality.Trait;
 import dev.botalive.core.bot.ServerSideView;
 import dev.botalive.core.config.BotAliveConfig;
 import dev.botalive.core.inventory.InventoryHelper;
+import dev.botalive.core.settlement.SettlementTier;
 
 import org.bukkit.Material;
 
@@ -55,13 +57,42 @@ public final class HouseDesigner {
     /**
      * @param bot      bot
      * @param snapshot snímek inventáře (pro volbu dřeva)
-     * @param cfg      konfigurace staveb
+     * @param cfg      konfigurace staveb ({@code width} je strop)
+     * @param tier     stupeň sídla bota (osada staví útulně, město honosně)
      * @return návrh domu pro tohoto bota
      */
     public static HouseDesign design(Bot bot, ServerSideView.Snapshot snapshot,
-                                     BotAliveConfig.Build cfg) {
-        return new HouseDesign(cfg.width(), cfg.wallHeight(),
+                                     BotAliveConfig.Build cfg, SettlementTier tier) {
+        int width = widthFor(tier, bot.personality().trait(Trait.LAZINESS), cfg.width());
+        return new HouseDesign(width, cfg.wallHeight(),
                 dominantWood(snapshot), bot.personality().seed());
+    }
+
+    /**
+     * Velikost domu odvozená ze stupně sídla a lenosti (čistá, testovatelná):
+     * osada staví útulné 5×5, vesnice větší, město do plného stropu; líný bot
+     * staví malý bez ohledu na sídlo. {@code cap} ({@code build.width}) je
+     * horní mez daná konfigurací.
+     *
+     * @param tier     stupeň sídla ({@code null} = osada / bez sídla)
+     * @param laziness lenost bota (0–1)
+     * @param cap      strop půdorysu z konfigurace (lichý, ≥ 5)
+     * @return šířka půdorysu (lichá, 5..cap)
+     */
+    public static int widthFor(SettlementTier tier, double laziness, int cap) {
+        int base = switch (tier == null ? SettlementTier.OSADA : tier) {
+            case OSADA -> 5;
+            case VESNICE -> Math.min(cap, 7);
+            case MESTO -> cap;
+        };
+        if (laziness > 0.66) {
+            base = 5; // líný bydlí skromně
+        }
+        int width = Math.min(base, cap);
+        if (width % 2 == 0) {
+            width--; // lichý půdorys
+        }
+        return Math.max(5, width);
     }
 
     /** Nejčastější dřevo v batohu (prkna+kmeny); dub, když žádné. */

@@ -57,7 +57,8 @@ public record BotAliveConfig(
      * místního dřeva (větší půdorys, okna, valbová střecha).
      *
      * @param complex    zapnout generované domy místo legacy 4×4
-     * @param width      šířka půdorysu (lichá, ≥ 5; dosažitelná z jednoho stanoviště)
+     * @param width      strop půdorysu (lichý, ≥ 5); skutečnou velikost volí
+     *                   bot podle stupně sídla a povahy
      * @param wallHeight výška zdí
      */
     public record Build(boolean complex, int width, int wallHeight) {

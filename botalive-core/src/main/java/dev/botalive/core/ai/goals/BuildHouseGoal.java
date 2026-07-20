@@ -17,6 +17,7 @@ import dev.botalive.core.build.plan.HouseGenerator;
 import dev.botalive.core.util.Cardinal;
 import dev.botalive.core.chat.PhraseCategory;
 import dev.botalive.core.settlement.SettlementService;
+import dev.botalive.core.settlement.SettlementTier;
 import dev.botalive.core.settlement.SocialView;
 import dev.botalive.core.util.BlockPos;
 import dev.botalive.core.util.Vec3;
@@ -134,7 +135,7 @@ public final class BuildHouseGoal extends AbstractGoal {
         }
         // Bez dostatku bloků nemá cenu začínat (generovaný dům jich chce víc).
         BotNeeds needs = BotNeeds.assess(ctx.serverView().latest());
-        if (needs.buildingBlocks() < blocksNeededFor(ctx)) {
+        if (needs.buildingBlocks() < blocksNeededFor(ctx, bot)) {
             return 0;
         }
         double intelligence = bot.personality().trait(Trait.INTELLIGENCE);
@@ -624,7 +625,8 @@ public final class BuildHouseGoal extends AbstractGoal {
         // generovaný dům z palety, jinak legacy domek 4×4.
         var buildCfg = ctx.config().build();
         if (buildCfg.complex()) {
-            design = HouseDesigner.design(bot, ctx.serverView().latest(), buildCfg);
+            design = HouseDesigner.design(bot, ctx.serverView().latest(), buildCfg,
+                    settlementTier(ctx, bot));
             BuildPlan buildPlan = BuildPlan.of(design.blueprint(), origin, facing);
             session = new BuildSession(
                     BuildPlanner.schedule(buildPlan, ctx.worldView()), design.palette());
@@ -636,12 +638,25 @@ public final class BuildHouseGoal extends AbstractGoal {
         return true;
     }
 
+    /** Stupeň sídla bota pro volbu velikosti domu (osada / bez sídla = OSADA). */
+    private SettlementTier settlementTier(BotContext ctx, Bot bot) {
+        SettlementService settlements = ctx.settlements();
+        if (settlements == null) {
+            return SettlementTier.OSADA;
+        }
+        return settlements.settlementOf(bot.id())
+                .map(SettlementService.SettlementInfo::tier).orElse(SettlementTier.OSADA);
+    }
+
     /** Kolik bloků chce dům, na který se právě chystá (legacy vs generovaný). */
-    private int blocksNeededFor(BotContext ctx) {
+    private int blocksNeededFor(BotContext ctx, Bot bot) {
         var buildCfg = ctx.config().build();
-        return buildCfg.complex()
-                ? new HouseGenerator(buildCfg.width(), buildCfg.wallHeight()).blocksNeeded()
-                : HouseBlueprint.blocksNeeded();
+        if (!buildCfg.complex()) {
+            return HouseBlueprint.blocksNeeded();
+        }
+        int width = HouseDesigner.widthFor(settlementTier(ctx, bot),
+                bot.personality().trait(Trait.LAZINESS), buildCfg.width());
+        return new HouseGenerator(width, buildCfg.wallHeight()).blocksNeeded();
     }
 
     /**

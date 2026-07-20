@@ -1,5 +1,7 @@
 package dev.botalive.core.build.plan;
 
+import dev.botalive.core.settlement.SettlementTier;
+
 import org.bukkit.Material;
 import org.junit.jupiter.api.Test;
 
@@ -33,6 +35,23 @@ class HouseDesignerTest {
      * musí zrekonstruovat tentýž design při opravě (MaintainHomeGoal) – jinak
      * by se generovaný dům opravoval proti špatnému plánu.
      */
+    @Test
+    void sizeGrowsWithSettlementTierAndShrinksWithLaziness() {
+        double diligent = 0.2;
+        // Osada staví útulně, vesnice/město větší (do stropu 7).
+        assertEquals(5, HouseDesigner.widthFor(SettlementTier.OSADA, diligent, 7));
+        assertEquals(7, HouseDesigner.widthFor(SettlementTier.VESNICE, diligent, 7));
+        assertEquals(7, HouseDesigner.widthFor(SettlementTier.MESTO, diligent, 7));
+        // Líný bydlí skromně i ve městě.
+        assertEquals(5, HouseDesigner.widthFor(SettlementTier.MESTO, 0.9, 7));
+        // Strop konfigurace platí a drží lichost; bez sídla = osada.
+        assertEquals(5, HouseDesigner.widthFor(SettlementTier.MESTO, diligent, 5));
+        assertEquals(9, HouseDesigner.widthFor(SettlementTier.MESTO, diligent, 9));
+        assertEquals(5, HouseDesigner.widthFor(null, diligent, 7));
+        assertTrue(HouseDesigner.widthFor(SettlementTier.MESTO, diligent, 8) % 2 == 1,
+                "půdorys je vždy lichý");
+    }
+
     @Test
     void designRoundTripsThroughHomeData() {
         var original = new HouseDesigner.HouseDesign(5, 3, Material.SPRUCE_PLANKS, 123456789L);
