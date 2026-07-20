@@ -940,6 +940,7 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
             brain.halt();
             navigator.stop();
         }
+        flushPersistentState();
         connection.disconnect("Bot odstraněn");
         state.set(BotLifecycleState.REMOVED);
     }
@@ -951,8 +952,24 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
             brain.halt();
             navigator.stop();
         }
+        flushPersistentState();
         connection.disconnect(reason);
         state.set(BotLifecycleState.DISCONNECTED);
+    }
+
+    /**
+     * Dopíše statistiky a pozici při odchodu bota.
+     *
+     * <p>Dřív se obojí ukládalo jen z tick smyčky à 1200 ticků, takže
+     * {@code /stop} zahodil až 60 s nasbíraných statistik u každého bota.
+     */
+    private void flushPersistentState() {
+        try {
+            stats.flush();
+            persistPosition();
+        } catch (RuntimeException e) {
+            LOG.warn("[{}] Uložení stavu při odchodu selhalo: {}", name, e.toString());
+        }
     }
 
     // ======================================================================
@@ -1285,7 +1302,7 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
                 LOG.debug("[{}] [nav] assist: plán={}", name,
                         obstacleTask == null ? "žádný (vzdávám)" : obstacleTask.getClass().getSimpleName());
                 if (obstacleTask == null) {
-                    navigator.assistFailed();
+                    navigator.assistFailed(physics.position());
                 }
             } else if (alive && !paused.get() && !combat.engaged()
                     && config.ai().boats() && !"boat".equals(brain.currentGoalId())
