@@ -75,9 +75,10 @@ public record BotAliveConfig(
      *                         neshodě vytvoření bota odmítnout s vysvětlením;
      *                         {@code false} = jen varovat a nechat login selhat
      * @param reconnect        automatické znovupřipojení po výpadku
+     * @param velocity         Velocity modern forwarding (backend za proxy)
      */
     public record Network(String host, int port, int connectTimeoutMs,
-                          boolean versionCheck, Reconnect reconnect) {
+                          boolean versionCheck, Reconnect reconnect, Velocity velocity) {
 
         /**
          * Míří boti na tento (hostitelský) server?
@@ -89,6 +90,25 @@ public record BotAliveConfig(
             boolean loopback = host.equals("127.0.0.1") || host.equalsIgnoreCase("localhost")
                     || host.equals("::1");
             return loopback && (port == 0 || port == serverPort);
+        }
+
+        /**
+         * Velocity „modern" player-info forwarding na straně bota.
+         *
+         * <p>Pro nasazení, kde boti míří na offline-mode backend za Velocity
+         * proxy: backend při loginu vyžaduje podepsaný identity payload. Bot ho
+         * podepíše stejným tajným klíčem jako proxy ({@code forwarding.secret}).</p>
+         *
+         * @param enabled zapnout odpovídání na Velocity player-info dotaz
+         * @param secret  sdílený tajný klíč (shodný s {@code forwarding.secret} Velocity)
+         */
+        public record Velocity(boolean enabled, String secret) {
+
+            /** @return tajný klíč jako UTF-8 bajty (prázdné pole pro prázdný klíč) */
+            public byte[] secretBytes() {
+                return secret == null ? new byte[0]
+                        : secret.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+            }
         }
     }
 

@@ -20,6 +20,16 @@ network:
     delay-min-ms: 3000
     delay-max-ms: 15000
     max-attempts: 10
+  # Velocity „modern" forwarding: když boti míří na OFFLINE-mode backend za
+  # Velocity proxy, backend při loginu vyžaduje podepsaný identity payload –
+  # jinak připojení odmítne („This server requires you to connect with
+  # Velocity"). Boti jdou na backend přímo (ne přes proxy), takže si payload
+  # podepíšou sami. Zapni a vlož STEJNÝ klíč jako ve Velocity (forwarding.secret,
+  # soubor forwarding.secret v adresáři Velocity). Vypnuté = přímé offline
+  # připojení (běžný samostatný server bez proxy).
+  velocity:
+    enabled: false
+    secret: ""
 
 # ----------------------------------------------------------------------------
 #  Gateway a ověřování botů (ochrana proti zneužití)
