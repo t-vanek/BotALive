@@ -140,6 +140,8 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
     private int buriedTicks;
     /** Odpočet, než bot znovu zváží loď (po přejezdu/neúspěchu se nezkouší hned). */
     private int boatCheckCooldown;
+    /** Odstup mezi pokusy o přejezd lávy na striderovi (viz boatCheckCooldown). */
+    private int striderCheckCooldown;
     /** Odpočet periodické kontroly brnění v hotbaru. */
     private int armorCheckTicks = 60;
     /** Odpočet pasivního všímání si portálů do Endu v okolí. */
@@ -1228,6 +1230,7 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
                     && alive && !paused.get() && obstacleTask.tick(this)) {
                 obstacleTask = null;
                 boatCheckCooldown = 200;
+                striderCheckCooldown = 200;
                 navigator.assistResolved(physics.position());
             }
             vehicle.tick();
@@ -1248,6 +1251,7 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
             if (obstacleTask.tick(this)) {
                 if (obstacleTask instanceof dev.botalive.core.tasks.VehicleTask) {
                     boatCheckCooldown = 200; // po přejezdu/neúspěchu loď hned nezkoušet
+                    striderCheckCooldown = 200;
                 }
                 obstacleTask = null;
                 if (actionTaskRunning) {
@@ -1309,6 +1313,12 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
                 // (Rekreační cíl „boat" si loď řídí sám – tomu do toho nesahat.)
                 obstacleTask = new dev.botalive.core.tasks.WaterCrossTask(navigator.currentObjective());
                 LOG.debug("[{}] [nav] loď: přejezd vody k {}", name, navigator.currentObjective());
+            } else if (alive && !paused.get() && !combat.engaged()
+                    && shouldBoardStrider()) {
+                // Lávový oceán ve směru cíle (širší než reaktivní most) +
+                // strider a jezdecká výbava → osedlat a přejet místo obcházení.
+                obstacleTask = new dev.botalive.core.tasks.LavaCrossTask(navigator.currentObjective());
+                LOG.debug("[{}] [nav] strider: přejezd lávy k {}", name, navigator.currentObjective());
             }
             // Pohyb: explicitní požadavek cíle > navigace > stání.
             if (requestedMove != null) {
@@ -1626,6 +1636,51 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
         return hasItem || boatNearby;
     }
 
+    /**
+     * Vyplatí se osedlat stridera? Lávová analogie {@link #shouldBoardBoat()}:
+     * navigace míří přes souvislou lávu širší než
+     * {@link dev.botalive.core.vehicle.Striders#MIN_CROSS_WIDTH} (užší řeší
+     * reaktivní most/obchůzka), bot má houbu na prutu (řízení) a poblíž se
+     * brouzdá strider. Sedlo je ideál, ne podmínka – strider už může být
+     * osedlaný z dřívějšího pokusu a marné nasedání ukončí cooldown.
+     *
+     * @return {@code true} když se teď vyplatí přejet lávu na striderovi
+     */
+    private boolean shouldBoardStrider() {
+        if (striderCheckCooldown > 0) {
+            striderCheckCooldown--;
+            return false;
+        }
+        if (worldView == null || physics == null || !navigator.navigating()
+                || !config.nether().striders()
+                || worldView.dimension() != dev.botalive.core.world.WorldDimension.NETHER) {
+            return false;
+        }
+        BlockPos dest = navigator.currentObjective();
+        if (dest == null) {
+            return false;
+        }
+        BlockPos feet = physics.position().toBlockPos();
+        boolean preferX = Math.abs(dest.x() - feet.x()) >= Math.abs(dest.z() - feet.z());
+        int sx = preferX ? Integer.signum(dest.x() - feet.x()) : 0;
+        int sz = preferX ? 0 : Integer.signum(dest.z() - feet.z());
+        if (sx == 0 && sz == 0) {
+            return false;
+        }
+        if (dev.botalive.core.vehicle.Striders.openLavaWidth(worldView, feet, sx, sz)
+                < dev.botalive.core.vehicle.Striders.MIN_CROSS_WIDTH) {
+            return false;
+        }
+        var snapshot = serverView.latest();
+        if (snapshot == null
+                || !snapshot.hasItem(dev.botalive.core.vehicle.Striders::isSteeringRod)) {
+            return false;
+        }
+        return entities.nearest(physics.position(), 16,
+                e -> e.type() == org.geysermc.mcprotocollib.protocol.data.game.entity
+                        .type.EntityType.STRIDER).isPresent();
+    }
+
     /** Počet stavebních bloků v inventáři – rozpočet pokládacích hran plánu. */
     private int buildingBlockBudget() {
         return dev.botalive.core.inventory.InventoryHelper
@@ -1746,12 +1801,19 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
         int dy = Integer.signum(destination.y() - feet.y());
 
         // Tekutina v cestě (lávové jezero, hluboká voda) → přemostit směrem
-        // k cíli. Klasika hráče: blok do hladiny, krok, další blok.
-        boolean liquidAhead = worldView.traitsAt(front).liquid()
-                || (worldView.traitsAt(front).passable()
-                        && worldView.traitsAt(front.down()).liquid());
-        if (liquidAhead && inventoryHelper.equipBuildingBlock(serverView.latest())) {
-            return new dev.botalive.core.tasks.BridgeTask(sx, sz);
+        // k cíli. Klasika hráče: blok do hladiny, krok, další blok. Strop
+        // lávového mostu drží konfigurace (nether.lava-bridge-limit) –
+        // širší lávu řeší obchůzka nebo strider.
+        boolean frontLiquid = worldView.traitsAt(front).liquid();
+        boolean belowLiquid = worldView.traitsAt(front).passable()
+                && worldView.traitsAt(front.down()).liquid();
+        if ((frontLiquid || belowLiquid)
+                && inventoryHelper.equipBuildingBlock(serverView.latest())) {
+            boolean lava = (frontLiquid ? worldView.traitsAt(front)
+                    : worldView.traitsAt(front.down())).hazard();
+            int limit = lava ? config.nether().lavaBridgeLimit()
+                    : dev.botalive.core.tasks.BridgeTask.DEFAULT_MAX_SEGMENTS;
+            return new dev.botalive.core.tasks.BridgeTask(sx, sz, limit);
         }
 
         // Propast v cestě (mezera mezi ostrovy Endu, kaňon) → stejný most,
@@ -2500,6 +2562,18 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
     @Override
     public boolean gliding() {
         return physics != null && physics.gliding();
+    }
+
+    @Override
+    public void startRocketBoost(int ticks) {
+        if (physics != null) {
+            physics.startRocketBoost(ticks);
+        }
+    }
+
+    @Override
+    public boolean rocketBoosting() {
+        return physics != null && physics.rocketBoosting();
     }
 
     @Override

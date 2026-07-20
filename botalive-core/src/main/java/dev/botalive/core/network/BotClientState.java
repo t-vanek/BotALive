@@ -58,6 +58,12 @@ public final class BotClientState {
     /** XP level bota (SetExperience paket). */
     private volatile int expLevel;
 
+    /** Id posledního boss baru (wither/drak; BossEvent pakety). */
+    private volatile java.util.UUID bossBarId;
+
+    /** Zlomek zdraví bosse 0–1 z boss baru (-1 = žádný boss bar). */
+    private volatile float bossBarHealth = -1f;
+
     /** Čítač sequence pro akce s bloky (kopání, pokládání, použití itemu). */
     private final AtomicInteger actionSequence = new AtomicInteger(1);
 
@@ -247,6 +253,34 @@ public final class BotClientState {
         this.expLevel = level;
     }
 
+    /**
+     * Boss bar přidán/aktualizován (BossEvent ADD/UPDATE_HEALTH).
+     *
+     * @param id     id boss baru
+     * @param health zlomek zdraví bosse 0–1
+     */
+    public void bossBar(java.util.UUID id, float health) {
+        this.bossBarId = id;
+        this.bossBarHealth = health;
+    }
+
+    /**
+     * Boss bar odebrán (boss padl, nebo bot opustil jeho dosah).
+     *
+     * @param id id odebíraného baru
+     */
+    public void bossBarRemoved(java.util.UUID id) {
+        if (id == null || id.equals(bossBarId)) {
+            bossBarId = null;
+            bossBarHealth = -1f;
+        }
+    }
+
+    /** @return zlomek zdraví bosse 0–1 z boss baru, nebo -1 bez boss baru */
+    public float bossBarHealth() {
+        return bossBarHealth;
+    }
+
     /** Zařadí teleport k aplikaci v ticku. */
     public void queueTeleport(TeleportSync teleport) {
         pendingTeleports.add(teleport);
@@ -276,6 +310,8 @@ public final class BotClientState {
         openContainerId = 0;
         raining = false;
         thundering = false;
+        bossBarId = null;
+        bossBarHealth = -1f;
         pendingTeleports.clear();
         pendingImpulses.clear();
     }

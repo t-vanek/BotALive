@@ -135,6 +135,17 @@ public interface BotContext {
     boolean gliding();
 
     /**
+     * Zapálí raketu při letu (fyzika simuluje tah rakety; use paket rakety
+     * odesílá volající – tohle je jen klientská polovina boostu).
+     *
+     * @param ticks doba hoření (raketa letu 1 hoří ~12–20 ticků)
+     */
+    void startRocketBoost(int ticks);
+
+    /** @return {@code true} dokud raketa při letu hoří */
+    boolean rocketBoosting();
+
+    /**
      * Zaznamená prožitek formující osobnost (vývoj rysů + persistence
      * + případný komentář bota k vlastní proměně).
      *

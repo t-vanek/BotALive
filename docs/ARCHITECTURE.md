@@ -1116,6 +1116,129 @@ vanilla aerodynamika (vztlak z cos²pitch, konverze klesání v tah, flare)
 klouzání umře (odhalil test). `GlideTask` řídí slety konzervativně
 (klouzavost 6:1 s rezervou, omezený sklon, podrovnání před dosedem);
 `end-return`/`end-harvest` jsou mimo hlavní ostrov potlačené, aby bota
-netáhly přes void. Vědomé meze: bez raket (jen klouzání), krunýř
-shulkera se nečte (entity metadata zůstávají neparsovaná), města za
-`max-city-distance` se vzdávají – přes void se nemostí.
+netáhly přes void. Vědomé meze fáze 30 (bez raket, nečtený krunýř
+shulkera, města za `max-city-distance` se vzdávala) padly ve fázi 31.
+
+Hotovo ve fázi 31: Nether a End bez známých omezení – roadmapa herních
+mechanik obou dimenzí je vyčerpaná.
+
+(1) **Entity metadata a krunýř shulkera** (`BotSessionListener`
++ `TrackedEntity.applyMetadata`): parsuje se přesně jedna položka
+`SetEntityData`, kterou bot skutečně používá – peek shulkera (index 17,
+pevná verze protokolu jako u všech paketů). `CombatController` na
+zavřený krunýř neútočí (pancíř +20, šípy se odráží): drží se na dosah,
+krouží a čeká, až se shulker otevře ke střelbě – přesně chvíle, kdy je
+zranitelný. Bez známých metadat (-1) se bojuje postaru – stará data
+nesmí boty zablokovat. Nově se čte i **boss bar**
+(`BotClientState.bossBarHealth`, ADD/UPDATE_HEALTH/REMOVE): jediný
+ukazatel zdraví bosse, který vidí i člověk – wither z něj čte fáze.
+
+(2) **Strider přes lávové oceány** (`StriderPhysics`, `LavaCrossTask`,
+`Striders`): lávová analogie lodí. `shouldBoardStrider` v `BotImpl`
+zrcadlí `shouldBoardBoat` – navigace míří přes souvislou lávu širší než
+`Striders.MIN_CROSS_WIDTH` (užší řeší most/obchůzka), bot má houbu na
+prutu a poblíž se brouzdá strider → `LavaCrossTask` (marker
+`VehicleTask`, tiká i ve vozidle). Osedlání jde pravým klikem se sedlem
+a **potvrzuje se úbytkem sedla v inventáři** (metadata osedlání se
+nečtou; strider osedlaný z minula se pozná tak, že se po dvou marných
+sedláních prostě zkusí nasednout). Jízda je klientsky autoritativní jako
+loď: `StriderPhysics` (čistá, testovaná) drží rychlost 0.096/tick na
+lávě (vanilla s jezdcem), mimo lávu „mrzne" na 0.06, výška sleduje
+hladinu se schodem ±1 a pevný břeh jízdu končí (`ashore`); korekční
+série od serveru = stuck (pojistka proti přetlačování, vzor lodi).
+Sedlo je kořist (`isValuableLoot`), houbu bot natrhá v pokřiveném lese
+(forage krok výpravy) a prut s houbou skládá `CraftPlanner`, jen když
+obojí čeká. `EdgeGuard` hlídá nasedání i vystupování – kvůli striderovi
+se do lávy nevkračuje. Strop reaktivního lávového mostu se stal
+konfigurací (`nether.lava-bridge-limit`, `BridgeTask` dostal parametr).
+
+(3) **Vaření lektvarů** (`BrewPlanner`, `BrewingService`
+/ `PacketBrewingStation`, cíl `brew`): čistý plánovač (obdoba
+`CraftPlanner`) rozhoduje vsázky – voda + bradavice → awkward, z něj
+odolnost ohni (magma krém) → léčení (třpytivý meloun) → síla (blaze
+prach, poslední kus zůstává) → jed (pavoučí oko) → splash konverze
+střelným prachem. Stanice je dvoufázová jako pec (`load`/`collect` –
+vaření trvá vanilla 20 s, čekání vlastní cíl; `collect(force)` po
+timeoutu vrací i nevalidní vsázku, nic nepropadne). Server-side vybírá
+lahve podle `PotionMeta.getBasePotionType`; paketová stanice nakládá
+explicitními dvojicemi kliků (shift-klik má ve stojanu nejednoznačné
+směrování – prach je palivo i přísada) a varianty lahví z okna nečte
+(vědomé zjednodušení: nevalidní kombinaci server prostě neuvaří).
+Bradavici bot sklízí zralou v pevnostech (a přesazuje – pěstírna
+zůstává živá), soul sand kope tamtéž a **záhon si zakládá doma**
+(`FarmGoal.BED_PLACE/BED_PLANT` u domova/pole; bradavice na soul sandu
+roste i v overworldu) – vaření nezávisí na návratech do pevnosti.
+Lahve plní u vody (use s pohledem na hladinu), sklo taví pec z písku
+vykopaného cestou. `DimensionPolicy` drží `brew` v overworldu (lahve
+se plní u vody). Ofenzivní splash (`CombatGoal.maybeThrowSplash`,
+existující od fáze 17+) dostal vypínač `combat.splash-potions`.
+
+(4) **Kotva respawnu** (`NetherGoal.tryAnchor`): jednou za výpravu se
+u outpostu položí kotva z kořisti (`CraftPlanner`: 4 prachy → glowstone,
+6 crying obsidiánů + 3 glowstony → kotva), dobije se glowstonem (klik;
+nečitelná block data v packet režimu → dvě nabití naslepo, jako hráč
+bez F3) a klikem čímkoli jiným se nastaví spawn. Smrt na výpravě pak
+bota vrací k portálu do Netheru místo přes půl overworldu – corpse run
+(`RecoverItemsGoal`) má rázem šanci stihnout despawn okno. Exploze
+nehrozí: klik kotvy je bezpečný právě v Netheru a `tickWork` jinam
+nepustí.
+
+(5) **Wither** (`WitherAltar`, cíl `wither-fight`; **default vypnuto**
+`nether.wither.enabled` – opuštěný boss a díry v terénu jsou rozhodnutí
+admina, ne botů; precedent válek). Geometrie oltáře je čistá třída se
+stejnými invarianty jako `PortalBlueprint`: pořadí pokládky se zaručenou
+oporou a **prostřední lebka poslední** (test hlídá). Lebky bot sbírá
+opportunisticky – `tryHuntSkulls` ho přibližuje k wither skeletonům
+a souboj převezme `CombatGoal` (hostil v dohledu má vyšší utilitu než
+výprava); soul sand jde z forage kroku. Souboj: oltář ≥ 32 bloků od
+OUTPOST/PORTAL vzpomínek (exploze nesmí vzít základnu), po poslední
+lebce sprint pryč (11 s růstu s nezranitelností je přesně okno na
+rozestup), doušek síly z vlastního vaření, nad polovinou **boss baru**
+luk s kite odstupem 14–28, pod polovinou je wither obrněný (šípy se
+odráží) a dobíjí se mečem přes standardní `CombatController`. Utility
+38 přebíjí aktivní výpravu (30×1,15) jen s kompletní výbavou; rozběhnutý
+boj drží 60 (přežití přebíjí dál) a rozpočet `max-fight-minutes` boj
+utíná útěkem. Nether star = `TROPHY type=wither`, odvaha roste
+(`WITHER_SLAIN` prožitek).
+
+(6) **Rakety na elytrách** (`BotPhysics.startRocketBoost`, rozšířený
+`GlideTask`): klient MUSÍ tah simulovat (server počítá totéž nad
+připnutou raketou – bez klientské poloviny by korekce let utrhly);
+vanilla vzorec táhne rychlost k 1,5násobku pohledu po ~16 ticků.
+`GlideTask` boostuje konzervativně: jen mimo podrovnání, s rozestupem,
+rozpočtem 12 raket na let a stoupavým pohledem, když je cíl výš –
+a s raketami umí **start ze země** (výskok ze sprintu → křídla →
+boost), takže let přestal vyžadovat převýšení
+(`viableWithRockets`). Rakety skládá `CraftPlanner` z papíru a prachu
+(jen s křídly), třtinu sklízí `FarmGoal` (druhý článek, základ
+dorůstá).
+
+(7) **Cesta k městu se nevzdává** (`EndOuterGoal`): město v dosahu
+`max-city-distance` (tvrdý strop výpravy) se dosáhne (a) raketovým
+přeletem, když bot křídla už nese (čte se hrudní slot snapshotu, ne
+heuristika), (b) **end stone lávkou přes void** – `BridgeTask` dostal
+parametr stropu a void legy jedou po 32 segmentech (end stone je na
+ostrovech zadarmo); detekce uváznutí (120 ticků bez postupu) spouští
+leg směrem k městu, 6 marných legů = návrat po vlastní lávce. Zpáteční
+let domů používá rakety také (`viableWithRockets` + rezerva 4 kusy).
+
+(8) **Shulker boxy** (`CraftPlanner` + `EndOuterGoal.BOX_*`
++ `StashGoal.placeShulkerBox`): box z 2 ulit + truhly. Na výpravě
+funguje jako přenosná truhla: plný batoh (≤ 4 volné sloty) → box vedle
+sebe (vzor outpost truhly), kořist do něj (`ChestStation.depositLoot`
+– nová metoda obou implementací; klasifikace `isHaul` = cennosti bez
+perel a raket, spotřebák cesty zůstává v ruce), box se vykope **i s
+obsahem** (vanilla) a domů se nese dvojnásobný náklad v jednom slotu.
+Doma ho `StashGoal` po uložení přebytků postaví vedle vlastní truhly
+(CHEST vzpomínka `type=shulker_box`) – sklad se rozrůstá. Ulity
+padají z shulkerů zabitých obrannou mašinerií; bot s křídly, ale bez
+ulit smí na jednu extra výpravu (gate `wantsBox` v utility – jediná
+výjimka z „elytry má, není za čím letět").
+
+Průřezově: `isValuableLoot` zná suroviny všech nových řetězů (sedlo,
+bradavice, přísady, prach, papír, ulity, lebky), nové kategorie frází
+(`strider-ride`, `brew-done`, `wither-summon`, `wither-slain`,
+`end-flight`) drží úplnostní kontrakt `PhraseBank` v cs i en, a nové
+čisté třídy mají jednotkové testy (StriderPhysics, WitherAltar,
+BrewPlanner, metadata TrackedEntity, raketová větev ElytraPhysics,
+nové recepty CraftPlanneru).

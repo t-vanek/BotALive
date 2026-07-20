@@ -142,6 +142,14 @@ public final class NetherGoal extends AbstractGoal {
     private boolean depositMode;
     private boolean depositDone;
 
+    // Kotva respawnu u základny (smrt na výpravě vrací bota k portálu).
+    private boolean anchorDone;
+    private BlockPos anchorPos;
+    private StationPlacement anchorPlacement;
+    private int anchorTicks;
+    private int anchorClicks;
+    private int anchorPlaceTries;
+
     /** Cache připravenosti – utility běží každý rozhodovací tick fleet-wide. */
     private NetherReadiness cachedReadiness;
     private long readinessAtMs;
@@ -520,6 +528,9 @@ public final class NetherGoal extends AbstractGoal {
             finish(ctx, 6000);
             return;
         }
+        if (ctx.vehicle().mounted()) {
+            return; // jede na striderovi – kurz i vysednutí drží LavaCrossTask
+        }
         if (shouldReturn(ctx)) {
             ctx.navigator().stop();
             phase = Phase.RETURN;
@@ -562,6 +573,10 @@ public final class NetherGoal extends AbstractGoal {
         }
         if (outpostPlacement != null) {
             tickOutpostPlacement(ctx, bot);
+            return;
+        }
+        if (anchorPlacement != null || anchorTicks > 0) {
+            tickAnchor(ctx);
             return;
         }
         // Toulání dokončit dřív, než se znovu skenuje – a mezi skeny držet
@@ -675,6 +690,112 @@ public final class NetherGoal extends AbstractGoal {
     }
 
     /**
+     * Kotva respawnu u základny. Jednou za výpravu: existující kotva
+     * v okolí outpostu se dobije a klikne (nastavení spawnu), chybějící se
+     * položí z inventáře ({@code CraftPlanner} ji skládá z crying obsidiánu
+     * a glowstonu). V Netheru klik kotvu nabíjí/nastavuje spawn – exploze
+     * hrozí jen v overworldu, sem gate {@code tickWork} nepustí.
+     *
+     * @return {@code true} pokud se s kotvou pracuje (tick je spotřebovaný)
+     */
+    private boolean tryAnchor(BotContext ctx, Bot bot, BlockPos feet) {
+        if (anchorDone || !ctx.config().nether().respawnAnchor() || outpost == null
+                || feet.distanceSquared(outpost) > 24 * 24) {
+            return false;
+        }
+        WorldView world = ctx.worldView();
+        anchorPos = null;
+        for (int dx = -5; dx <= 5 && anchorPos == null; dx++) {
+            for (int dy = -2; dy <= 2 && anchorPos == null; dy++) {
+                for (int dz = -5; dz <= 5; dz++) {
+                    BlockPos pos = outpost.offset(dx, dy, dz);
+                    if (world.materialAt(pos) == Material.RESPAWN_ANCHOR) {
+                        anchorPos = pos;
+                        break;
+                    }
+                }
+            }
+        }
+        var snapshot = ctx.serverView().latest();
+        if (anchorPos == null) {
+            if (snapshot == null || !snapshot.hasItem(m -> m == Material.RESPAWN_ANCHOR)
+                    || ++anchorPlaceTries > 2) {
+                anchorDone = true; // bez kotvy v batohu / marné pokládky – příště
+                return false;
+            }
+            anchorPlacement = new StationPlacement(Material.RESPAWN_ANCHOR);
+            return true;
+        }
+        anchorTicks = 1;
+        anchorClicks = 0;
+        return true;
+    }
+
+    /** Dotažení kotvy: pokládka → nabití glowstonem → klik = spawn. */
+    private void tickAnchor(BotContext ctx) {
+        if (anchorPlacement != null) {
+            if (anchorPlacement.tick(ctx)) {
+                return;
+            }
+            anchorPlacement = null;
+            // Položená kotva se najde dalším tryAnchor skenem (tickWork).
+            return;
+        }
+        if (anchorPos == null
+                || ctx.worldView().materialAt(anchorPos) != Material.RESPAWN_ANCHOR) {
+            anchorTicks = 0;
+            return;
+        }
+        if (--anchorTicks > 0) {
+            return;
+        }
+        var snapshot = ctx.serverView().latest();
+        if (snapshot == null) {
+            anchorTicks = 4;
+            return;
+        }
+        int charges = anchorCharges(ctx);
+        boolean haveGlowstone = snapshot.hasItem(m -> m == Material.GLOWSTONE);
+        // Nabíjení: klik s glowstonem (+1, max 4). Nečitelná block data
+        // (packet režim) → nabít naslepo dvěma kliky, jako hráč bez F3.
+        boolean needCharge = charges < 0 ? anchorClicks < 2 : charges < 2;
+        if (needCharge && haveGlowstone && anchorClicks < 6) {
+            if (!ctx.inventory().equipItem(snapshot, Material.GLOWSTONE)) {
+                anchorTicks = 4;
+                return;
+            }
+            ctx.humanizer().lookAt(ctx.position().add(0, 1.62, 0), anchorPos.center());
+            ctx.actions().useItemOn(anchorPos, Direction.UP);
+            anchorClicks++;
+            anchorTicks = 8;
+            return;
+        }
+        if (charges <= 0 && anchorClicks == 0 && !haveGlowstone) {
+            // Vybitá (či nečitelná) kotva bez glowstonu: klik by spawn
+            // nenastavil – nechat na příště, až bude čím nabít.
+            anchorDone = true;
+            anchorTicks = 0;
+            return;
+        }
+        // Nastavení spawnu: klik čímkoli jiným než glowstonem.
+        ctx.inventory().equipWeapon(snapshot);
+        ctx.humanizer().lookAt(ctx.position().add(0, 1.62, 0), anchorPos.center());
+        ctx.actions().useItemOn(anchorPos, Direction.UP);
+        anchorDone = true;
+        anchorTicks = 0;
+        if (ctx.rng().chance(0.6)) {
+            ctx.chat().say("kotva nabita – kdyby me to tu slozilo, vratim se sem");
+        }
+    }
+
+    /** Nabití kotvy z block dat (server režim; -1 = nečitelné, packet). */
+    private int anchorCharges(BotContext ctx) {
+        return ctx.worldView().blockDataAt(anchorPos)
+                instanceof org.bukkit.block.data.type.RespawnAnchor anchor
+                ? anchor.getCharges() : -1;
+    }
+
+    /**
      * Preventivní odolnost ohni z hotbaru (splash hned, láhev ~1,6 s).
      * Lektvar zastrčený v batohu se neřeší – to umí nouzový cíl „drink".
      *
@@ -725,6 +846,12 @@ public final class NetherGoal extends AbstractGoal {
             return;
         }
 
+        // 0.6) Kotva respawnu u základny: postavit/nabít/nastavit spawn.
+        // Smrt na výpravě pak bota vrací k portálu, ne přes půl overworldu.
+        if (tryAnchor(ctx, bot, feet)) {
+            return;
+        }
+
         // 1) Viditelná kořist (nejcennější, kterou aktuální krumpáč vytěží).
         BlockPos ore = scanBestOre(world, feet, needs);
         if (ore != null) {
@@ -742,6 +869,20 @@ public final class NetherGoal extends AbstractGoal {
             lootChest = chest;
             lootFuture = null;
             lootTicks = 0;
+            return;
+        }
+
+        // 2.5) Sběr surovin vedlejších řetězů podle poptávky: warped fungus
+        // (řízení stridera), netherová bradavice a soul sand (vaření, oltář
+        // witheru). Stejný mechanismus jako rudy – blok se zláme, drop sebere.
+        if (tryForage(ctx, bot)) {
+            return;
+        }
+
+        // 2.7) Lov lebek pro oltář witheru: stačí se přiblížit k wither
+        // skeletonovi – souboj převezme CombatGoal (hostilní mob v dohledu)
+        // a lebka občas padne (drop sebere pickup).
+        if (tryHuntSkulls(ctx, bot)) {
             return;
         }
 
@@ -767,6 +908,123 @@ public final class NetherGoal extends AbstractGoal {
         // 5) Toulání – nová krajina, nové žíly; další sken až po přesunu.
         scanCooldownTicks = 30;
         tickWander(ctx);
+    }
+
+    /**
+     * Sběr surovin vedlejších řetězů podle aktuální poptávky: warped fungus
+     * (jen se sedlem v batohu a bez hotové houby na prutu), netherová
+     * bradavice (zralá – jinak je výnos 1:1) a soul sand. Sklízí se stejným
+     * mechanismem jako rudy ({@link #approachAndMine}); bradavice se po
+     * sklizni přesazuje ({@link #onBlockMined}), takže pěstírna v pevnosti
+     * zůstává živá.
+     *
+     * @return {@code true} pokud se našla práce (tick je spotřebovaný)
+     */
+    private boolean tryForage(BotContext ctx, Bot bot) {
+        var snapshot = ctx.serverView().latest();
+        if (snapshot == null) {
+            return false;
+        }
+        var cfg = ctx.config().nether();
+        Set<Material> wanted = new HashSet<>();
+        if (cfg.striders()
+                && dev.botalive.core.inventory.InventoryHelper.countItem(
+                        snapshot, Material.SADDLE) > 0
+                && !snapshot.hasItem(m -> m == Material.WARPED_FUNGUS_ON_A_STICK)
+                && dev.botalive.core.inventory.InventoryHelper.countItem(
+                        snapshot, Material.WARPED_FUNGUS) < 1) {
+            wanted.add(Material.WARPED_FUNGUS);
+        }
+        boolean witherPrep = cfg.wither().enabled()
+                && bot.personality().trait(Trait.COURAGE) >= cfg.wither().minCourage();
+        if (cfg.brewing() && dev.botalive.core.inventory.InventoryHelper.countItem(
+                snapshot, Material.NETHER_WART) < 6) {
+            wanted.add(Material.NETHER_WART);
+        }
+        if ((cfg.brewing() || witherPrep)
+                && dev.botalive.core.inventory.InventoryHelper.countItem(
+                        snapshot, Material.SOUL_SAND) < (witherPrep ? 5 : 4)) {
+            wanted.add(Material.SOUL_SAND);
+        }
+        if (wanted.isEmpty()) {
+            return false;
+        }
+        WorldView world = ctx.worldView();
+        BlockPos feet = ctx.position().toBlockPos();
+        BlockPos best = null;
+        double bestDist = Double.MAX_VALUE;
+        for (int dx = -10; dx <= 10; dx++) {
+            for (int dy = -4; dy <= 4; dy++) {
+                for (int dz = -10; dz <= 10; dz++) {
+                    BlockPos pos = feet.offset(dx, dy, dz);
+                    Material material = world.materialAt(pos);
+                    if (material == null || !wanted.contains(material)
+                            || failedTargets.contains(pos.asLong())) {
+                        continue;
+                    }
+                    if (material == Material.NETHER_WART && !wartMature(world, pos)) {
+                        continue;
+                    }
+                    if (material == Material.SOUL_SAND
+                            && (!DigPlanner.isExposed(world, pos)
+                                    || world.materialAt(pos.up()) == Material.NETHER_WART)) {
+                        continue; // záhon pod bradavicí se nerozkopává
+                    }
+                    double dist = feet.distanceSquared(pos);
+                    if (dist < bestDist) {
+                        bestDist = dist;
+                        best = pos;
+                    }
+                }
+            }
+        }
+        if (best == null) {
+            return false;
+        }
+        targetBlock = best;
+        targetMaterial = world.materialAt(best);
+        targetTicks = 0;
+        approachAndMine(ctx);
+        return true;
+    }
+
+    /** Zralost netherové bradavice (Ageable věk 3) z block dat snapshotu. */
+    private static boolean wartMature(WorldView world, BlockPos pos) {
+        return world.blockDataAt(pos) instanceof org.bukkit.block.data.Ageable ageable
+                && ageable.getAge() >= ageable.getMaximumAge();
+    }
+
+    /**
+     * Lov lebek na oltář witheru: odvážný bot s witherem v plánu se cíleně
+     * přibližuje k wither skeletonům – souboj pak převezme {@code CombatGoal}
+     * (hostilní mob v dohledu má vyšší utilitu než výprava) a lebka občas
+     * padne. Kostlivci se hledají jen s pevností v dohledu paměti (jinde
+     * nespawnují) a jen dokud lebky chybí.
+     *
+     * @return {@code true} pokud se bot ke kostlivci vydal
+     */
+    private boolean tryHuntSkulls(BotContext ctx, Bot bot) {
+        var cfg = ctx.config().nether().wither();
+        if (!cfg.enabled()
+                || bot.personality().trait(Trait.COURAGE) < cfg.minCourage()) {
+            return false;
+        }
+        var snapshot = ctx.serverView().latest();
+        if (snapshot == null
+                || dev.botalive.core.inventory.InventoryHelper.countItem(snapshot,
+                        Material.WITHER_SKELETON_SKULL) >= 3) {
+            return false;
+        }
+        Optional<dev.botalive.core.entity.TrackedEntity> skeleton = ctx.entities()
+                .nearest(ctx.position(), 32,
+                        e -> e.type() == EntityType.WITHER_SKELETON);
+        if (skeleton.isEmpty()) {
+            return false;
+        }
+        ctx.navigator().navigateTo(ctx.position(),
+                PathGoal.near(skeleton.get().position().toBlockPos(), 4));
+        scanCooldownTicks = 20; // boj převezme CombatGoal, sken si dá pauzu
+        return true;
     }
 
     /** Nejcennější vytěžitelná ruda v okolí (exponovaná, r=10). */
@@ -886,6 +1144,19 @@ public final class NetherGoal extends AbstractGoal {
         if (targetMaterial != null && targetMaterial == Material.ANCIENT_DEBRIS
                 && ctx.rng().chance(0.8)) {
             ctx.chat().sayFrom(PhraseCategory.NETHER_LOOT, null);
+        }
+        // Sklizená bradavice se přesazuje na uvolněný soul sand (věk 3 dává
+        // 2–4 kusy, jeden se vrací do záhonu) – pěstírna zůstává živá.
+        if (targetMaterial == Material.NETHER_WART && targetBlock != null) {
+            var snap = ctx.serverView().latest();
+            int seed = snap == null ? -1
+                    : snap.findHotbarSlot(m -> m == Material.NETHER_WART);
+            if (seed >= 0) {
+                ctx.actions().selectHotbar(seed);
+                ctx.humanizer().lookAt(ctx.position().add(0, 1.62, 0),
+                        targetBlock.center());
+                ctx.actions().useItemOn(targetBlock.down(), Direction.UP);
+            }
         }
         // Bloky z plánu výkopu (schodiště) žílu nesledují – v Netheru je
         // vedle VŽDY další netherrack a řetězení by obešlo digBudget
@@ -1121,6 +1392,9 @@ public final class NetherGoal extends AbstractGoal {
             finish(ctx, 6000);
             return;
         }
+        if (ctx.vehicle().mounted()) {
+            return; // domů to jde i přes lávu – LavaCrossTask drží kurz
+        }
         // Hledání cesty domů je drahé (velký sken) – mezi pokusy se bot
         // toulá a rozhlíží; sken se opakuje až po rozestupu.
         if (returnScanTicks > 0) {
@@ -1231,6 +1505,12 @@ public final class NetherGoal extends AbstractGoal {
         outpostPlacement = null;
         depositMode = false;
         depositDone = false;
+        anchorDone = false;
+        anchorPos = null;
+        anchorPlacement = null;
+        anchorTicks = 0;
+        anchorClicks = 0;
+        anchorPlaceTries = 0;
     }
 
     @Override

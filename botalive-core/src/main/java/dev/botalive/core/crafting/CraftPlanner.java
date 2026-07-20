@@ -26,6 +26,12 @@ import java.util.function.Predicate;
  * s šablonou z bastionu). Z netherové kořisti se melou i oči Enderu
  * (blaze prach + perla) – klíč k zaplnění rámu portálu ve strongholdu
  * ({@code EndTravelGoal}).</p>
+ *
+ * <p>Netherová kořist živí i vedlejší řetězy: houba na prutu (rybářský
+ * prut + warped fungus – řízení stridera), varný stojan s lahvemi
+ * a palivem ({@code BrewGoal}), kotva respawnu (crying obsidián
+ * + glowstone) a po elytrách rakety (papír + střelný prach) a shulker
+ * box (2 ulity + truhla).</p>
  */
 public final class CraftPlanner {
 
@@ -329,6 +335,67 @@ public final class CraftPlanner {
                     Material.GOLD_INGOT, 6, Material.GOLD_INGOT, 8), true);
         }
 
+        // ---- jízda na striderovi: houba na prutu. Sedlo je kořist (pevnosti,
+        // bastiony), houba se trhá v pokřiveném lese – prut se vyrábí, jen když
+        // obojí čeká (string jinak patří luku, který je v řetězu dřív).
+        if (s.has(Material.SADDLE) && s.has(Material.WARPED_FUNGUS)
+                && !s.has(Material.WARPED_FUNGUS_ON_A_STICK)) {
+            if (s.has(Material.FISHING_ROD)) {
+                return new Plan("houba na prutu", matrix(
+                        Material.FISHING_ROD, 0, Material.WARPED_FUNGUS, 4), false);
+            }
+            if (s.hasTable() && s.sticks() >= 3 && s.count(Material.STRING) >= 2) {
+                return new Plan("rybářský prut", matrix(
+                        Material.STICK, 2, Material.STICK, 4, Material.STRING, 5,
+                        Material.STICK, 6, Material.STRING, 8), true);
+            }
+        }
+
+        // ---- vaření lektvarů: stojan (1 blaze rod + 3 kámen), lahve ze skla,
+        // palivo. Stojan má smysl až s bradavicí (bez ní není co vařit);
+        // rod na palivo se mele, jen když je stojan i bradavice po ruce –
+        // jinak rody patří očím Enderu (viz níže).
+        if (s.hasTable() && s.has(Material.NETHER_WART) && !s.has(Material.BREWING_STAND)
+                && s.count(Material.BLAZE_ROD) >= 1 && s.cobble() >= 3) {
+            return new Plan("varný stojan", matrix(
+                    Material.BLAZE_ROD, 1, stone, 3, stone, 4, stone, 5), true);
+        }
+        // Lahve i palivo se doplňují podle „kapitoly vaření" (stojan V BATOHU
+        // nebo bradavice) – položený stojan z inventáře zmizí a čistě
+        // stand-gate by doplňování navždy vypnul (splash lektvary lahve
+        // spotřebovávají).
+        boolean brewingChapter = s.has(Material.BREWING_STAND)
+                || s.has(Material.NETHER_WART);
+        if (s.hasTable() && brewingChapter
+                && s.count(Material.GLASS) >= 3
+                && s.count(Material.GLASS_BOTTLE) + s.count(Material.POTION) < 3) {
+            return new Plan("skleněné lahve", matrix(
+                    Material.GLASS, 0, Material.GLASS, 2, Material.GLASS, 4), true);
+        }
+        if (brewingChapter && s.has(Material.NETHER_WART)
+                && !s.has(Material.BLAZE_POWDER) && s.count(Material.BLAZE_ROD) >= 1) {
+            return new Plan("blaze prach (palivo)", matrix(Material.BLAZE_ROD, 0), false);
+        }
+
+        // ---- kotva respawnu: crying obsidián z barteru/bastionů, glowstone
+        // z těžby (4 prachy = blok; 3 do kotvy, další bloky na nabíjení).
+        if (s.count(Material.CRYING_OBSIDIAN) >= 6 && s.count(Material.GLOWSTONE_DUST) >= 4
+                && s.count(Material.GLOWSTONE) < 4) {
+            return new Plan("glowstone", matrix(
+                    Material.GLOWSTONE_DUST, 0, Material.GLOWSTONE_DUST, 1,
+                    Material.GLOWSTONE_DUST, 3, Material.GLOWSTONE_DUST, 4), false);
+        }
+        if (s.hasTable() && !s.has(Material.RESPAWN_ANCHOR)
+                && s.count(Material.CRYING_OBSIDIAN) >= 6
+                && s.count(Material.GLOWSTONE) >= 3) {
+            return new Plan("kotva respawnu", matrix(
+                    Material.CRYING_OBSIDIAN, 0, Material.CRYING_OBSIDIAN, 1,
+                    Material.CRYING_OBSIDIAN, 2, Material.GLOWSTONE, 3,
+                    Material.GLOWSTONE, 4, Material.GLOWSTONE, 5,
+                    Material.CRYING_OBSIDIAN, 6, Material.CRYING_OBSIDIAN, 7,
+                    Material.CRYING_OBSIDIAN, 8), true);
+        }
+
         // ---- netherit (kořist z Netheru: trosky → úlomky → ingot; povýšení
         // výbavy dělá kovářský stůl přes SmithingService)
         if (s.hasTable() && s.count(Material.NETHERITE_SCRAP) >= 4
@@ -362,9 +429,36 @@ public final class CraftPlanner {
                     Material.DIAMOND, 8), true);
         }
 
+        // ---- rakety na elytry (papír + střelný prach; nejmenší náboj = 3 ks)
+        // a papír z třtiny. Jen s křídly – bez elytr rakety nemají co pohánět.
+        boolean hasElytra = s.has(Material.ELYTRA);
+        if (hasElytra && s.count(Material.FIREWORK_ROCKET) < 16
+                && s.has(Material.PAPER) && s.has(Material.GUNPOWDER)) {
+            return new Plan("rakety", matrix(
+                    Material.PAPER, 0, Material.GUNPOWDER, 1), false);
+        }
+        if (hasElytra && s.count(Material.FIREWORK_ROCKET) < 16
+                && s.count(Material.PAPER) < 3 && s.count(Material.SUGAR_CANE) >= 3
+                && s.hasTable()) {
+            return new Plan("papír", matrix(
+                    Material.SUGAR_CANE, 0, Material.SUGAR_CANE, 1,
+                    Material.SUGAR_CANE, 2), true);
+        }
+
+        // ---- shulker box (2 ulity + truhla): přenosná truhla výprav – vykope
+        // se i s obsahem. Truhlu si bot dorobí (krok „truhla" se vrátí sám).
+        if (s.hasTable() && s.count(Material.SHULKER_SHELL) >= 2
+                && s.has(Material.CHEST)
+                && !s.hasMatching(m -> m.name().endsWith("SHULKER_BOX"))) {
+            return new Plan("shulker box", matrix(
+                    Material.SHULKER_SHELL, 1, Material.CHEST, 4,
+                    Material.SHULKER_SHELL, 7), true);
+        }
+
         // ---- oči Enderu (perla + blaze prach, 2×2) – vstupenka k rámu
         // portálu ve strongholdu. Prach se mele, jen když na něj čeká perla:
-        // 1 rod = 2 prachy a přebytek rodů zůstává vcelku (budoucí vaření).
+        // 1 rod = 2 prachy a přebytek rodů zůstává vcelku (vaření si bere
+        // palivo vlastní větví výš).
         int eyes = s.count(Material.ENDER_EYE);
         if (eyes < EYES_TARGET && s.has(Material.ENDER_PEARL)
                 && s.has(Material.BLAZE_POWDER)) {

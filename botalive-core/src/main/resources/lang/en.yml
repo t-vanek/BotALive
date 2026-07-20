@@ -489,6 +489,31 @@ phrases:
     - "back on the main island, pockets full of end city treasure"
     - "outer islands conquered. Now just the way home"
     - "survived the shulkers and the void – and I'm carrying wings!"
+  end-flight:
+    - "rockets in my pocket, wings on my back – across the void we go!"
+    - "show me what you've got, elytra. To the end city by air!"
+    - "taking off! You haven't lived until you've flown over the void"
+    - "three, two, one... and I'm off like a firework"
+  strider-ride:
+    - "come on buddy, carry me across that lava"
+    - "riding a strider! Dry feet across a lava ocean, who'd have thought"
+    - "giddy up! Across the lava ocean like it's a highway"
+    - "the strider doesn't even blink. Lava? What lava"
+  brew-done:
+    - "potions done, bottles clinking in my pack"
+    - "alchemy complete – this will come in handy down in the nether"
+    - "the stand stopped bubbling, I brew like a proper alchemist today"
+    - "it bubbled, it smelled, but the result is worth it"
+  wither-summon:
+    - "three skulls, four soul sand... if I survive this, I'm a legend"
+    - "building the wither altar. Pray for me"
+    - "today either the wither falls, or I do. Taking bets"
+    - "one last skull and all hell breaks loose in hell"
+  wither-slain:
+    - "THE WITHER IS DEAD! The nether star is mine!!"
+    - "I slew the wither! Me! With my own hands!"
+    - "the boss is down. Nether star in my pocket, hats off to me"
+    - "no one's going to believe this story anyway"
   war-declared:
     - "enough! We declare war on {name}!"
     - "patience has run out – {name} has been asking for this"

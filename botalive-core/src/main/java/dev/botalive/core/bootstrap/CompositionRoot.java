@@ -150,6 +150,10 @@ public final class CompositionRoot {
                 dev.botalive.core.station.SmithingStation.class,
                 packetStations ? new dev.botalive.core.station.PacketSmithingStation()
                         : new dev.botalive.core.inventory.SmithingService(bridge));
+        dev.botalive.core.station.BrewingStation brewing = container.register(
+                dev.botalive.core.station.BrewingStation.class,
+                packetStations ? new dev.botalive.core.station.PacketBrewingStation()
+                        : new dev.botalive.core.inventory.BrewingService(bridge));
         dev.botalive.core.pvp.PvpCoordinator pvp = container.register(
                 dev.botalive.core.pvp.PvpCoordinator.class,
                 new dev.botalive.core.pvp.PvpCoordinator(config.pvp()));
@@ -218,7 +222,7 @@ public final class CompositionRoot {
                         config.economy().employment(), repository));
         employmentService.load();
         registerBuiltInGoals(goalRegistry, crafting, containers, trades, furnaces,
-                enchanting, smithing, pvp, taming, anvils, market, socialGraph,
+                enchanting, smithing, brewing, pvp, taming, anvils, market, socialGraph,
                 diplomacy, employmentService);
         BotImpl.SharedServices services = new BotImpl.SharedServices(
                 config, worldViews, bridge, tickEngine, navigation, repository,
@@ -258,6 +262,7 @@ public final class CompositionRoot {
                                              dev.botalive.core.station.FurnaceStation furnaces,
                                              dev.botalive.core.station.EnchantStation enchanting,
                                              dev.botalive.core.station.SmithingStation smithing,
+                                             dev.botalive.core.station.BrewingStation brewing,
                                              dev.botalive.core.pvp.PvpCoordinator pvp,
                                              dev.botalive.core.tame.TameService taming,
                                              dev.botalive.core.inventory.AnvilService anvils,
@@ -316,6 +321,9 @@ public final class CompositionRoot {
         registry.register("guard", bot -> new dev.botalive.core.ai.goals.GuardGoal());
         registry.register("nether", bot -> new dev.botalive.core.ai.goals.NetherGoal(containers));
         registry.register("drink", bot -> new dev.botalive.core.ai.goals.DrinkPotionGoal());
+        registry.register("brew", bot -> new dev.botalive.core.ai.goals.BrewGoal(brewing));
+        registry.register("wither-fight",
+                bot -> new dev.botalive.core.ai.goals.WitherFightGoal());
         registry.register("end-travel", bot -> new dev.botalive.core.ai.goals.EndTravelGoal());
         registry.register("dragon-fight", bot -> new dev.botalive.core.ai.goals.DragonFightGoal());
         registry.register("end-harvest", bot -> new dev.botalive.core.ai.goals.EndHarvestGoal());

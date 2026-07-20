@@ -120,6 +120,58 @@ class ElytraPhysicsTest {
                         + ", po " + physics.velocity().y() + ")");
     }
 
+    @Test
+    void raketaZrychliNadCistéKlouzani() {
+        FakeWorldView world = new FakeWorldView(FLOOR);
+        Vec3 look = unit(new Vec3(1, -0.1, 0));
+        BotPhysics boosted = new BotPhysics(world, new Vec3(0.5, FEET_Y + 80, 0.5));
+        BotPhysics gliding = new BotPhysics(world, new Vec3(0.5, FEET_Y + 80, 0.5));
+        for (BotPhysics p : new BotPhysics[]{boosted, gliding}) {
+            p.step(MoveInput.IDLE);
+            p.step(MoveInput.IDLE);
+            p.startGliding(look);
+        }
+        boosted.startRocketBoost(16);
+        for (int i = 0; i < 30; i++) {
+            boosted.glideLook(look);
+            boosted.step(MoveInput.IDLE);
+            gliding.glideLook(look);
+            gliding.step(MoveInput.IDLE);
+        }
+        double boostedDx = boosted.position().x() - 0.5;
+        double glidingDx = gliding.position().x() - 0.5;
+        assertTrue(boostedDx > glidingDx * 2,
+                "raketa má výrazně zrychlit (boost " + boostedDx
+                        + " vs glide " + glidingDx + ")");
+        assertFalse(boosted.rocketBoosting(), "tah po vyhoření zhasne");
+    }
+
+    @Test
+    void raketaSPohledemVzhuruStoupa() {
+        FakeWorldView world = new FakeWorldView(FLOOR);
+        BotPhysics physics = new BotPhysics(world, new Vec3(0.5, FEET_Y + 20, 0.5));
+        Vec3 up = unit(new Vec3(1, 0.4, 0));
+        physics.step(MoveInput.IDLE);
+        physics.step(MoveInput.IDLE);
+        physics.startGliding(up);
+        double startY = physics.position().y();
+        physics.startRocketBoost(16);
+        for (int i = 0; i < 16; i++) {
+            physics.glideLook(up);
+            physics.step(MoveInput.IDLE);
+        }
+        assertTrue(physics.position().y() > startY + 2,
+                "s raketou se dá stoupat, dy=" + (physics.position().y() - startY));
+    }
+
+    @Test
+    void boostBezLetuNicNedela() {
+        FakeWorldView world = new FakeWorldView(FLOOR);
+        BotPhysics physics = new BotPhysics(world, new Vec3(0.5, FEET_Y, 0.5));
+        physics.startRocketBoost(16);
+        assertFalse(physics.rocketBoosting(), "raketa táhne jen při letu");
+    }
+
     private static Vec3 unit(Vec3 v) {
         double length = Math.sqrt(v.x() * v.x() + v.y() * v.y() + v.z() * v.z());
         return v.mul(1.0 / length);

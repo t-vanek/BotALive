@@ -172,6 +172,7 @@ public final class StashGoal extends AbstractGoal {
                     return;
                 }
                 ctx.actions().closeContainer();
+                placeShulkerBox(ctx, bot);
                 cooldownTicks = ctx.rng().rangeInt(600, 1800);
                 phase = Phase.DONE;
             }
@@ -190,6 +191,34 @@ public final class StashGoal extends AbstractGoal {
     @Override
     public boolean finished(Bot bot) {
         return phase == Phase.DONE;
+    }
+
+    /**
+     * Shulker box z výpravy (i s obsahem uvnitř) se staví vedle vlastní
+     * truhly jako rozšíření skladu – od té chvíle je to druhá CHEST
+     * vzpomínka a příští ukládání/braní ho používá jako každou truhlu.
+     * Jediný klik na podlahu (vzor placeOwnStation) – když to nevyjde,
+     * box počká v batohu na příště.
+     */
+    private void placeShulkerBox(BotContext ctx, Bot bot) {
+        var snapshot = ctx.serverView().latest();
+        if (snapshot == null || ctx.worldView() == null
+                || !snapshot.hasItem(m -> m == org.bukkit.Material.SHULKER_BOX)) {
+            return;
+        }
+        if (placeOwnStation(ctx, org.bukkit.Material.SHULKER_BOX)
+                != PlaceAttempt.CLICKED) {
+            return;
+        }
+        // Pozice se ověří příštím FIND skenem (box je kontejner jako truhla);
+        // vzpomínka vznikne hned – klik málokdy selže a merge ji srovná.
+        dev.botalive.core.util.BlockPos feet = ctx.position().toBlockPos();
+        bot.memory().remember(MemoryKind.CHEST, ctx.worldView().worldName(),
+                feet.x(), feet.y(), feet.z(), null,
+                java.util.Map.of("type", "shulker_box"), 0.7);
+        if (ctx.rng().chance(0.6)) {
+            ctx.chat().say("shulker box vedle truhly – sklad se rozrusta");
+        }
     }
 
     /** Zapamatuje si truhlu jako VLASTNÍ (důležitost roste s užitečností). */

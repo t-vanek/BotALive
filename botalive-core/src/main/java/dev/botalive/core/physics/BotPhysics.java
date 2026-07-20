@@ -76,6 +76,8 @@ public final class BotPhysics {
     private boolean fallFlying;
     /** Směr pohledu pro elytrový let (jednotkový vektor). */
     private Vec3 glideLook;
+    /** Zbývající ticky tahu rakety (použitá raketa při letu). */
+    private int rocketBoostTicks;
 
     /** Kumulovaná výška aktuálního pádu (bloky); nula, když bot nepadá. */
     private double fallDistance;
@@ -293,6 +295,16 @@ public final class BotPhysics {
                 vx += (look.x() / hLook * hSpeed - vx) * 0.1;
                 vz += (look.z() / hLook * hSpeed - vz) * 0.1;
             }
+            if (rocketBoostTicks > 0) {
+                // Raketa (vanilla FireworkRocketEntity): tah táhne rychlost
+                // k 1,5násobku směru pohledu – server počítá totéž nad
+                // připnutou raketou, klient MUSÍ boost simulovat, jinak se
+                // rozjede a korekce let utrhnou.
+                rocketBoostTicks--;
+                vx += look.x() * 0.1 + (look.x() * 1.5 - vx) * 0.5;
+                vy += look.y() * 0.1 + (look.y() * 1.5 - vy) * 0.5;
+                vz += look.z() * 0.1 + (look.z() * 1.5 - vz) * 0.5;
+            }
             vx *= 0.99;
             vy *= 0.98;
             vz *= 0.99;
@@ -389,6 +401,7 @@ public final class BotPhysics {
         if (fallFlying && (onGround || inWater)) {
             fallFlying = false;
             glideLook = null;
+            rocketBoostTicks = 0;
         }
     }
 
@@ -430,11 +443,31 @@ public final class BotPhysics {
     public void stopGliding() {
         this.fallFlying = false;
         this.glideLook = null;
+        this.rocketBoostTicks = 0;
     }
 
     /** @return {@code true} během letu na elytrách */
     public boolean gliding() {
         return fallFlying;
+    }
+
+    /**
+     * Zapálí raketu při letu: po dobu {@code ticks} táhne tah rychlost
+     * k 1,5násobku směru pohledu (vanilla; raketa letu 1 hoří ~12–20 ticků).
+     * Volá se spolu s odesláním use paketu rakety – server simuluje totéž
+     * nad připnutou raketou.
+     *
+     * @param ticks doba hoření rakety
+     */
+    public void startRocketBoost(int ticks) {
+        if (fallFlying) {
+            this.rocketBoostTicks = ticks;
+        }
+    }
+
+    /** @return {@code true} dokud raketa hoří (tah působí) */
+    public boolean rocketBoosting() {
+        return fallFlying && rocketBoostTicks > 0;
     }
 
     /** Ořízne hodnotu do intervalu [min, max]. */
