@@ -5,6 +5,14 @@ fáze **V2a** (jádro s paritou chování), fáze V2b–V2d jsou rozepsané do
 konkrétních pracovních položek s known-facts z kódu. Čísla řádků platí
 k `3604c6f`.
 
+> **Stav: V2a hotová** (kroky K1–K6). Package `core/build/plan`
+> (`Blueprint`, `BuildPlan`, `BuildPlanner`, `BuildSession`, `Blueprints`)
+> s paritními, invariantními a simulačními testy; `CommunalBuildGoal`
+> i `BuildHouseGoal` migrované na sdílený engine. Celá sada 695 testů
+> zelená. Vědomé mikrozměny: statistika pokládky se počítá jednou (dřív
+> dvakrát); dům se staví tolerantně z okolí, studna/sýpka přesně z vnitřku
+> (`standExact`). Další na řadě: **V2b** (rozmanité domy).
+
 ## Inventura dotčeného kódu
 
 | Soubor | Dnes | Změna |
