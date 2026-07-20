@@ -99,7 +99,6 @@ Every bot has its own identity, personality, memory, goals, inventory and histor
 
 - **Multithreaded tick engine** — 20 Hz with phase staggering, a shared Caffeine chunk-snapshot cache, an async pathfinding pool and single-threaded virtual executors for packets. Game threads are never blocked.
 - **Folia support** — built exclusively on the region-aware scheduler API.
-- **Plays on servers you don't control** — the optional packet-based world model (`network.world-model: packet`) parses geometry straight from chunk packets and drives crafting, chests, furnaces, villager trading and enchanting through protocol container clicks — full survival on any offline-mode server.
 - **ViaVersion aware** — a protocol mismatch is detected at startup and bot creation is refused with clear instructions (install ViaVersion / ViaBackwards) instead of failing silently (`network.version-check`).
 - **Bot identity verification** — on an offline server anyone can log in under any name, including a bot's. BotAlive issues each bot a short-lived, single-use signed credential and a server-side guard (`AsyncPlayerPreLogin`) rejects logins that impersonate a bot identity — real players are untouched and no server reconfiguration is required. An embedded, Mojang-session-API-shaped gateway (`gateway.*`) additionally enables cryptographic online-mode auth for advanced deployments.
 - **Persistence** — embedded SQLite out of the box or PostgreSQL, write-behind saves and merging of nearby memories.
@@ -181,7 +180,7 @@ Player teleports have a configurable cooldown (`teleport.player-cooldown-seconds
 | `economy.employment.*` | Bots for hire: wages, contract caps, upfront-payment requirement |
 | `chat.*` | Language, typing and conversation behavior |
 | `memory.*`, `persistence.*` | Memory limits, SQLite/PostgreSQL |
-| `network.*` | World model (`packet`), protocol version check |
+| `network.*` | Connection, protocol version check, reconnect |
 | `gateway.*` | Bot identity verification (anti-impersonation), embedded Mojang-API gateway, online-mode client auth |
 | `teleport.*` | Player teleport cooldowns |
 

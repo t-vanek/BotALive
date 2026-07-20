@@ -7,8 +7,8 @@ import java.util.concurrent.CompletableFuture;
 
 /**
  * Stanice obchodu s vesničany – kontrakt mezi {@code TradeGoal}
- * a implementací (server-side {@code TradeService} / paketová
- * {@code PacketTradeStation}). Cíl vesničana osloví sám (interact paket).
+ * a server-side implementací ({@code TradeService}). Cíl vesničana osloví
+ * sám (interact paket).
  */
 public interface TradeStation {
 

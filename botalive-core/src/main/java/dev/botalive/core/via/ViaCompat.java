@@ -86,22 +86,6 @@ public final class ViaCompat {
     }
 
     /**
-     * Shodují se registry hostitelského serveru s protokolem botů?
-     *
-     * <p>Rozhoduje o použitelnosti {@code ReflectionBlockStateMapper}: mapování
-     * block states z NMS registrů hostitele je správné jen tehdy, když hostitel
-     * běží na stejném protokolu, jakým mluví bot. Překládá-li Via, přicházejí
-     * botovi pakety už v jeho vlastním formátu – registry jiné verze by daly
-     * špatná ID.</p>
-     *
-     * @return {@code true} při shodě protokolů
-     */
-    @SuppressWarnings("deprecation")
-    public static boolean hostMatchesBotProtocol() {
-        return Bukkit.getUnsafe().getProtocolVersion() == botProtocol();
-    }
-
-    /**
      * Posouzení pro cizí server: verzi ani pluginy vzdáleného serveru odtud
      * zjistit nejde, rozhodne až login.
      *

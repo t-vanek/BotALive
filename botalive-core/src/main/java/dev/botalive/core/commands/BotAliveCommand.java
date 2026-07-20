@@ -924,11 +924,8 @@ public final class BotAliveCommand implements TabExecutor {
             error(sender, "Není z čeho odvodit svět – zadej ho parametrem");
             return;
         }
-        // Paměť se páruje na worldName() pohledu bota: v packet režimu je to
-        // protokolový klíč světa, jinak Bukkit název.
-        String world = config.network().packetWorldModel()
-                ? bukkitWorld.getKey().asString()
-                : bukkitWorld.getName();
+        // Paměť se páruje na worldName() pohledu bota (Bukkit název světa).
+        String world = bukkitWorld.getName();
         var bots = botManager.all();
         if (bots.isEmpty()) {
             error(sender, "Žádní boti nejsou připojení");

@@ -9,7 +9,7 @@ import java.util.concurrent.CompletableFuture;
 
 /**
  * Stanice varných stojanů – kontrakt mezi {@code BrewGoal} a implementací
- * (server-side {@code BrewingService} / paketová {@code PacketBrewingStation}).
+ * (server-side {@code BrewingService}).
  *
  * <p>Vaření trvá ~20 s vanilla mechanikou, proto je rozhraní dvoufázové jako
  * u pece: {@link #load} naloží lahve, přísadu a palivo, {@link #collect}

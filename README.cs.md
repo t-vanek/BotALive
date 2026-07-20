@@ -99,7 +99,6 @@ Každý bot má vlastní identitu, osobnost, paměť, cíle, inventář a histor
 
 - **Vícevláknový tick engine** — 20 Hz s rozfázováním, sdílená Caffeine cache chunk snapshotů, asynchronní pathfinding pool a jednovláknové virtuální executory pro pakety. Herní vlákna se nikdy neblokují.
 - **Podpora Folie** — výhradně region-aware scheduler API.
-- **Hraje i na cizích serverech** — volitelný paketový world model (`network.world-model: packet`) parsuje geometrii přímo z chunk paketů a crafting, truhly, pece, obchod s vesničany i enchantování řídí protokolovými container kliky — plný survival na libovolném offline-mode serveru.
 - **Detekce ViaVersion** — nesoulad verzí protokolu se odhalí při startu a vytvoření bota se odmítne se srozumitelným návodem (ViaVersion / ViaBackwards) místo tichého selhání (`network.version-check`).
 - **Ověřování identity botů** — na offline serveru se kdokoli může připojit pod libovolným jménem, včetně jména bota. BotAlive vydá každému botu krátkodobé, jednorázové podepsané pověření a server-side pojistka (`AsyncPlayerPreLogin`) odmítne přihlášení, které předstírá identitu bota — hráčů s vlastními jmény se to netýká a server není třeba nijak přenastavovat. Vestavěná gateway ve tvaru Mojang session API (`gateway.*`) navíc umožní kryptografické online-mode ověření pro pokročilá nasazení.
 - **Persistence** — vestavěná SQLite, volitelně PostgreSQL, write-behind ukládání a slučování blízkých vzpomínek.
@@ -181,7 +180,7 @@ Hráčské teleporty mají konfigurovatelný cooldown (`teleport.player-cooldown
 | `economy.employment.*` | Najímání botů: mzdy, stropy smluv, platba předem |
 | `chat.*` | Jazyk, chování psaní a konverzace |
 | `memory.*`, `persistence.*` | Limity paměti, SQLite/PostgreSQL |
-| `network.*` | World model (`packet`), kontrola verze protokolu |
+| `network.*` | Připojení, kontrola verze protokolu, reconnect |
 | `gateway.*` | Ověřování identity botů (proti zneužití), vestavěná Mojang API gateway, online-mode ověření klienta |
 | `teleport.*` | Cooldowny hráčských teleportů |
 

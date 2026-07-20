@@ -22,7 +22,6 @@ import dev.botalive.core.config.BotAliveConfig;
 import dev.botalive.core.entity.EntityTracker;
 import dev.botalive.core.entity.TrackedEntity;
 import dev.botalive.core.human.Humanizer;
-import dev.botalive.core.inventory.ClientInventory;
 import dev.botalive.core.inventory.InventoryHelper;
 import dev.botalive.core.network.BotActions;
 import dev.botalive.core.network.BotClientState;
@@ -86,11 +85,9 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
 
     private final BotClientState clientState = new BotClientState();
     private final EntityTracker entities = new EntityTracker();
-    private final ClientInventory clientInventory = new ClientInventory();
     private final dev.botalive.core.container.ContainerTracker containerTracker =
             new dev.botalive.core.container.ContainerTracker();
     private final dev.botalive.core.container.ContainerClicker containerClicker;
-    private final dev.botalive.core.world.state.ItemMapper itemMapper;
     private final BotConnection connection;
     private final BotActions actions;
     private final MovementSender movementSender;
@@ -108,9 +105,6 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
     private final BotRepository repository;
     private final SharedServices services;
     private final Brain brain;
-
-    /** Klientský world model (jen v režimu {@code packet}, jinak {@code null}). */
-    private final dev.botalive.core.world.PacketWorldManager packetWorlds;
 
     // --- Mutable stav (tick vlákno / volatile) ---------------------------------
     private final AtomicReference<BotLifecycleState> state =
@@ -217,14 +211,10 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
         this.services = services;
 
         this.rng = new BotRandom(id.getLeastSignificantBits() ^ System.nanoTime());
-        this.itemMapper = services.itemMapper();
-        this.packetWorlds = config.network().packetWorldModel()
-                ? new dev.botalive.core.world.PacketWorldManager(services.stateMapper())
-                : null;
         this.connection = new BotConnection(name, id, config.network(), config.gateway(),
                 services.authority(),
-                new BotSessionListener(name, clientState, entities, clientInventory,
-                        containerTracker, this, packetWorlds));
+                new BotSessionListener(name, clientState, entities,
+                        containerTracker, this));
         this.containerClicker = new dev.botalive.core.container.ContainerClicker(
                 connection, containerTracker);
         this.actions = new BotActions(connection, clientState);
@@ -886,8 +876,6 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
      * @param navigation  pathfinding
      * @param repository  repozitář
      * @param phrases     banka frází zvoleného jazyka
-     * @param stateMapper překlad block states (jen režim packet, jinak {@code null})
-     * @param itemMapper  překlad item ID (jen režim packet, jinak {@code null})
      * @param crimeLog    sdílená kniha zločinů
      * @param settlements sdílená služba vesnic
      * @param diplomacy   diplomacie sídel (napětí, války, příměří)
@@ -904,8 +892,6 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
             NavigationService navigation,
             BotRepository repository,
             dev.botalive.core.chat.PhraseBank phrases,
-            dev.botalive.core.world.state.BlockStateMapper stateMapper,
-            dev.botalive.core.world.state.ItemMapper itemMapper,
             dev.botalive.core.social.CrimeLog crimeLog,
             dev.botalive.core.settlement.SettlementService settlements,
             dev.botalive.core.settlement.DiplomacyService diplomacy,
@@ -1163,15 +1149,10 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
             deathHandled = false; // po respawnu
         }
 
-        // Periodický snapshot (server-side, v paketovém režimu klientský) a flush statistik.
+        // Periodický snapshot serverového hráče a flush statistik.
         if (++ticksSinceSnapshot >= config.performance().serverSnapshotTicks()) {
             ticksSinceSnapshot = 0;
-            if (packetWorlds != null) {
-                serverView.offer(PacketPlayerView.capture(clientInventory, itemMapper,
-                        clientState, position(), worldView, packetWorlds::enchantmentKey));
-            } else {
-                serverView.refresh();
-            }
+            serverView.refresh();
         }
         if (++ticksSinceFlush >= 1200) { // ~60 s
             ticksSinceFlush = 0;
@@ -2156,17 +2137,12 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
     /** Přepnutí světa (login, respawn, portál). */
     private void switchWorld(String worldKey, Vec3 position) {
         boolean transition = worldView != null; // false = první spawn/login
-        if (packetWorlds != null) {
-            // Klientský world model – geometrie z chunk paketů, žádný Bukkit svět.
-            this.worldView = packetWorlds.switchTo(worldKey);
-        } else {
-            String worldName = resolveWorldName(worldKey);
-            try {
-                this.worldView = worldViews.view(worldName);
-            } catch (IllegalArgumentException e) {
-                LOG.error("[{}] Neznámý svět '{}' (klíč {})", name, worldName, worldKey);
-                return;
-            }
+        String worldName = resolveWorldName(worldKey);
+        try {
+            this.worldView = worldViews.view(worldName);
+        } catch (IllegalArgumentException e) {
+            LOG.error("[{}] Neznámý svět '{}' (klíč {})", name, worldName, worldKey);
+            return;
         }
         this.physics = new BotPhysics(worldView, position);
         navigator.world(worldView);
@@ -2188,9 +2164,9 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
         }
     }
 
-    /** Očekávaný název světa pro daný protokolový klíč (dle režimu world modelu). */
+    /** Očekávaný název světa pro daný protokolový klíč. */
     private String expectedWorldName(String worldKey) {
-        return packetWorlds != null ? worldKey : resolveWorldName(worldKey);
+        return resolveWorldName(worldKey);
     }
 
     /** Mapování protokolového klíče světa na Bukkit název světa. */
@@ -2449,11 +2425,6 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
     }
 
     @Override
-    public ClientInventory clientInventory() {
-        return clientInventory;
-    }
-
-    @Override
     public dev.botalive.core.container.ContainerTracker containers() {
         return containerTracker;
     }
@@ -2461,11 +2432,6 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
     @Override
     public dev.botalive.core.container.ContainerClicker clicker() {
         return containerClicker;
-    }
-
-    @Override
-    public dev.botalive.core.world.state.ItemMapper itemMapper() {
-        return itemMapper;
     }
 
     @Override
@@ -2578,9 +2544,6 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
 
     @Override
     public CompletableFuture<Integer> estimateBreakTicks(BlockPos pos) {
-        if (packetWorlds != null) {
-            return CompletableFuture.completedFuture(estimateBreakTicksClientSide(pos));
-        }
         org.bukkit.entity.Player player = Bukkit.getPlayer(id);
         WorldView view = worldView;
         if (player == null || view == null) {
@@ -2602,34 +2565,5 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
                     return (int) Math.ceil(1.0f / speed);
                 })
                 .exceptionally(t -> 40);
-    }
-
-    /**
-     * Klientský odhad doby kopání (paketový režim – server-side data nejsou).
-     * Tvrdost dává {@code Material} (statická vanilla data hostitele), třídu
-     * nástroje {@code InventoryHelper}; enchanty a efekty odhad ignoruje –
-     * {@code MineBlockTask} beztak ověřuje skutečné zmizení bloku.
-     */
-    private int estimateBreakTicksClientSide(BlockPos pos) {
-        WorldView view = worldView;
-        org.bukkit.Material block = view == null ? null : view.materialAt(pos);
-        if (block == null || block.isAir()) {
-            return 40;
-        }
-        org.bukkit.Material held = null;
-        if (itemMapper != null) {
-            var stack = clientInventory.hotbar(clientState.heldSlot());
-            held = stack == null ? null : itemMapper.materialOf(stack.getId());
-        }
-        InventoryHelper.ToolType required = InventoryHelper.toolFor(block);
-        boolean correctTool = held != null && required != InventoryHelper.ToolType.NONE
-                && InventoryHelper.isTool(held, required);
-        int tier = held == null ? 0 : InventoryHelper.toolTier(held);
-        // „Sklizeň rukou": jen krumpáčové bloky (a pavučina) vyžadují nástroj.
-        boolean harvestable = correctTool
-                || (required != InventoryHelper.ToolType.PICKAXE
-                        && required != InventoryHelper.ToolType.SWORD);
-        return dev.botalive.core.world.BreakTimeEstimator.estimateTicks(
-                block.getHardness(), correctTool, tier, harvestable);
     }
 }

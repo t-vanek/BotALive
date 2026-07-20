@@ -123,9 +123,6 @@ public final class CraftGoal extends AbstractGoal {
         var snapshot = ctx.serverView().latest();
         int hotbarSlot = snapshot == null ? -1
                 : snapshot.findHotbarSlot(m -> m == Material.CRAFTING_TABLE);
-        if (hotbarSlot < 0) {
-            hotbarSlot = moveTableToHotbar(ctx);
-        }
         BlockPos target = findPlacementSpot(ctx);
         if (hotbarSlot < 0 || target == null) {
             idleRounds++;
@@ -134,22 +131,6 @@ public final class CraftGoal extends AbstractGoal {
         ctx.actions().selectHotbar(hotbarSlot);
         placingTable = new PlaceBlockTask(target);
         thinkTicks = ctx.rng().rangeInt(3, 8);
-    }
-
-    /** Přesune ponk z hlavního inventáře na hotbar (container klik, okno 0). */
-    private static int moveTableToHotbar(BotContext ctx) {
-        var mapper = ctx.itemMapper();
-        if (mapper == null) {
-            return -1;
-        }
-        for (int slot = 9; slot <= 35; slot++) {
-            var stack = ctx.clientInventory().slot(slot);
-            if (stack != null && mapper.materialOf(stack.getId()) == Material.CRAFTING_TABLE) {
-                ctx.clicker().moveToHotbar(0, slot, 8);
-                return 8;
-            }
-        }
-        return -1;
     }
 
     /** Najde volné místo vedle bota (průchozí blok s pevnou podlahou). */

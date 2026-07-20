@@ -10,9 +10,9 @@ import java.util.List;
  * Per-bot sledování otevřených oken kontejnerů.
  *
  * <p>Síťové vlákno sem směruje container pakety ({@code BotSessionListener});
- * stanice paketového survivalu ({@code core/station}) z něj čtou stav
- * a stateId pro kliky. Okno 0 (vlastní inventář hráče) tu má jen stateId –
- * jeho obsah drží {@code ClientInventory}.</p>
+ * {@code ContainerClicker} z něj čte stav a stateId pro container kliky
+ * (přesouvání itemů na hotbar). Okno 0 (vlastní inventář hráče) tu má
+ * stateId pro kliky.</p>
  */
 public final class ContainerTracker {
 

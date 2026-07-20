@@ -163,10 +163,6 @@ public final class FakeBotContext implements BotContext {
         throw unused();
     }
 
-    @Override
-    public dev.botalive.core.inventory.ClientInventory clientInventory() {
-        throw unused();
-    }
 
     @Override
     public dev.botalive.core.container.ContainerTracker containers() {
@@ -176,11 +172,6 @@ public final class FakeBotContext implements BotContext {
     @Override
     public dev.botalive.core.container.ContainerClicker clicker() {
         throw unused();
-    }
-
-    @Override
-    public dev.botalive.core.world.state.ItemMapper itemMapper() {
-        return null; // volitelná tabulka – null je legální „bez tabulky"
     }
 
     @Override

@@ -122,38 +122,30 @@ public final class CompositionRoot {
                 dev.botalive.core.chat.PhraseBankLoader.load(
                         plugin.getDataFolder(), config.chat().language()));
 
-        // Stanice (crafting, truhly, pec, obchod, enchant): na lokálním serveru
-        // server-side simulace (§9), v režimu packet paketové container kliky
-        // (§13) – jediné, co funguje na cizím serveru; lokálně slouží i k testu.
-        boolean packetStations = config.network().packetWorldModel();
+        // Stanice (crafting, truhly, pec, obchod, enchant): server-side simulace
+        // na lokálním serveru (§9) – bot je klient, ale čte/píše autoritativně
+        // přes Bukkit na serveru, kde plugin běží.
         dev.botalive.core.station.CraftingStation crafting = container.register(
                 dev.botalive.core.station.CraftingStation.class,
-                packetStations ? new dev.botalive.core.station.PacketCraftingStation()
-                        : new CraftingService(bridge));
+                new CraftingService(bridge));
         dev.botalive.core.station.ChestStation containers = container.register(
                 dev.botalive.core.station.ChestStation.class,
-                packetStations ? new dev.botalive.core.station.PacketChestStation()
-                        : new ContainerService(bridge));
+                new ContainerService(bridge));
         dev.botalive.core.station.TradeStation trades = container.register(
                 dev.botalive.core.station.TradeStation.class,
-                packetStations ? new dev.botalive.core.station.PacketTradeStation()
-                        : new TradeService(bridge));
+                new TradeService(bridge));
         dev.botalive.core.station.FurnaceStation furnaces = container.register(
                 dev.botalive.core.station.FurnaceStation.class,
-                packetStations ? new dev.botalive.core.station.PacketFurnaceStation()
-                        : new FurnaceService(bridge));
+                new FurnaceService(bridge));
         dev.botalive.core.station.EnchantStation enchanting = container.register(
                 dev.botalive.core.station.EnchantStation.class,
-                packetStations ? new dev.botalive.core.station.PacketEnchantStation()
-                        : new EnchantService(bridge));
+                new EnchantService(bridge));
         dev.botalive.core.station.SmithingStation smithing = container.register(
                 dev.botalive.core.station.SmithingStation.class,
-                packetStations ? new dev.botalive.core.station.PacketSmithingStation()
-                        : new dev.botalive.core.inventory.SmithingService(bridge));
+                new dev.botalive.core.inventory.SmithingService(bridge));
         dev.botalive.core.station.BrewingStation brewing = container.register(
                 dev.botalive.core.station.BrewingStation.class,
-                packetStations ? new dev.botalive.core.station.PacketBrewingStation()
-                        : new dev.botalive.core.inventory.BrewingService(bridge));
+                new dev.botalive.core.inventory.BrewingService(bridge));
         dev.botalive.core.pvp.PvpCoordinator pvp = container.register(
                 dev.botalive.core.pvp.PvpCoordinator.class,
                 new dev.botalive.core.pvp.PvpCoordinator(config.pvp()));
@@ -175,33 +167,6 @@ public final class CompositionRoot {
                 new dev.botalive.core.inventory.AnvilService(bridge));
         // Registrace cílů proběhne níže – až po vzniku služeb sídel a diplomacie,
         // které některé cíle dostávají v konstruktoru.
-
-        // Block-state a item mappery pro klientský world model (jen režim
-        // packet): přesné tabulky z registrů hostitelského serveru jsou správné
-        // jen při shodě protokolu hostitele s protokolem botů – překládá-li
-        // Via, dostává bot pakety ve svém vlastním formátu a registry jiné
-        // verze by daly špatná ID. Jinak degradovaný fallback.
-        dev.botalive.core.world.state.BlockStateMapper stateMapper = null;
-        dev.botalive.core.world.state.ItemMapper itemMapper = null;
-        if (config.network().packetWorldModel()) {
-            if (dev.botalive.core.via.ViaCompat.hostMatchesBotProtocol()) {
-                stateMapper = dev.botalive.core.world.state.ReflectionBlockStateMapper.tryCreate()
-                        .orElseGet(() -> {
-                            LOG.warn("Block-state mapper běží v degradovaném fallbacku – "
-                                    + "výpravy do Netheru a Endu nebudou umět číst portály "
-                                    + "(materiály se nepřekládají).");
-                            return new dev.botalive.core.world.state.FallbackBlockStateMapper();
-                        });
-                itemMapper = dev.botalive.core.world.state.ReflectionItemMapper.tryCreate()
-                        .orElse(null);
-            } else {
-                LOG.warn("Registry hostitelského serveru ({}) neodpovídají protokolu botů ({}) – "
-                                + "block-state i item mapování poběží v degradovaném fallbacku.",
-                        org.bukkit.Bukkit.getMinecraftVersion(),
-                        dev.botalive.core.via.ViaCompat.botVersion());
-                stateMapper = new dev.botalive.core.world.state.FallbackBlockStateMapper();
-            }
-        }
 
         // Boti.
         dev.botalive.core.social.CrimeLog crimeLog = container.register(
@@ -226,7 +191,7 @@ public final class CompositionRoot {
                 diplomacy, employmentService);
         BotImpl.SharedServices services = new BotImpl.SharedServices(
                 config, worldViews, bridge, tickEngine, navigation, repository,
-                phrases, stateMapper, itemMapper, crimeLog, settlements,
+                phrases, crimeLog, settlements,
                 diplomacy, socialGraph, market, employmentService, authority);
         BotManagerImpl botManager = container.register(BotManagerImpl.class,
                 new BotManagerImpl(config, repository, goalRegistry, services));

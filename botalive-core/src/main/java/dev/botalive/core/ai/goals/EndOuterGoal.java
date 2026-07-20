@@ -357,9 +357,9 @@ public final class EndOuterGoal extends AbstractGoal {
             return; // chunky se ještě sypou – zkusit za chvíli znovu
         }
         scanRetry.reset();
-        // Server-side nápověda, kde je end city (jen vlastní server, §9).
+        // Server-side nápověda, kde je end city (§9).
         var outer = ctx.config().end().outer();
-        if (outer.locateAssist() && !ctx.config().network().packetWorldModel()) {
+        if (outer.locateAssist()) {
             locateFuture = locateCity(ctx);
         }
         phase = Phase.CITY_FIND;

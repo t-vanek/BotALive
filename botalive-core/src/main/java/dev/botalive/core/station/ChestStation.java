@@ -6,9 +6,9 @@ import dev.botalive.core.util.BlockPos;
 import java.util.concurrent.CompletableFuture;
 
 /**
- * Stanice truhel – kontrakt mezi {@code StashGoal} a implementací
- * (server-side {@code ContainerService} / paketová {@code PacketChestStation}).
- * Cíl truhlu otevírá sám (reálný interact paket); stanice řeší jen přesun.
+ * Stanice truhel – kontrakt mezi {@code StashGoal} a server-side implementací
+ * ({@code ContainerService}). Cíl truhlu otevírá sám (reálný interact paket);
+ * stanice řeší jen přesun.
  */
 public interface ChestStation {
 
