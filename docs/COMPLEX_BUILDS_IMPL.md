@@ -22,12 +22,22 @@ k `3604c6f`.
 > výchozí 7** (uživatelské minimum, přes multi-standpoint). Celá sada
 > 714 testů zelená.
 >
-> **Zbývá** (viz report): cílené shánění materiálu (build wishlist
-> z `BillOfMaterials` – zatím náhrada zajišťuje, že se stavba nezasekne);
-> orientované bloky (schody/dveře – kurzorový `useItemOn`, chce ověření na
-> živém serveru); škálování velikosti/patra podle tieru sídla. Pak
-> **V2c** (civilní stavby – tržiště, radnice, kostel na vícparcelových
-> staveništích). Doporučeno: smoke test na serveru (`build.complex: true`).
+> V2b navíc: **velikost domu podle stupně sídla a povahy**
+> (`HouseDesigner.widthFor` – osada 5×5, vesnice/město až ke stropu
+> `build.width`, líný staví malý; gate i design podle skutečné velikosti)
+> a **variace tvaru střechy** ze seedu (plná jehla / valba s plochým
+> vrcholem).
+>
+> **V2c zahájeno**: **tržiště** (`MARKET_STALL`) odemyká tier **MĚSTO** –
+> `townInfra = sýpka && tržiště`, `nextProjectKind` ho nabízí po sýpce,
+> `CommunalBuildGoal` ho staví (Blueprints.marketStall). Progrese
+> studna→sýpka→tržiště→MĚSTO ověřena. Celá sada 717 testů zelená.
+>
+> **Zbývá**: ukotvení nabídek `SellGoal` k tržišti (fáze D); radnice/
+> zvonice/kostel na vícparcelových staveništích; cílené shánění materiálu
+> (build wishlist z `BillOfMaterials` – zatím náhrada); orientované bloky
+> (schody/dveře – kurzorový `useItemOn`, chce ověření na živém serveru).
+> **Doporučeno: smoke test na serveru** (`build.complex: true` je default).
 
 ## Inventura dotčeného kódu
 
