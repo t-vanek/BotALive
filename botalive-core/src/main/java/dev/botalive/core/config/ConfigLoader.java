@@ -251,7 +251,7 @@ public final class ConfigLoader {
             buildWidth++; // lichý půdorys – čistý střed pro stavitele
         }
         var build = new BotAliveConfig.Build(
-                c.getBoolean("build.complex", false),
+                c.getBoolean("build.complex", true),
                 buildWidth,
                 Math.max(2, c.getInt("build.wall-height", 3))
         );

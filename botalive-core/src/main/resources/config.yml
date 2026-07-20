@@ -470,10 +470,11 @@ persistence:
   flush-seconds: 15
 
 build:
-  # Rozmanité domy místo dnešního domku 4×4. Vypnuto = plná zpětná
-  # kompatibilita; zapnuto = generovaný dům z místního dřeva (větší
-  # půdorys, okna, valbová střecha), stavěný stejným enginem.
-  complex: false
+  # Rozmanité domy místo dřívějšího domku 4×4 (zapnuto). Generovaný dům
+  # z místního dřeva – větší půdorys, okna, valbová střecha, stavěný
+  # stejným enginem a opravovaný proti svému plánu. Vypnutí (false) vrátí
+  # původní domek 4×4 (plná zpětná kompatibilita).
+  complex: true
   # Šířka i hloubka půdorysu (lichá, >= 5). 5 je bezpečně dosažitelná
   # z jednoho stanoviště; větší půdorysy budou chtít víc stanovišť.
   width: 5

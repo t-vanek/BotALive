@@ -727,10 +727,14 @@ public final class BuildHouseGoal extends AbstractGoal {
             data.put("oy", String.valueOf(origin.y()));
             data.put("oz", String.valueOf(origin.z()));
             data.put("facing", facing.name());
-            // Marker generovaného domu: legacy údržba ho přeskočí (design-aware
-            // oprava je navazující krok), stavěl se jiným plánem než 4×4.
+            // Generovaný dům: uložit parametry, aby ho údržba (MaintainHomeGoal)
+            // zrekonstruovala a opravovala proti správnému plánu, ne proti 4×4.
             if (design != null) {
                 data.put("design", design.key());
+                data.put("bw", String.valueOf(design.width()));
+                data.put("bh", String.valueOf(design.wallHeight()));
+                data.put("bwood", design.wood().name());
+                data.put("bseed", String.valueOf(design.seed()));
             }
             if (settlements != null) {
                 settlements.settlementIdOf(bot.id()).ifPresent(
