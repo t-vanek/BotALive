@@ -126,10 +126,16 @@ public record BotAliveConfig(
      *                        online-mode server nasměrovaný na gateway) – pokročilé
      * @param secret          tajný klíč HMAC; prázdný = vygenerovat a uložit do
      *                        {@code gateway-secret.key} (sdílený klíč pro fleet)
+     * @param mojangProxy     přeposílat dotazy pro neznámá jména/UUID (reální hráči)
+     *                        na skutečný Mojang – online-mode server pak ověří zároveň
+     *                        boty (lokálně) i hráče (přes Mojang); vyžaduje {@code httpEnabled}
+     * @param mojangHost      základní URL skutečného session serveru pro proxy
+     *                        (prázdné = {@code https://sessionserver.mojang.com})
      */
     public record Gateway(boolean enabled, boolean enforcePreLogin, boolean restrictSource,
                           boolean httpEnabled, String bind, int port, int tokenTtlSeconds,
-                          boolean clientAuth, String secret) {
+                          boolean clientAuth, String secret,
+                          boolean mojangProxy, String mojangHost) {
 
         /** @return platnost pověření v ms (spodní strop 5 s) */
         public long tokenTtlMs() {

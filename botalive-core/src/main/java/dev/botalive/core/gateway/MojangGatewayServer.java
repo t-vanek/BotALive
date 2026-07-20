@@ -34,7 +34,7 @@ import java.util.concurrent.TimeUnit;
  *   <li>{@code GET  /session/minecraft/hasJoined} – server ověří, že se klient
  *       skutečně ohlásil, a dostane jeho profil.</li>
  *   <li>{@code GET  /session/minecraft/profile/{id}} – dotaz na profil (BotAlive
- *       nemá skiny, vrací prázdné vlastnosti).</li>
+ *       nemá skiny botů, vrací prázdné vlastnosti).</li>
  *   <li>{@code GET  /botalive/health} – diagnostika.</li>
  * </ul>
  *
@@ -43,6 +43,11 @@ import java.util.concurrent.TimeUnit;
  * ověřuje připojení botů proti BotAlive místo Mojangu. Standardně běží na
  * loopbacku a je vypnutá – server-side pojistka {@code BotLoginGuard} chrání
  * offline server i bez HTTP vrstvy.</p>
+ *
+ * <p>Volitelná {@link MojangProxy}: když je nastavená, dotazy pro jména/UUID,
+ * které gateway nezná (typicky reální hráči), se přeposílají na skutečný
+ * Mojang. Server pak v jednom online-mode režimu ověří zároveň boty (lokálně)
+ * i reální hráče (přes Mojang), zatímco cizí falešní boti neprojdou.</p>
  *
  * <p>Server běží na vlastních (virtuálních) vláknech a nikdy neblokuje herní
  * ani tick vlákna.</p>
@@ -55,20 +60,36 @@ public final class MojangGatewayServer {
     private final String bindHost;
     private final int port;
     private final CredentialAuthority authority;
+    private final MojangProxy proxy;
 
     private volatile HttpServer server;
     private volatile ExecutorService executor;
     private volatile int boundPort = -1;
 
     /**
+     * Gateway bez proxy – autorita jen pro boty (neznámá jména = 204).
+     *
      * @param bindHost  adresa, na které gateway naslouchá (typicky 127.0.0.1)
      * @param port      port; 0 = přidělí OS (užitečné pro testy)
      * @param authority ověřovací autorita
      */
     public MojangGatewayServer(String bindHost, int port, CredentialAuthority authority) {
+        this(bindHost, port, authority, null);
+    }
+
+    /**
+     * @param bindHost  adresa, na které gateway naslouchá (typicky 127.0.0.1)
+     * @param port      port; 0 = přidělí OS (užitečné pro testy)
+     * @param authority ověřovací autorita
+     * @param proxy     proxy na skutečný Mojang pro reální hráče, nebo {@code null}
+     *                  (pak se neznámá jména odmítnou jako 204)
+     */
+    public MojangGatewayServer(String bindHost, int port, CredentialAuthority authority,
+                               MojangProxy proxy) {
         this.bindHost = bindHost;
         this.port = port;
         this.authority = authority;
+        this.proxy = proxy;
     }
 
     /**
@@ -136,11 +157,18 @@ public final class MojangGatewayServer {
                 return;
             }
             Optional<GatewayProfile> profile = authority.resolveHasJoined(username, serverId);
-            if (profile.isEmpty()) {
-                respondEmpty(exchange, 204); // Mojang sémantika: 204 = neověřeno
+            if (profile.isPresent()) {
+                respondJson(exchange, 200, profileJson(profile.get()));
                 return;
             }
-            respondJson(exchange, 200, profileJson(profile.get()));
+            // Jméno gateway nezná = reálný hráč. Je-li zapnutá proxy, ověř ho
+            // u skutečného Mojangu a odpověď relayuj doslova (kvůli podepsaným
+            // texturám). Bez proxy: 204 = neověřeno.
+            if (proxy != null) {
+                relay(exchange, proxy.hasJoined(exchange.getRequestURI().getRawQuery()));
+                return;
+            }
+            respondEmpty(exchange, 204); // Mojang sémantika: 204 = neověřeno
         } catch (RuntimeException e) {
             LOG.debug("hasJoined selhal: {}", e.toString());
             safeEmpty(exchange, 204);
@@ -172,8 +200,24 @@ public final class MojangGatewayServer {
     }
 
     private void handleProfile(HttpExchange exchange) throws IOException {
-        // BotAlive nespravuje skiny – vrací prázdný obsah (server si poradí bez textur).
-        safeEmpty(exchange, 204);
+        // BotAlive nespravuje skiny botů. Je-li zapnutá proxy, přepošli dotaz na
+        // Mojang – reální hráči dostanou textury, offline UUID botů u Mojangu
+        // neexistují → 204 (server si poradí bez textur).
+        try {
+            if (proxy != null) {
+                String path = exchange.getRequestURI().getPath();
+                int slash = path.lastIndexOf('/');
+                String id = slash >= 0 ? path.substring(slash + 1) : "";
+                if (!id.isEmpty()) {
+                    relay(exchange, proxy.profile(id, exchange.getRequestURI().getRawQuery()));
+                    return;
+                }
+            }
+            safeEmpty(exchange, 204);
+        } catch (RuntimeException e) {
+            LOG.debug("profile selhal: {}", e.toString());
+            safeEmpty(exchange, 204);
+        }
     }
 
     private void handleHealth(HttpExchange exchange) throws IOException {
@@ -239,6 +283,22 @@ public final class MojangGatewayServer {
     private static void respondEmpty(HttpExchange exchange, int code) throws IOException {
         exchange.sendResponseHeaders(code, -1);
         exchange.close();
+    }
+
+    /** Relayuje odpověď z proxy zpět serveru (stav + tělo + Content-Type). */
+    private static void relay(HttpExchange exchange, MojangProxy.Relay resp) throws IOException {
+        byte[] body = resp.body();
+        if (body == null || body.length == 0) {
+            respondEmpty(exchange, resp.status());
+            return;
+        }
+        if (resp.contentType() != null) {
+            exchange.getResponseHeaders().set("Content-Type", resp.contentType());
+        }
+        exchange.sendResponseHeaders(resp.status(), body.length);
+        try (OutputStream out = exchange.getResponseBody()) {
+            out.write(body);
+        }
     }
 
     private static void safeEmpty(HttpExchange exchange, int code) {
