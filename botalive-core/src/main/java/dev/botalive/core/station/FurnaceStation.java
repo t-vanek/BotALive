@@ -7,7 +7,7 @@ import java.util.concurrent.CompletableFuture;
 
 /**
  * Stanice pecí – kontrakt mezi {@code SmeltGoal} a implementací
- * (server-side {@code FurnaceService} / paketová {@code PacketFurnaceStation}).
+ * (server-side {@code FurnaceService}).
  */
 public interface FurnaceStation {
 

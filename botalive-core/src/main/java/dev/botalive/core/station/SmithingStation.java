@@ -11,11 +11,8 @@ import java.util.concurrent.CompletableFuture;
  * Kovářský stůl – povýšení diamantové výbavy na netheritovou (vanilla:
  * šablona z bastionu + diamantový kus + netheritový ingot).
  *
- * <p>Dvě implementace stejného kontraktu: server-side
- * {@code SmithingService} (autoritativní úprava inventáře na vlákně regionu,
- * viz precedent CraftingService/AnvilService) a paketová
- * {@code PacketSmithingStation} (kliky v okně kovářského stolu pro boty na
- * cizích serverech).</p>
+ * <p>Server-side implementace {@code SmithingService} autoritativně upraví
+ * inventář na vlákně regionu (viz precedent CraftingService/AnvilService).</p>
  */
 public interface SmithingStation {
 

@@ -18,8 +18,8 @@ import org.geysermc.mcprotocollib.protocol.packet.ingame.serverbound.inventory.S
  * jen k rozhodnutí, které sloty musí klientovi doposlat. Posíláme proto
  * záměrně prázdnou predikci ({@code changedSlots} prázdné, {@code carriedItem}
  * {@code null}): server nám po každém kliku pošle korekce všeho, co se
- * změnilo, a náš model ({@link ContainerView}, {@code ClientInventory})
- * zůstává autoritativně synchronizovaný – bez počítání jediného hashe
+ * změnilo, a náš model ({@link ContainerView}) zůstává autoritativně
+ * synchronizovaný – bez počítání jediného hashe
  * a bez křehkosti vůči změnám hash algoritmu. Trade-off: pár SetSlot paketů
  * navíc po kliku, což je pro boty zanedbatelné.</p>
  */

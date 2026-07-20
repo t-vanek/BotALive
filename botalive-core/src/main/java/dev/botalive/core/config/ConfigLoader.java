@@ -31,7 +31,6 @@ public final class ConfigLoader {
                 c.getString("network.host", "127.0.0.1"),
                 c.getInt("network.port", 0),
                 c.getInt("network.connect-timeout-ms", 10_000),
-                c.getString("network.world-model", "server").toLowerCase(),
                 c.getBoolean("network.version-check", true),
                 new BotAliveConfig.Reconnect(
                         c.getBoolean("network.reconnect.enabled", true),

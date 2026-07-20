@@ -70,10 +70,6 @@ public record BotAliveConfig(
      * @param host             adresa serveru (typicky 127.0.0.1)
      * @param port             port serveru; 0 = převzít z běžícího serveru
      * @param connectTimeoutMs timeout TCP připojení
-     * @param worldModel       zdroj geometrie světa: {@code server} (chunk
-     *                         snapshoty hostitelského serveru – výchozí) nebo
-     *                         {@code packet} (parsování chunk paketů – nutné,
-     *                         hrají-li boti na cizím serveru)
      * @param versionCheck     před připojením ověřit shodu verzí protokolu
      *                         (příp. přítomnost ViaVersion/ViaBackwards) a při
      *                         neshodě vytvoření bota odmítnout s vysvětlením;
@@ -81,12 +77,7 @@ public record BotAliveConfig(
      * @param reconnect        automatické znovupřipojení po výpadku
      */
     public record Network(String host, int port, int connectTimeoutMs,
-                          String worldModel, boolean versionCheck, Reconnect reconnect) {
-
-        /** @return {@code true} pokud se má použít klientský (paketový) world model */
-        public boolean packetWorldModel() {
-            return "packet".equalsIgnoreCase(worldModel);
-        }
+                          boolean versionCheck, Reconnect reconnect) {
 
         /**
          * Míří boti na tento (hostitelský) server?

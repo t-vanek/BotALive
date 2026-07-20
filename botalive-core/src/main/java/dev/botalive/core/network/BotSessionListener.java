@@ -2,7 +2,6 @@ package dev.botalive.core.network;
 
 import dev.botalive.core.entity.EntityTracker;
 import dev.botalive.core.entity.TrackedEntity;
-import dev.botalive.core.inventory.ClientInventory;
 import dev.botalive.core.util.Vec3;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
@@ -38,8 +37,8 @@ import java.util.List;
  * <p>Login a konfigurační fázi (registry, known packs, keep-alive) obsluhují
  * výchozí listenery MCProtocolLib; tady zpracováváme už jen PLAY fázi. Metoda
  * běží na paketovém vlákně bota – nesmí blokovat, jen aktualizuje thread-safe
- * struktury ({@link BotClientState}, {@link EntityTracker}, {@link ClientInventory})
- * a notifikuje {@link NetworkEvents}.</p>
+ * struktury ({@link BotClientState}, {@link EntityTracker}) a notifikuje
+ * {@link NetworkEvents}.</p>
  */
 public final class BotSessionListener extends SessionAdapter {
 
@@ -48,37 +47,27 @@ public final class BotSessionListener extends SessionAdapter {
 
     private final BotClientState state;
     private final EntityTracker entities;
-    private final ClientInventory inventory;
     private final NetworkEvents events;
     private final String botName;
 
-    /** Sledování otevřených oken kontejnerů (paketové stanice). */
+    /** Sledování otevřených oken kontejnerů. */
     private final dev.botalive.core.container.ContainerTracker containers;
-
-    /** Klientský world model (jen v režimu {@code packet}, jinak {@code null}). */
-    private final dev.botalive.core.world.PacketWorldManager packetWorlds;
 
     /**
      * @param botName      jméno bota (pro logy)
      * @param state        protokolový stav bota
      * @param entities     tracker viditelných entit
-     * @param inventory    klientský model inventáře
      * @param containers   sledování otevřených oken kontejnerů
      * @param events       callback do jádra bota
-     * @param packetWorlds klientský world model ({@code null} v režimu server)
      */
     public BotSessionListener(String botName, BotClientState state, EntityTracker entities,
-                              ClientInventory inventory,
                               dev.botalive.core.container.ContainerTracker containers,
-                              NetworkEvents events,
-                              dev.botalive.core.world.PacketWorldManager packetWorlds) {
+                              NetworkEvents events) {
         this.botName = botName;
         this.state = state;
         this.entities = entities;
-        this.inventory = inventory;
         this.containers = containers;
         this.events = events;
-        this.packetWorlds = packetWorlds;
     }
 
     @Override
@@ -150,22 +139,11 @@ public final class BotSessionListener extends SessionAdapter {
                                 p.getPosition().getY(), p.getPosition().getZ()), p.getYRot());
                     }
                 }
-                case ClientboundContainerSetContentPacket p -> {
-                    if (p.getContainerId() == 0) {
-                        inventory.setContents(p.getItems());
-                    }
-                    containers.onSetContent(p.getContainerId(), p.getStateId(), p.getItems());
-                }
-                case ClientboundContainerSetSlotPacket p -> {
-                    if (p.getContainerId() == 0) {
-                        inventory.setSlot(p.getSlot(), p.getItem());
-                    }
-                    containers.onSetSlot(p.getContainerId(), p.getStateId(), p.getSlot(),
-                            p.getItem());
-                }
-                case org.geysermc.mcprotocollib.protocol.packet.ingame.clientbound.inventory
-                        .ClientboundSetPlayerInventoryPacket p ->
-                        inventory.setPlayerSlot(p.getSlot(), p.getContents());
+                case ClientboundContainerSetContentPacket p ->
+                        containers.onSetContent(p.getContainerId(), p.getStateId(), p.getItems());
+                case ClientboundContainerSetSlotPacket p ->
+                        containers.onSetSlot(p.getContainerId(), p.getStateId(), p.getSlot(),
+                                p.getItem());
                 case org.geysermc.mcprotocollib.protocol.packet.ingame.clientbound.inventory
                         .ClientboundContainerSetDataPacket p ->
                         containers.onSetData(p.getContainerId(), p.getRawProperty(), p.getValue());
@@ -190,39 +168,9 @@ public final class BotSessionListener extends SessionAdapter {
                 case org.geysermc.mcprotocollib.protocol.packet.ingame.clientbound.level
                         .ClientboundGameEventPacket p -> handleGameEvent(p);
                 case ClientboundPlayerChatPacket p -> handleChat(session, p);
-                // Klientský world model (jen v režimu packet).
-                case org.geysermc.mcprotocollib.protocol.packet.configuration.clientbound
-                        .ClientboundRegistryDataPacket p -> {
-                    if (packetWorlds != null) {
-                        packetWorlds.onRegistryData(p.getRegistry(), p.getEntries());
-                    }
-                }
-                case org.geysermc.mcprotocollib.protocol.packet.ingame.clientbound.level
-                        .ClientboundLevelChunkWithLightPacket p -> {
-                    if (packetWorlds != null) {
-                        packetWorlds.onChunk(p);
-                    }
-                }
-                case org.geysermc.mcprotocollib.protocol.packet.ingame.clientbound.level
-                        .ClientboundBlockUpdatePacket p -> {
-                    if (packetWorlds != null) {
-                        packetWorlds.onBlockUpdate(p);
-                    }
-                }
-                case org.geysermc.mcprotocollib.protocol.packet.ingame.clientbound.level
-                        .ClientboundSectionBlocksUpdatePacket p -> {
-                    if (packetWorlds != null) {
-                        packetWorlds.onSectionUpdate(p);
-                    }
-                }
-                case org.geysermc.mcprotocollib.protocol.packet.ingame.clientbound.level
-                        .ClientboundForgetLevelChunkPacket p -> {
-                    if (packetWorlds != null) {
-                        packetWorlds.onForgetChunk(p);
-                    }
-                }
                 default -> {
-                    // Ostatní pakety (světlo, čas, zvuky, ...) bot nepotřebuje.
+                    // Ostatní pakety (světlo, čas, zvuky, geometrie chunků, ...)
+                    // bot nepotřebuje – svět čte server-side z Bukkitu.
                 }
             }
         } catch (Throwable t) {
@@ -299,7 +247,6 @@ public final class BotSessionListener extends SessionAdapter {
         }
         state.reset();
         entities.clear();
-        inventory.clear();
         containers.onClosed();
         events.onDisconnected(reason);
     }
@@ -308,9 +255,6 @@ public final class BotSessionListener extends SessionAdapter {
         state.entityId(packet.getEntityId());
         String worldKey = packet.getCommonPlayerSpawnInfo().getWorldName().asString();
         state.worldKey(worldKey);
-        if (packetWorlds != null) {
-            packetWorlds.dimension(packet.getCommonPlayerSpawnInfo().getDimension());
-        }
         LOG.debug("[{}] Login dokončen, entityId={}, world={}", botName, packet.getEntityId(), worldKey);
         events.onLogin(packet.getEntityId(), worldKey);
     }
@@ -356,9 +300,6 @@ public final class BotSessionListener extends SessionAdapter {
         state.dead(false);
         state.vehicleId(-1);
         entities.clear();
-        if (packetWorlds != null) {
-            packetWorlds.dimension(packet.getCommonPlayerSpawnInfo().getDimension());
-        }
         events.onRespawn(worldKey, afterDeath);
     }
 

@@ -6,7 +6,7 @@ import java.util.concurrent.CompletableFuture;
 
 /**
  * Stanice enchantování – kontrakt mezi {@code EnchantGoal} a implementací
- * (server-side {@code EnchantService} / paketová {@code PacketEnchantStation}).
+ * (server-side {@code EnchantService}).
  */
 public interface EnchantStation {
 

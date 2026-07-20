@@ -9,14 +9,6 @@ network:
   # 0 = převzít port běžícího serveru.
   port: 0
   connect-timeout-ms: 10000
-  # Zdroj geometrie světa pro AI:
-  #   server = chunk snapshoty hostitelského serveru (výchozí, nejlevnější)
-  #   packet = klientský world model parsovaný z chunk paketů – NUTNÉ, pokud
-  #            boti hrají na cizím serveru (host mimo tento server). Crafting,
-  #            truhly, pec, obchod i enchant pak běží paketově (container
-  #            kliky) – plný survival; neaktivní zůstává jen teleport API
-  #            a ochočování (vyžadují server-side ověření).
-  world-model: server
   # Před připojením ověřit kompatibilitu verzí: boti mluví pevnou verzí
   # protokolu; běží-li server na jiné verzi, musí překládat ViaVersion
   # (server starší než boti), příp. ViaVersion + ViaBackwards (server novější).
