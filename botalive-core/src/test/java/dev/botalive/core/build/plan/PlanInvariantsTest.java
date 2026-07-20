@@ -26,7 +26,8 @@ class PlanInvariantsTest {
     private static final BlockPos ORIGIN = new BlockPos(8, 64, -4);
 
     private static List<Blueprint> blueprints() {
-        return List.of(Blueprints.house(), Blueprints.well(), Blueprints.granary());
+        return List.of(Blueprints.house(), Blueprints.well(), Blueprints.granary(),
+                Blueprints.marketStall());
     }
 
     /** Nezávislá kontrola opory (nepoužívá interní BuildPlanner). */

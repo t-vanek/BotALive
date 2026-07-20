@@ -84,6 +84,12 @@ public enum PhraseCategory {
     /** Sýpka sídla dokončena ({@code {name}} = jméno sídla). */
     SETTLEMENT_GRANARY_DONE,
 
+    /** Bot začíná stavět tržiště sídla ({@code {name}} = jméno sídla). */
+    SETTLEMENT_MARKET_START,
+
+    /** Tržiště sídla dokončeno ({@code {name}} = jméno sídla). */
+    SETTLEMENT_MARKET_DONE,
+
     /** Nový člen převzal chybějící řemeslo ({@code {name}} = název role). */
     SETTLEMENT_ROLE_TAKEN,
 

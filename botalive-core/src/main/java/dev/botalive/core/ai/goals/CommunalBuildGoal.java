@@ -78,9 +78,11 @@ public final class CommunalBuildGoal extends AbstractGoal {
         if (needs.buildingBlocks() < blueprintFor(needed.get().kind()).blocksNeeded() + BLOCK_RESERVE) {
             return 0;
         }
-        if (needed.get().kind() == ProjectKind.GRANARY
-                && ctx.inventory().countItem(ctx.serverView().latest(), Material.CHEST) < 2) {
-            return 0; // sýpka bez truhel je jen kůlna
+        int chestsNeeded = chestsNeededFor(needed.get().kind());
+        if (chestsNeeded > 0
+                && ctx.inventory().countItem(ctx.serverView().latest(), Material.CHEST)
+                        < chestsNeeded) {
+            return 0; // sýpka/tržiště bez truhel je jen kůlna
         }
         double helpfulness = bot.personality().trait(Trait.HELPFULNESS);
         // Závazek: kdo si stavbu zamluvil, drží se jí – bez bonusu si stavitelé
@@ -112,7 +114,36 @@ public final class CommunalBuildGoal extends AbstractGoal {
     }
 
     private Blueprint blueprintFor(ProjectKind kind) {
-        return kind == ProjectKind.WELL ? Blueprints.well() : Blueprints.granary();
+        return switch (kind) {
+            case WELL -> Blueprints.well();
+            case GRANARY -> Blueprints.granary();
+            case MARKET_STALL -> Blueprints.marketStall();
+        };
+    }
+
+    /** Kolik truhel stavba spotřebuje (sýpka dvojtruhla, tržiště jedna). */
+    private static int chestsNeededFor(ProjectKind kind) {
+        return switch (kind) {
+            case GRANARY -> 2;
+            case MARKET_STALL -> 1;
+            case WELL -> 0;
+        };
+    }
+
+    private static PhraseCategory startPhrase(ProjectKind kind) {
+        return switch (kind) {
+            case WELL -> PhraseCategory.SETTLEMENT_WELL_START;
+            case GRANARY -> PhraseCategory.SETTLEMENT_GRANARY_START;
+            case MARKET_STALL -> PhraseCategory.SETTLEMENT_MARKET_START;
+        };
+    }
+
+    private static PhraseCategory donePhrase(ProjectKind kind) {
+        return switch (kind) {
+            case WELL -> PhraseCategory.SETTLEMENT_WELL_DONE;
+            case GRANARY -> PhraseCategory.SETTLEMENT_GRANARY_DONE;
+            case MARKET_STALL -> PhraseCategory.SETTLEMENT_MARKET_DONE;
+        };
     }
 
     private void tickClaim(BotContext ctx, Bot bot) {
@@ -135,9 +166,7 @@ public final class CommunalBuildGoal extends AbstractGoal {
             // Hlásí se jen NOVÝ projekt – opakované zamluvení téhož (návrat
             // ke stavbě, marné pokusy) by chat zaplavilo.
             lastAnnouncedProject = announceKey;
-            ctx.chat().sayFrom(project.kind() == ProjectKind.WELL
-                    ? PhraseCategory.SETTLEMENT_WELL_START
-                    : PhraseCategory.SETTLEMENT_GRANARY_START, name);
+            ctx.chat().sayFrom(startPhrase(project.kind()), name);
         }
         phase = Phase.GOTO;
     }
@@ -188,9 +217,7 @@ public final class CommunalBuildGoal extends AbstractGoal {
         claimed = false;
         String name = settlementName(ctx, bot);
         if (name != null) {
-            ctx.chat().sayFrom(project.kind() == ProjectKind.WELL
-                    ? PhraseCategory.SETTLEMENT_WELL_DONE
-                    : PhraseCategory.SETTLEMENT_GRANARY_DONE, name);
+            ctx.chat().sayFrom(donePhrase(project.kind()), name);
         }
         tier.ifPresent(t -> dev.botalive.core.settlement.SettlementAnnouncer
                 .sayTierUp(ctx.chat(), t, name));
@@ -238,7 +265,13 @@ public final class CommunalBuildGoal extends AbstractGoal {
 
     @Override
     public String explain(Bot bot) {
-        return project != null && project.kind() == ProjectKind.GRANARY
-                ? "stavím sýpku pro sídlo" : "stavím studnu pro sídlo";
+        if (project == null) {
+            return "stavím studnu pro sídlo";
+        }
+        return switch (project.kind()) {
+            case WELL -> "stavím studnu pro sídlo";
+            case GRANARY -> "stavím sýpku pro sídlo";
+            case MARKET_STALL -> "stavím tržiště pro sídlo";
+        };
     }
 }

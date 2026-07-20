@@ -147,6 +147,15 @@ class SettlementServiceTest {
         service.projectFinished(village.id(), SettlementService.ProjectKind.GRANARY);
         assertTrue(service.granaryOf(village.id()).isPresent(),
                 "hotová sýpka je dohledatelná pro normy sdílení");
+        // Po sýpce přichází tržiště – druhá půlka městské infrastruktury.
+        assertEquals(SettlementService.ProjectKind.MARKET_STALL,
+                service.neededProject(founder).orElseThrow().kind());
+        service.claimProject(village.id(), SettlementService.ProjectKind.MARKET_STALL, founder);
+        service.projectFinished(village.id(), SettlementService.ProjectKind.MARKET_STALL);
+        // Sýpka + tržiště + 8 domů + studna = město; víc společných staveb netřeba.
+        assertEquals(SettlementTier.MESTO,
+                service.settlementOf(founder).orElseThrow().tier(),
+                "tržiště po sýpce dělá z vesnice město");
         assertTrue(service.neededProject(founder).isEmpty());
     }
 

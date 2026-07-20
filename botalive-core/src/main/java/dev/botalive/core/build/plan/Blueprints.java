@@ -23,6 +23,7 @@ public final class Blueprints {
     private static final Blueprint HOUSE = new HouseLegacy(false);
     private static final Blueprint GRANARY = new HouseLegacy(true);
     private static final Blueprint WELL = new WellLegacy();
+    private static final Blueprint MARKET_STALL = new MarketStallLegacy();
 
     private Blueprints() {
     }
@@ -40,6 +41,11 @@ public final class Blueprints {
     /** @return blueprint sýpky (domek 4×4 s dvojtruhlou místo postele). */
     public static Blueprint granary() {
         return GRANARY;
+    }
+
+    /** @return blueprint tržiště (zastřešený pult 3×3 s truhlou; odemyká město). */
+    public static Blueprint marketStall() {
+        return MARKET_STALL;
     }
 
     // ================================================================= dům/sýpka
@@ -178,6 +184,91 @@ public final class Blueprints {
         @Override
         public boolean standExact() {
             return true; // stavitel musí stát ve středu šachty
+        }
+    }
+
+    // ==================================================================== tržiště
+
+    /** Tržiště: zastřešený pult 3×3 – čtyři rohové sloupky, plná střecha, truhla. */
+    private record MarketStallLegacy() implements Blueprint {
+
+        private static final int SIZE = 3;
+        private static final int POST_HEIGHT = 3;
+
+        private static boolean isCorner(int x, int z) {
+            return (x == 0 || x == SIZE - 1) && (z == 0 || z == SIZE - 1);
+        }
+
+        @Override
+        public List<PlacementCell> cells(BlockPos origin, Cardinal facing) {
+            List<PlacementCell> result = new ArrayList<>();
+            // Rohové sloupky.
+            for (int y = 0; y < POST_HEIGHT; y++) {
+                for (int x = 0; x < SIZE; x++) {
+                    for (int z = 0; z < SIZE; z++) {
+                        if (isCorner(x, z)) {
+                            result.add(new PlacementCell(origin.offset(x, y, z), BlockSpec.GENERIC));
+                        }
+                    }
+                }
+            }
+            // Plná střecha.
+            for (int x = 0; x < SIZE; x++) {
+                for (int z = 0; z < SIZE; z++) {
+                    result.add(new PlacementCell(origin.offset(x, POST_HEIGHT, z), BlockSpec.GENERIC));
+                }
+            }
+            return result;
+        }
+
+        @Override
+        public List<BlockPos> clearVolume(BlockPos origin, Cardinal facing) {
+            List<BlockPos> result = new ArrayList<>();
+            for (int x = 0; x < SIZE; x++) {
+                for (int y = 0; y <= POST_HEIGHT; y++) {
+                    for (int z = 0; z < SIZE; z++) {
+                        result.add(origin.offset(x, y, z));
+                    }
+                }
+            }
+            return result;
+        }
+
+        @Override
+        public List<BlockPos> groundColumns(BlockPos origin, Cardinal facing) {
+            List<BlockPos> result = new ArrayList<>();
+            for (int x = 0; x < SIZE; x++) {
+                for (int z = 0; z < SIZE; z++) {
+                    result.add(origin.offset(x, -1, z));
+                }
+            }
+            return result;
+        }
+
+        @Override
+        public List<FurnishCell> furnishing(BlockPos origin, Cardinal facing) {
+            // Truhla na zboží u čelní hrany pultu (mezi rohovými sloupky).
+            return List.of(new FurnishCell(FurnishKind.CHEST, origin.offset(SIZE / 2, 0, 0)));
+        }
+
+        @Override
+        public BlockPos standPoint(BlockPos origin, Cardinal facing) {
+            return origin.offset(SIZE / 2, 0, SIZE / 2);
+        }
+
+        @Override
+        public Optional<BlockPos> doorCell(BlockPos origin, Cardinal facing) {
+            return Optional.empty();
+        }
+
+        @Override
+        public int blocksNeeded() {
+            return 4 * POST_HEIGHT + SIZE * SIZE;
+        }
+
+        @Override
+        public boolean standExact() {
+            return true; // malý pult – staví se přesně ze středu
         }
     }
 

@@ -275,6 +275,16 @@ phrases:
     - "done, {name} has a granary. bring your surplus, winter is coming"
     - "granary finished, the hungry know where to go now"
 
+  settlement-market-start:
+    - "granary and folk we have, {name} needs a market – building a stall"
+    - "grabbing planks and a chest, making a market for {name}"
+    - "the village will be a town once I build the market"
+
+  settlement-market-done:
+    - "market's up! {name} is finally a town"
+    - "done, {name} has a market. trade happens here now"
+    - "the stall is ready, neighbours, bring goods to sell"
+
   settlement-role-taken:
     - "nobody here worked as {name}, so I'm taking it up"
     - "the village needs a {name} around – that's me now"

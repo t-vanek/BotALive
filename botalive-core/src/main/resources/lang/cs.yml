@@ -289,6 +289,16 @@ phrases:
     - "hotovo, {name} má sýpku. noste přebytky, ať přečkáme zimu"
     - "sýpka hotová, kdo má hlad, ví kam jít"
 
+  settlement-market-start:
+    - "máme sýpku i lidi, {name} potřebuje tržiště – stavím pult"
+    - "beru prkna a truhlu, dělám tržiště pro {name:4}"
+    - "z vesnice bude město, jen co postavím tržiště"
+
+  settlement-market-done:
+    - "tržiště stojí! {name} je konečně město"
+    - "hotovo, {name} má tržiště. tady se bude obchodovat"
+    - "pult je hotový, sousedi, přineste zboží na prodej"
+
   settlement-role-taken:
     - "u nás chyběl {name}, tak to beru já"
     - "vesnice potřebuje, aby tu byl {name} – hlásím se"

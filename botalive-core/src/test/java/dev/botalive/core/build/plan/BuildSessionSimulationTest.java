@@ -81,6 +81,20 @@ class BuildSessionSimulationTest {
     }
 
     @Test
+    void marketStallBuildsWithRoofAndChest() {
+        FakeWorldView world = new FakeWorldView(FLOOR_Y);
+        BuildPlan plan = BuildPlan.of(Blueprints.marketStall(), ORIGIN, Cardinal.NORTH);
+        BuildSchedule schedule = BuildPlanner.schedule(plan, world);
+        FakeBotContext ctx = botAt(world, plan.stand())
+                .give(Material.COBBLESTONE, 60)
+                .give(Material.CHEST, 1);
+
+        assertEquals(BuildSession.State.DONE, run(ctx, new BuildSession(schedule), 2000));
+        assertTrue(allSolid(world, plan), "pult i střecha stojí");
+        assertTrue(world.traitsAt(plan.furnishing().get(0).pos()).solid(), "truhla na zboží");
+    }
+
+    @Test
     void granaryBuildsWithDoubleChest() {
         FakeWorldView world = new FakeWorldView(FLOOR_Y);
         BuildPlan plan = BuildPlan.of(Blueprints.granary(), ORIGIN, Cardinal.NORTH);
