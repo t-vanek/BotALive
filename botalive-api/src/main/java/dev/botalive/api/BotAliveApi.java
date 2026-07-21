@@ -3,6 +3,7 @@ package dev.botalive.api;
 import dev.botalive.api.ai.GoalRegistry;
 import dev.botalive.api.bot.BotManager;
 import dev.botalive.api.command.SubcommandRegistry;
+import dev.botalive.api.role.RoleRegistry;
 
 /**
  * Vstupní bod veřejného API pluginu BotAlive.
@@ -28,6 +29,12 @@ public interface BotAliveApi {
      *         přidat vlastní podpříkazy včetně tab-complete
      */
     SubcommandRegistry subcommands();
+
+    /**
+     * @return registr profesí; umožňuje cizím pluginům přidat vlastní role
+     *         (zaměření AI cílů) nad rámec vestavěného {@link dev.botalive.api.role.BotRole}
+     */
+    RoleRegistry roles();
 
     /**
      * @return verze pluginu BotAlive (např. {@code 1.0.0})

@@ -263,6 +263,14 @@ api.subcommands().register(new BotSubcommand() {
 });
 ```
 
+Register a custom **role** (a profession that biases which goals a bot pursues — built-in *or* your own):
+
+```java
+api.roles().register(new RoleDefinition("necromancer", "nekromant",
+        Map.of("hunt", 2.0, "my-plugin-goal", 3.0)));   // goalId -> utility multiplier
+bot.assignRole("necromancer");                          // survives restarts (stored by id)
+```
+
 ## Building from Source
 
 ```bash

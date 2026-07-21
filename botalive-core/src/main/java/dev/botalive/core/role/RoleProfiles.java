@@ -98,6 +98,17 @@ public final class RoleProfiles {
     }
 
     /**
+     * Profil vah vestavěné role – zdroj pro seedování {@code RoleRegistryImpl}.
+     *
+     * @param role vestavěná role
+     * @return mapa {@code id cíle → násobič} (prázdná pro roli bez profilu)
+     */
+    public static Map<String, Double> weightsFor(BotRole role) {
+        Map<String, Double> weights = WEIGHTS.get(role);
+        return weights == null ? Map.of() : weights;
+    }
+
+    /**
      * @param role role bota
      * @return {@code true} pokud má bot při těžbě preferovat dřevo před rudami
      */

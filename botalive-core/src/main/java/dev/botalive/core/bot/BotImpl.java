@@ -117,8 +117,11 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
     private volatile BotPhysics physics;
     private volatile CompletableFuture<Bot> spawnFuture;
 
-    /** Profese bota – násobí utility souvisejících cílů (viz RoleProfiles). */
-    private volatile dev.botalive.api.role.BotRole role = dev.botalive.api.role.BotRole.NONE;
+    /**
+     * Profese bota jako id (vestavěná nebo cizí) – násobí utility souvisejících
+     * cílů přes registr rolí. {@code "none"} = univerzál.
+     */
+    private volatile String roleId = "none";
 
     /** Veřejné akční rozhraní bota pro cizí AI cíle (lazy, sdílená instance). */
     private volatile dev.botalive.api.bot.BotControl control;
@@ -355,8 +358,8 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
      * dostane při vstupu nabídku, kde je potřeba.
      */
     private void maybeAdoptRole() {
-        if (role() != dev.botalive.api.role.BotRole.NONE) {
-            return;
+        if (!"none".equals(roleId)) {
+            return; // zaměřený bot (i cizí rolí) si řemeslo nevnucuje
         }
         services.settlements().settlementIdOf(id).ifPresent(settlementId ->
                 services.settlements().missingCoreRole(settlementId).ifPresent(needed -> {
@@ -901,7 +904,8 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
             dev.botalive.core.social.SocialGraph socialGraph,
             dev.botalive.core.economy.MarketBoard market,
             dev.botalive.core.economy.EmploymentService employment,
-            dev.botalive.core.gateway.CredentialAuthority authority
+            dev.botalive.core.gateway.CredentialAuthority authority,
+            dev.botalive.core.role.RoleRegistryImpl roles
     ) {
     }
 
@@ -2265,7 +2269,7 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
                 worldView != null ? worldView.worldName() : null,
                 pos.x(), pos.y(), pos.z(), humanizer.yaw(), humanizer.pitch(),
                 clientState.health(), clientState.food(),
-                brain.currentGoalId(), role, connection.connected());
+                brain.currentGoalId(), role(), connection.connected());
     }
 
     @Override
@@ -2275,13 +2279,55 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
 
     @Override
     public dev.botalive.api.role.BotRole role() {
-        return role;
+        // Vestavěné role se promítnou zpět na enum; cizí role vrací NONE
+        // (typ zachovaný kvůli zpětné kompatibilitě – přesné id dá roleId()).
+        return dev.botalive.api.role.BotRole.parse(roleId)
+                .orElse(dev.botalive.api.role.BotRole.NONE);
     }
 
     @Override
     public void role(dev.botalive.api.role.BotRole newRole) {
-        this.role = newRole == null ? dev.botalive.api.role.BotRole.NONE : newRole;
-        repository.saveRole(id, this.role.name());
+        assignRoleId(newRole == null ? "none"
+                : newRole.name().toLowerCase(java.util.Locale.ROOT));
+    }
+
+    @Override
+    public String roleId() {
+        return roleId;
+    }
+
+    @Override
+    public boolean assignRole(String requestedRoleId) {
+        if (requestedRoleId == null) {
+            return false;
+        }
+        String norm = requestedRoleId.trim().toLowerCase(java.util.Locale.ROOT);
+        if (norm.equals("none")) {
+            assignRoleId("none");
+            return true;
+        }
+        if (services.roles().byId(norm).isEmpty()) {
+            return false; // neznámá role – bota neměníme
+        }
+        assignRoleId(norm);
+        return true;
+    }
+
+    /** Nastaví normalizované id role a persistuje ho. */
+    private void assignRoleId(String normalizedId) {
+        this.roleId = normalizedId;
+        repository.saveRole(id, normalizedId);
+    }
+
+    /**
+     * Násobič užitečnosti cíle podle profese bota (přes registr rolí – funguje
+     * pro vestavěné i cizí role). Volá mozek při rozhodování.
+     *
+     * @param goalId id cíle
+     * @return násobič ({@code 1.0} mimo profil / univerzál)
+     */
+    public double roleWeight(String goalId) {
+        return services.roles().weight(roleId, goalId);
     }
 
     @Override

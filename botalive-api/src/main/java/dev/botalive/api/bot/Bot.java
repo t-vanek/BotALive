@@ -54,6 +54,23 @@ public interface Bot {
     void role(dev.botalive.api.role.BotRole newRole);
 
     /**
+     * @return id aktuální profese bota (např. {@code "builder"} nebo id cizí
+     *         role); {@code "none"} pro univerzála. Na rozdíl od {@link #role()}
+     *         vrací i cizí role registrované pluginem
+     */
+    String roleId();
+
+    /**
+     * Přiřadí botovi profesi podle id – vestavěnou i cizí (registrovanou přes
+     * {@link dev.botalive.api.role.RoleRegistry}). Změna se persistuje.
+     *
+     * @param roleId id role ({@code "none"} zruší zaměření)
+     * @return {@code true} pokud role existuje a byla přiřazena; {@code false}
+     *         pro neznámé id (role bota se nezmění)
+     */
+    boolean assignRole(String roleId);
+
+    /**
      * @return dlouhodobá paměť bota
      */
     BotMemory memory();

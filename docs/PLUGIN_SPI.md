@@ -201,7 +201,21 @@ na `BotControl` (nebo aby `BotControl` interně poskytoval, co potřebují).
 
 ---
 
-## Subsystém 3 — Role SPI (otevřené profese)
+## Subsystém 3 — Role SPI (otevřené profese) — ✅ HOTOVO
+
+> **Stav: implementováno.** `dev.botalive.api.role.RoleDefinition`
+> (id + název + váhy cílů) + `RoleRegistry` jsou v API; dostupné přes
+> `api.roles()`. `RoleRegistryImpl` (core) předregistruje vestavěné role
+> z `BotRole`/`RoleProfiles` (identické váhy – hlídá `RoleRegistryImplTest`
+> i beze změny `RoleCoverageTest`), vestavěná id nelze přebít ani odebrat.
+> Bot drží roli jako **string id** (`Bot.roleId()` / `Bot.assignRole(String)`);
+> `role()`/`role(BotRole)` zůstaly pro zpětnou kompatibilitu (cizí role →
+> `NONE`, přesné id dá `roleId()`). Mozek váží cíle přes registr
+> (`BotImpl.roleWeight` v `Brain.decide`), takže cizí role biasuje i cizí
+> cíle. Persistence: role je TEXT, cizí id přežije restart (load v
+> `BotManagerImpl`). Příkaz `/botalive role` cizí role vypisuje, nastavuje
+> i doplňuje. **Mimo rozsah:** automatický výběr cizí role při spawnu
+> (`RolePicker` zůstává enum-based) – cizí role se přiřazují explicitně.
 
 **Mezera.** `BotRole` je uzavřený enum a `RoleProfiles` (`role/RoleProfiles.java:19`)
 je natvrdo psaná `Map` enum → (goalId → násobič). Cizí plugin nepřidá profesi
@@ -384,7 +398,7 @@ Návrh: vystavit read-only `ConfigView namespace(String)` nad libovolnou sekcí
 |---|---|---|---|
 | **A – Keystone** | 0 (`BotControl`) + 1 (Goal SPI) | ✅ 0 hotový, 1 základ | Bez nich je `GoalRegistry` nepoužitelné; odemyká vše ostatní |
 | **B – Rychlé zisky** | 5 (Event háky) + 7 (Command SPI) | ✅ 7 hotový, 5 vlajkový hák | Malé, izolované, nízké riziko, okamžitá hodnota pro integrace |
-| **C – Data & chování** | 2 (Task SPI) + 3 (Role SPI) + 6 (Persistence store) | ⬜ další na řadě | Plná tvorba chování a jeho persistence |
+| **C – Data & chování** | 2 (Task SPI) + 3 (Role SPI) + 6 (Persistence store) | 🟡 3 hotový; 2, 6 dál | Plná tvorba chování a jeho persistence |
 | **D – Podle poptávky** | 4 (Memory SPI), 8 (Config), 9 (Chat/Trait) | ⬜ | Hlubší coupling / menší přínos; až bude konkrétní use-case |
 
 ## Průřezová infrastruktura (udělat v fázi A, používá ji vše)

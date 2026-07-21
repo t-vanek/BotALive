@@ -263,6 +263,14 @@ api.subcommands().register(new BotSubcommand() {
 });
 ```
 
+Vlastní **role** (profese, která vychyluje, kterým cílům se bot věnuje — vestavěným i vlastním):
+
+```java
+api.roles().register(new RoleDefinition("necromancer", "nekromant",
+        Map.of("hunt", 2.0, "my-plugin-goal", 3.0)));   // id cíle -> násobič utility
+bot.assignRole("necromancer");                          // přežije restart (ukládá se dle id)
+```
+
 ## Build ze zdrojů
 
 ```bash

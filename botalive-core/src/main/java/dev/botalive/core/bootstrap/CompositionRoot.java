@@ -212,10 +212,14 @@ public final class CompositionRoot {
         registerBuiltInGoals(goalRegistry, crafting, containers, trades, furnaces,
                 enchanting, smithing, brewing, pvp, taming, anvils, market, socialGraph,
                 diplomacy, employmentService);
+        // Registr profesí (vestavěné role předregistrované; cizí přidává plugin).
+        dev.botalive.core.role.RoleRegistryImpl roles = container.register(
+                dev.botalive.core.role.RoleRegistryImpl.class,
+                new dev.botalive.core.role.RoleRegistryImpl());
         BotImpl.SharedServices services = new BotImpl.SharedServices(
                 config, worldViews, bridge, tickEngine, navigation, repository,
                 phrases, crimeLog, settlements,
-                diplomacy, socialGraph, market, employmentService, authority);
+                diplomacy, socialGraph, market, employmentService, authority, roles);
         BotManagerImpl botManager = container.register(BotManagerImpl.class,
                 new BotManagerImpl(config, repository, goalRegistry, services));
         pvp.attach(botManager);
@@ -233,7 +237,8 @@ public final class CompositionRoot {
 
         // Veřejné API.
         BotAliveApi api = container.register(BotAliveApi.class, new BotAliveApiImpl(
-                botManager, goalRegistry, subcommands, plugin.getPluginMeta().getVersion()));
+                botManager, goalRegistry, subcommands, roles,
+                plugin.getPluginMeta().getVersion()));
         BotAliveProvider.register(api);
 
         // Bukkit integrace.
@@ -245,7 +250,7 @@ public final class CompositionRoot {
                 new dev.botalive.core.gateway.BotLoginGuard(botManager, authority, config.gateway()));
         container.register(BotAliveCommand.class,
                 new BotAliveCommand(botManager, goalRegistry, repository, config, settlements,
-                        diplomacy, employmentService, navigation, subcommands));
+                        diplomacy, employmentService, navigation, subcommands, roles));
     }
 
     /** Vestavěná sada cílů – každý bot dostává vlastní instance. */

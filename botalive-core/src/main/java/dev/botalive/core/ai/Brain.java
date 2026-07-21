@@ -215,8 +215,11 @@ public final class Brain {
             if (utility <= 0) {
                 continue;
             }
-            // Profese vychyluje priority (kovář taví ochotněji, lovec loví...).
-            utility *= dev.botalive.core.role.RoleProfiles.weight(bot.role(), goal.id());
+            // Profese vychyluje priority (kovář taví ochotněji, lovec loví...) –
+            // přes registr rolí, aby fungovaly i cizí role pluginů.
+            utility *= bot instanceof dev.botalive.core.bot.BotImpl roleImpl
+                    ? roleImpl.roleWeight(goal.id())
+                    : dev.botalive.core.role.RoleProfiles.weight(bot.role(), goal.id());
             // Denní rytmus: ráno pole, přes den těžba/stavba, večer družení.
             // V Endu/Netheru není den a noc – rytmus tam neplatí.
             if (rhythm != null && DimensionPolicy.rhythmApplies(dimension)) {
