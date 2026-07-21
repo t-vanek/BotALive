@@ -14,6 +14,7 @@ import dev.botalive.core.build.plan.BuildPlanner;
 import dev.botalive.core.build.plan.BuildSession;
 import dev.botalive.core.build.plan.HouseDesigner;
 import dev.botalive.core.build.plan.HouseGenerator;
+import dev.botalive.core.build.plan.SiteFinder;
 import dev.botalive.core.util.Cardinal;
 import dev.botalive.core.chat.PhraseCategory;
 import dev.botalive.core.settlement.SettlementService;
@@ -52,19 +53,10 @@ import java.util.Set;
  */
 public final class BuildHouseGoal extends AbstractGoal {
 
-    /** Kolik sloupců půdorysu smí chybět/přebývat, aby se to ještě srovnalo. */
-    private static final int MAX_FILLS = 4;
-    private static final int MAX_DIGS = 8;
     /** Kolik návrhů parcel zkusit za jednu stavební seanci. */
     private static final int PLOT_ATTEMPTS = 12;
-    /** Cena staveniště: nepoužitelné (tekutina, moc úprav). */
-    private static final int COST_INVALID = -1;
-    /** Cena staveniště: nenačtené chunky – nelze posoudit, nikdy netombstonovat. */
-    private static final int COST_UNKNOWN = -2;
     /** Po kolika marných seancích hledání parcely si člen staví po svém. */
     private static final int PLOT_SESSIONS_BEFORE_SOLO = 3;
-    /** Pořadí zkoušených výškových posunů parcely (resume musí zkusit 0 první). */
-    private static final int[] DY_ORDER = {0, -1, 1, -2, 2};
     /** Bonus zakladatele za vodu do 24 bloků (jednotky ceny staveniště). */
     private static final int WATER_BONUS = 3;
     /** Bonus zakladatele za stromy do 32 bloků. */
@@ -303,9 +295,9 @@ public final class BuildHouseGoal extends AbstractGoal {
         var claimed = settlements.claimedPlot(bot.id());
         if (claimed.isPresent()) {
             var slot = claimed.get();
-            int cost = siteCost(world, slot.origin(), structureOf(slot.origin(),
-                    slot.facing()), terraforming);
-            if (cost != COST_INVALID) {
+            int cost = SiteFinder.cost(world, Blueprints.house(), slot.origin(),
+                    slot.facing(), structureOf(slot.origin(), slot.facing()), terraforming);
+            if (cost != SiteFinder.COST_INVALID) {
                 // Použitelná, nebo z dálky neposouditelná → dojít a rozhodnout tam.
                 target(slot.origin(), slot.facing(), slot.index());
                 return;
@@ -317,8 +309,9 @@ public final class BuildHouseGoal extends AbstractGoal {
         // a posoudit až na místě (vzdálené chunky nejsou načtené).
         for (SettlementService.PlotSlot slot
                 : settlements.suggestPlots(settlementId, PLOT_ATTEMPTS)) {
-            int cost = bestCostAround(world, slot.origin(), terraforming);
-            if (cost == COST_INVALID) {
+            int cost = SiteFinder.bestCost(world, Blueprints.house(), slot.origin(),
+                    slot.facing(), terraforming);
+            if (cost == SiteFinder.COST_INVALID) {
                 settlements.markPlotUnusable(settlementId, slot.index());
                 continue;
             }
@@ -387,7 +380,10 @@ public final class BuildHouseGoal extends AbstractGoal {
             for (int dz = -8; dz <= 8; dz += 2) {
                 for (int dy = -1; dy <= 1; dy++) {
                     BlockPos candidate = feet.offset(dx, dy, dz);
-                    int cost = siteCost(world, candidate, Set.of(), terraformingAllowed);
+                    // Půdorys domku je na orientaci nezávislý – dveře se natočí až
+                    // podle vesnice, na cenu staveniště vliv nemají.
+                    int cost = SiteFinder.cost(world, Blueprints.house(), candidate,
+                            Cardinal.NORTH, Set.of(), terraformingAllowed);
                     if (cost < 0) {
                         continue;
                     }
@@ -438,25 +434,6 @@ public final class BuildHouseGoal extends AbstractGoal {
             }
         }
         return (water ? WATER_BONUS : 0) + (wood ? WOOD_BONUS : 0);
-    }
-
-    /**
-     * Nejlepší cena parcely přes výškové posuny ±2. Nenačtený chunk vrací
-     * {@link #COST_UNKNOWN} (posoudí se až na místě), jinak nejlepší
-     * dosažená cena nebo {@link #COST_INVALID}.
-     */
-    private int bestCostAround(WorldView world, BlockPos suggested, boolean terraforming) {
-        int best = COST_INVALID;
-        for (int dy : DY_ORDER) {
-            int cost = siteCost(world, suggested.offset(0, dy, 0), Set.of(), terraforming);
-            if (cost == COST_UNKNOWN) {
-                return COST_UNKNOWN;
-            }
-            if (cost >= 0 && (best < 0 || cost < best)) {
-                best = cost;
-            }
-        }
-        return best;
     }
 
     /** Zahájí odchod dál od cizí vesnice (odštěpenec, samotář v katastru). */
@@ -510,57 +487,6 @@ public final class BuildHouseGoal extends AbstractGoal {
         return new HashSet<>(HouseBlueprint.placements(origin, facing));
     }
 
-    /**
-     * Cena úprav staveniště: počet výkopů + zásypů. Pozice ze {@code skip}
-     * (vlastní zdi a střecha při návratu na parcelu) se nepočítají.
-     *
-     * @return cena, {@link #COST_INVALID} (tekutina / moc úprav / úpravy
-     *         zakázané), nebo {@link #COST_UNKNOWN} (nenačtený chunk)
-     */
-    private int siteCost(WorldView world, BlockPos candidate, Set<BlockPos> skip,
-                         boolean terraformingAllowed) {
-        int fills = 0;
-        int digs = 0;
-        for (int x = 0; x < HouseBlueprint.SIZE; x++) {
-            for (int z = 0; z < HouseBlueprint.SIZE; z++) {
-                BlockPos ground = candidate.offset(x, -1, z);
-                BlockTraits traits = world.traitsAt(ground);
-                if (traits == BlockTraits.UNKNOWN) {
-                    return COST_UNKNOWN;
-                }
-                if (traits.liquid()) {
-                    return COST_INVALID;
-                }
-                if (!traits.solid()) {
-                    fills++;
-                    if (fills > MAX_FILLS || !terraformingAllowed) {
-                        return COST_INVALID;
-                    }
-                }
-                for (int y = 0; y <= HouseBlueprint.WALL_HEIGHT; y++) {
-                    BlockPos space = candidate.offset(x, y, z);
-                    if (skip.contains(space)) {
-                        continue;
-                    }
-                    BlockTraits spaceTraits = world.traitsAt(space);
-                    if (spaceTraits == BlockTraits.UNKNOWN) {
-                        return COST_UNKNOWN;
-                    }
-                    if (spaceTraits.liquid()) {
-                        return COST_INVALID;
-                    }
-                    if (spaceTraits.solid()) {
-                        digs++;
-                        if (digs > MAX_DIGS || !terraformingAllowed) {
-                            return COST_INVALID;
-                        }
-                    }
-                }
-            }
-        }
-        return fills * 2 + digs; // zásyp stojí i materiál
-    }
-
     /** Dojít doprostřed staveniště; na místě finální kontrola a plán úprav. */
     private void gotoSite(BotContext ctx, Bot bot) {
         BlockPos stand = HouseBlueprint.standPoint(origin, facing);
@@ -589,16 +515,8 @@ public final class BuildHouseGoal extends AbstractGoal {
     private boolean prepareSite(BotContext ctx, Bot bot) {
         WorldView world = ctx.worldView();
         boolean terraforming = ctx.config().ai().terraforming();
-        BlockPos usable = null;
-        for (int dy : DY_ORDER) {
-            BlockPos candidate = origin.offset(0, dy, 0);
-            int cost = siteCost(world, candidate, structureOf(candidate, facing),
-                    terraforming);
-            if (cost >= 0) {
-                usable = candidate;
-                break;
-            }
-        }
+        BlockPos usable = SiteFinder.usableOrigin(world, Blueprints.house(), origin,
+                facing, terraforming).orElse(null);
         if (usable == null) {
             SettlementService settlements = villages(ctx);
             if (claimedIndex != null && settlements != null) {
@@ -689,6 +607,13 @@ public final class BuildHouseGoal extends AbstractGoal {
             }
             case UNREACHABLE -> {
                 cooldownTicks = 1200;
+                phase = Phase.DONE;
+            }
+            // Bloky se nepodařilo položit (staveniště bez opory, odmítnutá
+            // pokládka) – dům se NEsmí prohlásit za hotový a uložit jako HOME.
+            // Parcela zůstává zabraná, příští seance naváže world-diffem.
+            case INCOMPLETE -> {
+                cooldownTicks = 2400;
                 phase = Phase.DONE;
             }
         }

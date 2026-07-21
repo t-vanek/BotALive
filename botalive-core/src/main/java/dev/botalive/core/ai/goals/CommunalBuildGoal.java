@@ -9,7 +9,9 @@ import dev.botalive.core.build.plan.Blueprints;
 import dev.botalive.core.build.plan.BuildPlan;
 import dev.botalive.core.build.plan.BuildPlanner;
 import dev.botalive.core.build.plan.BuildSession;
+import dev.botalive.core.build.plan.SiteFinder;
 import dev.botalive.core.build.plan.Workshops;
+import dev.botalive.core.pathfinding.PathGoal;
 import dev.botalive.core.chat.PhraseCategory;
 import dev.botalive.core.crafting.CraftingService;
 import dev.botalive.core.station.CraftingStation;
@@ -28,9 +30,11 @@ import org.bukkit.Material;
  * stavitel bere, přerušení uvolňuje dalšímu, restart taky – fyzická stavba je
  * autorita). Vlastní stavbu vede sdílený {@link BuildSession}: druh projektu
  * jen vybere {@link Blueprint} ({@code WELL→studna}, {@code GRANARY→sýpka}) –
- * žádné per-druh větvení geometrie. Staveniště je dané projektem, takže odpadá
- * hledání parcely; zbývá dojít, nechat engine srovnat terén, postavit a osadit,
- * a nahlásit dokončení sídlu (povýšení ohlásí stavitel v chatu).</p>
+ * žádné per-druh větvení geometrie. Parcelu vybírá projekt, takže odpadá její
+ * hledání; <b>výšku</b> staveniště si ale stavitel musí doladit sám ({@link
+ * SiteFinder}) – katastr rozdává parcely s Y návsi a na svahu je to vedle
+ * i o osm bloků. Pak zbývá postavit, osadit a nahlásit dokončení sídlu
+ * (povýšení ohlásí stavitel v chatu).</p>
  */
 public final class CommunalBuildGoal extends AbstractGoal {
 
@@ -38,6 +42,8 @@ public final class CommunalBuildGoal extends AbstractGoal {
 
     /** Rezerva bloků nad čistou spotřebu stavby (zásypy podlahy). */
     private static final int BLOCK_RESERVE = 8;
+    /** Vodorovná vzdálenost od staveniště, kde se doladí výška a začne stavět. */
+    private static final int APPROACH_RADIUS = 3;
 
     private final CraftingStation crafting;
 
@@ -274,16 +280,23 @@ public final class CommunalBuildGoal extends AbstractGoal {
     }
 
     private void tickGoto(BotContext ctx) {
-        // Ke staveništi se chodí „do okruhu" – pevné stanoviště umělo být
-        // zrovna nedostupné (křoví, soused) a stavba se zbytečně vzdávala;
-        // přesné stoupnutí na stanoviště pak řeší BuildSession.
+        WorldView world = ctx.worldView();
+        if (world == null) {
+            giveUp(ctx, 1200);
+            return;
+        }
         BlockPos stand = plan.stand();
-        if (ctx.position().toBlockPos().distanceSquared(stand) <= 9) {
+        BlockPos feet = ctx.position().toBlockPos();
+        int dx = feet.x() - stand.x();
+        int dz = feet.z() - stand.z();
+        // Příchod se měří jen VODOROVNĚ. Projekt dostal výšku od návsi
+        // (PlotLayout.plotOrigin bere center.y() doslova), takže než se
+        // staveniště srovná podle terénu, leží stanoviště na svahu klidně
+        // několik bloků ve vzduchu – svislá složka by příchod nepustila nikdy.
+        if (dx * dx + dz * dz <= APPROACH_RADIUS * APPROACH_RADIUS) {
             ctx.navigator().stop();
-            WorldView world = ctx.worldView();
-            if (world == null) {
-                giveUp(ctx, 1200);
-                return;
+            if (!adjustSite(ctx, world)) {
+                return; // staveniště nepoužitelné – projekt přesunut na jinou parcelu
             }
             session = new BuildSession(BuildPlanner.schedule(plan, world));
             // Rozpočet: vzdát se dřív, než zůstane stavba poloviční.
@@ -295,8 +308,12 @@ public final class CommunalBuildGoal extends AbstractGoal {
             phase = Phase.SESSION;
             return;
         }
+        // Cíl chůze drží výšku bota, ne odhad z katastru: kdyby mířil na
+        // stanoviště ve vzduchu, cesta by neexistovala a bot by se stavby
+        // vzdal dřív, než by vůbec uviděl terén parcely. Jak sestupuje po
+        // svahu, cíl klesá s ním – k parcele tak dojde po zemi.
         ctx.navigator().navigateTo(ctx.position(),
-                dev.botalive.core.pathfinding.PathGoal.near(stand, 2));
+                PathGoal.near(new BlockPos(stand.x(), feet.y(), stand.z()), APPROACH_RADIUS));
         if (!ctx.navigator().navigating()) {
             // Staveniště nedostupné (typicky v backoffu nedosažitelnosti po
             // dálkovém selhání) – cooldown musí být delší než backoff, jinak
@@ -305,12 +322,49 @@ public final class CommunalBuildGoal extends AbstractGoal {
         }
     }
 
+    /**
+     * Srovnání staveniště podle terénu – teprve tady jsou chunky parcely
+     * načtené. Katastr rozdává parcely s Y návsi, takže na svahu leží projekt
+     * klidně osm bloků nad zemí; bez korekce se plán rozvine do vzduchu,
+     * pokládka nemá oporu a stavba nikdy nedoběhne (studna i kovárna
+     * v Itssharkovicích).
+     *
+     * <p>Doladěná výška se vrací do evidence sídla: po restartu se ke stavbě
+     * navazuje z ní a cíle si z originu dopočítávají truhlu sýpky i skladu.
+     * Nepoužitelné staveniště projekt přestěhuje na jinou parcelu – jinak by
+     * na té špatné sídlo uvázlo napořád (obdoba {@code markPlotUnusable}
+     * u domů).</p>
+     *
+     * @return {@code true} když se může stavět
+     */
+    private boolean adjustSite(BotContext ctx, WorldView world) {
+        Blueprint blueprint = blueprintFor(project.kind());
+        BlockPos usable = SiteFinder.usableOrigin(world, blueprint, project.origin(),
+                project.facing(), ctx.config().ai().terraforming()).orElse(null);
+        if (usable == null) {
+            ctx.settlements().relocateProject(project.settlementId(), project.kind());
+            giveUp(ctx, 2400);
+            return false;
+        }
+        if (!usable.equals(project.origin())) {
+            ctx.settlements().updateProjectOrigin(project.settlementId(),
+                    project.kind(), usable);
+            project = new SettlementService.ProjectInfo(project.settlementId(),
+                    project.kind(), usable, project.facing(), project.done());
+            plan = BuildPlan.of(blueprint, usable, project.facing());
+        }
+        return true;
+    }
+
     private void tickSession(BotContext ctx, Bot bot) {
         switch (session.tick(ctx)) {
             case RUNNING -> {
             }
             case DONE -> finishProject(ctx, bot);
-            case BLOCKED_MATERIAL, UNREACHABLE -> giveUp(ctx, 2400);
+            // INCOMPLETE = bloky se nepodařilo položit. Projekt se NESMÍ
+            // odepsat jako hotový – uvolní se dalšímu staviteli a sídlo si
+            // stavbu, která nestojí, nepřipíše.
+            case BLOCKED_MATERIAL, UNREACHABLE, INCOMPLETE -> giveUp(ctx, 2400);
         }
     }
 

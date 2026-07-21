@@ -280,9 +280,11 @@ public final class SettlementService {
     /** Vnitřní stav projektu; {@code builder} je transientní (restart uvolní). */
     private static final class Project {
         final ProjectKind kind;
-        final int plotIndex;
-        final BlockPos origin;
-        final Cardinal facing;
+        /** Parcela projektu – přesune se, když se staveniště ukáže nepoužitelné. */
+        int plotIndex;
+        /** Roh půdorysu; výšku si stavitel dolaďuje podle terénu na místě. */
+        BlockPos origin;
+        Cardinal facing;
         UUID builder;
         /** Kdy si stavitel projekt zamluvil – starý claim expiruje. */
         long claimedAt;
@@ -960,6 +962,66 @@ public final class SettlementService {
         }
         project.builder = botId;
         project.claimedAt = clock.getAsLong();
+        return true;
+    }
+
+    /**
+     * Doladěná výška staveniště – stavitel na místě srovnal origin podle
+     * terénu (katastr rozdává parcely s Y návsi, na svahu je to vedle).
+     * Evidence musí sedět: po restartu se ke stavbě navazuje z ní a truhlu
+     * sýpky/skladu si cíle dopočítávají z originu.
+     *
+     * @param settlementId sídlo
+     * @param kind         druh stavby
+     * @param origin       skutečný roh půdorysu
+     */
+    public synchronized void updateProjectOrigin(long settlementId, ProjectKind kind,
+                                                 BlockPos origin) {
+        Settlement settlement = settlements.get(settlementId);
+        Project project = settlement == null ? null : settlement.projects.get(kind);
+        if (project == null || project.origin.equals(origin)) {
+            return;
+        }
+        project.origin = origin;
+        persistProject(settlement, project);
+    }
+
+    /**
+     * Staveniště projektu se ukázalo nepoužitelné (sráz, jezero, skála) –
+     * přesunout stavbu na jinou parcelu. Bez toho by sídlo na jedné špatné
+     * parcele uvázlo napořád: {@code neededProject} vrací pořád týž projekt
+     * a stavitelé se na něm střídají donekonečna.
+     *
+     * @param settlementId sídlo
+     * @param kind         druh stavby
+     * @return {@code true} když se projekt přesunul na volnou parcelu
+     */
+    public synchronized boolean relocateProject(long settlementId, ProjectKind kind) {
+        Settlement settlement = settlements.get(settlementId);
+        Project project = settlement == null ? null : settlement.projects.get(kind);
+        if (project == null || project.done) {
+            return false;
+        }
+        // Stará parcela přestává být rezervovaná projektem a dostane BĚŽNÝ
+        // tombstone (jako u domů) – ne trvalý. Rezervace projektu je
+        // Long.MAX_VALUE; nechat ji tu by parcelu navždy sebralo i domům,
+        // a to na jediné posouzení terénu (které navíc mohlo vidět jen kus
+        // nenačteného okolí). Vesnice pod horou by si takhle proškrtala
+        // celý prstenec.
+        settlement.unusablePlots.put(project.plotIndex,
+                clock.getAsLong() + PLOT_TOMBSTONE_MS);
+        Integer index = freePlotIndex(settlement);
+        if (index == null) {
+            return false; // plno – zkusí se zas, až se něco uvolní
+        }
+        BlockPos origin = PlotLayout.plotOrigin(settlement.center, index,
+                config.plotSpacing());
+        project.plotIndex = index;
+        project.origin = origin;
+        project.facing = PlotLayout.facingToward(origin, settlement.center);
+        project.builder = null;
+        settlement.unusablePlots.put(index, Long.MAX_VALUE);
+        persistProject(settlement, project);
         return true;
     }
 
