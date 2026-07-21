@@ -191,6 +191,9 @@ public final class CompositionRoot {
         dev.botalive.core.inventory.AnvilService anvils = container.register(
                 dev.botalive.core.inventory.AnvilService.class,
                 new dev.botalive.core.inventory.AnvilService(bridge));
+        dev.botalive.core.inventory.GrindstoneService grindstones = container.register(
+                dev.botalive.core.inventory.GrindstoneService.class,
+                new dev.botalive.core.inventory.GrindstoneService(bridge));
         // Registrace cílů proběhne níže – až po vzniku služeb sídel a diplomacie,
         // které některé cíle dostávají v konstruktoru.
 
@@ -213,8 +216,8 @@ public final class CompositionRoot {
                         config.economy().employment(), repository));
         employmentService.load();
         registerBuiltInGoals(goalRegistry, crafting, containers, trades, furnaces,
-                enchanting, smithing, brewing, pvp, taming, breeding, anvils, market,
-                socialGraph, diplomacy, employmentService);
+                enchanting, smithing, brewing, pvp, taming, breeding, anvils, grindstones,
+                market, socialGraph, diplomacy, employmentService);
         // Registr profesí (vestavěné role předregistrované; cizí přidává plugin).
         dev.botalive.core.role.RoleRegistryImpl roles = container.register(
                 dev.botalive.core.role.RoleRegistryImpl.class,
@@ -283,6 +286,7 @@ public final class CompositionRoot {
                                              dev.botalive.core.tame.TameService taming,
                                              dev.botalive.core.husbandry.BreedService breeding,
                                              dev.botalive.core.inventory.AnvilService anvils,
+                                             dev.botalive.core.inventory.GrindstoneService grindstones,
                                              dev.botalive.core.economy.MarketBoard market,
                                              dev.botalive.core.social.SocialGraph socialGraph,
                                              dev.botalive.core.settlement.DiplomacyService diplomacy,
@@ -315,7 +319,8 @@ public final class CompositionRoot {
         registry.register("granary", bot -> new dev.botalive.core.ai.goals.GranaryGoal(containers));
         registry.register("steal", bot -> new dev.botalive.core.ai.goals.StealGoal(containers));
         registry.register("rob", bot -> new dev.botalive.core.ai.goals.RobGoal(pvp));
-        registry.register("repair", bot -> new dev.botalive.core.ai.goals.RepairGoal(anvils));
+        registry.register("repair",
+                bot -> new dev.botalive.core.ai.goals.RepairGoal(anvils, grindstones));
         registry.register("compost", bot -> new dev.botalive.core.ai.goals.CompostGoal());
         registry.register("boat", bot -> new BoatRideGoal());
         registry.register("minecart", bot -> new MinecartRideGoal());
