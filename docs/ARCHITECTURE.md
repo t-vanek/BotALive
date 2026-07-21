@@ -138,6 +138,15 @@ limitech serveru. `MovementSender` replikuje paketový vzor vanilla klienta
 pro sneak/sprint, `ClientTickEnd` každý tick) – odchylky od vzoru jsou snadno
 detekovatelné anti-cheatem, proto se držíme věrně.
 
+Zaseknutí řeší dvě vrstvy: `Navigator` reaguje rychle (replanning, kopací plán,
+assist, backoff nedosažitelných cílů), a když ani to nepomůže, tvrdý watchdog
+`BotImpl`u (30 s bez pohybu při aktivní navigaci) spustí `StuckRecovery` –
+repertoár lidských mikro-manévrů (couvnout → uhnout do strany → couvnout
+s poskokem → zavrtět se), který se bota snaží uvolnit **dřív**, než dojde na
+nouzový teleport. Manévr přebíjí navigaci, ale bezpečnostní reflexy (láva,
+hrana) ho dál smí ohnout; teleport zůstává jako poslední instance po opakovaném
+selhání na témže bloku. Čistá, testovaná třída (`StuckRecovery`).
+
 ### 6. Humanizace jako průřezová vrstva
 
 Vše, co by prozradilo stroj, prochází `Humanizer`em a per-bot RNG:

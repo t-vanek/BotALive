@@ -1170,6 +1170,9 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
     private long watchdogLastRelocateAt;
     /** Okno, ve kterém druhý nouzový přesun eskaluje na povrch (ms). */
     private static final long WATCHDOG_RELOCATE_WINDOW_MS = 300_000L;
+    /** Vyproštění: mikro-manévry zkoušené dřív než watchdog teleport. */
+    private final dev.botalive.core.physics.StuckRecovery stuckRecovery =
+            new dev.botalive.core.physics.StuckRecovery();
 
     /** @return ticky nehybnosti při aktivní navigaci (pro flotilový přehled) */
     public int ticksWithoutMovement() {
@@ -1368,6 +1371,22 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
             input = MoveInput.IDLE;
         }
 
+        // Vyproštění: probíhá-li epizoda (spustil ji watchdog), přebij navigaci
+        // mikro-manévry (couvnout/uhnout/poskočit/zavrtět se) – repertoár, který
+        // se stojícího bota snaží uvolnit dřív, než dojde na nouzový teleport.
+        // Nedělá se v boji ani v tasku (ty řeší pohyb samy); bezpečnostní reflexy
+        // níže (láva, hrana) manévr dál smí ohnout.
+        if (alive && !paused.get() && stuckRecovery.active() && obstacleTask == null
+                && !combat.engaged() && worldView != null) {
+            Vec3 forward = stuckForward(input.direction());
+            Vec3 back = forward.mul(-1);
+            Vec3 left = new Vec3(-forward.z(), 0, forward.x());
+            Vec3 right = new Vec3(forward.z(), 0, -forward.x());
+            input = stuckRecovery.tick(forward, cellOpen(back), cellOpen(left), cellOpen(right),
+                    physics.onGround(), rng);
+            navDriven = false; // manévr není řízená cesta – reflexy ho smí ohnout
+        }
+
         // Vyhýbání davu: odpuzuj se od blízkých hráčů/botů, ať se boti neslévají
         // na stejné místo. Platí i v boji – tam se ale vyloučí cíl útoku, aby se
         // bot pořád mohl přiblížit k protivníkovi, jen se nehromadil na ostatních
@@ -1469,10 +1488,11 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
                 watchdogRepeats = 0;
             }
             if (watchdogRepeats >= 2) {
-                // Třetí reset na témže bloku: navigační resety nepomáhají, bot
-                // je uvězněný v něčem, co klientský model nezná (stojí na
-                // entitě – loď; kolizní desync). Poslední instance: přesun na
-                // sousední pevnou buňku s plným resyncem klienta.
+                // Třetí reset na témže bloku: navigační resety ani mikro-manévry
+                // nepomohly, bot je uvězněný v něčem, co klientský model nezná
+                // (stojí na entitě – loď; kolizní desync). Poslední instance:
+                // přesun na sousední pevnou buňku s plným resyncem klienta.
+                stuckRecovery.stop();
                 watchdogRepeats = 0;
                 watchdogLastResetPos = null;
                 String worldName = worldView != null ? worldView.worldName() : null;
@@ -1508,9 +1528,13 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
                             refuge.z() + 0.5));
                 }
             } else {
-                LOG.warn("[{}] watchdog: {} s bez pohybu na {} (goal {}, cíl {}) – reset navigace",
+                LOG.warn("[{}] watchdog: {} s bez pohybu na {} (goal {}, cíl {}) – reset "
+                                + "navigace + pokus o vyproštění",
                         name, WATCHDOG_STILL_TICKS / 20, here,
                         brain.currentGoalId(), navigator.currentObjective());
+                // Fyzický pokus o uvolnění (couvnout/uhnout/poskočit) souběžně
+                // s resetem navigace – dřív než další eskalace k teleportu.
+                stuckRecovery.begin();
             }
             navigator.stop();
         }
@@ -2050,6 +2074,35 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
      * nouzového přesunu watchdogu. Bez nálezu vrací výchozí pozici (samotný
      * resync klienta často desync srovná).
      */
+    /**
+     * Směr, kterým se bot marně snaží jít (pro vyproštění): preferuje živý
+     * pohybový vstup, jinak směr k cíli navigace, nakonec směr pohledu.
+     */
+    private Vec3 stuckForward(Vec3 moveDir) {
+        if (moveDir.horizontalLength() > 0.01) {
+            return moveDir.horizontal().normalized();
+        }
+        BlockPos objective = navigator.currentObjective();
+        if (objective != null && physics != null) {
+            Vec3 toObjective = objective.center().sub(physics.position()).horizontal();
+            if (toObjective.horizontalLength() > 0.01) {
+                return toObjective.normalized();
+            }
+        }
+        double yaw = Math.toRadians(humanizer.yaw());
+        return new Vec3(-Math.sin(yaw), 0, Math.cos(yaw));
+    }
+
+    /** Je buňka o blok daným (vodorovným) směrem průchozí v úrovni nohou i hlavy? */
+    private boolean cellOpen(Vec3 dir) {
+        if (worldView == null || physics == null || dir.horizontalLength() < 0.01) {
+            return false;
+        }
+        Vec3 step = dir.horizontal().normalized();
+        BlockPos ahead = physics.position().add(step.x(), 0, step.z()).toBlockPos();
+        return worldView.traitsAt(ahead).passable() && worldView.traitsAt(ahead.up()).passable();
+    }
+
     private BlockPos findAdjacentGround(BlockPos around) {
         if (worldView == null) {
             return around;
