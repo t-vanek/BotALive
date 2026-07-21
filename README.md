@@ -308,6 +308,8 @@ cd BotALive
 
 Requires JDK 25 (the Gradle toolchain targets Java 25, as mandated by Paper API 26.1). The resulting jar is self-contained — MCProtocolLib, Netty, HikariCP, Caffeine and the JDBC drivers are bundled, with conflict-prone libraries relocated to `dev.botalive.libs`. CI builds and tests every push and pull request; the plugin jar is attached to each run as a workflow artifact.
 
+Target versions (Paper API, MCProtocolLib, Java) live centrally in `gradle/libs.versions.toml`. Moving to a new Minecraft version is documented in [docs/UPGRADING.md](docs/UPGRADING.md).
+
 ## Architecture
 
 Two Gradle modules: **`botalive-api`** (public interfaces, events and data types with no implementation dependencies) and **`botalive-core`** (the implementation — ~15 subsystems in isolated packages: network, ai, pathfinding, physics, combat, chat, memory, persistence, economy, tasks, commands, config, scheduler, world, human).

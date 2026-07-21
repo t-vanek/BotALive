@@ -1,12 +1,20 @@
 /*
  * BotAlive – kořenový build skript.
  *
- * Společná konfigurace pro všechny moduly: Java 25 toolchain (vyžadováno Paper API 26.1),
- * repozitáře a kvalita kompilace (parametry, UTF-8, varování).
+ * Společná konfigurace pro všechny moduly: Java toolchain (verze z version catalogu,
+ * dnes 25 – vyžadováno Paper API 26.1), repozitáře a kvalita kompilace (parametry,
+ * UTF-8, varování).
+ *
+ * Cílová verze Javy žije na jediném místě – v gradle/libs.versions.toml (javaVersion).
+ * Upgrade Minecraftu = změna té skupiny v katalogu, ne hledání „25" po skriptech
+ * (viz docs/UPGRADING.md).
  */
 plugins {
     java
 }
+
+// Cílová verze Javy z katalogu (toolchain i bytecode target). Jeden zdroj pravdy.
+val javaVersion = libs.versions.javaVersion.get().toInt()
 
 allprojects {
     group = "dev.botalive"
@@ -36,15 +44,15 @@ subprojects {
 
     extensions.configure<JavaPluginExtension> {
         toolchain {
-            // Minecraft 26.1 / Paper API běží na Javě 25.
-            languageVersion.set(JavaLanguageVersion.of(25))
+            // Verze z katalogu (javaVersion). Minecraft 26.1 / Paper API běží na Javě 25.
+            languageVersion.set(JavaLanguageVersion.of(javaVersion))
         }
         withSourcesJar()
     }
 
     tasks.withType<JavaCompile>().configureEach {
         options.encoding = "UTF-8"
-        options.release.set(25)
+        options.release.set(javaVersion)
         // -parameters kvůli čitelným názvům parametrů v reflexi a debuggeru.
         options.compilerArgs.addAll(listOf("-parameters"))
     }

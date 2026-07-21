@@ -100,6 +100,23 @@ tasks.named<ShadowJar>("shadowJar") {
     // Ušetřené místo (~20 MB) nestojí za tuto křehkost; korektnost má přednost.
 }
 
+// plugin.yml drží 'api-version' (major.minor Minecraftu) a 'version' pluginu. Obojí
+// plníme při buildu z jediného zdroje – version catalogu (paperApiVersion) a Gradle
+// verze projektu – ať upgrade Minecraftu znamená změnu na jednom místě, ne editaci
+// resource souboru. Filtrujeme jen plugin.yml; ostatní resources (config.yml, lang/*)
+// se nesmí procházet Groovy šablonou (obsahují '$'). Viz docs/UPGRADING.md.
+tasks.processResources {
+    filteringCharset = "UTF-8"
+    val tokens = mapOf(
+        "version" to project.version.toString(),
+        "apiVersion" to libs.versions.paperApiVersion.get(),
+    )
+    inputs.properties(tokens)
+    filesMatching("plugin.yml") {
+        expand(tokens)
+    }
+}
+
 tasks.named("build") {
     dependsOn("shadowJar")
 }
