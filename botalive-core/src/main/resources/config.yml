@@ -156,6 +156,12 @@ ai:
   # (Nether, End, průzkum); vyčerpaný je náladovější. Jemné násobiče, svěží bot
   # beze změny. Viz docs/BOT_LIFE.md.
   vitals: true
+  # Sjednocené pudy (Maslow): bezpečí, jídlo, odpočinek, společnost,
+  # seberealizace. Naléhavá základní potřeba tlumí cíle vyšších potřeb –
+  # vyhladovělý, ohrožený bot nevyrazí na průzkum, i když by ho jednotlivé
+  # signály samy neodradily. Uspokojené potřeby = beze změny. Viz
+  # docs/BOT_LIFE.md.
+  drives: true
 
 chat:
   enabled: true

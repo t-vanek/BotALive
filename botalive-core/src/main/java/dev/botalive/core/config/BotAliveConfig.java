@@ -218,11 +218,14 @@ public record BotAliveConfig(
      * @param vitals                energie/únava: klesá bděním a námahou, obnovuje se
      *                              spánkem; unavený bot vyhledá odpočinek a odloží
      *                              dlouhé výpravy (viz docs/BOT_LIFE.md)
+     * @param drives                sjednocené pudy (Maslow): naléhavá základní potřeba
+     *                              (bezpečí, jídlo, odpočinek) tlumí cíle vyšších potřeb –
+     *                              hierarchická arbitráž priorit (viz docs/BOT_LIFE.md)
      */
     public record Ai(int decisionIntervalTicks, double goalHysteresis,
                      int viewDistanceBlocks, String difficulty, boolean terraforming,
                      boolean ladders, boolean pillaring, boolean boats, boolean dailyRhythm,
-                     boolean desperation, boolean mood, boolean vitals) {
+                     boolean desperation, boolean mood, boolean vitals, boolean drives) {
     }
 
     /**

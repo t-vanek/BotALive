@@ -234,6 +234,8 @@ public final class Brain {
                 utility *= impl.moodWeight(goal.id());
                 // Únava: unavený bot odkládá dlouhé výpravy a vyhledá odpočinek.
                 utility *= impl.vitalsWeight(goal.id());
+                // Pudy: naléhavá základní potřeba tlumí cíle vyšších potřeb (Maslow).
+                utility *= impl.drivesWeight(goal.id());
             }
             // Hystereze aktivního cíle + drobný rozhodovací šum.
             if (goal == current) {

@@ -121,10 +121,11 @@ se skládají z hotových primitiv. Cizí pluginy registrují cíle přes
 `GoalRegistry` bez zásahu do jádra.
 
 Užitečnost je součin modulačních vrstev (dimenze, role, denní rytmus, ambice,
-zaměstnání, **nálada** a **únava**) – každá jen jemně vychyluje priority,
-osobnost zůstává hlavní. Vnitřní stav (`BotMood` – emoce z prožitků a těla;
-`Vitals` – energie/únava) je krátkodobá vrstva mezi celoživotní osobností
-a per-tik utilitou: v klidu neutrální, vypínatelná – viz [BOT_LIFE.md](BOT_LIFE.md).
+zaměstnání, **nálada**, **únava** a **pudy**) – každá jen jemně vychyluje
+priority, osobnost zůstává hlavní. Vnitřní stav (`BotMood` – emoce z prožitků
+a těla; `Vitals` – energie/únava; `BotDrives` – hierarchická arbitráž potřeb
+à la Maslow) je krátkodobá vrstva mezi celoživotní osobností a per-tik utilitou:
+v klidu neutrální, vypínatelná – viz [BOT_LIFE.md](BOT_LIFE.md).
 
 ### 5. Pohyb: simulovaná fyzika, ne teleportace
 

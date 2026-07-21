@@ -72,13 +72,22 @@ spánek vnitřní příčinu i mimo noc. **Propojení na náladu:** vyčerpaný 
 náladovější (`updateInnerState` mu přisype trochu podráždění). Vypínatelné
 (`ai.vitals`). Čistá, jednotkově testovaná třída (`VitalsTest`).
 
-### 3. `Drives` – pudy (návrh)
+### 3. `BotDrives` – pudy (✅ implementováno)
 
-Sjednocené potřeby (á la Maslow) jako sdílená reprezentace, kterou dnes cíle
-počítají každý zvlášť ve své utility: **obživa, bezpečí, odpočinek, sounáležitost,
-seberealizace**. `BotNeeds` pokrývá materiální progresi (co těžit); `Drives`
-by pokrývaly motivační stránku a mozek by jimi moduloval kategorie cílů. Role
-by nakláněla baseline pudů (dobrodruh má vyšší seberealizaci, strážce bezpečí).
+Sjednocená motivace à la Maslow: **bezpečí, jídlo, odpočinek, společnost,
+seberealizace**, uspořádané od nejfundamentálnější. Zatímco nálada a vitály
+jednotlivé cíle <b>zesilují</b>, pudy dělají to, co dřív neuměl žádný subsystém –
+<b>hierarchickou arbitráž</b>: naléhavá základní potřeba <b>tlumí cíle vyšších
+potřeb</b> (`modulate` násobí < 1.0 úměrně naléhavosti nižších potřeb; cíle
+bezpečí se netlumí nikdy). Vyhladovělý, ohrožený bot tak nevyrazí na průzkum –
+i když by ho jednotlivé signály samy neodradily, jejich <i>souběh</i> ano.
+
+Pudy sjednocují celou vrstvu: sytí je tělo (zdraví, hlad, hrozby), únava
+(z `Vitals`) a samota (z `BotMood`). **Osobnost a role nakláněly baseline** –
+odvážní, zvídaví a hrabiví (a dobrodruzi/průzkumníci) na seberealizaci netlačí
+zpět tak snadno (`esteemResolve`). `BotNeeds` zůstává materiální progresí (co
+těžit); `BotDrives` je motivační „proč". Uspokojené potřeby = beze změny.
+Vypínatelné (`ai.drives`). Testy: `BotDrivesTest`.
 
 ## Propojení s ostatními subsystémy
 
@@ -95,10 +104,14 @@ by nakláněla baseline pudů (dobrodruh má vyšší seberealizaci, strážce b
 |---|---|---|
 | 1 | `BotMood` (emoce) | ✅ hotovo |
 | 2 | `Vitals` (energie/únava) | ✅ hotovo |
-| 3 | `Drives` (sjednocené pudy) | ⬜ návrh |
+| 3 | `BotDrives` (sjednocené pudy) | ✅ hotovo |
 
-Mood i Vitals sdílejí modulační vzor (v klidu neutrální, vypínatelné, jemné
-násobiče v `Brain.decide`) a jsou provázané: prožitky a tělo sytí náladu,
-únava náladu přiostřuje. Obojí se aktualizuje jedním řídkým krokem
-(`BotImpl.updateInnerState`, ~1 s). Zbývá `Drives` – sjednocení pudů, které dnes
-každý cíl počítá zvlášť; naváže stejným vzorem a role by nakláněla jejich baseline.
+Celá vrstva stojí na jednom modulačním vzoru (v klidu neutrální, vypínatelné,
+jemné násobiče v `Brain.decide`) a je provázaná: prožitky a tělo sytí náladu,
+únava náladu přiostřuje, a nálada i vitály vplývají do pudů, které dělají
+hierarchickou arbitráž. Vše se aktualizuje jedním řídkým krokem
+(`BotImpl.updateInnerState`, ~1 s). `Brain.decide` násobí utilitu třemi
+vrstvami vnitřního stavu (`moodWeight × vitalsWeight × drivesWeight`) – každá
+neutrální v klidu, takže spokojený, svěží, bezpečný bot se rozhoduje přesně
+jako dřív; teprve pod tlakem se chová jako živý tvor. Tím je vrstva „podpory
+života" uzavřená.

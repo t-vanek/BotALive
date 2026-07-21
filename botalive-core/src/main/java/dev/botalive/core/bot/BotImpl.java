@@ -134,7 +134,11 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
     private final dev.botalive.core.ai.Vitals vitals = new dev.botalive.core.ai.Vitals();
     /** Zapnutí únavové modulace ({@code ai.vitals}). */
     private final boolean vitalsEnabled;
-    /** Ticky od poslední aktualizace vnitřního stavu (nálada + vitály). */
+    /** Pudy bota – hierarchická arbitráž potřeb (viz docs/BOT_LIFE.md). */
+    private final dev.botalive.core.ai.BotDrives drives = new dev.botalive.core.ai.BotDrives();
+    /** Zapnutí pudové arbitráže ({@code ai.drives}). */
+    private final boolean drivesEnabled;
+    /** Ticky od poslední aktualizace vnitřního stavu (nálada + vitály + pudy). */
     private int ticksSinceInner;
 
     /** Pohyb vyžádaný cílem pro aktuální tick (přebíjí navigátor). */
@@ -223,6 +227,7 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
         this.config = services.config();
         this.moodEnabled = config.ai().mood();
         this.vitalsEnabled = config.ai().vitals();
+        this.drivesEnabled = config.ai().drives();
         this.worldViews = services.worldViews();
         this.bridge = services.bridge();
         this.tickEngine = services.tickEngine();
@@ -1234,9 +1239,10 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
                 services.employment().tick(this);
             }
         }
-        // Vnitřní stav (nálada + energie): řídce (~1 s). Běží i u pozastaveného
-        // bota (život plyne dál), jen ne po smrti.
-        if ((moodEnabled || vitalsEnabled) && !clientState.dead() && ++ticksSinceInner >= 20) {
+        // Vnitřní stav (nálada + energie + pudy): řídce (~1 s). Běží i u
+        // pozastaveného bota (život plyne dál), jen ne po smrti.
+        if ((moodEnabled || vitalsEnabled || drivesEnabled)
+                && !clientState.dead() && ++ticksSinceInner >= 20) {
             ticksSinceInner = 0;
             updateInnerState();
         }
@@ -2392,23 +2398,48 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
         return vitalsEnabled ? vitals.describe() : null;
     }
 
-    /** Aktualizuje vnitřní stav bota – energii (vitály) a náladu (emoce). */
+    /**
+     * Násobič užitečnosti cíle podle hierarchie potřeb (viz docs/BOT_LIFE.md):
+     * naléhavá základní potřeba tlumí cíle vyšších potřeb. Uspokojený bot (nebo
+     * vypnuté pudy) vrací 1.0.
+     *
+     * @param goalId id cíle
+     * @return pudový násobič
+     */
+    public double drivesWeight(String goalId) {
+        return drivesEnabled ? drives.modulate(goalId) : 1.0;
+    }
+
+    /**
+     * @return popis nejnaléhavější potřeby (pro {@code /botalive goal}), nebo
+     *         {@code null} když jsou pudy vypnuté
+     */
+    public String drivesLine() {
+        return drivesEnabled ? drives.describe() : null;
+    }
+
+    /** Aktualizuje vnitřní stav bota – energii (vitály), náladu (emoce) a pudy. */
     private void updateInnerState() {
         ServerSideView.Snapshot snapshot = serverView.latest();
         boolean sleeping = snapshot != null && snapshot.sleeping();
+        Vec3 pos = position();
+        long time = worldTime();
+        boolean night = time >= 13_000 && time < 23_000;
+        // Rozhled potřebují jen nálada a pudy; jednou pro obě.
+        int hostiles = 0;
+        int company = 0;
+        if (moodEnabled || drivesEnabled) {
+            hostiles = entities.nearby(pos, 12.0,
+                    dev.botalive.core.entity.TrackedEntity::isHostile).size();
+            company = entities.nearby(pos, 12.0,
+                    dev.botalive.core.entity.TrackedEntity::isPlayer).size();
+        }
 
         if (vitalsEnabled) {
             double exertion = combat.engaged() || navigator.navigating() ? 0.9 : 0.25;
             vitals.tick(sleeping, exertion);
         }
         if (moodEnabled) {
-            long time = worldTime();
-            boolean night = time >= 13_000 && time < 23_000;
-            Vec3 pos = position();
-            int hostiles = entities.nearby(pos, 12.0,
-                    dev.botalive.core.entity.TrackedEntity::isHostile).size();
-            int company = entities.nearby(pos, 12.0,
-                    dev.botalive.core.entity.TrackedEntity::isPlayer).size();
             mood.observe(clientState.health(), clientState.food(), hostiles, company, night,
                     personality.trait(dev.botalive.api.personality.Trait.SOCIABILITY));
             mood.decay();
@@ -2417,6 +2448,33 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
                 mood.feel(dev.botalive.core.ai.BotMood.Emotion.ANGER, 0.03);
             }
         }
+        if (drivesEnabled) {
+            // Pudy sjednocují tělo, únavu (vitály) a samotu (nálada).
+            double tiredness = vitalsEnabled ? 1.0 - vitals.energy() : 0.0;
+            double loneliness = moodEnabled
+                    ? mood.level(dev.botalive.core.ai.BotMood.Emotion.LONELY) : 0.0;
+            drives.update(clientState.health(), clientState.food(), hostiles, tiredness,
+                    loneliness, esteemResolve());
+        }
+    }
+
+    /**
+     * Odolnost seberealizace vůči supresi základními potřebami (osobnost + role):
+     * odvážní, zvídaví a hrabiví boti (a dobrodruzi/průzkumníci) tlačí na výpravy
+     * i přes nepohodlí; opatrní couvnou snáz.
+     *
+     * @return odolnost 0–1 (ořezává se v {@link dev.botalive.core.ai.BotDrives})
+     */
+    private double esteemResolve() {
+        double courage = personality.trait(dev.botalive.api.personality.Trait.COURAGE);
+        double curiosity = personality.trait(dev.botalive.api.personality.Trait.CURIOSITY);
+        double greed = personality.trait(dev.botalive.api.personality.Trait.GREED);
+        double caution = personality.trait(dev.botalive.api.personality.Trait.CAUTION);
+        double resolve = 0.15 + 0.35 * courage + 0.25 * curiosity + 0.15 * greed - 0.2 * caution;
+        if (roleId.equals("adventurer") || roleId.equals("scout")) {
+            resolve += 0.2;
+        }
+        return resolve;
     }
 
     @Override
