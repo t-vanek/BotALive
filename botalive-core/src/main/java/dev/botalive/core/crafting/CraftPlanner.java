@@ -208,6 +208,15 @@ public final class CraftPlanner {
             return new Plan("kamenná lopata", matrix(
                     stone, 1, Material.STICK, 4, Material.STICK, 7), true);
         }
+        // ---- motyka: jen když má bot osivo (chce zorat pole) – jinak by si ji
+        // dělal každý zbytečně. Zpřístupní zakládání polí i mimo roli farmáře
+        // a nahradí rozbitou motyku.
+        if (s.hasTable() && s.cobble() >= 2 && s.sticks() >= 2
+                && s.count(Material.WHEAT_SEEDS) >= 1
+                && !s.hasMatching(m -> m.name().endsWith("_HOE"))) {
+            return new Plan("motyka", matrix(
+                    stone, 0, stone, 1, Material.STICK, 4, Material.STICK, 7), true);
+        }
 
         // ---- pec (klíč k železu; rezerva cobble na nástroje)
         if (s.hasTable() && s.cobble() >= 11 && !s.has(Material.FURNACE)) {
@@ -299,6 +308,18 @@ public final class CraftPlanner {
                         "diamantová helma", "diamantové boty"});
         if (diamondArmor != null) {
             return diamondArmor;
+        }
+
+        // ---- enchantovací stůl (samoenchantování; 4 obsidián + 2 diamanty +
+        // kniha). Bez něj se bot nikdy sám neočaruje (dřív jen když našel cizí).
+        // Podmínka knihy drží recept hlavně u enchantera/knihovníka (mají ji
+        // v kitu), takže ostatní role si obsidián na portál neukrojí.
+        if (s.hasTable() && !s.has(Material.ENCHANTING_TABLE) && s.has(Material.BOOK)
+                && s.count(Material.DIAMOND) >= 2 && s.count(Material.OBSIDIAN) >= 4) {
+            return new Plan("enchantovací stůl", matrix(
+                    Material.BOOK, 1, Material.DIAMOND, 3, Material.OBSIDIAN, 4,
+                    Material.DIAMOND, 5, Material.OBSIDIAN, 6, Material.OBSIDIAN, 7,
+                    Material.OBSIDIAN, 8), true);
         }
 
         // ---- křesadlo (klíč do Netheru; PŘED šípy – jinak by opakovaná
@@ -525,6 +546,14 @@ public final class CraftPlanner {
             return new Plan("composter", matrix(
                     slab, 0, slab, 2, slab, 3, slab, 5,
                     slab, 6, slab, 7, slab, 8), true);
+        }
+
+        // ---- nůžky na vlnu: bez postele a bez vlny si bot udělá nůžky
+        // (2 železa), aby mohl ostříhat ovce – dřív vlna byla jen ze zabíjení
+        // ovcí, takže postel v biomu bez lovu nikdy nevznikla.
+        if (s.hasTable() && iron >= 2 && !s.has(Material.SHEARS)
+                && s.wool() < 3 && !s.hasMatching(m -> m.name().endsWith("_BED"))) {
+            return new Plan("nůžky", matrix(Material.IRON_INGOT, 1, Material.IRON_INGOT, 3), true);
         }
 
         // ---- vybavení domova

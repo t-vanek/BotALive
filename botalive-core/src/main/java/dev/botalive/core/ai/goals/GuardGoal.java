@@ -50,7 +50,10 @@ public final class GuardGoal extends AbstractGoal {
         if (outsideOverworld(ctx)) {
             return 0;
         }
-        if (bot.role() != BotRole.HUNTER || ctx.clientState().dead()) {
+        // Hlídku drží strážce (jeho hlavní cíl) i lovec – oba ji v RoleProfiles
+        // zesilují. Dřív byla vázaná jen na lovce, takže strážce nikdy nehlídal.
+        if ((bot.role() != BotRole.GUARDIAN && bot.role() != BotRole.HUNTER)
+                || ctx.clientState().dead()) {
             return 0;
         }
         if (!isNight(ctx.worldTime()) || ctx.clientState().health() <= 8) {

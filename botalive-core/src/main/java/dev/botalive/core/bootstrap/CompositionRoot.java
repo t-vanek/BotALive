@@ -178,6 +178,9 @@ public final class CompositionRoot {
         dev.botalive.core.tame.TameService taming = container.register(
                 dev.botalive.core.tame.TameService.class,
                 new dev.botalive.core.tame.TameService(bridge));
+        dev.botalive.core.husbandry.BreedService breeding = container.register(
+                dev.botalive.core.husbandry.BreedService.class,
+                new dev.botalive.core.husbandry.BreedService(bridge));
         dev.botalive.core.social.SocialGraph socialGraph = container.register(
                 dev.botalive.core.social.SocialGraph.class,
                 new dev.botalive.core.social.SocialGraph());
@@ -188,6 +191,9 @@ public final class CompositionRoot {
         dev.botalive.core.inventory.AnvilService anvils = container.register(
                 dev.botalive.core.inventory.AnvilService.class,
                 new dev.botalive.core.inventory.AnvilService(bridge));
+        dev.botalive.core.inventory.GrindstoneService grindstones = container.register(
+                dev.botalive.core.inventory.GrindstoneService.class,
+                new dev.botalive.core.inventory.GrindstoneService(bridge));
         // Registrace cílů proběhne níže – až po vzniku služeb sídel a diplomacie,
         // které některé cíle dostávají v konstruktoru.
 
@@ -210,8 +216,8 @@ public final class CompositionRoot {
                         config.economy().employment(), repository));
         employmentService.load();
         registerBuiltInGoals(goalRegistry, crafting, containers, trades, furnaces,
-                enchanting, smithing, brewing, pvp, taming, anvils, market, socialGraph,
-                diplomacy, employmentService);
+                enchanting, smithing, brewing, pvp, taming, breeding, anvils, grindstones,
+                market, socialGraph, diplomacy, employmentService);
         // Registr profesí (vestavěné role předregistrované; cizí přidává plugin).
         dev.botalive.core.role.RoleRegistryImpl roles = container.register(
                 dev.botalive.core.role.RoleRegistryImpl.class,
@@ -278,7 +284,9 @@ public final class CompositionRoot {
                                              dev.botalive.core.station.BrewingStation brewing,
                                              dev.botalive.core.pvp.PvpCoordinator pvp,
                                              dev.botalive.core.tame.TameService taming,
+                                             dev.botalive.core.husbandry.BreedService breeding,
                                              dev.botalive.core.inventory.AnvilService anvils,
+                                             dev.botalive.core.inventory.GrindstoneService grindstones,
                                              dev.botalive.core.economy.MarketBoard market,
                                              dev.botalive.core.social.SocialGraph socialGraph,
                                              dev.botalive.core.settlement.DiplomacyService diplomacy,
@@ -297,7 +305,7 @@ public final class CompositionRoot {
         registry.register("home", bot -> new ReturnHomeGoal());
         registry.register("escape", bot -> new dev.botalive.core.ai.goals.EscapeGoal());
         registry.register("communal-build",
-                bot -> new dev.botalive.core.ai.goals.CommunalBuildGoal());
+                bot -> new dev.botalive.core.ai.goals.CommunalBuildGoal(crafting));
         registry.register("settlement-roads",
                 bot -> new dev.botalive.core.ai.goals.SettlementRoadsGoal());
         registry.register("camp", bot -> new dev.botalive.core.ai.goals.CampGoal());
@@ -308,9 +316,11 @@ public final class CompositionRoot {
         registry.register("farm", bot -> new FarmGoal());
         registry.register("sleep", bot -> new SleepGoal());
         registry.register("stash", bot -> new StashGoal(containers, diplomacy));
+        registry.register("granary", bot -> new dev.botalive.core.ai.goals.GranaryGoal(containers));
         registry.register("steal", bot -> new dev.botalive.core.ai.goals.StealGoal(containers));
         registry.register("rob", bot -> new dev.botalive.core.ai.goals.RobGoal(pvp));
-        registry.register("repair", bot -> new dev.botalive.core.ai.goals.RepairGoal(anvils));
+        registry.register("repair",
+                bot -> new dev.botalive.core.ai.goals.RepairGoal(anvils, grindstones));
         registry.register("compost", bot -> new dev.botalive.core.ai.goals.CompostGoal());
         registry.register("boat", bot -> new BoatRideGoal());
         registry.register("minecart", bot -> new MinecartRideGoal());
@@ -328,6 +338,8 @@ public final class CompositionRoot {
         registry.register("deliver-work",
                 bot -> new dev.botalive.core.ai.goals.WorkDeliveryGoal(employment));
         registry.register("tame", bot -> new dev.botalive.core.ai.goals.TameGoal(taming));
+        registry.register("breed", bot -> new dev.botalive.core.ai.goals.BreedGoal(breeding));
+        registry.register("shear", bot -> new dev.botalive.core.ai.goals.ShearGoal());
         registry.register("recover", bot -> new dev.botalive.core.ai.goals.RecoverItemsGoal());
         registry.register("maintain", bot -> new dev.botalive.core.ai.goals.MaintainHomeGoal());
         registry.register("sell", bot -> new dev.botalive.core.ai.goals.SellGoal(market, socialGraph));
@@ -339,6 +351,8 @@ public final class CompositionRoot {
         registry.register("brew", bot -> new dev.botalive.core.ai.goals.BrewGoal(brewing));
         registry.register("wither-fight",
                 bot -> new dev.botalive.core.ai.goals.WitherFightGoal());
+        registry.register("stronghold",
+                bot -> new dev.botalive.core.ai.goals.StrongholdSeekGoal());
         registry.register("end-travel", bot -> new dev.botalive.core.ai.goals.EndTravelGoal());
         registry.register("dragon-fight", bot -> new dev.botalive.core.ai.goals.DragonFightGoal());
         registry.register("end-harvest", bot -> new dev.botalive.core.ai.goals.EndHarvestGoal());

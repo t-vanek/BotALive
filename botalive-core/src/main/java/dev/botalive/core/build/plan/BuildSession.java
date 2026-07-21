@@ -232,8 +232,11 @@ public final class BuildSession {
         if (ctx.worldView() != null && ctx.worldView().traitsAt(step.pos()).solid()) {
             return State.RUNNING;
         }
-        if (!ctx.inventory().equipMatching(ctx.serverView().latest(),
-                Blueprints.itemFor(step.kind()))) {
+        java.util.function.Predicate<org.bukkit.Material> want =
+                step.kind() == FurnishKind.STATION
+                        ? m -> m == step.material()
+                        : Blueprints.itemFor(step.kind());
+        if (!ctx.inventory().equipMatching(ctx.serverView().latest(), want)) {
             return State.RUNNING;
         }
         current = new PlaceBlockTask(step.pos());

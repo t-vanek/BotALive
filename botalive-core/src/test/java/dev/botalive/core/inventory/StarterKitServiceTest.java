@@ -52,6 +52,21 @@ class StarterKitServiceTest {
     }
 
     @Test
+    void noveVesnickeRoleDostanouSveRemeslo() {
+        // Bez profesního kitu byl hlavní cíl nedosažitelný (jako rybář bez prutu).
+        assertTrue(StarterKitService.contents(BotRole.LIBRARIAN)
+                .containsKey(Material.LAPIS_LAZULI), "knihovník potřebuje lapis na enchant");
+        assertTrue(StarterKitService.contents(BotRole.SHEPHERD)
+                .containsKey(Material.WHEAT), "pastýř potřebuje pšenici na chov");
+        assertTrue(StarterKitService.contents(BotRole.LEATHERWORKER)
+                .containsKey(Material.WHEAT), "koželuh potřebuje pšenici na chov dobytka");
+        assertTrue(StarterKitService.contents(BotRole.FLETCHER)
+                .containsKey(Material.BOW), "šípař potřebuje luk");
+        assertTrue(StarterKitService.contents(BotRole.ARMORER)
+                .containsKey(Material.FURNACE), "brníř potřebuje pec na tavbu");
+    }
+
+    @Test
     void obchodnikDostaneSmaragdy() {
         assertTrue(StarterKitService.contents(BotRole.TRADER).containsKey(Material.EMERALD));
     }

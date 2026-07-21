@@ -137,6 +137,19 @@ public final class HouseBlueprint {
         return local(origin, 1, 0, 1, facing);
     }
 
+    /**
+     * Druhé vnitřní místo (roh u boční zdi) – pro sekundární stanici účelné
+     * dílny (kovářský stůl, řezák…). Nekryje se se stanovištěm ({@code 2,2}),
+     * pochodní ({@code 2,1}) ani hlavní stanicí na {@link #bedSpot} ({@code 1,1}).
+     *
+     * @param origin roh půdorysu
+     * @param facing orientace dveří
+     * @return vnitřní pozice pro sekundární stanici
+     */
+    public static BlockPos sideSpot(BlockPos origin, Cardinal facing) {
+        return local(origin, 1, 0, 2, facing);
+    }
+
     /** Počet bloků domku – konstanta, počítá se jednou (čte se v utility 4×/s). */
     private static final int BLOCKS_NEEDED =
             placements(new BlockPos(0, 0, 0), Cardinal.NORTH).size();

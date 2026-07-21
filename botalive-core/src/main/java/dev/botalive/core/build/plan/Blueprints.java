@@ -48,6 +48,20 @@ public final class Blueprints {
         return MARKET_STALL;
     }
 
+    /**
+     * Blueprint účelné řemeslné dílny: půdorys domku {@link HouseBlueprint}
+     * (bouda s dveřmi a pochodní), uvnitř místo postele pracovní stanice.
+     * Řemeslník ji pak najde stejným skenem/pamětí jako jakoukoli stanici.
+     *
+     * @param station   hlavní pracovní stanice (pec, udírna, ponk…) na {@code bedSpot}
+     * @param secondary vedlejší stanice (kovářský stůl, řezák…) na {@code sideSpot};
+     *                  {@code null} = jen hlavní stanice
+     * @return blueprint dílny
+     */
+    public static Blueprint workshop(Material station, Material secondary) {
+        return new WorkshopLegacy(station, secondary);
+    }
+
     // ================================================================= dům/sýpka
 
     /** Dům i sýpka sdílí půdorys {@code HouseBlueprint}; liší se jen vybavením. */
@@ -272,6 +286,72 @@ public final class Blueprints {
         }
     }
 
+    // ==================================================================== dílna
+
+    /**
+     * Účelná řemeslná dílna: sdílí půdorys {@link HouseBlueprint} (bouda
+     * s dveřmi), místo postele nese hlavní pracovní stanici a volitelně
+     * vedlejší. Staví se přesně z vnitřku ({@code standExact}) jako sýpka –
+     * odtud stavitel dosáhne na obě vnitřní stanice i pochodeň.
+     */
+    private record WorkshopLegacy(Material station, Material secondary) implements Blueprint {
+
+        @Override
+        public List<PlacementCell> cells(BlockPos origin, Cardinal facing) {
+            List<PlacementCell> result = new ArrayList<>();
+            for (BlockPos pos : HouseBlueprint.placements(origin, facing)) {
+                result.add(new PlacementCell(pos, BlockSpec.GENERIC));
+            }
+            return result;
+        }
+
+        @Override
+        public List<BlockPos> clearVolume(BlockPos origin, Cardinal facing) {
+            return HouseBlueprint.clearVolume(origin);
+        }
+
+        @Override
+        public List<BlockPos> groundColumns(BlockPos origin, Cardinal facing) {
+            return HouseBlueprint.groundColumns(origin);
+        }
+
+        @Override
+        public List<FurnishCell> furnishing(BlockPos origin, Cardinal facing) {
+            List<FurnishCell> steps = new ArrayList<>();
+            steps.add(new FurnishCell(FurnishKind.DOOR,
+                    HouseBlueprint.doorBottom(origin, facing)));
+            steps.add(new FurnishCell(FurnishKind.STATION,
+                    HouseBlueprint.bedSpot(origin, facing), station));
+            if (secondary != null) {
+                steps.add(new FurnishCell(FurnishKind.STATION,
+                        HouseBlueprint.sideSpot(origin, facing), secondary));
+            }
+            steps.add(new FurnishCell(FurnishKind.TORCH,
+                    HouseBlueprint.torchSpot(origin, facing)));
+            return steps;
+        }
+
+        @Override
+        public BlockPos standPoint(BlockPos origin, Cardinal facing) {
+            return HouseBlueprint.standPoint(origin, facing);
+        }
+
+        @Override
+        public Optional<BlockPos> doorCell(BlockPos origin, Cardinal facing) {
+            return Optional.of(HouseBlueprint.doorBottom(origin, facing));
+        }
+
+        @Override
+        public int blocksNeeded() {
+            return HouseBlueprint.blocksNeeded();
+        }
+
+        @Override
+        public boolean standExact() {
+            return true; // stanice se osazují přesně z vnitřku (jako sýpka)
+        }
+    }
+
     /** Predikát pro vybavení daného druhu (jedno místo pravdy o materiálech). */
     public static java.util.function.Predicate<Material> itemFor(FurnishKind kind) {
         return switch (kind) {
@@ -279,6 +359,8 @@ public final class Blueprints {
             case TORCH -> m -> m == Material.TORCH;
             case BED -> m -> m.name().endsWith("_BED");
             case CHEST -> m -> m == Material.CHEST;
+            case STATION -> throw new IllegalArgumentException(
+                    "STATION nese materiál v FurnishCell.material() – použij ho místo itemFor");
         };
     }
 }

@@ -168,6 +168,55 @@ public final class StarterKitService {
                 kit.merge(Material.COAL, 16, Integer::sum);
                 kit.put(Material.BEEF, 8);
             }
+            case FLETCHER -> {
+                // Šípař: luk a materiál na šípy (pero + pazourek + tyčky).
+                kit.put(Material.BOW, 1);
+                kit.put(Material.ARROW, 16);
+                kit.put(Material.FEATHER, 8);
+                kit.put(Material.FLINT, 8);
+            }
+            case LIBRARIAN -> {
+                // Knihovník: bez lapisu se EnchantGoal nikdy nespustil (jako rybář/prut).
+                kit.put(Material.LAPIS_LAZULI, 16);
+                kit.put(Material.BOOK, 4);
+            }
+            case TOOLSMITH -> {
+                // Nástrojář: železo na výrobu a opravu nářadí.
+                kit.put(Material.IRON_INGOT, 8);
+                kit.merge(Material.COAL, 8, Integer::sum);
+            }
+            case WEAPONSMITH -> {
+                // Zbrojíř: železo na zbraně, štít do boje.
+                kit.put(Material.IRON_INGOT, 8);
+                kit.put(Material.SHIELD, 1);
+            }
+            case ARMORER -> {
+                // Brníř: pec a železo na tavbu a výrobu brnění.
+                kit.put(Material.FURNACE, 1);
+                kit.merge(Material.COAL, 16, Integer::sum);
+                kit.put(Material.IRON_INGOT, 8);
+            }
+            case CARTOGRAPHER -> {
+                // Kartograf: loď a papír na dálkový průzkum a mapy.
+                kit.put(Material.OAK_BOAT, 1);
+                kit.put(Material.PAPER, 8);
+                kit.merge(Material.BREAD, 16, Integer::sum);
+            }
+            case MASON -> {
+                // Kameník: víc kamene do práce a stavby.
+                kit.merge(Material.COBBLESTONE, 64, Integer::sum);
+                kit.put(Material.STONE_SHOVEL, 1);
+            }
+            case LEATHERWORKER -> {
+                // Koželuh: pšenice na chov dobytka (kůže), kůže do výroby.
+                kit.put(Material.WHEAT, 16);
+                kit.put(Material.LEATHER, 4);
+            }
+            case SHEPHERD -> {
+                // Pastýř: pšenice na chov ovcí (bez ní se BreedGoal nespustil).
+                kit.put(Material.WHEAT, 16);
+                kit.put(Material.WHEAT_SEEDS, 8);
+            }
             case NONE -> {
                 // univerzál si vystačí se základem
             }

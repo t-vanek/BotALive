@@ -24,15 +24,15 @@ class RoleCoverageTest {
 
     /** Cíle registrované v mozku – proti nim se ověřuje, že profil neukazuje do prázdna. */
     private static final Set<String> REGISTERED_GOALS = Set.of(
-            "home", "stash", "sleep", "mine", "craft", "smelt", "farm", "explore",
+            "home", "stash", "granary", "sleep", "mine", "craft", "smelt", "farm", "explore",
             "wander", "idle", "smith", "compost", "maintain", "buy", "dragon-fight",
             "communal-build", "hunt", "nether", "pvp", "brew", "drink", "camp",
             "reconcile", "minecart", "collect", "deliver-work", "repair", "shelter",
             "rob", "end-outer", "steal", "guard", "combat", "house", "end-harvest",
             "socialize", "eat", "share", "escape", "wither-fight", "survive",
             "bodyguard", "recover", "sell", "follow", "boat", "war-raid",
-            "creeper-dodge", "trade", "tame", "fish", "enchant", "end-travel",
-            "end-return");
+            "creeper-dodge", "trade", "tame", "breed", "shear", "fish", "enchant",
+            "end-travel", "stronghold", "end-return");
 
     @ParameterizedTest
     @EnumSource(value = BotRole.class, names = "NONE", mode = EnumSource.Mode.EXCLUDE)

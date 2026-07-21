@@ -52,10 +52,17 @@ a postaví ho stejnou mašinérií jako dům (blueprint → `PlaceBlockTask`).
 
 Normy rostou s infrastrukturou, ne dekretem:
 
-- **Sýpka mění nouzi**: hladový člen si PŘED krádeží (desperation)
-  a před prosbou dojde do sýpky; přebytky jídla ze `StashGoal` končí
-  v sýpce místo soukromé truhly. Sdílení jídla přestává být osobní
-  laskavost a stává se institucí.
+- **Sýpka mění nouzi** *(hotovo)*: cíl `granary` (`GranaryGoal`) ze sýpky
+  udělal instituci – hladový člen si z ní vezme jídlo s vyšší užitečností
+  než `StealGoal`, takže sáhne do vlastní společné špajzky **dřív, než jde
+  krást** do cizí truhly; člen s přebytkem jídla ji naopak doplní (nechá si
+  zásobu na cestu). Pozici truhly si cíl dopočítá z geometrie sýpky
+  (`ContainerService.depositFood` / `withdrawSupplies`).
+- **Společný sklad na materiál** *(hotovo)*: čtvrtá společná stavba
+  `WAREHOUSE` (zásobárna s dvojtruhlou, od vesnice, po dílnách) – člen s
+  přebytkem materiálu ho přes `StashGoal` uloží do společného skladu místo
+  soukromé truhly (je-li rozumně blízko). Přebytky přestávají hnít po
+  kapsách jednotlivců.
 - **Starosta** – odvozený, ne volený: člen s nejsilnějším součtem
   FRIEND vazeb na ostatní členy (lazy přepočet ze `SocialView`).
   Přednostně vítá hráče (`tickVillageWelcome`), přednostně staví
@@ -64,6 +71,44 @@ Normy rostou s infrastrukturou, ne dekretem:
   do vesnice+ se spočte deficit profesí (bez kováře? bez farmáře?)
   a `RolePicker` dostane kontextový bias – vesnice si řemeslníky
   vychovává, nevnucuje.
+
+## Fáze E – účelné (řemeslné) stavby
+
+Po infrastruktuře přichází **specializace**: vesnice (od hotové studny) staví
+malé **dílny** pro řemesla, která její členové skutečně dělají – ne dekretem,
+ale poptávkově (stejná DNA jako „vesnice si řemeslníky vychovává"). Dílna je
+bouda půdorysu `HouseBlueprint` s dveřmi a pochodní, uvnitř **pracovní stanice**
+dané profese; řemeslník ji pak najde stejným skenem/pamětí jako jakoukoli
+stanici a skutečně v ní pracuje.
+
+| Dílna | Profese | Hlavní stanice | Vedlejší | Cíl, který ji používá |
+|---|---|---|---|---|
+| Kovárna | kovář | pec | kovářský stůl | `SmeltGoal`, `SmithGoal` |
+| Kuchyně | kuchař | udírna | – | `SmeltGoal` (peče jídlo) |
+| Dílna | stavitel/univerzál | ponk | řezák | `CraftGoal` |
+| Kompostárna | farmář | composter | – | `CompostGoal` |
+| Enchantovna | enchanter | enchantovací stůl | – | `EnchantGoal` |
+| Alchymistická dílna | alchymista | varný stojan | – | `BrewGoal` |
+
+- Dílny jsou další druhy `ProjectKind` (nesou profesi ve `workshopRole`);
+  staví je tatáž mašinérie jako studnu/sýpku (`CommunalBuildGoal` → `Blueprint`
+  → `BuildSession`). Katalog stanic žije na jednom místě (`Workshops`).
+- **Poptávka, ne dekret**: `SettlementService.nextProjectKind` nabídne dílnu jen
+  tehdy, když dané řemeslo v sídle někdo dělá; infrastruktura (studna/sýpka/
+  tržiště, tj. stupeň sídla) má vždy přednost.
+- **Zahájí ji jen ten, kdo má stanici** (jako sýpka truhly) – prázdná kůlna
+  nevznikne. Vedlejší stanice je bonus (osadí se, když ji stavitel má).
+- Dílna **nemění stupeň sídla** – ten dál stojí na domech + městské
+  infrastruktuře; dílny jsou kvalita života, ne meta.
+- Nový generický druh vybavení `FurnishKind.STATION` (materiál nese buňka),
+  dvě hlášky `settlement-workshop-*` (název dílny jako `{name}`).
+- **Rozšířená sada** pokrývá i další vanilla vesnická řemesla (šípařská
+  dílna, knihovna, nástrojárna, zbrojírna, zbrojnice, kartografie,
+  kamenictví, koželužna, tkalcovna). Jejich stanice (fletching table,
+  lectern, grindstone, cartography table, cauldron, loom…) bot aktivně
+  nepoužívá – dílna je pak **landmark** profese a zahájí ji jen člen, který
+  stanici má; katalog i tak drží jedno místo pravdy (`Workshops`) a
+  poptávka je stejná (staví se jen pro řemeslo, které v sídle někdo dělá).
 
 ## Vnitřní cesty sídla (hotovo)
 
@@ -100,6 +145,7 @@ projektů); stav se nepersistuje, protože fyzická cesta ve světě je autorita
   „plná vesnice s infrastrukturou", ne metropole. Zvětšování kapacity
   podle stupně je možné rozšíření (config), ne předpoklad.
 - Hradby, radnice a druhé prstence budov jsou mimo plán, dokud se
-  neukáže, že B–D substance nestačí.
+  neukáže, že B–D substance nestačí. (Účelné řemeslné dílny fáze E jsou
+  výjimka odůvodněná specializací – nezvětšují sídlo, jen ho prohlubují.)
 - Žádná „městská práva" mechanika pro hráče – sídla botů zůstávají
   jejich, hráč je host (vítání, trh).

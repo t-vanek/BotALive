@@ -20,6 +20,11 @@ public final class MarketPrices {
             Map.entry(Material.COOKED_CHICKEN, 2.5),
             Map.entry(Material.COOKED_MUTTON, 2.5),
             Map.entry(Material.BAKED_POTATO, 1.5),
+            // Úlovek rybáře – vařené i syrové (dřív se rybářův výdělek nezpeněžil).
+            Map.entry(Material.COOKED_COD, 2.5),
+            Map.entry(Material.COOKED_SALMON, 2.5),
+            Map.entry(Material.COD, 1.0),
+            Map.entry(Material.SALMON, 1.5),
             Map.entry(Material.WHEAT, 0.8),
             Map.entry(Material.COAL, 1.5),
             Map.entry(Material.IRON_INGOT, 6.0),

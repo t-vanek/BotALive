@@ -68,8 +68,35 @@ public enum BotRole {
     /** Poslíček – rozvoz zakázek, doplňování truhel, sběr. */
     COURIER("poslíček"),
 
-    /** Kuchař – vaření jídla v peci a jeho rozdělování. */
-    COOK("kuchař");
+    /** Kuchař – vaření jídla v peci a jeho rozdělování (i řezník – udírna). */
+    COOK("kuchař"),
+
+    /** Šípař – lov na pera a výroba luků, kuší a šípů (fletching table). */
+    FLETCHER("šípař"),
+
+    /** Knihovník – enchantování knih a práce s vědomostmi (lectern). */
+    LIBRARIAN("knihovník"),
+
+    /** Nástrojář – výroba a oprava nářadí (smithing table). */
+    TOOLSMITH("nástrojář"),
+
+    /** Zbrojíř – výroba a broušení zbraní (grindstone). */
+    WEAPONSMITH("zbrojíř"),
+
+    /** Brníř – tavba a výroba brnění (blast furnace). */
+    ARMORER("brníř"),
+
+    /** Kartograf – dálkový průzkum a tvorba map (cartography table). */
+    CARTOGRAPHER("kartograf"),
+
+    /** Kameník – lom a opracování kamene (stonecutter). */
+    MASON("kameník"),
+
+    /** Koželuh – lov, chov a výroba kožené výbavy (cauldron). */
+    LEATHERWORKER("koželuh"),
+
+    /** Pastýř – chov ovcí, vlna a barviva (loom). */
+    SHEPHERD("pastýř");
 
     private final String displayName;
 

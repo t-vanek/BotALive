@@ -20,7 +20,7 @@ public final class RoleProfiles {
             Map.entry(BotRole.BUILDER, Map.of(
                     "shelter", 2.5, "house", 3.0, "communal-build", 2.5,
                     "craft", 1.4, "mine", 1.3, "home", 1.3,
-                    "maintain", 2.2)),
+                    "maintain", 2.2, "shear", 1.3)),
             Map.entry(BotRole.MINER, Map.of(
                     "mine", 2.5, "collect", 1.3, "craft", 1.2, "smelt", 1.3,
                     "nether", 1.6, "smith", 1.4, "end-harvest", 1.4)),
@@ -41,7 +41,7 @@ public final class RoleProfiles {
                     "fish", 2.6, "boat", 1.4, "sell", 1.4)),
             Map.entry(BotRole.FARMER, Map.of(
                     "farm", 2.5, "trade", 1.3, "craft", 1.1, "share", 1.5, "compost", 2.0,
-                    "sell", 1.6)),
+                    "sell", 1.6, "breed", 2.4, "granary", 1.3)),
 
             // ---- profese doplněné, aby hotové cíle měly svého "majitele"
             // (brew, tame, reconcile, deliver-work, camp, minecart, rob…
@@ -59,21 +59,44 @@ public final class RoleProfiles {
                     "explore", 2.5, "boat", 1.6, "minecart", 1.6, "camp", 1.8,
                     "end-travel", 1.3)),
             Map.entry(BotRole.BEASTMASTER, Map.of(
-                    "tame", 2.6, "hunt", 1.4, "farm", 1.2, "share", 1.3)),
+                    "tame", 2.6, "hunt", 1.4, "farm", 1.2, "share", 1.3, "breed", 2.2)),
             Map.entry(BotRole.THIEF, Map.of(
                     "steal", 2.5, "rob", 2.2, "escape", 1.6, "stash", 1.4)),
             Map.entry(BotRole.DIPLOMAT, Map.of(
                     "share", 2.2, "reconcile", 2.5, "trade", 1.3)),
             Map.entry(BotRole.ADVENTURER, Map.of(
-                    "nether", 2.2, "end-travel", 2.0, "dragon-fight", 1.8,
-                    "wither-fight", 1.8, "recover", 1.5, "explore", 1.4,
-                    "end-outer", 1.5, "end-harvest", 1.4)),
+                    "nether", 2.2, "end-travel", 2.0, "stronghold", 2.0,
+                    "dragon-fight", 1.8, "wither-fight", 1.8, "recover", 1.5,
+                    "explore", 1.4, "end-outer", 1.5, "end-harvest", 1.4)),
             Map.entry(BotRole.COURIER, Map.of(
                     "deliver-work", 2.5, "stash", 1.8, "collect", 1.4, "trade", 1.3,
-                    "minecart", 1.3)),
+                    "minecart", 1.3, "granary", 1.8)),
             Map.entry(BotRole.COOK, Map.of(
                     "smelt", 2.2, "farm", 1.4, "share", 1.8,
-                    "compost", 1.5, "fish", 1.3))
+                    "compost", 1.5, "fish", 1.3, "breed", 1.6, "granary", 1.4)),
+
+            // ---- vanilla vesnická povolání (biasují existující chování,
+            // ať nejsou jen popisky – hlídá RoleCoverageTest)
+            Map.entry(BotRole.FLETCHER, Map.of(
+                    "hunt", 2.0, "craft", 1.8, "collect", 1.4, "sell", 1.4)),
+            Map.entry(BotRole.LIBRARIAN, Map.of(
+                    "enchant", 2.4, "craft", 1.4, "trade", 1.3, "home", 1.2)),
+            Map.entry(BotRole.TOOLSMITH, Map.of(
+                    "smith", 2.2, "craft", 1.8, "repair", 2.0, "mine", 1.4, "smelt", 1.3)),
+            Map.entry(BotRole.WEAPONSMITH, Map.of(
+                    "smith", 2.0, "craft", 1.6, "repair", 2.0, "combat", 1.4, "mine", 1.3)),
+            Map.entry(BotRole.ARMORER, Map.of(
+                    "smelt", 2.2, "smith", 2.0, "repair", 2.0, "mine", 1.5)),
+            Map.entry(BotRole.CARTOGRAPHER, Map.of(
+                    "explore", 2.5, "boat", 1.4, "craft", 1.3, "trade", 1.3, "collect", 1.2)),
+            Map.entry(BotRole.MASON, Map.of(
+                    "mine", 2.4, "craft", 1.5, "communal-build", 1.6, "house", 1.4,
+                    "shelter", 1.3)),
+            Map.entry(BotRole.LEATHERWORKER, Map.of(
+                    "hunt", 2.0, "breed", 1.8, "craft", 1.6, "trade", 1.3)),
+            Map.entry(BotRole.SHEPHERD, Map.of(
+                    "breed", 2.4, "shear", 2.4, "farm", 1.4, "collect", 1.4,
+                    "share", 1.3, "craft", 1.2))
     );
 
     private RoleProfiles() {

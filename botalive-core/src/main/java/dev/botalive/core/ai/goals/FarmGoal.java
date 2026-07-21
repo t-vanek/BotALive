@@ -43,7 +43,16 @@ public final class FarmGoal extends AbstractGoal {
     /** Velikost zakládaného záhonu bradavice (bloky soul sandu). */
     private static final int WART_BED_SIZE = 3;
 
-    private enum Phase { FIND, GO, HARVEST, REPLANT, BED_PLACE, BED_PLANT, DONE }
+    /** Délka zakládaného obilného řádku (buňky farmlandu v dosahu pokládky). */
+    private static final int FIELD_SIZE = 3;
+
+    /** Motyka libovolného materiálu – zorá hlínu/trávu na farmland. */
+    private static final java.util.function.Predicate<Material> HOE =
+            m -> m != null && m.name().endsWith("_HOE");
+
+    private enum Phase {
+        FIND, GO, HARVEST, REPLANT, BED_PLACE, BED_PLANT, FIELD_TILL, FIELD_PLANT, DONE
+    }
 
     private Phase phase = Phase.FIND;
     private BlockPos crop;
@@ -58,6 +67,11 @@ public final class FarmGoal extends AbstractGoal {
     private final java.util.ArrayDeque<BlockPos> bedQueue = new java.util.ArrayDeque<>();
     private dev.botalive.core.tasks.PlaceBlockTask bedTask;
     private int bedTicks;
+
+    /** Zakládání obilného pole: buňky hlíny k zorání a osetí (v pořadí). */
+    private final java.util.ArrayDeque<BlockPos> fieldQueue = new java.util.ArrayDeque<>();
+    private java.util.List<BlockPos> fieldCells = java.util.List.of();
+    private int fieldTicks;
 
     /** Vytvoří cíl. */
     public FarmGoal() {
@@ -106,6 +120,9 @@ public final class FarmGoal extends AbstractGoal {
                 if (crops.isEmpty()) {
                     if (startWartBed(ctx, bot)) {
                         return; // z netherové kořisti se zakládá záhon
+                    }
+                    if (startCropField(ctx, bot)) {
+                        return; // s osivem a motykou u zázemí se zakládá pole
                     }
                     cooldownTicks = 900; // v okolí nic zralého
                     phase = Phase.DONE;
@@ -176,6 +193,8 @@ public final class FarmGoal extends AbstractGoal {
             }
             case BED_PLACE -> tickBedPlace(ctx);
             case BED_PLANT -> tickBedPlant(ctx, bot);
+            case FIELD_TILL -> tickFieldTill(ctx);
+            case FIELD_PLANT -> tickFieldPlant(ctx, bot);
             case DONE -> {
                 // finished() ukončí
             }
@@ -322,6 +341,130 @@ public final class FarmGoal extends AbstractGoal {
         bedTicks = ctx.rng().rangeInt(5, 10);
     }
 
+    /**
+     * Založení obilného pole: bot s osivem a motykou u zázemí zorá krátký
+     * řádek hlíny/trávy na farmland a oseje ho pšenicí. Pole tak nemusí ve
+     * světě existovat předem – farmář si ho vytvoří sám (dosud uměl jen
+     * udržovat zděděná políčka). Bez závlahy roste pomaleji, ale roste, a
+     * osetá půda se nerozpadá zpět na hlínu.
+     *
+     * @return {@code true} pokud se pole začalo zakládat
+     */
+    private boolean startCropField(BotContext ctx, Bot bot) {
+        WorldView world = ctx.worldView();
+        var snapshot = ctx.serverView().latest();
+        if (world == null || snapshot == null || !snapshot.hasItem(HOE)
+                || dev.botalive.core.inventory.InventoryHelper.countItem(
+                        snapshot, Material.WHEAT_SEEDS) < FIELD_SIZE) {
+            return false;
+        }
+        // Pole patří k zázemí – zakládá se jen u domova nebo známého pole.
+        BlockPos feet = ctx.position().toBlockPos();
+        boolean nearBase = bot.memory()
+                .recallNearest(MemoryKind.HOME, world.worldName(), feet.x(), feet.y(), feet.z())
+                .map(r -> r.distanceSquared(feet.x(), feet.y(), feet.z()) < 32 * 32)
+                .orElse(false)
+                || bot.memory().recallNearest(MemoryKind.FARM, world.worldName(),
+                        feet.x(), feet.y(), feet.z())
+                .map(r -> r.distanceSquared(feet.x(), feet.y(), feet.z()) < 32 * 32)
+                .orElse(false);
+        if (!nearBase) {
+            return false;
+        }
+        // Řádek zoratelné země v dosahu (žádná chůze): hlína/tráva s volným
+        // místem nad ní pro plodinu; zkusí čtyři směry od bota.
+        int[][] dirs = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}};
+        for (int[] d : dirs) {
+            java.util.List<BlockPos> row = new java.util.ArrayList<>();
+            for (int i = 1; i <= FIELD_SIZE; i++) {
+                BlockPos ground = feet.offset(d[0] * i, -1, d[1] * i);
+                if (tillable(world, ground) && world.traitsAt(ground.up()).passable()) {
+                    row.add(ground);
+                }
+            }
+            if (row.size() == FIELD_SIZE) {
+                fieldCells = java.util.List.copyOf(row);
+                fieldQueue.clear();
+                fieldQueue.addAll(row);
+                fieldTicks = 0;
+                phase = Phase.FIELD_TILL;
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** Zoratelná půda: hlína nebo tráva (motyka z ní udělá farmland). */
+    private static boolean tillable(WorldView world, BlockPos pos) {
+        Material material = world.materialAt(pos);
+        return material == Material.DIRT || material == Material.GRASS_BLOCK;
+    }
+
+    /** Orání řádku motykou (use na horní plochu, lidské rozestupy). */
+    private void tickFieldTill(BotContext ctx) {
+        if (--fieldTicks > 0) {
+            return;
+        }
+        BlockPos cell = fieldQueue.peek();
+        if (cell == null) {
+            // Zorané – osít stejné buňky pšenicí.
+            fieldQueue.addAll(fieldCells);
+            fieldTicks = 0;
+            phase = Phase.FIELD_PLANT;
+            return;
+        }
+        var snapshot = ctx.serverView().latest();
+        if (snapshot == null || !ctx.inventory().equipMatching(snapshot, HOE)) {
+            phase = Phase.FIND; // motyka došla/nejde vzít – pole jindy
+            fieldQueue.clear();
+            return;
+        }
+        ctx.humanizer().lookAt(ctx.position().add(0, 1.62, 0), cell.center().add(0, 0.5, 0));
+        ctx.actions().useItemOn(cell, Direction.UP);
+        ctx.stats().addPlaced();
+        fieldQueue.poll();
+        fieldTicks = ctx.rng().rangeInt(5, 10);
+    }
+
+    /** Setí pšenice na zorané buňky (use na horní plochu farmlandu). */
+    private void tickFieldPlant(BotContext ctx, Bot bot) {
+        if (--fieldTicks > 0) {
+            return;
+        }
+        BlockPos cell = fieldQueue.poll();
+        if (cell == null) {
+            BlockPos site = fieldCells.isEmpty() ? ctx.position().toBlockPos()
+                    : fieldCells.getFirst();
+            if (ctx.worldView() != null) {
+                bot.memory().remember(MemoryKind.FARM, ctx.worldView().worldName(),
+                        site.x(), site.y(), site.z(), null,
+                        Map.of("crop", Material.WHEAT.name()), 0.7);
+            }
+            if (ctx.rng().chance(0.6)) {
+                ctx.chat().say("zaseju si políčko, ať mám z čeho péct");
+            }
+            cooldownTicks = 900;
+            phase = Phase.DONE;
+            return;
+        }
+        var snapshot = ctx.serverView().latest();
+        int seed = snapshot == null ? -1
+                : snapshot.findHotbarSlot(m -> m == Material.WHEAT_SEEDS);
+        if (seed < 0) {
+            if (snapshot != null) {
+                ctx.inventory().equipItem(snapshot, Material.WHEAT_SEEDS);
+            }
+            fieldTicks = 4;
+            fieldQueue.addFirst(cell);
+            return;
+        }
+        ctx.actions().selectHotbar(seed);
+        ctx.humanizer().lookAt(ctx.position().add(0, 1.62, 0), cell.center().add(0, 0.5, 0));
+        ctx.actions().useItemOn(cell, Direction.UP);
+        ctx.stats().addPlaced();
+        fieldTicks = ctx.rng().rangeInt(5, 10);
+    }
+
     @Override
     public void stop(Bot bot) {
         if (harvestTask != null) {
@@ -333,6 +476,7 @@ public final class FarmGoal extends AbstractGoal {
             bedTask = null;
         }
         bedQueue.clear();
+        fieldQueue.clear();
         super.stop(bot);
     }
 
