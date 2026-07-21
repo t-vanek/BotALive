@@ -146,8 +146,13 @@ public final class CraftingService implements dev.botalive.core.station.Crafting
                     && !m.name().contains("QUARTZ") && !m.name().contains("SANDSTONE");
     private static final java.util.function.Predicate<Material> STONE_SLAB =
             m -> m == Material.STONE_SLAB || m == Material.SMOOTH_STONE_SLAB;
+    /**
+     * Surový kámen, který kameník/zbrojíř opracuje (dlaždice, řezaný kámen).
+     * Zahrnuje i dlažební kámen: ten boti z těžby kupí, kdežto hladký kámen se
+     * v progresi netvoří do zásoby (řetěz ho rovnou spálí na blastovou pec).
+     */
     private static final java.util.function.Predicate<Material> STONE_SOURCE =
-            m -> m == Material.STONE || m == Material.SMOOTH_STONE;
+            m -> m == Material.COBBLESTONE || m == Material.STONE || m == Material.SMOOTH_STONE;
 
     /**
      * Surovina receptu stanice: predikát materiálu + počet. Volitelně
@@ -200,7 +205,12 @@ public final class CraftingService implements dev.botalive.core.station.Crafting
                                     java.util.List.of(new BaseCost(STONE_SOURCE, 3)),
                                     6, Material.STONE_SLAB)),
                     Material.STONECUTTER, java.util.List.of(
-                            new StationIngredient(m -> m == Material.STONE, 3),
+                            // Kameník opracuje surový kámen (hlavně dlažbu z těžby)
+                            // na řezaný přímo na staveništi, jinak by kamenictví
+                            // nikdy nevzniklo – kámen se v progresi nekupí.
+                            new StationIngredient(m -> m == Material.STONE, 3,
+                                    java.util.List.of(new BaseCost(STONE_SOURCE, 3)),
+                                    3, Material.STONE),
                             new StationIngredient(m -> m == Material.IRON_INGOT, 1)),
                     Material.LECTERN, java.util.List.of(
                             new StationIngredient(WOOD_SLAB, 4,

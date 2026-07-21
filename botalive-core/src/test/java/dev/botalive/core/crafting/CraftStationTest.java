@@ -81,6 +81,19 @@ class CraftStationTest {
     }
 
     @Test
+    void kamenikSiKamenOpracujeZDlazby() {
+        // Kameník má dlažební kámen (startovní sada) – opracuje ho na řezaný.
+        assertTrue(CraftingService.canCraftStation(
+                inv(Material.COBBLESTONE, 3, Material.IRON_INGOT, 1), Material.STONECUTTER));
+        // Dva kusy dlažby nestačí (řezák chce tři kameny).
+        assertFalse(CraftingService.canCraftStation(
+                inv(Material.COBBLESTONE, 2, Material.IRON_INGOT, 1), Material.STONECUTTER));
+        // Bez železa (musí ho dolovat) řezák nesloží ani s horou dlažby.
+        assertFalse(CraftingService.canCraftStation(
+                inv(Material.COBBLESTONE, 64), Material.STONECUTTER));
+    }
+
+    @Test
     void bruskaChceKamennouDlazdici() {
         // Bruska: 2 klacky + 2 prkna + 1 kamenná dlaždice.
         assertFalse(CraftingService.canCraftStation(
@@ -92,9 +105,13 @@ class CraftStationTest {
 
     @Test
     void bruskaSiDlazdiciDomackneZKamene() {
-        // Bez dlaždice, ale s kamenem – řezník ji dorobí (3 kámen → 6 dlaždic).
+        // Bez dlaždice, ale s kamenem – zbrojíř ji dorobí (3 kámen → 6 dlaždic).
         assertTrue(CraftingService.canCraftStation(
                 inv(Material.STICK, 2, Material.OAK_PLANKS, 2, Material.SMOOTH_STONE, 3),
+                Material.GRINDSTONE));
+        // Funguje i z dlažebního kamene z těžby (zbrojíř hladký kámen nedrží).
+        assertTrue(CraftingService.canCraftStation(
+                inv(Material.STICK, 2, Material.OAK_PLANKS, 2, Material.COBBLESTONE, 3),
                 Material.GRINDSTONE));
         // Dva kameny nestačí (dlaždice chce tři).
         assertFalse(CraftingService.canCraftStation(
