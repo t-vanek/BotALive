@@ -31,7 +31,7 @@ class RoleCoverageTest {
             "rob", "end-outer", "steal", "guard", "combat", "house", "end-harvest",
             "socialize", "eat", "share", "escape", "wither-fight", "survive",
             "bodyguard", "recover", "sell", "follow", "boat", "war-raid",
-            "creeper-dodge", "trade", "tame", "fish", "enchant", "end-travel",
+            "creeper-dodge", "trade", "tame", "breed", "fish", "enchant", "end-travel",
             "end-return");
 
     @ParameterizedTest

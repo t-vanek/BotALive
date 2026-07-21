@@ -41,7 +41,7 @@ public final class RoleProfiles {
                     "fish", 2.6, "boat", 1.4, "sell", 1.4)),
             Map.entry(BotRole.FARMER, Map.of(
                     "farm", 2.5, "trade", 1.3, "craft", 1.1, "share", 1.5, "compost", 2.0,
-                    "sell", 1.6)),
+                    "sell", 1.6, "breed", 2.4)),
 
             // ---- profese doplněné, aby hotové cíle měly svého "majitele"
             // (brew, tame, reconcile, deliver-work, camp, minecart, rob…
@@ -59,7 +59,7 @@ public final class RoleProfiles {
                     "explore", 2.5, "boat", 1.6, "minecart", 1.6, "camp", 1.8,
                     "end-travel", 1.3)),
             Map.entry(BotRole.BEASTMASTER, Map.of(
-                    "tame", 2.6, "hunt", 1.4, "farm", 1.2, "share", 1.3)),
+                    "tame", 2.6, "hunt", 1.4, "farm", 1.2, "share", 1.3, "breed", 2.2)),
             Map.entry(BotRole.THIEF, Map.of(
                     "steal", 2.5, "rob", 2.2, "escape", 1.6, "stash", 1.4)),
             Map.entry(BotRole.DIPLOMAT, Map.of(
@@ -73,7 +73,7 @@ public final class RoleProfiles {
                     "minecart", 1.3)),
             Map.entry(BotRole.COOK, Map.of(
                     "smelt", 2.2, "farm", 1.4, "share", 1.8,
-                    "compost", 1.5, "fish", 1.3))
+                    "compost", 1.5, "fish", 1.3, "breed", 1.6))
     );
 
     private RoleProfiles() {

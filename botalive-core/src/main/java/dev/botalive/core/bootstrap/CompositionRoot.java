@@ -178,6 +178,9 @@ public final class CompositionRoot {
         dev.botalive.core.tame.TameService taming = container.register(
                 dev.botalive.core.tame.TameService.class,
                 new dev.botalive.core.tame.TameService(bridge));
+        dev.botalive.core.husbandry.BreedService breeding = container.register(
+                dev.botalive.core.husbandry.BreedService.class,
+                new dev.botalive.core.husbandry.BreedService(bridge));
         dev.botalive.core.social.SocialGraph socialGraph = container.register(
                 dev.botalive.core.social.SocialGraph.class,
                 new dev.botalive.core.social.SocialGraph());
@@ -210,8 +213,8 @@ public final class CompositionRoot {
                         config.economy().employment(), repository));
         employmentService.load();
         registerBuiltInGoals(goalRegistry, crafting, containers, trades, furnaces,
-                enchanting, smithing, brewing, pvp, taming, anvils, market, socialGraph,
-                diplomacy, employmentService);
+                enchanting, smithing, brewing, pvp, taming, breeding, anvils, market,
+                socialGraph, diplomacy, employmentService);
         // Registr profesí (vestavěné role předregistrované; cizí přidává plugin).
         dev.botalive.core.role.RoleRegistryImpl roles = container.register(
                 dev.botalive.core.role.RoleRegistryImpl.class,
@@ -278,6 +281,7 @@ public final class CompositionRoot {
                                              dev.botalive.core.station.BrewingStation brewing,
                                              dev.botalive.core.pvp.PvpCoordinator pvp,
                                              dev.botalive.core.tame.TameService taming,
+                                             dev.botalive.core.husbandry.BreedService breeding,
                                              dev.botalive.core.inventory.AnvilService anvils,
                                              dev.botalive.core.economy.MarketBoard market,
                                              dev.botalive.core.social.SocialGraph socialGraph,
@@ -328,6 +332,7 @@ public final class CompositionRoot {
         registry.register("deliver-work",
                 bot -> new dev.botalive.core.ai.goals.WorkDeliveryGoal(employment));
         registry.register("tame", bot -> new dev.botalive.core.ai.goals.TameGoal(taming));
+        registry.register("breed", bot -> new dev.botalive.core.ai.goals.BreedGoal(breeding));
         registry.register("recover", bot -> new dev.botalive.core.ai.goals.RecoverItemsGoal());
         registry.register("maintain", bot -> new dev.botalive.core.ai.goals.MaintainHomeGoal());
         registry.register("sell", bot -> new dev.botalive.core.ai.goals.SellGoal(market, socialGraph));
