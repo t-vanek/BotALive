@@ -1908,6 +1908,14 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
             return new dev.botalive.core.tasks.PillarUpTask(destination.y());
         }
 
+        // Cíl níž za pevným svahem/srázem vyšším než bezpečný seskok → vyhloubit
+        // schodiště dolů (protějšek pilíře a žebříku pro cestu dolů). Jen skrz
+        // pevný, bezpečný materiál – do jeskyní, lávy a nad prázdno nikdy.
+        if (dy < 0
+                && dev.botalive.core.tasks.StaircaseDownTask.canDescendStep(worldView, feet, sx, sz)) {
+            return new dev.botalive.core.tasks.StaircaseDownTask(sx, sz, destination.y());
+        }
+
         // Kandidáti na vylámání podle směru (v pořadí důležitosti).
         List<BlockPos> candidates = dy > 0
                 ? List.of(feet.up().up(), front.up().up(), front.up())

@@ -138,6 +138,13 @@ limitech serveru. `MovementSender` replikuje paketový vzor vanilla klienta
 pro sneak/sprint, `ClientTickEnd` každý tick) – odchylky od vzoru jsou snadno
 detekovatelné anti-cheatem, proto se držíme věrně.
 
+Zdolávání překážek má primitiva pro obě svislé osy: nahoru `LadderTask`
+(přelezení stěny žebříkem) a `PillarUpTask` (pilířování skokem s pokládkou),
+dolů `StaircaseDownTask` (kontrolovaný sestup vyhloubením schodiště – bezpečný
+seskok o 1 na uvolněný stupeň, nikdy nad prázdno/do tekutiny). Vodorovně
+`BridgeTask` přemostí mezery a tekutiny. Assist (`planObstacleRecovery`) mezi
+nimi volí podle geometrie a směru k cíli.
+
 Zaseknutí řeší dvě vrstvy: `Navigator` reaguje rychle (replanning, kopací plán,
 assist, backoff nedosažitelných cílů), a když ani to nepomůže, tvrdý watchdog
 `BotImpl`u (30 s bez pohybu při aktivní navigaci) spustí `StuckRecovery` –
