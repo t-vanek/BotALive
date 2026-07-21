@@ -221,11 +221,17 @@ public record BotAliveConfig(
      * @param drives                sjednocené pudy (Maslow): naléhavá základní potřeba
      *                              (bezpečí, jídlo, odpočinek) tlumí cíle vyšších potřeb –
      *                              hierarchická arbitráž priorit (viz docs/BOT_LIFE.md)
+     * @param crawling              EXPERIMENTÁLNÍ, default vypnuto: plazení
+     *                              jednoblokovými mezerami – A* je plánuje (s cenovou
+     *                              přirážkou) a fyzika v nich srazí hitbox na 0,6.
+     *                              Neověřeno proti živému serveru; zapínat obezřetně
+     *                              (viz docs/ARCHITECTURE.md §5 Pohyb)
      */
     public record Ai(int decisionIntervalTicks, double goalHysteresis,
                      int viewDistanceBlocks, String difficulty, boolean terraforming,
                      boolean ladders, boolean pillaring, boolean boats, boolean dailyRhythm,
-                     boolean desperation, boolean mood, boolean vitals, boolean drives) {
+                     boolean desperation, boolean mood, boolean vitals, boolean drives,
+                     boolean crawling) {
     }
 
     /**

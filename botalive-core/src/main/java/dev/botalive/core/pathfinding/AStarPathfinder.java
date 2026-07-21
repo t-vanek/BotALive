@@ -60,6 +60,13 @@ public final class AStarPathfinder {
     private static final int COST_STRAIGHT = 10;
     private static final int COST_DIAGONAL = 14;
     private static final int COST_JUMP = 8;
+    /**
+     * Přirážka za plazivý krok jednoblokovou mezerou (experimentální,
+     * {@code ai.crawling}). Plazení je pomalé a nepohodlné – krok stojí ~3×
+     * chůzi, aby pěší obchůzka vyhrála, kdykoli rozumná existuje; tunelem se
+     * bot proplazí jen, když je to podstatná zkratka nebo jediná cesta.
+     */
+    private static final int COST_CRAWL = 20;
     private static final int COST_FALL_PER_BLOCK = 6;
     private static final int COST_WATER = 25;
     /** Přirážka za buňku s hlavou pod hladinou – podvodní tunely stojí dech. */
@@ -601,6 +608,9 @@ public final class AStarPathfinder {
                     }
                     stepTowards(current, curFeet, pos.offset(dx, 0, dz), diagonal);
                     tryGapJump(current, curFeet, dx, dz);
+                    if (options.crawl() && !diagonal) {
+                        tryCrawlStep(current, curFeet, pos.offset(dx, 0, dz));
+                    }
                 }
             }
 
@@ -786,6 +796,51 @@ public final class AStarPathfinder {
                     }
                 }
             }
+        }
+
+        /**
+         * Plazivý krok jednoblokovou mezerou (experimentální, {@code ai.crawling}).
+         * Kardinální krok na sousední buňku, která je nízkou mezerou (nohy volné
+         * a s pevnou oporou, strop tak nízko, že vestoje by to neprošlo). Vychází
+         * jen z pochozí úrovně (nohy na celé výšce buňky, ne uprostřed skoku/pádu);
+         * ze samotné mezery pak pokračuje dál mezerou nebo vystoupí obyčejným
+         * krokem na volný konec. Cena nese {@link #COST_CRAWL} přirážku, aby pěší
+         * obchůzka vyhrála všude, kde existuje.
+         */
+        private void tryCrawlStep(Node current, double curFeet, BlockPos target) {
+            if (Math.abs(curFeet - current.pos.y()) > 0.05) {
+                return; // jen z pevné pochozí úrovně, ne ve vzduchu
+            }
+            if (!crawlable(target)) {
+                return;
+            }
+            tryAdd(current, target, COST_STRAIGHT + COST_CRAWL + terrainPenalty(target));
+        }
+
+        /**
+         * Je buňka jednobloková mezera k proplížení? Nohy volné pro tělo (nízký
+         * profil), s pevnou oporou pod nimi, bez tekutiny/hazardu/pavučiny/neznáma,
+         * a strop tak nízko, že normální chůze buňku odmítla (jinak ji vezme
+         * {@link #stepTowards} a plazit se netřeba).
+         */
+        private boolean crawlable(BlockPos feet) {
+            BlockTraits t = traits(feet);
+            BlockTraits head = traits(feet.up());
+            if (t == BlockTraits.UNKNOWN || head == BlockTraits.UNKNOWN) {
+                return false;
+            }
+            if (t.hazard() || head.hazard() || t.web() || head.web() || t.liquid()) {
+                return false;
+            }
+            if (!t.lowProfile()) {
+                return false; // částečný/plný blok v buňce nohou – tady se nechodí ani neplazí
+            }
+            BlockTraits below = traits(feet.down());
+            if (below.floorHeight() < 0.99 || below.floorHeight() > 1.01) {
+                return false; // bez pevné podlahy pod mezerou
+            }
+            // Strop níž než světlost postavy (0,8 nad hlavou) – vestoje to neprojde.
+            return head.lowestCollisionStart() < 0.8 - EPS;
         }
 
         /** Průchozí sloupec letové dráhy: úroveň nohou, hlavy i nad hlavou. */

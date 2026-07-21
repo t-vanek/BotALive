@@ -250,6 +250,7 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
                         org.geysermc.mcprotocollib.protocol.data.game.entity.object.Direction.NORTH),
                 rng, personality);
         this.navigator.terraforming(config.ai().terraforming());
+        this.navigator.crawling(config.ai().crawling());
         this.navigator.placeBudget(this::buildingBlockBudget);
         this.navigator.ladderBudget(this::ladderBudget);
         this.navigator.dangerSupplier(this::dangerMemories);
@@ -2261,6 +2262,7 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
             return;
         }
         this.physics = new BotPhysics(worldView, position);
+        this.physics.setCrawlEnabled(config.ai().crawling());
         navigator.world(worldView);
         combat.world(worldView);
         entities.clear();

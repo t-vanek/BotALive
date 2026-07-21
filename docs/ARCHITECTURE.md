@@ -154,6 +154,17 @@ nouzový teleport. Manévr přebíjí navigaci, ale bezpečnostní reflexy (láv
 hrana) ho dál smí ohnout; teleport zůstává jako poslední instance po opakovaném
 selhání na témže bloku. Čistá, testovaná třída (`StuckRecovery`).
 
+**Plazení** (`ai.crawling`, EXPERIMENTÁLNÍ, default vypnuto) rozšiřuje pohyb
+o jednoblokové mezery. Zapnuté nechá A* přidat plazivé hrany – kardinální krok
+do buňky s pevnou oporou pod nohama, ale stropem v úrovni jen 1,0 (vestoje
+neprůchozí) – s cenovou přirážkou ~3× chůze, takže pěší obchůzka vyhrává,
+kdykoli existuje. Fyzika řeší slepičí problém vstupu vstupní heuristikou:
+`BotPhysics` srazí hitbox z 1,8 na 0,6 (vanilla plazivá póza), když se bot
+v buňce nemůže narovnat, nebo když míří vpřed do takové mezery – jinak stojí.
+Vypnuté = hitbox vždy 1,8 a žádné plazivé hrany (beze změny chování). Vědomě
+je to opt-in: přijetí sraženého hitboxu server-side anti-cheatem se v simulaci
+nedá potvrdit, teprve provoz proti živému serveru ho ověří.
+
 ### 6. Humanizace jako průřezová vrstva
 
 Vše, co by prozradilo stroj, prochází `Humanizer`em a per-bot RNG:

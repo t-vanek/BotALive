@@ -157,6 +157,11 @@ public final class Navigator {
 
     /** Zásahy do terénu povolené konfigurací bota ({@code ai.terraforming}). */
     private boolean terraformingAllowed;
+    /**
+     * Plazení jednoblokovými mezerami povolené konfigurací ({@code ai.crawling})
+     * – EXPERIMENTÁLNÍ, default vypnuto. Zapnuté přidává A* plazivé hrany.
+     */
+    private boolean crawlAllowed;
     /** Dodavatel počtu stavebních bloků v inventáři (rozpočet pokládání). */
     private java.util.function.IntSupplier placeBudget = () -> 0;
     /** Dodavatel počtu žebříků v inventáři (rozpočet žebříkových hran). */
@@ -213,6 +218,18 @@ public final class Navigator {
      */
     public void terraforming(boolean allowed) {
         this.terraformingAllowed = allowed;
+    }
+
+    /**
+     * Povolí plazení jednoblokovými mezerami ({@code ai.crawling}) –
+     * EXPERIMENTÁLNÍ, default vypnuto. Zapnuté nechá A* plánovat i skrz
+     * jednoblokové mezery (s cenovou přirážkou), fyzika bota v nich srazí
+     * hitbox na 0,6. Vypnuté = žádné plazivé hrany (dnešní chování).
+     *
+     * @param allowed plazení povoleno
+     */
+    public void crawling(boolean allowed) {
+        this.crawlAllowed = allowed;
     }
 
     /**
@@ -1032,11 +1049,12 @@ public final class Navigator {
         // cílový predikát (okruh, útěk, hladina, kandidáti…).
         PathGoal requestGoal = segmentGoal != null || goalSpec == null
                 ? PathGoal.block(target) : goalSpec;
-        PathOptions options = actionsEnabled
+        PathOptions options = (actionsEnabled
                 ? PathOptions.withActions(
                         Math.min(MAX_PLAN_PLACEMENTS, placeBudget.getAsInt()),
                         Math.min(MAX_PLAN_LADDERS, ladderBudget.getAsInt()))
-                : PathOptions.WALK_ONLY;
+                : PathOptions.WALK_ONLY)
+                .withCrawl(crawlAllowed);
         pendingPath = service.request(world, from.toBlockPos(), requestGoal, 0, dangers,
                 costs, options);
     }

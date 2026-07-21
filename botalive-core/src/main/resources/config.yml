@@ -162,6 +162,14 @@ ai:
   # signály samy neodradily. Uspokojené potřeby = beze změny. Viz
   # docs/BOT_LIFE.md.
   drives: true
+  # EXPERIMENTÁLNÍ (default vypnuto): plazení jednoblokovými mezerami. Zapnuté
+  # nechá A* plánovat i skrz mezery s jen jednoblokovou světlostí (strop v úrovni
+  # 1,0 nad podlahou) – s cenovou přirážkou, takže pěší obchůzka vyhrává, kdykoli
+  # existuje – a fyzika bota v takové mezeře srazí hitbox na 0,6 (vanilla plazivá
+  # póza). Není ověřeno proti živému serveru (server-side přijetí plazivého
+  # hitboxu se v simulaci nedá potvrdit), proto default vypnuto; zapínat
+  # obezřetně. Viz docs/ARCHITECTURE.md (§5 Pohyb).
+  crawling: false
 
 chat:
   enabled: true

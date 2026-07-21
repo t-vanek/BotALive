@@ -4,6 +4,7 @@ import dev.botalive.core.testutil.FakeWorldView;
 import dev.botalive.core.util.BlockPos;
 import org.junit.jupiter.api.Test;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -937,7 +938,7 @@ class AStarPathfinderTest {
 
         // Jen pokládání (bez kopání) – deterministicky pilíř, ne schody do stěny.
         AStarPathfinder.Result pillared = new AStarPathfinder(world).findPath(
-                start, PathGoal.block(goal), 0, 0L, null, new PathOptions(false, 8, 0));
+                start, PathGoal.block(goal), 0, 0L, null, new PathOptions(false, 8, 0, false));
         assertTrue(pillared.path().complete(), "pilíř má na plošinu vynést: "
                 + pillared.path().waypoints());
         int places = pillared.path().actions().values().stream()
@@ -1277,5 +1278,80 @@ class AStarPathfinderTest {
         assertTrue(path.complete());
         assertTrue(path.waypoints().stream().allMatch(p -> p.z() == 0),
                 "vzdálená cestička nemá cestu přitáhnout: " + path.waypoints());
+    }
+
+    /**
+     * Uzavřená trubka podél osy X (boční zdi z=±1 a čela na obou koncích výšky
+     * 4), přes kterou stojí masiv (x=3..5) s jednoblokovou štolou v úrovni
+     * nohou. Jediná trasa vede středem – vestoje neprůchozí, plazením ano.
+     */
+    private FakeWorldView crawlTunnel() {
+        FakeWorldView world = new FakeWorldView(FLOOR);
+        for (int x = -1; x <= 10; x++) {
+            for (int y = FEET; y <= FEET + 3; y++) {
+                world.set(x, y, -1, FakeWorldView.SOLID);
+                world.set(x, y, 1, FakeWorldView.SOLID);
+            }
+        }
+        for (int y = FEET; y <= FEET + 3; y++) {
+            world.set(-1, y, 0, FakeWorldView.SOLID); // západní čelo trubky
+            world.set(10, y, 0, FakeWorldView.SOLID); // východní čelo trubky
+        }
+        for (int x = 3; x <= 5; x++) {
+            for (int y = FEET; y <= FEET + 3; y++) {
+                world.set(x, y, 0, FakeWorldView.SOLID);
+            }
+            world.set(x, FEET, 0, FakeWorldView.AIRLIKE); // štola: strop FEET+1 drží
+        }
+        return world;
+    }
+
+    @Test
+    void proplaziSeJednoblokovouStolou() {
+        FakeWorldView world = crawlTunnel();
+        BlockPos start = new BlockPos(0, FEET, 0);
+        BlockPos goal = new BlockPos(9, FEET, 0);
+
+        Path walkOnly = new AStarPathfinder(world).findPath(start, goal, 2000);
+        assertFalse(walkOnly.complete(), "vestoje se jednoblokovou štolou neprojde");
+
+        AStarPathfinder.Result crawl = new AStarPathfinder(world).findPath(
+                start, PathGoal.block(goal), 2000, 0L, null, PathOptions.WALK_WITH_CRAWL);
+        assertTrue(crawl.path().complete(),
+                "s plazením se štolou projde: " + crawl.path().waypoints());
+        assertTrue(crawl.path().waypoints().stream()
+                        .anyMatch(p -> p.x() == 4 && p.y() == FEET && p.z() == 0),
+                "cesta má vést štolou: " + crawl.path().waypoints());
+    }
+
+    @Test
+    void neplaziSeNadPrazdno() {
+        FakeWorldView world = crawlTunnel();
+        // Pod prostřední buňkou štoly chybí podlaha (propast) – plazit se nad
+        // prázdno se nesmí ani s povoleným plazením.
+        for (int y = FLOOR; y >= FLOOR - 4; y--) {
+            world.set(4, y, 0, FakeWorldView.AIRLIKE);
+        }
+        AStarPathfinder.Result crawl = new AStarPathfinder(world).findPath(
+                new BlockPos(0, FEET, 0), PathGoal.block(new BlockPos(9, FEET, 0)),
+                2000, 0L, null, PathOptions.WALK_WITH_CRAWL);
+        assertFalse(crawl.path().complete(),
+                "nad propastí se štolou neplazí: " + crawl.path().waypoints());
+    }
+
+    @Test
+    void neplaziSeKdyzToStaciChuze() {
+        // Bez nízkého stropu (běžná rovina) plazení nic nepřidá – cesta i s
+        // povoleným plazením zůstává čistě pěší (žádná regrese preferencí).
+        FakeWorldView world = new FakeWorldView(FLOOR);
+        Path plain = new AStarPathfinder(world)
+                .findPath(new BlockPos(0, FEET, 0), new BlockPos(6, FEET, 0), 0);
+        AStarPathfinder.Result withCrawl = new AStarPathfinder(world).findPath(
+                new BlockPos(0, FEET, 0), PathGoal.block(new BlockPos(6, FEET, 0)),
+                0, 0L, null, PathOptions.WALK_WITH_CRAWL);
+
+        assertTrue(plain.complete() && withCrawl.path().complete());
+        assertEquals(plain.waypoints(), withCrawl.path().waypoints(),
+                "na rovině plazení nemění cestu");
     }
 }
