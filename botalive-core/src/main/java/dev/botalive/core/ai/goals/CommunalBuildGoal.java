@@ -11,6 +11,8 @@ import dev.botalive.core.build.plan.BuildPlanner;
 import dev.botalive.core.build.plan.BuildSession;
 import dev.botalive.core.build.plan.Workshops;
 import dev.botalive.core.chat.PhraseCategory;
+import dev.botalive.core.crafting.CraftingService;
+import dev.botalive.core.station.CraftingStation;
 import dev.botalive.core.settlement.SettlementService;
 import dev.botalive.core.settlement.SettlementService.ProjectKind;
 import dev.botalive.core.util.BlockPos;
@@ -32,15 +34,18 @@ import org.bukkit.Material;
  */
 public final class CommunalBuildGoal extends AbstractGoal {
 
-    private enum Phase { CLAIM, GOTO, SESSION, FINISH, DONE }
+    private enum Phase { CLAIM, CRAFT, GOTO, SESSION, FINISH, DONE }
 
     /** Rezerva bloků nad čistou spotřebu stavby (zásypy podlahy). */
     private static final int BLOCK_RESERVE = 8;
+
+    private final CraftingStation crafting;
 
     private Phase phase = Phase.DONE;
     private SettlementService.ProjectInfo project;
     private BuildPlan plan;
     private BuildSession session;
+    private java.util.concurrent.CompletableFuture<Boolean> stationCraft;
     private int cooldownTicks;
     private boolean claimed;
     private java.util.UUID selfId;
@@ -48,9 +53,13 @@ public final class CommunalBuildGoal extends AbstractGoal {
     /** Klíč posledního ohlášeného projektu – hláška jen pro nový, ne re-claim. */
     private long lastAnnouncedProject = -1;
 
-    /** Vytvoří cíl. */
-    public CommunalBuildGoal() {
+    /**
+     * @param crafting služba craftingu – stavitel dílny si stanici (řezák,
+     *                 šípařská deska…) vyrobí na míru, když ji nemá
+     */
+    public CommunalBuildGoal(CraftingStation crafting) {
         super("communal-build");
+        this.crafting = crafting;
     }
 
     @Override
@@ -102,6 +111,7 @@ public final class CommunalBuildGoal extends AbstractGoal {
         project = null;
         plan = null;
         session = null;
+        stationCraft = null;
         claimed = false;
         selfId = bot.id();
     }
@@ -111,6 +121,7 @@ public final class CommunalBuildGoal extends AbstractGoal {
         BotContext ctx = ctx(bot);
         switch (phase) {
             case CLAIM -> tickClaim(ctx, bot);
+            case CRAFT -> tickCraft(ctx, bot);
             case GOTO -> tickGoto(ctx);
             case SESSION -> tickSession(ctx, bot);
             case FINISH -> finishProject(ctx, bot);
@@ -153,6 +164,13 @@ public final class CommunalBuildGoal extends AbstractGoal {
     /** Má stavitel v batohu vše nutné k zahájení dané stavby? */
     private static boolean hasRequiredItems(BotContext ctx, ProjectKind kind) {
         var snapshot = ctx.serverView().latest();
+        // Dílna: buď má hlavní stanici, nebo ji umí vyrobit na míru (suroviny
+        // v batohu) – i dílny mimo běžnou progresi (řezák, loom…) tak vzniknou.
+        if (kind.isWorkshop()) {
+            Material station = Workshops.spec(kind.workshopRole().orElseThrow()).station();
+            return ctx.inventory().countItem(snapshot, station) >= 1
+                    || CraftingService.canCraftStation(snapshot, station);
+        }
         for (Material material : requiredItems(kind).stream().distinct().toList()) {
             long need = requiredItems(kind).stream().filter(m -> m == material).count();
             if (ctx.inventory().countItem(snapshot, material) < need) {
@@ -221,7 +239,38 @@ public final class CommunalBuildGoal extends AbstractGoal {
             lastAnnouncedProject = announceKey;
             ctx.chat().sayFrom(startPhrase(project.kind()), phraseArg(project.kind(), name));
         }
-        phase = Phase.GOTO;
+        // Dílna, jejíž stanici bot nemá, ale umí ji vyrobit na míru → nejdřív craft.
+        phase = needsStationCraft(ctx) ? Phase.CRAFT : Phase.GOTO;
+    }
+
+    /** Chybí staviteli stanice dílny, ale má na ni suroviny (vyrobí na míru)? */
+    private boolean needsStationCraft(BotContext ctx) {
+        if (project == null || !project.kind().isWorkshop()) {
+            return false;
+        }
+        Material station = Workshops.spec(project.kind().workshopRole().orElseThrow()).station();
+        var snapshot = ctx.serverView().latest();
+        return ctx.inventory().countItem(snapshot, station) < 1
+                && CraftingService.canCraftStation(snapshot, station);
+    }
+
+    /** Výroba stanice dílny na míru před cestou na staveniště. */
+    private void tickCraft(BotContext ctx, Bot bot) {
+        if (stationCraft == null) {
+            Material station = Workshops.spec(project.kind().workshopRole().orElseThrow()).station();
+            stationCraft = crafting.craftStation(bot.id(), station);
+            return;
+        }
+        if (!stationCraft.isDone()) {
+            return;
+        }
+        boolean crafted = stationCraft.getNow(false);
+        stationCraft = null;
+        if (crafted) {
+            phase = Phase.GOTO; // stanici má – jde stavět (osadí ji ve vybavení)
+        } else {
+            giveUp(ctx, 2400); // suroviny mezitím ubyly – projekt uvolní dalšímu
+        }
     }
 
     private void tickGoto(BotContext ctx) {

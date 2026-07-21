@@ -136,6 +136,144 @@ public final class CraftingService implements dev.botalive.core.station.Crafting
         return true;
     }
 
+    // ---------------------------------------------- výroba stanice dílny na míru
+
+    /** Surovina receptu stanice: predikát materiálu + počet. */
+    private record StationIngredient(java.util.function.Predicate<Material> match, int count) {
+    }
+
+    private static final java.util.function.Predicate<Material> PLANKS =
+            m -> m.name().endsWith("_PLANKS");
+    private static final java.util.function.Predicate<Material> WOOD_SLAB =
+            m -> m.name().endsWith("_SLAB") && !m.name().contains("STONE")
+                    && !m.name().contains("BRICK") && !m.name().contains("COBBLE")
+                    && !m.name().contains("QUARTZ") && !m.name().contains("SANDSTONE");
+    private static final java.util.function.Predicate<Material> STONE_SLAB =
+            m -> m == Material.STONE_SLAB || m == Material.SMOOTH_STONE_SLAB;
+
+    /**
+     * Recepty stanic účelných dílen, které nejsou v běžné progresi (šípařská
+     * deska, řezák, kotlík…). Umožní staviteli dílny vyrobit stanici na míru
+     * (jen on, když staví právě tuhle dílnu) – bez globálního plýtvání
+     * v {@code CraftPlanner}. Ostatní stanice (pec, ponk, pece…) si bot dělá
+     * progresí, takže tu nejsou.
+     */
+    private static final Map<Material, java.util.List<StationIngredient>> STATION_RECIPES =
+            Map.of(
+                    Material.FLETCHING_TABLE, java.util.List.of(
+                            new StationIngredient(PLANKS, 4),
+                            new StationIngredient(m -> m == Material.FLINT, 2)),
+                    Material.CARTOGRAPHY_TABLE, java.util.List.of(
+                            new StationIngredient(PLANKS, 4),
+                            new StationIngredient(m -> m == Material.PAPER, 2)),
+                    Material.LOOM, java.util.List.of(
+                            new StationIngredient(PLANKS, 2),
+                            new StationIngredient(m -> m == Material.STRING, 2)),
+                    Material.CAULDRON, java.util.List.of(
+                            new StationIngredient(m -> m == Material.IRON_INGOT, 7)),
+                    Material.GRINDSTONE, java.util.List.of(
+                            new StationIngredient(m -> m == Material.STICK, 2),
+                            new StationIngredient(PLANKS, 2),
+                            new StationIngredient(STONE_SLAB, 1)),
+                    Material.STONECUTTER, java.util.List.of(
+                            new StationIngredient(m -> m == Material.STONE, 3),
+                            new StationIngredient(m -> m == Material.IRON_INGOT, 1)),
+                    Material.LECTERN, java.util.List.of(
+                            new StationIngredient(WOOD_SLAB, 4),
+                            new StationIngredient(m -> m == Material.BOOKSHELF, 1)));
+
+    /**
+     * Má bot v batohu suroviny na výrobu stanice dílny na míru? (rychlá brána
+     * pro {@code CommunalBuildGoal.utility} – běží na tick vlákně bota).
+     *
+     * @param snapshot inventářový snímek bota
+     * @param station  materiál stanice
+     * @return {@code true} pokud stanici lze vyrobit ze současného inventáře
+     */
+    public static boolean canCraftStation(dev.botalive.core.bot.ServerSideView.Snapshot snapshot,
+                                          Material station) {
+        var recipe = STATION_RECIPES.get(station);
+        if (recipe == null || snapshot == null) {
+            return false;
+        }
+        for (StationIngredient ingredient : recipe) {
+            if (countSnapshot(snapshot, ingredient.match()) < ingredient.count()) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * Vyrobí stanici dílny na míru (spotřebuje suroviny, přidá blok) – jen
+     * pro stanice mimo běžnou progresi. Autoritativně na vlákně entity, jako
+     * {@code AnvilService}. Bez receptu / bez surovin vrací {@code false}.
+     *
+     * @param botId   UUID bota
+     * @param station materiál stanice
+     * @return future s výsledkem (true = stanice v inventáři)
+     */
+    @Override
+    public CompletableFuture<Boolean> craftStation(UUID botId, Material station) {
+        var recipe = STATION_RECIPES.get(station);
+        Player player = Bukkit.getPlayer(botId);
+        if (recipe == null || player == null) {
+            return CompletableFuture.completedFuture(false);
+        }
+        return bridge.callForEntity(player, () -> {
+            PlayerInventory inventory = player.getInventory();
+            for (StationIngredient ingredient : recipe) {
+                if (countMatching(inventory, ingredient.match()) < ingredient.count()) {
+                    return false; // suroviny mezitím ubyly
+                }
+            }
+            for (StationIngredient ingredient : recipe) {
+                removeMatching(inventory, ingredient.match(), ingredient.count());
+            }
+            var overflow = inventory.addItem(new ItemStack(station, 1));
+            overflow.values().forEach(rest ->
+                    player.getWorld().dropItemNaturally(player.getLocation(), rest));
+            return true;
+        }).exceptionally(t -> false);
+    }
+
+    private static int countSnapshot(dev.botalive.core.bot.ServerSideView.Snapshot snapshot,
+                                     java.util.function.Predicate<Material> match) {
+        int total = 0;
+        for (int i = 0; i < snapshot.hotbar().length; i++) {
+            if (snapshot.hotbar()[i] != null && match.test(snapshot.hotbar()[i])) {
+                total += snapshot.hotbarCounts()[i];
+            }
+        }
+        for (int i = 0; i < snapshot.mainInventory().length; i++) {
+            if (snapshot.mainInventory()[i] != null && match.test(snapshot.mainInventory()[i])) {
+                total += snapshot.mainCounts()[i];
+            }
+        }
+        return total;
+    }
+
+    /** Odebere {@code count} kusů vyhovujícího materiálu z inventáře. */
+    private static void removeMatching(PlayerInventory inventory,
+                                       java.util.function.Predicate<Material> match, int count) {
+        int remaining = count;
+        ItemStack[] contents = inventory.getStorageContents();
+        for (int i = 0; i < contents.length && remaining > 0; i++) {
+            ItemStack item = contents[i];
+            if (item == null || !match.test(item.getType())) {
+                continue;
+            }
+            int take = Math.min(remaining, item.getAmount());
+            remaining -= take;
+            if (take >= item.getAmount()) {
+                inventory.setItem(i, null);
+            } else {
+                item.setAmount(item.getAmount() - take);
+                inventory.setItem(i, item);
+            }
+        }
+    }
+
     // ------------------------------------------------------------- pomocníci
 
     private static int count(PlayerInventory inventory, Material material) {
