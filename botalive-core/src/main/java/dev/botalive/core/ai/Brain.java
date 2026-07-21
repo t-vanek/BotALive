@@ -230,6 +230,8 @@ public final class Brain {
                 utility *= impl.ambitionWeight(goal.id());
                 // Zaměstnání: dělník se soustředí na práci a míň se fláká.
                 utility *= impl.employmentWeight(goal.id());
+                // Nálada: aktuální emoce jemně vychyluje priority (viz docs/BOT_LIFE.md).
+                utility *= impl.moodWeight(goal.id());
             }
             // Hystereze aktivního cíle + drobný rozhodovací šum.
             if (goal == current) {

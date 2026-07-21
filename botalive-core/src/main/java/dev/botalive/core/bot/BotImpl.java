@@ -126,6 +126,13 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
     /** Veřejné akční rozhraní bota pro cizí AI cíle (lazy, sdílená instance). */
     private volatile dev.botalive.api.bot.BotControl control;
 
+    /** Krátkodobá nálada bota – jemně vychyluje priority cílů (viz docs/BOT_LIFE.md). */
+    private final dev.botalive.core.ai.BotMood mood = new dev.botalive.core.ai.BotMood();
+    /** Zapnutí náladové modulace ({@code ai.mood}). */
+    private final boolean moodEnabled;
+    /** Ticky od poslední aktualizace nálady (rozfázováno periodou). */
+    private int ticksSinceMood;
+
     /** Pohyb vyžádaný cílem pro aktuální tick (přebíjí navigátor). */
     private MoveInput requestedMove;
     /** Probíhající zásah do terénu při zdolávání překážky (kopání/pokládání). */
@@ -210,6 +217,7 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
         this.wallet = wallet;
         this.stats = stats;
         this.config = services.config();
+        this.moodEnabled = config.ai().mood();
         this.worldViews = services.worldViews();
         this.bridge = services.bridge();
         this.tickEngine = services.tickEngine();
@@ -857,6 +865,10 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
     @Override
     public void gainExperience(dev.botalive.core.personality.PersonalityEvolution
                                        .BotExperience experience) {
+        // Rychlá emoční reakce (nálada) – nezávisle na pomalém driftu osobnosti.
+        if (moodEnabled) {
+            mood.reactTo(experience, personality);
+        }
         if (!(personality instanceof dev.botalive.core.personality.PersonalityImpl impl)) {
             return;
         }
@@ -1215,6 +1227,12 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
             if (services.employment() != null) {
                 services.employment().tick(this);
             }
+        }
+        // Nálada: řídce (~1 s) posbírat tělesné signály a nechat emoce odeznít.
+        // Běží i u pozastaveného bota (emoce plynou dál), jen ne po smrti.
+        if (moodEnabled && !clientState.dead() && ++ticksSinceMood >= 20) {
+            ticksSinceMood = 0;
+            updateMood();
         }
 
         boolean alive = !clientState.dead();
@@ -2328,6 +2346,39 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
      */
     public double roleWeight(String goalId) {
         return services.roles().weight(roleId, goalId);
+    }
+
+    /**
+     * Násobič užitečnosti cíle podle aktuální nálady (viz docs/BOT_LIFE.md).
+     * Volá mozek; v klidu (nebo když je nálada vypnutá) vrací 1.0.
+     *
+     * @param goalId id cíle
+     * @return náladový násobič
+     */
+    public double moodWeight(String goalId) {
+        return moodEnabled ? mood.modulate(goalId) : 1.0;
+    }
+
+    /**
+     * @return krátký popis dominantní nálady (pro {@code /botalive goal}),
+     *         nebo {@code null} když je nálada vypnutá
+     */
+    public String moodLine() {
+        return moodEnabled ? mood.describe() : null;
+    }
+
+    /** Posbírá tělesné a okolní signály nálady a nechá emoce odeznít. */
+    private void updateMood() {
+        long time = worldTime();
+        boolean night = time >= 13_000 && time < 23_000;
+        Vec3 pos = position();
+        int hostiles = entities.nearby(pos, 12.0,
+                dev.botalive.core.entity.TrackedEntity::isHostile).size();
+        int company = entities.nearby(pos, 12.0,
+                dev.botalive.core.entity.TrackedEntity::isPlayer).size();
+        mood.observe(clientState.health(), clientState.food(), hostiles, company, night,
+                personality.trait(dev.botalive.api.personality.Trait.SOCIABILITY));
+        mood.decay();
     }
 
     @Override

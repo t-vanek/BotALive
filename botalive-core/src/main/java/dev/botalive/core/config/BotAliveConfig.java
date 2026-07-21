@@ -212,11 +212,14 @@ public record BotAliveConfig(
      *                              večer družení, v noci domů (jemné násobiče utility)
      * @param desperation           nouzové chování: hladový bot bez prostředků krade
      *                              z truhel a v krajní nouzi přepadá (jen v mezích pvp.*)
+     * @param mood                  vnitřní nálada: emoce (strach, vztek, spokojenost,
+     *                              samota) z prožitků a těla jemně vychylují priority
+     *                              cílů (viz docs/BOT_LIFE.md)
      */
     public record Ai(int decisionIntervalTicks, double goalHysteresis,
                      int viewDistanceBlocks, String difficulty, boolean terraforming,
                      boolean ladders, boolean pillaring, boolean boats, boolean dailyRhythm,
-                     boolean desperation) {
+                     boolean desperation, boolean mood) {
     }
 
     /**
