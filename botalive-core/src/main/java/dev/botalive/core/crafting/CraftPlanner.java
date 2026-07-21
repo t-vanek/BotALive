@@ -548,6 +548,14 @@ public final class CraftPlanner {
                     slab, 6, slab, 7, slab, 8), true);
         }
 
+        // ---- nůžky na vlnu: bez postele a bez vlny si bot udělá nůžky
+        // (2 železa), aby mohl ostříhat ovce – dřív vlna byla jen ze zabíjení
+        // ovcí, takže postel v biomu bez lovu nikdy nevznikla.
+        if (s.hasTable() && iron >= 2 && !s.has(Material.SHEARS)
+                && s.wool() < 3 && !s.hasMatching(m -> m.name().endsWith("_BED"))) {
+            return new Plan("nůžky", matrix(Material.IRON_INGOT, 1, Material.IRON_INGOT, 3), true);
+        }
+
         // ---- vybavení domova
         if (s.hasTable() && s.planks() >= 6 && plank != null
                 && !s.hasMatching(m -> m.name().endsWith("_DOOR"))) {

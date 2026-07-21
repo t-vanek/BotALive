@@ -186,6 +186,16 @@ public final class TrackedEntity {
         };
     }
 
+    /** @return {@code true} pokud jde o pavouka (zdroj provázku na luk/prut) */
+    public boolean isSpider() {
+        return type == EntityType.SPIDER || type == EntityType.CAVE_SPIDER;
+    }
+
+    /** @return {@code true} pokud jde o ovci (zdroj vlny na postel) */
+    public boolean isSheep() {
+        return type == EntityType.SHEEP;
+    }
+
     /** @return {@code true} pokud jde o ochočitelný druh (vanilla taming) */
     public boolean isTameableType() {
         return switch (type) {

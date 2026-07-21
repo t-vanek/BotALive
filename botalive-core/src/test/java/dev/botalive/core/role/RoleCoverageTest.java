@@ -31,8 +31,8 @@ class RoleCoverageTest {
             "rob", "end-outer", "steal", "guard", "combat", "house", "end-harvest",
             "socialize", "eat", "share", "escape", "wither-fight", "survive",
             "bodyguard", "recover", "sell", "follow", "boat", "war-raid",
-            "creeper-dodge", "trade", "tame", "breed", "fish", "enchant", "end-travel",
-            "end-return");
+            "creeper-dodge", "trade", "tame", "breed", "shear", "fish", "enchant",
+            "end-travel", "end-return");
 
     @ParameterizedTest
     @EnumSource(value = BotRole.class, names = "NONE", mode = EnumSource.Mode.EXCLUDE)

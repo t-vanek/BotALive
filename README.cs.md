@@ -60,6 +60,7 @@ Každý bot má vlastní identitu, osobnost, paměť, cíle, inventář a histor
 - **Mazlíčci** — boti si vanilla mechanikami ochočují vlky, kočky, papoušky i koně; ochočení vlci pak bojují po jejich boku.
 - **Zakládání polí** — farmář už zděděná políčka jen neudržuje: s osivem a motykou u domova nebo známého pole zorá krátký řádek hlíny na farmland a zaseje pšenici, takže pole vznikne i tam, kde žádné nebylo. Nové pole si zapamatuje a udržuje (sklizeň a přesazení) jako každé jiné.
 - **Chov zvířat** — farmáři (a krotitelé) rozmnožují vanilla hospodářská zvířata: se správným krmivem v ruce — pšenice na krávy, ovce a kozy, mrkev na prasata, semínka na slepice — bot nakrmí dva dospělé jedince, spustí love mode a stádo roste; strop okolního stáda brání přemnožení. Maso, vlna a kůže pak živí kuchyni, trh i kompostárnu.
+- **Nůžky a provázek** — bot, který potřebuje postel, si vyrobí nůžky a **ostříhá ovce na vlnu** (bez zabíjení, opakovatelně) místo spoléhání na náhodný úlovek, takže útulný domov dokončí i tam, kde neloví. A bot, který chce luk nebo prut, ale nemá provázek, cíleně **skolí pavouka** — mizí tak náhoda, na které dřív visela střelba i rybaření.
 
 ### 🌾 Survival progrese
 

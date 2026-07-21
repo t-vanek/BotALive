@@ -67,6 +67,29 @@ class CraftPlannerTest {
     }
 
     @Test
+    void bezPosteleAVlnySeUdelajiNuzky() {
+        // Bot bez postele a vlny si s železem udělá nůžky (ostříhá ovce na vlnu).
+        Object[] base = {
+                Material.OAK_PLANKS, 4, Material.STICK, 4, Material.CRAFTING_TABLE, 1,
+                Material.DIAMOND_PICKAXE, 1, Material.DIAMOND_SWORD, 1, Material.DIAMOND_AXE, 1,
+                Material.STONE_SHOVEL, 1, Material.FURNACE, 1, Material.TORCH, 8};
+        assertEquals("nůžky", CraftPlanner.next(withExtra(base, Material.IRON_INGOT, 2)).id());
+        // Bez železa nůžky nevzniknou.
+        assertNull(CraftPlanner.next(state(base)));
+        // S postelí už nůžky netřeba.
+        assertNull(CraftPlanner.next(withExtra(base, Material.IRON_INGOT, 2,
+                Material.RED_BED, 1)));
+    }
+
+    /** Sestaví stav ze základu + dalších dvojic. */
+    private static CraftPlanner.State withExtra(Object[] base, Object... extra) {
+        Object[] all = new Object[base.length + extra.length];
+        System.arraycopy(base, 0, all, 0, base.length);
+        System.arraycopy(extra, 0, all, base.length, extra.length);
+        return state(all);
+    }
+
+    @Test
     void obsidianDiamantKnihaOdemknouEnchantovaciStul() {
         // Samoenchantování: bot s obsidiánem, diamanty a knihou si postaví stůl.
         CraftPlanner.State s = state(

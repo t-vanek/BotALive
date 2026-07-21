@@ -20,7 +20,7 @@ public final class RoleProfiles {
             Map.entry(BotRole.BUILDER, Map.of(
                     "shelter", 2.5, "house", 3.0, "communal-build", 2.5,
                     "craft", 1.4, "mine", 1.3, "home", 1.3,
-                    "maintain", 2.2)),
+                    "maintain", 2.2, "shear", 1.3)),
             Map.entry(BotRole.MINER, Map.of(
                     "mine", 2.5, "collect", 1.3, "craft", 1.2, "smelt", 1.3,
                     "nether", 1.6, "smith", 1.4, "end-harvest", 1.4)),
@@ -95,7 +95,8 @@ public final class RoleProfiles {
             Map.entry(BotRole.LEATHERWORKER, Map.of(
                     "hunt", 2.0, "breed", 1.8, "craft", 1.6, "trade", 1.3)),
             Map.entry(BotRole.SHEPHERD, Map.of(
-                    "breed", 2.4, "farm", 1.4, "collect", 1.4, "share", 1.3, "craft", 1.2))
+                    "breed", 2.4, "shear", 2.4, "farm", 1.4, "collect", 1.4,
+                    "share", 1.3, "craft", 1.2))
     );
 
     private RoleProfiles() {

@@ -339,6 +339,7 @@ public final class CompositionRoot {
                 bot -> new dev.botalive.core.ai.goals.WorkDeliveryGoal(employment));
         registry.register("tame", bot -> new dev.botalive.core.ai.goals.TameGoal(taming));
         registry.register("breed", bot -> new dev.botalive.core.ai.goals.BreedGoal(breeding));
+        registry.register("shear", bot -> new dev.botalive.core.ai.goals.ShearGoal());
         registry.register("recover", bot -> new dev.botalive.core.ai.goals.RecoverItemsGoal());
         registry.register("maintain", bot -> new dev.botalive.core.ai.goals.MaintainHomeGoal());
         registry.register("sell", bot -> new dev.botalive.core.ai.goals.SellGoal(market, socialGraph));

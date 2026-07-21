@@ -60,6 +60,7 @@ Every bot has its own identity, personality, memory, goals, inventory and histor
 - **Pets** — bots tame wolves, cats, parrots and horses through vanilla mechanics; tamed wolves fight at their side.
 - **Crop fields** — farmers no longer only tend inherited plots: with seeds and a hoe near home or a known field, a bot tills a short row of dirt into farmland and sows wheat, establishing a field where none existed. The new field is remembered and tended (harvest and replant) like any other.
 - **Animal husbandry** — farmers (and beastmasters) breed vanilla livestock: with the right feed in hand — wheat for cows, sheep and goats, carrots for pigs, seeds for chickens — a bot feeds two adults to trigger love mode and grow the herd, capped so a pasture never overflows. Meat, wool and leather feed the kitchen, the market and the compost hut.
+- **Shears & string** — a bot that needs a bed crafts shears and **shears sheep for wool** (non-lethal and repeatable) instead of depending on a lucky kill, so cozy homes finish even where the bot doesn't hunt. And a bot that wants a bow or fishing rod but has no string deliberately **hunts spiders for it**, closing the luck-gate that used to leave archery and fishing to chance.
 
 ### 🌾 Survival progression
 
