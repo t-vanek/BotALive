@@ -353,7 +353,8 @@ public final class SellGoal extends AbstractGoal {
         int totalFood = InventoryHelper.countEstimate(snapshot, InventoryHelper::isFood);
         for (Material material : new Material[]{Material.BREAD, Material.COOKED_BEEF,
                 Material.COOKED_PORKCHOP, Material.COOKED_CHICKEN,
-                Material.COOKED_MUTTON, Material.BAKED_POTATO}) {
+                Material.COOKED_MUTTON, Material.BAKED_POTATO,
+                Material.COOKED_COD, Material.COOKED_SALMON, Material.COD, Material.SALMON}) {
             if (totalFood > 12
                     && InventoryHelper.countEstimate(snapshot, m -> m == material) >= 6) {
                 return new Sale(material, 5, MarketPrices.price(material, 5, greed));
