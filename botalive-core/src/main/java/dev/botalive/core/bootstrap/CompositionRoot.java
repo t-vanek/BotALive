@@ -351,6 +351,8 @@ public final class CompositionRoot {
         registry.register("brew", bot -> new dev.botalive.core.ai.goals.BrewGoal(brewing));
         registry.register("wither-fight",
                 bot -> new dev.botalive.core.ai.goals.WitherFightGoal());
+        registry.register("stronghold",
+                bot -> new dev.botalive.core.ai.goals.StrongholdSeekGoal());
         registry.register("end-travel", bot -> new dev.botalive.core.ai.goals.EndTravelGoal());
         registry.register("dragon-fight", bot -> new dev.botalive.core.ai.goals.DragonFightGoal());
         registry.register("end-harvest", bot -> new dev.botalive.core.ai.goals.EndHarvestGoal());

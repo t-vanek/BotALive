@@ -65,9 +65,9 @@ public final class RoleProfiles {
             Map.entry(BotRole.DIPLOMAT, Map.of(
                     "share", 2.2, "reconcile", 2.5, "trade", 1.3)),
             Map.entry(BotRole.ADVENTURER, Map.of(
-                    "nether", 2.2, "end-travel", 2.0, "dragon-fight", 1.8,
-                    "wither-fight", 1.8, "recover", 1.5, "explore", 1.4,
-                    "end-outer", 1.5, "end-harvest", 1.4)),
+                    "nether", 2.2, "end-travel", 2.0, "stronghold", 2.0,
+                    "dragon-fight", 1.8, "wither-fight", 1.8, "recover", 1.5,
+                    "explore", 1.4, "end-outer", 1.5, "end-harvest", 1.4)),
             Map.entry(BotRole.COURIER, Map.of(
                     "deliver-work", 2.5, "stash", 1.8, "collect", 1.4, "trade", 1.3,
                     "minecart", 1.3, "granary", 1.8)),
