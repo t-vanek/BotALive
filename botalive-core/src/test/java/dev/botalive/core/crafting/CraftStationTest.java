@@ -91,12 +91,45 @@ class CraftStationTest {
     }
 
     @Test
+    void bruskaSiDlazdiciDomackneZKamene() {
+        // Bez dlaždice, ale s kamenem – řezník ji dorobí (3 kámen → 6 dlaždic).
+        assertTrue(CraftingService.canCraftStation(
+                inv(Material.STICK, 2, Material.OAK_PLANKS, 2, Material.SMOOTH_STONE, 3),
+                Material.GRINDSTONE));
+        // Dva kameny nestačí (dlaždice chce tři).
+        assertFalse(CraftingService.canCraftStation(
+                inv(Material.STICK, 2, Material.OAK_PLANKS, 2, Material.SMOOTH_STONE, 2),
+                Material.GRINDSTONE));
+    }
+
+    @Test
     void kamennaDlazdiceNeniDrevena() {
         // WOOD_SLAB predikát nesmí spolknout kamennou dlaždici (pult knihovny).
         assertFalse(CraftingService.canCraftStation(
                 inv(Material.STONE_SLAB, 4, Material.BOOKSHELF, 1), Material.LECTERN));
         assertTrue(CraftingService.canCraftStation(
                 inv(Material.OAK_SLAB, 4, Material.BOOKSHELF, 1), Material.LECTERN));
+    }
+
+    @Test
+    void pultSiPulkyIKnihovnuDomackne() {
+        // Knihovník má knihy (startovní sada) a prkna – pult si dorobí:
+        // 3 prkna → půlky, 6 prken + 3 knihy → knihovna (celkem 9 prken).
+        assertTrue(CraftingService.canCraftStation(
+                inv(Material.OAK_PLANKS, 9, Material.BOOK, 3), Material.LECTERN));
+        // Osm prken nestačí – půlky i knihovna kreslí ze stejné zásoby.
+        assertFalse(CraftingService.canCraftStation(
+                inv(Material.OAK_PLANKS, 8, Material.BOOK, 3), Material.LECTERN));
+        // Bez knih knihovnu neposkládá.
+        assertFalse(CraftingService.canCraftStation(
+                inv(Material.OAK_PLANKS, 9), Material.LECTERN));
+    }
+
+    @Test
+    void pultSHotovouKnihovnouChceUzJenPulky() {
+        // Knihovnu už má – stačí prkna na 4 půlky (jedno spuštění dá šest).
+        assertTrue(CraftingService.canCraftStation(
+                inv(Material.OAK_PLANKS, 3, Material.BOOKSHELF, 1), Material.LECTERN));
     }
 
     @Test
