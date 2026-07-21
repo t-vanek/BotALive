@@ -130,8 +130,12 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
     private final dev.botalive.core.ai.BotMood mood = new dev.botalive.core.ai.BotMood();
     /** Zapnutí náladové modulace ({@code ai.mood}). */
     private final boolean moodEnabled;
-    /** Ticky od poslední aktualizace nálady (rozfázováno periodou). */
-    private int ticksSinceMood;
+    /** Energie/únava bota – klesá bděním, obnovuje se spánkem (viz docs/BOT_LIFE.md). */
+    private final dev.botalive.core.ai.Vitals vitals = new dev.botalive.core.ai.Vitals();
+    /** Zapnutí únavové modulace ({@code ai.vitals}). */
+    private final boolean vitalsEnabled;
+    /** Ticky od poslední aktualizace vnitřního stavu (nálada + vitály). */
+    private int ticksSinceInner;
 
     /** Pohyb vyžádaný cílem pro aktuální tick (přebíjí navigátor). */
     private MoveInput requestedMove;
@@ -218,6 +222,7 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
         this.stats = stats;
         this.config = services.config();
         this.moodEnabled = config.ai().mood();
+        this.vitalsEnabled = config.ai().vitals();
         this.worldViews = services.worldViews();
         this.bridge = services.bridge();
         this.tickEngine = services.tickEngine();
@@ -1183,6 +1188,7 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
             combat.disengage();
         } else if (!clientState.dead() && deathHandled) {
             deathHandled = false; // po respawnu
+            vitals.refresh(); // čerstvé tělo je odpočaté
         }
 
         // Periodický snapshot serverového hráče a flush statistik.
@@ -1228,11 +1234,11 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
                 services.employment().tick(this);
             }
         }
-        // Nálada: řídce (~1 s) posbírat tělesné signály a nechat emoce odeznít.
-        // Běží i u pozastaveného bota (emoce plynou dál), jen ne po smrti.
-        if (moodEnabled && !clientState.dead() && ++ticksSinceMood >= 20) {
-            ticksSinceMood = 0;
-            updateMood();
+        // Vnitřní stav (nálada + energie): řídce (~1 s). Běží i u pozastaveného
+        // bota (život plyne dál), jen ne po smrti.
+        if ((moodEnabled || vitalsEnabled) && !clientState.dead() && ++ticksSinceInner >= 20) {
+            ticksSinceInner = 0;
+            updateInnerState();
         }
 
         boolean alive = !clientState.dead();
@@ -2367,18 +2373,50 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
         return moodEnabled ? mood.describe() : null;
     }
 
-    /** Posbírá tělesné a okolní signály nálady a nechá emoce odeznít. */
-    private void updateMood() {
-        long time = worldTime();
-        boolean night = time >= 13_000 && time < 23_000;
-        Vec3 pos = position();
-        int hostiles = entities.nearby(pos, 12.0,
-                dev.botalive.core.entity.TrackedEntity::isHostile).size();
-        int company = entities.nearby(pos, 12.0,
-                dev.botalive.core.entity.TrackedEntity::isPlayer).size();
-        mood.observe(clientState.health(), clientState.food(), hostiles, company, night,
-                personality.trait(dev.botalive.api.personality.Trait.SOCIABILITY));
-        mood.decay();
+    /**
+     * Násobič užitečnosti cíle podle únavy (viz docs/BOT_LIFE.md). Svěží bot
+     * (nebo vypnuté vitály) vrací 1.0.
+     *
+     * @param goalId id cíle
+     * @return únavový násobič
+     */
+    public double vitalsWeight(String goalId) {
+        return vitalsEnabled ? vitals.modulate(goalId) : 1.0;
+    }
+
+    /**
+     * @return krátký popis energie (pro {@code /botalive goal}), nebo
+     *         {@code null} když jsou vitály vypnuté
+     */
+    public String vitalsLine() {
+        return vitalsEnabled ? vitals.describe() : null;
+    }
+
+    /** Aktualizuje vnitřní stav bota – energii (vitály) a náladu (emoce). */
+    private void updateInnerState() {
+        ServerSideView.Snapshot snapshot = serverView.latest();
+        boolean sleeping = snapshot != null && snapshot.sleeping();
+
+        if (vitalsEnabled) {
+            double exertion = combat.engaged() || navigator.navigating() ? 0.9 : 0.25;
+            vitals.tick(sleeping, exertion);
+        }
+        if (moodEnabled) {
+            long time = worldTime();
+            boolean night = time >= 13_000 && time < 23_000;
+            Vec3 pos = position();
+            int hostiles = entities.nearby(pos, 12.0,
+                    dev.botalive.core.entity.TrackedEntity::isHostile).size();
+            int company = entities.nearby(pos, 12.0,
+                    dev.botalive.core.entity.TrackedEntity::isPlayer).size();
+            mood.observe(clientState.health(), clientState.food(), hostiles, company, night,
+                    personality.trait(dev.botalive.api.personality.Trait.SOCIABILITY));
+            mood.decay();
+            // Vyčerpaný bot je náladovější – propojení vitály → nálada.
+            if (vitalsEnabled && vitals.exhausted()) {
+                mood.feel(dev.botalive.core.ai.BotMood.Emotion.ANGER, 0.03);
+            }
+        }
     }
 
     @Override

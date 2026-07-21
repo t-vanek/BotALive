@@ -215,11 +215,14 @@ public record BotAliveConfig(
      * @param mood                  vnitřní nálada: emoce (strach, vztek, spokojenost,
      *                              samota) z prožitků a těla jemně vychylují priority
      *                              cílů (viz docs/BOT_LIFE.md)
+     * @param vitals                energie/únava: klesá bděním a námahou, obnovuje se
+     *                              spánkem; unavený bot vyhledá odpočinek a odloží
+     *                              dlouhé výpravy (viz docs/BOT_LIFE.md)
      */
     public record Ai(int decisionIntervalTicks, double goalHysteresis,
                      int viewDistanceBlocks, String difficulty, boolean terraforming,
                      boolean ladders, boolean pillaring, boolean boats, boolean dailyRhythm,
-                     boolean desperation, boolean mood) {
+                     boolean desperation, boolean mood, boolean vitals) {
     }
 
     /**

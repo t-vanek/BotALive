@@ -232,6 +232,8 @@ public final class Brain {
                 utility *= impl.employmentWeight(goal.id());
                 // Nálada: aktuální emoce jemně vychyluje priority (viz docs/BOT_LIFE.md).
                 utility *= impl.moodWeight(goal.id());
+                // Únava: unavený bot odkládá dlouhé výpravy a vyhledá odpočinek.
+                utility *= impl.vitalsWeight(goal.id());
             }
             // Hystereze aktivního cíle + drobný rozhodovací šum.
             if (goal == current) {

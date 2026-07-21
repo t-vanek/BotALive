@@ -121,10 +121,10 @@ se skládají z hotových primitiv. Cizí pluginy registrují cíle přes
 `GoalRegistry` bez zásahu do jádra.
 
 Užitečnost je součin modulačních vrstev (dimenze, role, denní rytmus, ambice,
-zaměstnání a **nálada**) – každá jen jemně vychyluje priority, osobnost zůstává
-hlavní. Nálada (`BotMood`) je krátkodobý emoční stav mezi celoživotní osobností
-a per-tik utilitou: sytí ji prožitky a tělo, odeznívá a v klidu je neutrální –
-viz [BOT_LIFE.md](BOT_LIFE.md).
+zaměstnání, **nálada** a **únava**) – každá jen jemně vychyluje priority,
+osobnost zůstává hlavní. Vnitřní stav (`BotMood` – emoce z prožitků a těla;
+`Vitals` – energie/únava) je krátkodobá vrstva mezi celoživotní osobností
+a per-tik utilitou: v klidu neutrální, vypínatelná – viz [BOT_LIFE.md](BOT_LIFE.md).
 
 ### 5. Pohyb: simulovaná fyzika, ne teleportace
 

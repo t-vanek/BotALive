@@ -780,6 +780,10 @@ public final class BotAliveCommand implements TabExecutor {
             if (mood != null) {
                 sender.sendMessage(Component.text(" nálada: " + mood, NamedTextColor.LIGHT_PURPLE));
             }
+            String vitals = impl.vitalsLine();
+            if (vitals != null) {
+                sender.sendMessage(Component.text(" energie: " + vitals, NamedTextColor.LIGHT_PURPLE));
+            }
             String ambition = impl.ambitionLine();
             if (ambition != null) {
                 sender.sendMessage(Component.text(" životní cíl: " + ambition,

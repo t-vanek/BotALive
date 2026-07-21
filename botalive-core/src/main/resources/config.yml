@@ -151,6 +151,11 @@ ai:
   # družení) a škáluje ji povaha. V klidu je chování beze změny. Viz
   # docs/BOT_LIFE.md.
   mood: true
+  # Energie a únava: bdění a námaha (pohyb, boj) energii ubírají, spánek ji
+  # obnovuje. Unavený bot vyhledá postel i mimo noc a odloží dlouhé výpravy
+  # (Nether, End, průzkum); vyčerpaný je náladovější. Jemné násobiče, svěží bot
+  # beze změny. Viz docs/BOT_LIFE.md.
+  vitals: true
 
 chat:
   enabled: true

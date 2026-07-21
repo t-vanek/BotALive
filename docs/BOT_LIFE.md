@@ -61,14 +61,16 @@ Krátkodobý emoční stav: **strach, vztek, spokojenost, samota**, každý 0–
 - Odeznívá (`decay`) k baseline klidu za desítky sekund. Vypínatelné
   (`ai.mood`). Čistá, jednotkově testovaná třída (`BotMoodTest`).
 
-### 2. `Vitals` – fyziologie (návrh)
+### 2. `Vitals` – fyziologie (✅ implementováno)
 
-Sjednocený tělesný stav: zdraví a sytost (existují v `BotClientState`)
-**+ energie/únava** (nová). Únava roste činností a bděním, klesá spánkem
-a odpočinkem; nízká energie zvedá utilitu spánku/domova a tlumí dlouhé
-výpravy. Dnes je „únava" jen implicitní v čase (`DayRhythm`, `SleepGoal`);
-explicitní vitál by dal spánku a odpočinku vnitřní příčinu a napojil se na
-náladu (vyčerpaný bot je náladovější).
+Tělesný stav – zatím **energie/únava**. Energie 0–1 klesá bděním a námahou
+(pohyb, boj) a obnovuje se spánkem; respawn tělo osvěží. `modulate(goalId)` je
+jemný násobič (á la nálada): unavený bot zvedá utilitu spánku/domova/úkrytu
+a tlumí dlouhé výpravy (Nether, End, průzkum, těžba) – svěží bot dostane přesně
+1.0. Dřív byla „únava" jen implicitní v čase (`DayRhythm`, `SleepGoal`); teď má
+spánek vnitřní příčinu i mimo noc. **Propojení na náladu:** vyčerpaný bot je
+náladovější (`updateInnerState` mu přisype trochu podráždění). Vypínatelné
+(`ai.vitals`). Čistá, jednotkově testovaná třída (`VitalsTest`).
 
 ### 3. `Drives` – pudy (návrh)
 
@@ -92,10 +94,11 @@ by nakláněla baseline pudů (dobrodruh má vyšší seberealizaci, strážce b
 | Fáze | Subsystém | Stav |
 |---|---|---|
 | 1 | `BotMood` (emoce) | ✅ hotovo |
-| 2 | `Vitals` (energie/únava) | ⬜ návrh |
+| 2 | `Vitals` (energie/únava) | ✅ hotovo |
 | 3 | `Drives` (sjednocené pudy) | ⬜ návrh |
 
-Mood je keystone: přidává zcela novou dimenzi (krátkodobou emoci), je bezpečný
-(v klidu neutrální, vypínatelný) a demonstruje celou smyčku
-paměť → cit → rozhodnutí → chování, škálovanou osobností. Vitals a Drives na něj
-navazují stejným modulačním vzorem.
+Mood i Vitals sdílejí modulační vzor (v klidu neutrální, vypínatelné, jemné
+násobiče v `Brain.decide`) a jsou provázané: prožitky a tělo sytí náladu,
+únava náladu přiostřuje. Obojí se aktualizuje jedním řídkým krokem
+(`BotImpl.updateInnerState`, ~1 s). Zbývá `Drives` – sjednocení pudů, které dnes
+každý cíl počítá zvlášť; naváže stejným vzorem a role by nakláněla jejich baseline.
