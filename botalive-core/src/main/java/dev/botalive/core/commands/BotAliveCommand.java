@@ -54,6 +54,16 @@ public final class BotAliveCommand implements TabExecutor {
             "memory", "goal", "stats", "role", "settlements", "diplomacy", "end",
             "path", "overview", "hire", "dismiss");
 
+    /**
+     * @return jména všech vestavěných podpříkazů – vyhrazená pro registr
+     *         cizích podpříkazů ({@link SubcommandRegistryImpl})
+     */
+    public static java.util.Set<String> builtInSubcommands() {
+        java.util.Set<String> all = new java.util.HashSet<>(SUBCOMMANDS);
+        all.addAll(ADMIN_SUBCOMMANDS);
+        return all;
+    }
+
     private final BotManagerImpl botManager;
     private final GoalRegistryImpl goalRegistry;
     private final BotRepository repository;
@@ -62,6 +72,7 @@ public final class BotAliveCommand implements TabExecutor {
     private final dev.botalive.core.settlement.DiplomacyService diplomacy;
     private final dev.botalive.core.economy.EmploymentService employment;
     private final dev.botalive.core.pathfinding.NavigationService navigation;
+    private final SubcommandRegistryImpl subcommands;
     private final dev.botalive.core.teleport.TeleportCooldowns cooldowns;
 
     /**
@@ -73,6 +84,7 @@ public final class BotAliveCommand implements TabExecutor {
      * @param diplomacy    diplomacie sídel (pro /botalive diplomacy)
      * @param employment   najímání botů (pro /botalive hire a dismiss)
      * @param navigation   pathfinding (metriky pro /botalive path)
+     * @param subcommands  registr cizích podpříkazů
      */
     public BotAliveCommand(BotManagerImpl botManager, GoalRegistryImpl goalRegistry,
                            BotRepository repository,
@@ -80,7 +92,8 @@ public final class BotAliveCommand implements TabExecutor {
                            dev.botalive.core.settlement.SettlementService settlements,
                            dev.botalive.core.settlement.DiplomacyService diplomacy,
                            dev.botalive.core.economy.EmploymentService employment,
-                           dev.botalive.core.pathfinding.NavigationService navigation) {
+                           dev.botalive.core.pathfinding.NavigationService navigation,
+                           SubcommandRegistryImpl subcommands) {
         this.botManager = botManager;
         this.goalRegistry = goalRegistry;
         this.repository = repository;
@@ -89,6 +102,7 @@ public final class BotAliveCommand implements TabExecutor {
         this.diplomacy = diplomacy;
         this.employment = employment;
         this.navigation = navigation;
+        this.subcommands = subcommands;
         this.cooldowns = new dev.botalive.core.teleport.TeleportCooldowns(
                 config.teleport().playerCooldownSeconds());
     }
@@ -125,9 +139,31 @@ public final class BotAliveCommand implements TabExecutor {
             case "end" -> endPortal(sender, args);
             case "path" -> path(sender, args);
             case "overview" -> overview(sender);
-            default -> help(sender);
+            default -> dispatchCustom(sender, sub, args);
         }
         return true;
+    }
+
+    /**
+     * Neznámé jméno předá cizímu podpříkazu z registru (izolovaně – výjimka
+     * pluginu nesmí shodit příkaz). Argumenty se předávají bez jména podpříkazu.
+     */
+    private void dispatchCustom(CommandSender sender, String sub, String[] args) {
+        dev.botalive.api.command.BotSubcommand custom = subcommands.byName(sub);
+        if (custom == null) {
+            help(sender);
+            return;
+        }
+        String permission = custom.permission();
+        if (permission != null && !sender.hasPermission(permission)) {
+            error(sender, "K tomu nemáš oprávnění");
+            return;
+        }
+        try {
+            custom.execute(sender, java.util.Arrays.copyOfRange(args, 1, args.length));
+        } catch (Exception e) {
+            error(sender, "Podpříkaz '" + sub + "' selhal: " + rootMessage(e));
+        }
     }
 
     // ------------------------------------------------------------ podpříkazy
@@ -954,6 +990,20 @@ public final class BotAliveCommand implements TabExecutor {
                 sender.sendMessage(Component.text(" /botalive " + sub, NamedTextColor.GRAY));
             }
         }
+        // Cizí podpříkazy z registru (viditelné dle svého oprávnění).
+        for (String name : subcommands.registeredNames()) {
+            dev.botalive.api.command.BotSubcommand custom = subcommands.byName(name);
+            if (custom == null) {
+                continue;
+            }
+            String permission = custom.permission();
+            if (permission == null || sender.hasPermission(permission)) {
+                String description = custom.description();
+                sender.sendMessage(Component.text(" /botalive " + name
+                        + (description == null || description.isBlank() ? "" : " – " + description),
+                        NamedTextColor.GRAY));
+            }
+        }
         if (!canTeleport) {
             sender.sendMessage(Component.text(" (žádná dostupná akce – chybí oprávnění)",
                     NamedTextColor.DARK_GRAY));
@@ -992,14 +1042,36 @@ public final class BotAliveCommand implements TabExecutor {
         boolean canTeleport = admin || sender.hasPermission(PERM_TELEPORT)
                 || sender.hasPermission(PERM_SUMMON);
         if (args.length == 1) {
-            List<String> visible = SUBCOMMANDS.stream()
+            List<String> visible = new ArrayList<>(SUBCOMMANDS.stream()
                     .filter(sub -> switch (sub) {
                         case "tp", "list" -> canTeleport;
                         case "hire", "dismiss" -> true;
                         default -> admin;
                     })
-                    .toList();
+                    .toList());
+            for (String name : subcommands.registeredNames()) {
+                dev.botalive.api.command.BotSubcommand custom = subcommands.byName(name);
+                if (custom != null
+                        && (custom.permission() == null || sender.hasPermission(custom.permission()))) {
+                    visible.add(name);
+                }
+            }
             return filter(visible, args[0]);
+        }
+        // Cizí podpříkaz si tab-complete řídí sám (izolovaně).
+        dev.botalive.api.command.BotSubcommand customSub =
+                subcommands.byName(args[0].toLowerCase(Locale.ROOT));
+        if (customSub != null) {
+            if (customSub.permission() != null && !sender.hasPermission(customSub.permission())) {
+                return List.of();
+            }
+            try {
+                List<String> suggestions = customSub.tabComplete(sender,
+                        java.util.Arrays.copyOfRange(args, 1, args.length));
+                return suggestions != null ? suggestions : List.of();
+            } catch (Exception e) {
+                return List.of();
+            }
         }
         boolean playerFacing = args[0].equalsIgnoreCase("hire")
                 || args[0].equalsIgnoreCase("dismiss");

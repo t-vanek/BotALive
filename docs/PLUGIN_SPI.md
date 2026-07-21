@@ -259,7 +259,15 @@ míst, která dnes větví podle konkrétních konstant enumu.
 
 ---
 
-## Subsystém 5 — Event SPI (rozhodovací háky, ne jen pozorování)
+## Subsystém 5 — Event SPI (rozhodovací háky, ne jen pozorování) — 🟡 ČÁSTEČNĚ
+
+> **Stav: vlajkový hák hotový.** `BotGoalSelectEvent` (cancellable) je v API
+> a vyvolává se v `Brain.decide` těsně před přirozeným přepnutím cíle –
+> zrušením se přepnutí vetuje (bot podrží stávající cíl). Vynucený cíl se
+> nevetuje. Fires jen při skutečné změně cíle (nízká frekvence, stejná jako
+> `BotGoalChangedEvent`). Zbylé háky z tabulky níže (`BotTargetEvent`,
+> `BotPreSpawnEvent`, `BotMemoryWriteEvent`) zůstávají jako návrh – u paměti
+> a targetingu je třeba pohlídat frekvenci, ať se nefiruje na horké cestě.
 
 **Mezera.** Z devíti eventů je mutovatelný jediný – `BotChatEvent`. Plugin
 umí bota poslouchat, ale ne **usměrnit** jeho rozhodnutí, aniž by nahradil celý
@@ -312,7 +320,15 @@ přes `SqlDialect`.
 
 ---
 
-## Subsystém 7 — Command SPI (podpříkazy `/botalive`)
+## Subsystém 7 — Command SPI (podpříkazy `/botalive`) — ✅ HOTOVO
+
+> **Stav: implementováno.** `dev.botalive.api.command.BotSubcommand`
+> + `SubcommandRegistry` jsou v API; dostanou se přes `api.subcommands()`.
+> `BotAliveCommand` nejdřív zkusí vestavěný `switch`, pak registr (dispatch
+> i tab-complete, izolovaně v try/catch). Vestavěná jména jsou vyhrazená
+> (`SubcommandRegistryImpl` je odmítne), argumenty se předávají bez jména
+> podpříkazu, oprávnění řídí `BotSubcommand.permission()`, nápověda
+> `/botalive` cizí podpříkazy vypisuje. Testy: `SubcommandRegistryImplTest`.
 
 **Mezera.** `BotAliveCommand` dispatchuje `switch (sub)` nad natvrdo psaným
 seznamem; tab-complete taky. Plugin nepřidá `/botalive <něco>`.
@@ -364,12 +380,12 @@ Návrh: vystavit read-only `ConfigView namespace(String)` nad libovolnou sekcí
 
 ## Doporučené fáze implementace
 
-| Fáze | Subsystémy | Proč tady |
-|---|---|---|
-| **A – Keystone** | 0 (`BotControl`) + 1 (Goal SPI) | Bez nich je `GoalRegistry` nepoužitelné; odemyká vše ostatní |
-| **B – Rychlé zisky** | 5 (Event háky) + 7 (Command SPI) | Malé, izolované, nízké riziko, okamžitá hodnota pro integrace |
-| **C – Data & chování** | 2 (Task SPI) + 3 (Role SPI) + 6 (Persistence store) | Plná tvorba chování a jeho persistence |
-| **D – Podle poptávky** | 4 (Memory SPI), 8 (Config), 9 (Chat/Trait) | Hlubší coupling / menší přínos; až bude konkrétní use-case |
+| Fáze | Subsystémy | Stav | Proč tady |
+|---|---|---|---|
+| **A – Keystone** | 0 (`BotControl`) + 1 (Goal SPI) | ✅ 0 hotový, 1 základ | Bez nich je `GoalRegistry` nepoužitelné; odemyká vše ostatní |
+| **B – Rychlé zisky** | 5 (Event háky) + 7 (Command SPI) | ✅ 7 hotový, 5 vlajkový hák | Malé, izolované, nízké riziko, okamžitá hodnota pro integrace |
+| **C – Data & chování** | 2 (Task SPI) + 3 (Role SPI) + 6 (Persistence store) | ⬜ další na řadě | Plná tvorba chování a jeho persistence |
+| **D – Podle poptávky** | 4 (Memory SPI), 8 (Config), 9 (Chat/Trait) | ⬜ | Hlubší coupling / menší přínos; až bude konkrétní use-case |
 
 ## Průřezová infrastruktura (udělat v fázi A, používá ji vše)
 

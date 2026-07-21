@@ -2,6 +2,7 @@ package dev.botalive.api;
 
 import dev.botalive.api.ai.GoalRegistry;
 import dev.botalive.api.bot.BotManager;
+import dev.botalive.api.command.SubcommandRegistry;
 
 /**
  * Vstupní bod veřejného API pluginu BotAlive.
@@ -21,6 +22,12 @@ public interface BotAliveApi {
      * @return registr AI cílů; umožňuje cizím pluginům přidávat vlastní chování botů
      */
     GoalRegistry goalRegistry();
+
+    /**
+     * @return registr podpříkazů {@code /botalive}; umožňuje cizím pluginům
+     *         přidat vlastní podpříkazy včetně tab-complete
+     */
+    SubcommandRegistry subcommands();
 
     /**
      * @return verze pluginu BotAlive (např. {@code 1.0.0})

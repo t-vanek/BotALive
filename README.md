@@ -249,7 +249,19 @@ public final class MyGreetAdminsGoal implements Goal {
 }
 ```
 
-Bukkit events (all fired asynchronously): `BotSpawnedEvent`, `BotRemovedEvent`, `BotChatEvent` (cancellable), `BotDiedEvent`, `BotGoalChangedEvent`, `SettlementWarDeclaredEvent`, `SettlementTruceEvent`, `BotHiredEvent`, `BotDismissedEvent`.
+Bukkit events (all fired asynchronously): `BotSpawnedEvent`, `BotRemovedEvent`, `BotChatEvent` (cancellable), `BotGoalSelectEvent` (cancellable — veto a goal switch), `BotDiedEvent`, `BotGoalChangedEvent`, `SettlementWarDeclaredEvent`, `SettlementTruceEvent`, `BotHiredEvent`, `BotDismissedEvent`.
+
+Add your own `/botalive` subcommands (with tab-complete) via the command SPI:
+
+```java
+api.subcommands().register(new BotSubcommand() {
+    @Override public String name() { return "greet"; }
+    @Override public String permission() { return "myplugin.greet"; } // null = no extra perm
+    @Override public void execute(CommandSender sender, String[] args) {
+        api.botManager().all().forEach(b -> b.say("zdravím " + sender.getName()));
+    }
+});
+```
 
 ## Building from Source
 

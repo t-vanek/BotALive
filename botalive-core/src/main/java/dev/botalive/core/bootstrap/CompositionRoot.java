@@ -225,9 +225,15 @@ public final class CompositionRoot {
         socialGraph.attach(botManager);
         employmentService.attach(botManager);
 
+        // Registr cizích podpříkazů /botalive (vestavěná jména jsou vyhrazená).
+        dev.botalive.core.commands.SubcommandRegistryImpl subcommands = container.register(
+                dev.botalive.core.commands.SubcommandRegistryImpl.class,
+                new dev.botalive.core.commands.SubcommandRegistryImpl(
+                        BotAliveCommand.builtInSubcommands()));
+
         // Veřejné API.
         BotAliveApi api = container.register(BotAliveApi.class, new BotAliveApiImpl(
-                botManager, goalRegistry, plugin.getPluginMeta().getVersion()));
+                botManager, goalRegistry, subcommands, plugin.getPluginMeta().getVersion()));
         BotAliveProvider.register(api);
 
         // Bukkit integrace.
@@ -239,7 +245,7 @@ public final class CompositionRoot {
                 new dev.botalive.core.gateway.BotLoginGuard(botManager, authority, config.gateway()));
         container.register(BotAliveCommand.class,
                 new BotAliveCommand(botManager, goalRegistry, repository, config, settlements,
-                        diplomacy, employmentService, navigation));
+                        diplomacy, employmentService, navigation, subcommands));
     }
 
     /** Vestavěná sada cílů – každý bot dostává vlastní instance. */

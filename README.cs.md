@@ -249,7 +249,19 @@ public final class MyGreetAdminsGoal implements Goal {
 }
 ```
 
-Bukkit eventy (všechny asynchronní): `BotSpawnedEvent`, `BotRemovedEvent`, `BotChatEvent` (cancellable), `BotDiedEvent`, `BotGoalChangedEvent`, `SettlementWarDeclaredEvent`, `SettlementTruceEvent`, `BotHiredEvent`, `BotDismissedEvent`.
+Bukkit eventy (všechny asynchronní): `BotSpawnedEvent`, `BotRemovedEvent`, `BotChatEvent` (cancellable), `BotGoalSelectEvent` (cancellable — veto přepnutí cíle), `BotDiedEvent`, `BotGoalChangedEvent`, `SettlementWarDeclaredEvent`, `SettlementTruceEvent`, `BotHiredEvent`, `BotDismissedEvent`.
+
+Vlastní podpříkazy `/botalive` (i s tab-complete) přes command SPI:
+
+```java
+api.subcommands().register(new BotSubcommand() {
+    @Override public String name() { return "greet"; }
+    @Override public String permission() { return "myplugin.greet"; } // null = bez zvláštního oprávnění
+    @Override public void execute(CommandSender sender, String[] args) {
+        api.botManager().all().forEach(b -> b.say("zdravím " + sender.getName()));
+    }
+});
+```
 
 ## Build ze zdrojů
 

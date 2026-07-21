@@ -239,7 +239,16 @@ public final class Brain {
             }
         }
         if (best != current) {
-            switchTo(best);
+            // Rozhodovací hák: cizí plugin může přirozené přepnutí vetovat
+            // (podrží stávající cíl). Vynucený cíl (výše) sem nikdy nedojde.
+            String fromId = current == null ? null : current.id();
+            String toId = best == null ? null : best.id();
+            dev.botalive.api.event.BotGoalSelectEvent event =
+                    new dev.botalive.api.event.BotGoalSelectEvent(bot, fromId, toId);
+            event.callEvent();
+            if (!event.isCancelled()) {
+                switchTo(best);
+            }
         }
     }
 
