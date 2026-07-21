@@ -58,6 +58,7 @@ Každý bot má vlastní identitu, osobnost, paměť, cíle, inventář a histor
 - **Boj spolupracuje s navigací** — cíl za plotem, rohem či příkopem bot obejde (kiting nefunguje) a ústup při nízkém zdraví vede plánovaně po pochozím terénu — nikdy pozpátku do lávy.
 - **PvP a aliance** (volitelné, výchozí vypnuto) — napadený bot se podle odvahy brání nebo utíká, svolá pomoc v chatu a přátelé z paměti mu přijdou na pomoc; pomsty žijí přes persistentní ENEMY paměť. Férovostní strop omezuje počet botů na jeden cíl a útok na skutečné hráče má samostatnou pojistku (`pvp.attack-players`).
 - **Mazlíčci** — boti si vanilla mechanikami ochočují vlky, kočky, papoušky i koně; ochočení vlci pak bojují po jejich boku.
+- **Zakládání polí** — farmář už zděděná políčka jen neudržuje: s osivem a motykou u domova nebo známého pole zorá krátký řádek hlíny na farmland a zaseje pšenici, takže pole vznikne i tam, kde žádné nebylo. Nové pole si zapamatuje a udržuje (sklizeň a přesazení) jako každé jiné.
 - **Chov zvířat** — farmáři (a krotitelé) rozmnožují vanilla hospodářská zvířata: se správným krmivem v ruce — pšenice na krávy, ovce a kozy, mrkev na prasata, semínka na slepice — bot nakrmí dva dospělé jedince, spustí love mode a stádo roste; strop okolního stáda brání přemnožení. Maso, vlna a kůže pak živí kuchyni, trh i kompostárnu.
 
 ### 🌾 Survival progrese

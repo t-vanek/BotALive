@@ -58,6 +58,7 @@ Every bot has its own identity, personality, memory, goals, inventory and histor
 - **Combat cooperates with navigation** — a target behind a fence, corner or ditch gets outflanked (kiting doesn't work), and low-health retreats are planned across walkable terrain — never backwards into lava.
 - **PvP & alliances** (optional, off by default) — an attacked bot defends itself or flees by courage, calls for help in chat, and friends from memory answer; grudges live in persistent enemy memory. Fairness caps limit how many bots pile onto one target, and attacking human players has its own safety switch (`pvp.attack-players`).
 - **Pets** — bots tame wolves, cats, parrots and horses through vanilla mechanics; tamed wolves fight at their side.
+- **Crop fields** — farmers no longer only tend inherited plots: with seeds and a hoe near home or a known field, a bot tills a short row of dirt into farmland and sows wheat, establishing a field where none existed. The new field is remembered and tended (harvest and replant) like any other.
 - **Animal husbandry** — farmers (and beastmasters) breed vanilla livestock: with the right feed in hand — wheat for cows, sheep and goats, carrots for pigs, seeds for chickens — a bot feeds two adults to trigger love mode and grow the herd, capped so a pasture never overflows. Meat, wool and leather feed the kitchen, the market and the compost hut.
 
 ### 🌾 Survival progression
