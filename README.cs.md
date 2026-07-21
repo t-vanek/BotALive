@@ -271,6 +271,14 @@ api.roles().register(new RoleDefinition("necromancer", "nekromant",
 bot.assignRole("necromancer");                          // přežije restart (ukládá se dle id)
 ```
 
+Vlastní **kategorie vzpomínek** (persistované, s volitelným časovým rozpadem):
+
+```java
+api.memoryKinds().register(new MemoryKindDefinition("myplugin:shrine", 0.05, 0.1)); // id, rozpad/den, podlaha
+bot.memory().remember("myplugin:shrine", world.getName(), 100, 64, -200, null, Map.of(), 0.8);
+bot.memory().recall("myplugin:shrine").forEach(rec -> /* ... */ {});
+```
+
 Vlastní data na bota (async, s jmenným prostorem, mažou se s botem při purge):
 
 ```java

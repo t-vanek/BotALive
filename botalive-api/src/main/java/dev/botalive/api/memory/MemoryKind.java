@@ -68,5 +68,14 @@ public enum MemoryKind {
     TROPHY,
 
     /** End city na vnějších ostrovech Endu (kořist, elytry). */
-    END_CITY
+    END_CITY,
+
+    /**
+     * Vyhrazená kategorie pro vzpomínky definované cizím pluginem
+     * (viz {@link MemoryKindRegistry}). Konkrétní druh nese id v datech
+     * vzpomínky ({@link MemoryRecord#kindId()}) – místo tohoto enumu používej
+     * řetězcové varianty {@link BotMemory#remember(String, String, int, int, int,
+     * java.util.UUID, java.util.Map, double)} a spol.
+     */
+    PLUGIN
 }

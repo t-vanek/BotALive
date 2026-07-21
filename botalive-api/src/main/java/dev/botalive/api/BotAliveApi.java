@@ -3,6 +3,7 @@ package dev.botalive.api;
 import dev.botalive.api.ai.GoalRegistry;
 import dev.botalive.api.bot.BotManager;
 import dev.botalive.api.command.SubcommandRegistry;
+import dev.botalive.api.memory.MemoryKindRegistry;
 import dev.botalive.api.persistence.BotDataStore;
 import dev.botalive.api.role.RoleRegistry;
 import dev.botalive.api.task.TaskRegistry;
@@ -43,6 +44,12 @@ public interface BotAliveApi {
      *         (zaměření AI cílů) nad rámec vestavěného {@link dev.botalive.api.role.BotRole}
      */
     RoleRegistry roles();
+
+    /**
+     * @return registr kategorií vzpomínek; umožňuje cizím pluginům přidat vlastní
+     *         druhy vzpomínek nad rámec vestavěného {@link dev.botalive.api.memory.MemoryKind}
+     */
+    MemoryKindRegistry memoryKinds();
 
     /**
      * @return perzistentní key-value úložiště vázané na bota; umožňuje cizím

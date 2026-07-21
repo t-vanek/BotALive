@@ -216,10 +216,14 @@ public final class CompositionRoot {
         dev.botalive.core.role.RoleRegistryImpl roles = container.register(
                 dev.botalive.core.role.RoleRegistryImpl.class,
                 new dev.botalive.core.role.RoleRegistryImpl());
+        // Registr kategorií vzpomínek (cizí druhy pluginů, vlastní rozpad).
+        dev.botalive.core.memory.MemoryKindRegistryImpl memoryKinds = container.register(
+                dev.botalive.core.memory.MemoryKindRegistryImpl.class,
+                new dev.botalive.core.memory.MemoryKindRegistryImpl());
         BotImpl.SharedServices services = new BotImpl.SharedServices(
                 config, worldViews, bridge, tickEngine, navigation, repository,
                 phrases, crimeLog, settlements,
-                diplomacy, socialGraph, market, employmentService, authority, roles);
+                diplomacy, socialGraph, market, employmentService, authority, roles, memoryKinds);
         BotManagerImpl botManager = container.register(BotManagerImpl.class,
                 new BotManagerImpl(config, repository, goalRegistry, services));
         pvp.attach(botManager);
@@ -247,7 +251,7 @@ public final class CompositionRoot {
 
         // Veřejné API.
         BotAliveApi api = container.register(BotAliveApi.class, new BotAliveApiImpl(
-                botManager, goalRegistry, subcommands, roles, dataStore, tasks,
+                botManager, goalRegistry, subcommands, roles, memoryKinds, dataStore, tasks,
                 plugin.getPluginMeta().getVersion()));
         BotAliveProvider.register(api);
 

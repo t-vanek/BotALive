@@ -255,7 +255,19 @@ zpětné kompatibilitě API.
 
 ---
 
-## Subsystém 4 — Memory SPI (otevřené kategorie paměti)
+## Subsystém 4 — Memory SPI (otevřené kategorie paměti) — ✅ HOTOVO
+
+> **Stav: implementováno.** `dev.botalive.api.memory.MemoryKindRegistry`
+> + `MemoryKindDefinition` (id, denní rozpad, podlaha) jsou v API, dostupné
+> přes `api.memoryKinds()`. `BotMemory` dostal řetězcové varianty
+> (`remember/recall/recallNearest/forget/forgetIf` podle `String kindId`);
+> cizí kategorie se ukládají jako nový bucket `MemoryKind.PLUGIN` se skutečným
+> id v datech (`MemoryRecord.kindId()`), takže **`MemoryRecord` i formát
+> persistence zůstaly beze změny** (žádná migrace, `valueOf` na loadu nepadá).
+> Registrované kategorie mají vlastní časový rozpad (stejný vzor jako
+> FRIEND/ENEMY). Vestavěná id jsou vyhrazená. Testy: `MemoryKindRegistryImplTest`
+> + cizí kategorie v `BotMemoryImplTest`. **Mimo rozsah:** gossip cizích
+> kategorií (šíří se jen vestavěné druhy).
 
 **Mezera.** `MemoryKind` je uzavřený enum; persistence i gossip klíčují druh
 paměti podle něj. Plugin nemůže mít vlastní typ vzpomínky (např. „mé teleport
@@ -418,7 +430,7 @@ Návrh: vystavit read-only `ConfigView namespace(String)` nad libovolnou sekcí
 | **A – Keystone** | 0 (`BotControl`) + 1 (Goal SPI) | ✅ 0 hotový, 1 základ | Bez nich je `GoalRegistry` nepoužitelné; odemyká vše ostatní |
 | **B – Rychlé zisky** | 5 (Event háky) + 7 (Command SPI) | ✅ 7 hotový, 5 vlajkový hák | Malé, izolované, nízké riziko, okamžitá hodnota pro integrace |
 | **C – Data & chování** | 2 (Task SPI) + 3 (Role SPI) + 6 (Persistence store) | ✅ hotová (2 + 3 + 6) | Plná tvorba chování a jeho persistence |
-| **D – Podle poptávky** | 4 (Memory SPI), 8 (Config), 9 (Chat/Trait) | ⬜ | Hlubší coupling / menší přínos; až bude konkrétní use-case |
+| **D – Podle poptávky** | 4 (Memory SPI), 8 (Config), 9 (Chat/Trait) | 🟡 4 hotový; 8, 9 dál | Hlubší coupling / menší přínos; až bude konkrétní use-case |
 
 ## Průřezová infrastruktura (udělat v fázi A, používá ji vše)
 

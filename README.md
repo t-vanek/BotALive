@@ -271,6 +271,14 @@ api.roles().register(new RoleDefinition("necromancer", "nekromant",
 bot.assignRole("necromancer");                          // survives restarts (stored by id)
 ```
 
+Give bots your own **memory categories** (persisted, with optional time decay):
+
+```java
+api.memoryKinds().register(new MemoryKindDefinition("myplugin:shrine", 0.05, 0.1)); // id, decay/day, floor
+bot.memory().remember("myplugin:shrine", world.getName(), 100, 64, -200, null, Map.of(), 0.8);
+bot.memory().recall("myplugin:shrine").forEach(rec -> /* ... */ {});
+```
+
 Persist your own per-bot data (async, namespaced, deleted with the bot on purge):
 
 ```java

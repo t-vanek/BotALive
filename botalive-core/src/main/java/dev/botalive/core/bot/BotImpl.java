@@ -927,7 +927,8 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
             dev.botalive.core.economy.MarketBoard market,
             dev.botalive.core.economy.EmploymentService employment,
             dev.botalive.core.gateway.CredentialAuthority authority,
-            dev.botalive.core.role.RoleRegistryImpl roles
+            dev.botalive.core.role.RoleRegistryImpl roles,
+            dev.botalive.core.memory.MemoryKindRegistryImpl memoryKinds
     ) {
     }
 
