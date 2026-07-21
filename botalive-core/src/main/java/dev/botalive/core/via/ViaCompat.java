@@ -73,6 +73,24 @@ public final class ViaCompat {
     }
 
     /**
+     * Lidsky čitelný kontrakt podporovaných verzí serveru.
+     *
+     * <p>Boti mluví nativně verzí zabudované MCProtocolLib ({@link #botVersion()}) –
+     * to je podporovaný baseline. Servery <b>novější</b> než baseline potřebují na
+     * hostiteli ViaVersion + ViaBackwards, <b>starší</b> ViaVersion; při shodě
+     * protokolu se nepřekládá nic. Řetězec se loguje při startu, ať admin zná
+     * podporovaný rozsah, a je jediným zdrojem té věty (log, diagnostika).</p>
+     *
+     * @return věta „boti cílí nativně na verzi X; novější → ViaVersion+ViaBackwards, …"
+     */
+    public static String supportContract() {
+        String baseline = botVersion();
+        return "Boti cílí nativně na Minecraft " + baseline + " (protokol " + botProtocol()
+                + "). Server " + baseline + " funguje bez překladu; novější verze vyžadují na"
+                + " serveru ViaVersion + ViaBackwards, starší ViaVersion.";
+    }
+
+    /**
      * Posoudí kompatibilitu botů s <b>tímto</b> (hostitelským) serverem.
      *
      * @return posouzení včetně detekce nainstalovaných Via pluginů

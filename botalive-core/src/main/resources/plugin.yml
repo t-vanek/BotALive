@@ -1,7 +1,9 @@
 name: BotAlive
-version: '1.0.0'
+# 'version' a 'api-version' se plní při buildu (processResources) z version catalogu –
+# needituj je tady ručně, viz gradle/libs.versions.toml a docs/UPGRADING.md.
+version: '${version}'
 main: dev.botalive.core.BotAlivePlugin
-api-version: '26.1'
+api-version: '${apiVersion}'
 folia-supported: true
 softdepend: [Vault]
 author: BotAlive

@@ -107,7 +107,7 @@ Every bot has its own identity, personality, memory, goals, inventory and histor
 
 |          |                                                                                   |
 |----------|-----------------------------------------------------------------------------------|
-| Server   | Paper 26.1.x or Folia (other versions via ViaVersion / ViaBackwards)              |
+| Server   | Paper 26.1+ or Folia (26.1 natively; newer versions via ViaVersion + ViaBackwards) |
 | Java     | 25+                                                                               |
 | Mode     | `online-mode=false` (bots are offline clients), or Velocity with an offline backend |
 | Database | none required (embedded SQLite); PostgreSQL optional                              |
@@ -307,6 +307,8 @@ cd BotALive
 ```
 
 Requires JDK 25 (the Gradle toolchain targets Java 25, as mandated by Paper API 26.1). The resulting jar is self-contained — MCProtocolLib, Netty, HikariCP, Caffeine and the JDBC drivers are bundled, with conflict-prone libraries relocated to `dev.botalive.libs`. CI builds and tests every push and pull request; the plugin jar is attached to each run as a workflow artifact.
+
+Target versions (Paper API, MCProtocolLib, Java) live centrally in `gradle/libs.versions.toml`. Moving to a new Minecraft version is documented in [docs/UPGRADING.md](docs/UPGRADING.md).
 
 ## Architecture
 

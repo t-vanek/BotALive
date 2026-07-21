@@ -2,8 +2,15 @@
 # Jediné místo, kde se mění verze – build skripty na něj pouze odkazují.
 
 [versions]
+# --- Cílová verze Minecraftu (jediné místo pro upgrade – viz docs/UPGRADING.md) ---
+# Při přechodu na novou verzi Minecraftu se mění tahle skupina „naráz":
+# paper + mcprotocollib + javaVersion + paperApiVersion musí ladit dohromady.
 paper = "26.1.2.build.74-stable"      # Paper API pro Minecraft 26.1 (vyžaduje Javu 25)
 mcprotocollib = "26.1-1"              # MCProtocolLib – klientský Minecraft protokol 26.1
+javaVersion = "25"                    # Java toolchain + cílový bytecode (Paper 26.1 běží na Javě 25).
+                                      # Odsud si ho bere kořenový build.gradle.kts (toolchain i release).
+paperApiVersion = "26.1"              # Hodnota api-version v plugin.yml = major.minor Minecraftu.
+                                      # Musí ladit s 'paper'; plní se do plugin.yml při buildu (processResources).
 hikaricp = "7.1.0"                    # JDBC connection pool
 caffeine = "3.2.4"                    # In-memory cache
 fastutil = "8.5.3"                    # Plné primitivní kolekce (pathfinding). MCProtocolLib
