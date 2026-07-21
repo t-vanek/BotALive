@@ -215,7 +215,25 @@ public final class SettlementService {
         /** Enchantovna – dílna enchantera (enchantovací stůl). */
         ENCHANT_HALL(BotRole.ENCHANTER),
         /** Alchymistická dílna – dílna alchymisty (varný stojan). */
-        ALCHEMY_LAB(BotRole.ALCHEMIST);
+        ALCHEMY_LAB(BotRole.ALCHEMIST),
+        /** Šípařská dílna – dílna šípaře (fletching table). */
+        FLETCHER_HUT(BotRole.FLETCHER),
+        /** Knihovna – dílna knihovníka (řečnický pult). */
+        LIBRARY(BotRole.LIBRARIAN),
+        /** Nástrojárna – dílna nástrojáře (kovářský stůl). */
+        TOOLSMITHY(BotRole.TOOLSMITH),
+        /** Zbrojírna – dílna zbrojíře (brus). */
+        WEAPONSMITHY(BotRole.WEAPONSMITH),
+        /** Brnířská zbrojnice – dílna brníře (tavicí pec). */
+        ARMORY(BotRole.ARMORER),
+        /** Kartografie – dílna kartografa (kartografický stůl). */
+        CARTOGRAPHY(BotRole.CARTOGRAPHER),
+        /** Kamenictví – dílna kameníka (řezák). */
+        MASONRY(BotRole.MASON),
+        /** Koželužna – dílna koželuha (kotlík). */
+        TANNERY(BotRole.LEATHERWORKER),
+        /** Tkalcovna – dílna pastýře (tkalcovský stav). */
+        WEAVERY(BotRole.SHEPHERD);
 
         private final BotRole workshopRole;
 
@@ -238,8 +256,10 @@ public final class SettlementService {
             return WORKSHOPS;
         }
 
-        private static final List<ProjectKind> WORKSHOPS =
-                List.of(FORGE, KITCHEN, WORKSHOP, COMPOST_HUT, ENCHANT_HALL, ALCHEMY_LAB);
+        private static final List<ProjectKind> WORKSHOPS = List.of(
+                FORGE, KITCHEN, WORKSHOP, COMPOST_HUT, ENCHANT_HALL, ALCHEMY_LAB,
+                FLETCHER_HUT, LIBRARY, TOOLSMITHY, WEAPONSMITHY, ARMORY,
+                CARTOGRAPHY, MASONRY, TANNERY, WEAVERY);
     }
 
     /**

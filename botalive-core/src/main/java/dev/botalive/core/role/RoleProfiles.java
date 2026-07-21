@@ -73,7 +73,29 @@ public final class RoleProfiles {
                     "minecart", 1.3)),
             Map.entry(BotRole.COOK, Map.of(
                     "smelt", 2.2, "farm", 1.4, "share", 1.8,
-                    "compost", 1.5, "fish", 1.3, "breed", 1.6))
+                    "compost", 1.5, "fish", 1.3, "breed", 1.6)),
+
+            // ---- vanilla vesnická povolání (biasují existující chování,
+            // ať nejsou jen popisky – hlídá RoleCoverageTest)
+            Map.entry(BotRole.FLETCHER, Map.of(
+                    "hunt", 2.0, "craft", 1.8, "collect", 1.4, "sell", 1.4)),
+            Map.entry(BotRole.LIBRARIAN, Map.of(
+                    "enchant", 2.4, "craft", 1.4, "trade", 1.3, "home", 1.2)),
+            Map.entry(BotRole.TOOLSMITH, Map.of(
+                    "smith", 2.2, "craft", 1.8, "repair", 2.0, "mine", 1.4, "smelt", 1.3)),
+            Map.entry(BotRole.WEAPONSMITH, Map.of(
+                    "smith", 2.0, "craft", 1.6, "repair", 2.0, "combat", 1.4, "mine", 1.3)),
+            Map.entry(BotRole.ARMORER, Map.of(
+                    "smelt", 2.2, "smith", 2.0, "repair", 2.0, "mine", 1.5)),
+            Map.entry(BotRole.CARTOGRAPHER, Map.of(
+                    "explore", 2.5, "boat", 1.4, "craft", 1.3, "trade", 1.3, "collect", 1.2)),
+            Map.entry(BotRole.MASON, Map.of(
+                    "mine", 2.4, "craft", 1.5, "communal-build", 1.6, "house", 1.4,
+                    "shelter", 1.3)),
+            Map.entry(BotRole.LEATHERWORKER, Map.of(
+                    "hunt", 2.0, "breed", 1.8, "craft", 1.6, "trade", 1.3)),
+            Map.entry(BotRole.SHEPHERD, Map.of(
+                    "breed", 2.4, "farm", 1.4, "collect", 1.4, "share", 1.3, "craft", 1.2))
     );
 
     private RoleProfiles() {

@@ -1,6 +1,8 @@
 package dev.botalive.core.build.plan;
 
+import dev.botalive.api.role.BotRole;
 import dev.botalive.core.build.HouseBlueprint;
+import dev.botalive.core.settlement.SettlementService.ProjectKind;
 import dev.botalive.core.util.BlockPos;
 import dev.botalive.core.util.Cardinal;
 
@@ -13,6 +15,7 @@ import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -48,6 +51,18 @@ class WorkshopBlueprintTest {
         long stations = workshop.furnishing(ORIGIN, Cardinal.NORTH).stream()
                 .filter(f -> f.kind() == FurnishKind.STATION).count();
         assertEquals(1, stations);
+    }
+
+    @Test
+    void kazdaWorkshopProjectKindMaStaniciABlueprint() {
+        // Enum dílen (ProjectKind.workshops) a katalog Workshops se nesmí rozejít –
+        // jinak by CommunalBuildGoal spadl při stavbě dílny bez předpisu.
+        for (ProjectKind kind : ProjectKind.workshops()) {
+            assertTrue(kind.isWorkshop(), kind.name());
+            BotRole role = kind.workshopRole().orElseThrow();
+            assertNotNull(Workshops.spec(role), "chybí stanice pro " + kind);
+            assertNotNull(Workshops.blueprint(role), "chybí blueprint pro " + kind);
+        }
     }
 
     @Test

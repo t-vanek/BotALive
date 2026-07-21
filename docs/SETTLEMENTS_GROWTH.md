@@ -95,6 +95,13 @@ stanici a skutečně v ní pracuje.
   infrastruktuře; dílny jsou kvalita života, ne meta.
 - Nový generický druh vybavení `FurnishKind.STATION` (materiál nese buňka),
   dvě hlášky `settlement-workshop-*` (název dílny jako `{name}`).
+- **Rozšířená sada** pokrývá i další vanilla vesnická řemesla (šípařská
+  dílna, knihovna, nástrojárna, zbrojírna, zbrojnice, kartografie,
+  kamenictví, koželužna, tkalcovna). Jejich stanice (fletching table,
+  lectern, grindstone, cartography table, cauldron, loom…) bot aktivně
+  nepoužívá – dílna je pak **landmark** profese a zahájí ji jen člen, který
+  stanici má; katalog i tak drží jedno místo pravdy (`Workshops`) a
+  poptávka je stejná (staví se jen pro řemeslo, které v sídle někdo dělá).
 
 ## Vnitřní cesty sídla (hotovo)
 

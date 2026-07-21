@@ -78,6 +78,27 @@ public final class RolePicker {
         scores.put(BotRole.DIPLOMAT,
                 (sociability * 0.7 + helpfulness * 0.5) * UNCOMMON);
 
+        // Vanilla vesnická řemesla – specializace po jednom kuse, každé s jinou
+        // signaturou rysů (mírná váha patience, ať nevytlačí rybáře z jeho niky).
+        scores.put(BotRole.FLETCHER,
+                (aggression * 0.5 + intelligence * 0.4 + patience * 0.2) * UNCOMMON);
+        scores.put(BotRole.LIBRARIAN,
+                (intelligence * 0.8 + (1 - aggression) * 0.3) * UNCOMMON);
+        scores.put(BotRole.TOOLSMITH,
+                (intelligence * 0.6 + helpfulness * 0.4 + patience * 0.2) * UNCOMMON);
+        scores.put(BotRole.WEAPONSMITH,
+                (aggression * 0.5 + courage * 0.4 + intelligence * 0.3) * UNCOMMON);
+        scores.put(BotRole.ARMORER,
+                (intelligence * 0.5 + caution * 0.5 + patience * 0.2) * UNCOMMON);
+        scores.put(BotRole.CARTOGRAPHER,
+                (curiosity * 0.6 + intelligence * 0.5 + caution * 0.3) * UNCOMMON);
+        scores.put(BotRole.MASON,
+                (greed * 0.5 + (1 - sociability) * 0.4 + patience * 0.3) * UNCOMMON);
+        scores.put(BotRole.LEATHERWORKER,
+                (aggression * 0.4 + greed * 0.4 + patience * 0.2) * UNCOMMON);
+        scores.put(BotRole.SHEPHERD,
+                (helpfulness * 0.6 + (1 - aggression) * 0.4 + patience * 0.2) * UNCOMMON);
+
         // Vzácné – silně mění dynamiku serveru, po jednom na osadu bohatě stačí
         scores.put(BotRole.THIEF,
                 (greed * 0.8 + (1 - helpfulness) * 0.5 + aggression * 0.2) * RARE);

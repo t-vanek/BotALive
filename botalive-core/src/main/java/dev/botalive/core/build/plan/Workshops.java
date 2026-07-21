@@ -31,13 +31,31 @@ public final class Workshops {
     public record Spec(Material station, Material secondary, String csName) {
     }
 
-    private static final Map<BotRole, Spec> SPECS = Map.of(
-            BotRole.BLACKSMITH, new Spec(Material.FURNACE, Material.SMITHING_TABLE, "kovárna"),
-            BotRole.COOK, new Spec(Material.SMOKER, null, "kuchyně"),
-            BotRole.BUILDER, new Spec(Material.CRAFTING_TABLE, Material.STONECUTTER, "dílna"),
-            BotRole.FARMER, new Spec(Material.COMPOSTER, null, "kompostárna"),
-            BotRole.ENCHANTER, new Spec(Material.ENCHANTING_TABLE, null, "enchantovna"),
-            BotRole.ALCHEMIST, new Spec(Material.BREWING_STAND, null, "alchymistická dílna"));
+    private static final Map<BotRole, Spec> SPECS = Map.ofEntries(
+            Map.entry(BotRole.BLACKSMITH,
+                    new Spec(Material.FURNACE, Material.SMITHING_TABLE, "kovárna")),
+            Map.entry(BotRole.COOK, new Spec(Material.SMOKER, null, "kuchyně")),
+            Map.entry(BotRole.BUILDER,
+                    new Spec(Material.CRAFTING_TABLE, Material.STONECUTTER, "dílna")),
+            Map.entry(BotRole.FARMER, new Spec(Material.COMPOSTER, null, "kompostárna")),
+            Map.entry(BotRole.ENCHANTER,
+                    new Spec(Material.ENCHANTING_TABLE, null, "enchantovna")),
+            Map.entry(BotRole.ALCHEMIST,
+                    new Spec(Material.BREWING_STAND, null, "alchymistická dílna")),
+            // Vanilla vesnická řemesla – každé se svou pracovní stanicí.
+            Map.entry(BotRole.FLETCHER,
+                    new Spec(Material.FLETCHING_TABLE, null, "šípařská dílna")),
+            Map.entry(BotRole.LIBRARIAN, new Spec(Material.LECTERN, null, "knihovna")),
+            Map.entry(BotRole.TOOLSMITH,
+                    new Spec(Material.SMITHING_TABLE, Material.CRAFTING_TABLE, "nástrojárna")),
+            Map.entry(BotRole.WEAPONSMITH, new Spec(Material.GRINDSTONE, null, "zbrojírna")),
+            Map.entry(BotRole.ARMORER,
+                    new Spec(Material.BLAST_FURNACE, null, "zbrojnice")),
+            Map.entry(BotRole.CARTOGRAPHER,
+                    new Spec(Material.CARTOGRAPHY_TABLE, null, "kartografie")),
+            Map.entry(BotRole.MASON, new Spec(Material.STONECUTTER, null, "kamenictví")),
+            Map.entry(BotRole.LEATHERWORKER, new Spec(Material.CAULDRON, null, "koželužna")),
+            Map.entry(BotRole.SHEPHERD, new Spec(Material.LOOM, null, "tkalcovna")));
 
     private Workshops() {
     }
