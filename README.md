@@ -271,6 +271,15 @@ api.roles().register(new RoleDefinition("necromancer", "nekromant",
 bot.assignRole("necromancer");                          // survives restarts (stored by id)
 ```
 
+Persist your own per-bot data (async, namespaced, deleted with the bot on purge):
+
+```java
+BotDataStore store = api.dataStore();
+store.put(bot.id(), "myplugin", "shrine", "100,64,-200");         // namespace, key, value
+store.get(bot.id(), "myplugin", "shrine")
+     .thenAccept(loc -> loc.ifPresent(l -> /* ... */ {}));
+```
+
 ## Building from Source
 
 ```bash

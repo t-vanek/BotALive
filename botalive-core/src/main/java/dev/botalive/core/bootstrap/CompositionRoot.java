@@ -235,9 +235,14 @@ public final class CompositionRoot {
                 new dev.botalive.core.commands.SubcommandRegistryImpl(
                         BotAliveCommand.builtInSubcommands()));
 
+        // Úložiště dat cizích pluginů (namespaced key-value na bota).
+        dev.botalive.core.persistence.BotDataStoreImpl dataStore = container.register(
+                dev.botalive.core.persistence.BotDataStoreImpl.class,
+                new dev.botalive.core.persistence.BotDataStoreImpl(database));
+
         // Veřejné API.
         BotAliveApi api = container.register(BotAliveApi.class, new BotAliveApiImpl(
-                botManager, goalRegistry, subcommands, roles,
+                botManager, goalRegistry, subcommands, roles, dataStore,
                 plugin.getPluginMeta().getVersion()));
         BotAliveProvider.register(api);
 

@@ -85,7 +85,7 @@ public final class BotRepository {
             // a zdědil by starou pracovní smlouvu.
             for (String table : List.of("ba_memories", "ba_personalities", "ba_wallets",
                     "ba_transactions", "ba_stats", "ba_settlement_members",
-                    "ba_employment", "ba_bots")) {
+                    "ba_employment", "ba_ext_data", "ba_bots")) {
                 String column = table.equals("ba_bots") ? "id" : "bot_id";
                 try (PreparedStatement ps = connection.prepareStatement(
                         "DELETE FROM " + table + " WHERE " + column + " = ?")) {

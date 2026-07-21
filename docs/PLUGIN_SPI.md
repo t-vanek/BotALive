@@ -306,7 +306,17 @@ sahat na main-thread Bukkit API (stejná poznámka jako `BotEvent`).
 
 ---
 
-## Subsystém 6 — Persistence SPI (vlastní data pluginu)
+## Subsystém 6 — Persistence SPI (vlastní data pluginu) — ✅ HOTOVO (úroveň 1)
+
+> **Stav: key-value store implementován.** `dev.botalive.api.persistence.BotDataStore`
+> (put/get/getNamespace/remove, vše async přes DB vlákno) je v API a dostupný
+> přes `api.dataStore()`. Backend `BotDataStoreImpl` (core) stojí na jedné
+> tabulce `ba_ext_data(bot_id, namespace, data_key, data_value, updated_at)`
+> s PK `(bot, namespace, key)` – migrace v9, upsert přes dialektový
+> `ON CONFLICT` (SQLite i PostgreSQL). Data se **mažou s botem** (`purgeBot`).
+> Testy: `BotDataStoreImplTest` (reálná SQLite, migrace + upsert + izolace).
+> **Úroveň 2 (Migration SPI** – vlastní tabulky pluginu s namespaced verzemi)
+> zůstává jako návrh níže; pro většinu potřeb stačí key-value store.
 
 **Mezera.** `SchemaMigrator` má natvrdo psaný seznam migrací a jednu globální
 verzi (`ba_schema_version`). Plugin nemá kam uložit svá data vázaná na životní
@@ -398,7 +408,7 @@ Návrh: vystavit read-only `ConfigView namespace(String)` nad libovolnou sekcí
 |---|---|---|---|
 | **A – Keystone** | 0 (`BotControl`) + 1 (Goal SPI) | ✅ 0 hotový, 1 základ | Bez nich je `GoalRegistry` nepoužitelné; odemyká vše ostatní |
 | **B – Rychlé zisky** | 5 (Event háky) + 7 (Command SPI) | ✅ 7 hotový, 5 vlajkový hák | Malé, izolované, nízké riziko, okamžitá hodnota pro integrace |
-| **C – Data & chování** | 2 (Task SPI) + 3 (Role SPI) + 6 (Persistence store) | 🟡 3 hotový; 2, 6 dál | Plná tvorba chování a jeho persistence |
+| **C – Data & chování** | 2 (Task SPI) + 3 (Role SPI) + 6 (Persistence store) | 🟡 3 + 6 hotové; 2 dál | Plná tvorba chování a jeho persistence |
 | **D – Podle poptávky** | 4 (Memory SPI), 8 (Config), 9 (Chat/Trait) | ⬜ | Hlubší coupling / menší přínos; až bude konkrétní use-case |
 
 ## Průřezová infrastruktura (udělat v fázi A, používá ji vše)

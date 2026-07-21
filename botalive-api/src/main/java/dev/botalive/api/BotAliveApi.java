@@ -3,6 +3,7 @@ package dev.botalive.api;
 import dev.botalive.api.ai.GoalRegistry;
 import dev.botalive.api.bot.BotManager;
 import dev.botalive.api.command.SubcommandRegistry;
+import dev.botalive.api.persistence.BotDataStore;
 import dev.botalive.api.role.RoleRegistry;
 
 /**
@@ -35,6 +36,12 @@ public interface BotAliveApi {
      *         (zaměření AI cílů) nad rámec vestavěného {@link dev.botalive.api.role.BotRole}
      */
     RoleRegistry roles();
+
+    /**
+     * @return perzistentní key-value úložiště vázané na bota; umožňuje cizím
+     *         pluginům ukládat vlastní data (mažou se s botem při purge)
+     */
+    BotDataStore dataStore();
 
     /**
      * @return verze pluginu BotAlive (např. {@code 1.0.0})

@@ -4,6 +4,7 @@ import dev.botalive.api.BotAliveApi;
 import dev.botalive.api.ai.GoalRegistry;
 import dev.botalive.api.bot.BotManager;
 import dev.botalive.api.command.SubcommandRegistry;
+import dev.botalive.api.persistence.BotDataStore;
 import dev.botalive.api.role.RoleRegistry;
 
 /**
@@ -15,6 +16,7 @@ public final class BotAliveApiImpl implements BotAliveApi {
     private final GoalRegistry goalRegistry;
     private final SubcommandRegistry subcommands;
     private final RoleRegistry roles;
+    private final BotDataStore dataStore;
     private final String version;
 
     /**
@@ -22,14 +24,17 @@ public final class BotAliveApiImpl implements BotAliveApi {
      * @param goalRegistry registr cílů
      * @param subcommands  registr podpříkazů
      * @param roles        registr profesí
+     * @param dataStore    úložiště dat pluginů
      * @param version      verze pluginu
      */
     public BotAliveApiImpl(BotManager botManager, GoalRegistry goalRegistry,
-                           SubcommandRegistry subcommands, RoleRegistry roles, String version) {
+                           SubcommandRegistry subcommands, RoleRegistry roles,
+                           BotDataStore dataStore, String version) {
         this.botManager = botManager;
         this.goalRegistry = goalRegistry;
         this.subcommands = subcommands;
         this.roles = roles;
+        this.dataStore = dataStore;
         this.version = version;
     }
 
@@ -51,6 +56,11 @@ public final class BotAliveApiImpl implements BotAliveApi {
     @Override
     public RoleRegistry roles() {
         return roles;
+    }
+
+    @Override
+    public BotDataStore dataStore() {
+        return dataStore;
     }
 
     @Override

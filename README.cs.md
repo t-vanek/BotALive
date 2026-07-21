@@ -271,6 +271,15 @@ api.roles().register(new RoleDefinition("necromancer", "nekromant",
 bot.assignRole("necromancer");                          // přežije restart (ukládá se dle id)
 ```
 
+Vlastní data na bota (async, s jmenným prostorem, mažou se s botem při purge):
+
+```java
+BotDataStore store = api.dataStore();
+store.put(bot.id(), "myplugin", "shrine", "100,64,-200");         // namespace, klíč, hodnota
+store.get(bot.id(), "myplugin", "shrine")
+     .thenAccept(loc -> loc.ifPresent(l -> /* ... */ {}));
+```
+
 ## Build ze zdrojů
 
 ```bash
