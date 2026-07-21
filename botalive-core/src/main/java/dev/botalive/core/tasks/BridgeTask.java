@@ -19,6 +19,13 @@ import dev.botalive.core.world.BlockTraits;
  * chůze rovně) a tekutina v úrovni nohou (deck v úrovni nohou, výstup o blok
  * výš). Task končí úspěchem na pevném břehu, neúspěchem při vyčerpání bloků,
  * segmentů nebo časového rozpočtu.</p>
+ *
+ * <p>Přechod po vlastním jednoblokovém mostě je choulostivý – jedno špatné
+ * zamíření nebo strčení stačí ke spadnutí do prázdna. Proto se bot přes rovný
+ * deck <b>plíží</b> (edge back-off fyziky ho udrží nad hranou) a každý segment
+ * má vlastní časový strop ({@link #ADVANCE_TICKS}): vázne-li přechod, task
+ * skončí a navigace cestu přepočítá z aktuální pozice, místo aby se celý
+ * globální rozpočet protlačil do zdi.</p>
  */
 public final class BridgeTask implements BotTask {
 
@@ -28,6 +35,13 @@ public final class BridgeTask implements BotTask {
     private static final int BUDGET_TICKS = 1200;
     /** Tolerance dosažení středu segmentu při přechodu (bloky, vodorovně). */
     private static final double ADVANCE_TOLERANCE = 0.35;
+    /**
+     * Strop ticků na přechod JEDNOHO segmentu. Jeden krok trvá ~15–20 ticků
+     * i s plížením; delší vázne (strčení, entita, špatné doskočení) – radši
+     * skončit a nechat navigaci přepočítat, než tlačit celý globální rozpočet
+     * do zdi.
+     */
+    private static final int ADVANCE_TICKS = 45;
 
     private enum Phase { PLAN, PLACE, ADVANCE, DONE }
 
@@ -41,6 +55,8 @@ public final class BridgeTask implements BotTask {
     private MoveInput move = MoveInput.IDLE;
     private int segments;
     private int ticks;
+    private int advanceTicks;
+    private boolean finishing;
     private boolean succeeded;
 
     /**
@@ -93,11 +109,20 @@ public final class BridgeTask implements BotTask {
                 BlockTraits frontTraits = ctx.worldView().traitsAt(front);
                 BlockTraits frontDown = ctx.worldView().traitsAt(front.down());
 
-                // Pevný břeh před nosem → hotovo (navigace si cestu přepočítá).
+                // Pevný břeh před nosem. Nic nepostaveno → hned hotovo (navigace
+                // to zvládne). Jinak ještě došlápnout na pevnou zem, ať bot
+                // nekončí na lipu vlastního mostu (odkud by ho plížení nepustilo
+                // dál) – finishing krok na břeh a teprve pak úspěch.
                 if (frontDown.solid() && frontTraits.passable()) {
-                    succeeded = segments > 0;
-                    phase = Phase.DONE;
-                    return true;
+                    if (segments == 0) {
+                        phase = Phase.DONE;
+                        return true;
+                    }
+                    deck = front.down();
+                    finishing = true;
+                    advanceTicks = 0;
+                    phase = Phase.ADVANCE;
+                    return false;
                 }
                 if (segments >= maxSegments) {
                     phase = Phase.DONE;
@@ -123,18 +148,35 @@ public final class BridgeTask implements BotTask {
                     return true;
                 }
                 segments++;
+                advanceTicks = 0;
                 phase = Phase.ADVANCE;
             }
             case ADVANCE -> {
                 Vec3 center = deck.up().center();
                 Vec3 delta = center.sub(ctx.position());
                 if (delta.horizontalLength() < ADVANCE_TOLERANCE) {
+                    if (finishing) {
+                        succeeded = true; // došlápnuto na břeh
+                        phase = Phase.DONE;
+                        return true;
+                    }
                     phase = Phase.PLAN; // stojíme na novém segmentu → další
                     return false;
                 }
+                if (++advanceTicks > ADVANCE_TICKS) {
+                    // Přechod segmentu vázne – skončit, navigace přepočítá
+                    // cestu z aktuální pozice (most zůstává jako pochozí).
+                    succeeded = segments > 0;
+                    phase = Phase.DONE;
+                    return true;
+                }
                 // Krok na čerstvý segment; deck v úrovni nohou chce výskok.
+                // Při chůzi po vlastním 1-blokovém decku se bot plíží – edge
+                // back-off ho udrží nad hranou, takže jedno strčení / špatné
+                // zamíření ho neshodí do prázdna. Při výskoku o patro (deck
+                // v úrovni nohou) se neplíží, potřebuje čistý odraz.
                 boolean jump = deck.y() >= feet.y();
-                move = new MoveInput(delta.horizontal().normalized(), false, jump, false);
+                move = new MoveInput(delta.horizontal().normalized(), false, jump, !jump);
                 return false;
             }
             case DONE -> {
