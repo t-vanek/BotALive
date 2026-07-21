@@ -183,12 +183,11 @@ public final class BreedGoal extends AbstractGoal {
             return;
         }
         ServerSideView.Snapshot snapshot = ctx.serverView().latest();
-        int slot = snapshot == null ? -1 : snapshot.findHotbarSlot(BreedService.breedingFood(species));
-        if (slot < 0) {
-            finish(1800); // došlo krmivo
+        if (snapshot == null
+                || !ctx.inventory().equipMatching(snapshot, BreedService.breedingFood(species))) {
+            finish(1800); // došlo krmivo / nejde vzít do ruky
             return;
         }
-        ctx.actions().selectHotbar(slot);
         ctx.humanizer().lookAt(ctx.position().add(0, 1.62, 0),
                 animal.get().position().add(0, 0.5, 0));
         ctx.actions().interactEntity(currentEntityId);
@@ -234,8 +233,8 @@ public final class BreedGoal extends AbstractGoal {
                 continue; // málo na páření, nebo už je stádo plné
             }
             Predicate<Material> food = BreedService.breedingFood(entry.getKey());
-            if (food != null && snapshot.findHotbarSlot(food) >= 0) {
-                return entry.getKey();
+            if (food != null && snapshot.hasItem(food)) {
+                return entry.getKey(); // krmivo kdekoli v batohu (do ruky ho dotáhne tickFeed)
             }
         }
         return null;

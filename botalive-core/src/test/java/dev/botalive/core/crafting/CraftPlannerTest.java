@@ -49,6 +49,42 @@ class CraftPlannerTest {
     }
 
     @Test
+    void osivoOdemkneMotyku() {
+        // Bot s kamennou výbavou a osivem si dodělá motyku (zorá pole i bez role).
+        CraftPlanner.State withSeeds = state(
+                Material.OAK_PLANKS, 4, Material.STICK, 4, Material.COBBLESTONE, 4,
+                Material.CRAFTING_TABLE, 1, Material.FURNACE, 1, Material.TORCH, 8,
+                Material.STONE_PICKAXE, 1, Material.STONE_SWORD, 1, Material.STONE_AXE, 1,
+                Material.STONE_SHOVEL, 1, Material.WHEAT_SEEDS, 1);
+        assertEquals("motyka", CraftPlanner.next(withSeeds).id());
+        // Bez osiva si motyku nikdo nedělá (žádné plýtvání).
+        CraftPlanner.State noSeeds = state(
+                Material.OAK_PLANKS, 4, Material.STICK, 4, Material.COBBLESTONE, 4,
+                Material.CRAFTING_TABLE, 1, Material.FURNACE, 1, Material.TORCH, 8,
+                Material.STONE_PICKAXE, 1, Material.STONE_SWORD, 1, Material.STONE_AXE, 1,
+                Material.STONE_SHOVEL, 1);
+        assertNull(CraftPlanner.next(noSeeds));
+    }
+
+    @Test
+    void obsidianDiamantKnihaOdemknouEnchantovaciStul() {
+        // Samoenchantování: bot s obsidiánem, diamanty a knihou si postaví stůl.
+        CraftPlanner.State s = state(
+                Material.OAK_PLANKS, 4, Material.STICK, 4, Material.CRAFTING_TABLE, 1,
+                Material.DIAMOND_PICKAXE, 1, Material.DIAMOND_SWORD, 1, Material.DIAMOND_AXE, 1,
+                Material.STONE_SHOVEL, 1, Material.FURNACE, 1, Material.TORCH, 8,
+                Material.OBSIDIAN, 4, Material.DIAMOND, 2, Material.BOOK, 1);
+        assertEquals("enchantovací stůl", CraftPlanner.next(s).id());
+        // Bez knihy se stůl nedělá – obsidián zůstane na portál.
+        CraftPlanner.State noBook = state(
+                Material.OAK_PLANKS, 4, Material.STICK, 4, Material.CRAFTING_TABLE, 1,
+                Material.DIAMOND_PICKAXE, 1, Material.DIAMOND_SWORD, 1, Material.DIAMOND_AXE, 1,
+                Material.STONE_SHOVEL, 1, Material.FURNACE, 1, Material.TORCH, 8,
+                Material.OBSIDIAN, 4, Material.DIAMOND, 2);
+        assertNull(CraftPlanner.next(noBook));
+    }
+
+    @Test
     void progresePrknaTyckyPonkNastroje() {
         assertEquals("prkna", CraftPlanner.next(state(Material.OAK_LOG, 3)).id());
         assertEquals("tyčky", CraftPlanner.next(state(Material.OAK_PLANKS, 4)).id());
