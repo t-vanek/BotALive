@@ -486,6 +486,52 @@ class AStarPathfinderTest {
                 "cesta má obsahovat skok s dopadem níž: " + path.waypoints());
     }
 
+    /**
+     * Odrazová plošina, mezera 2 bloky a za ní tůň s hladinou v úrovni nohou;
+     * {@code deepWater} rozhoduje, zda je tůň hluboká (voda i pod hladinou) –
+     * jinak jen jedna vrstva nad pevným dnem.
+     */
+    private static FakeWorldView splashGap(boolean deepWater) {
+        FakeWorldView world = new FakeWorldView(0);
+        for (int z = -1; z <= 1; z++) {
+            world.set(-1, FLOOR, z, FakeWorldView.SOLID);
+            world.set(0, FLOOR, z, FakeWorldView.SOLID);
+        }
+        // Mezera x=1,2 (bezedno). Tůň x=3..7 s hladinou v úrovni nohou (FEET).
+        for (int x = 3; x <= 7; x++) {
+            for (int z = -1; z <= 1; z++) {
+                world.set(x, FEET, z, FakeWorldView.WATER);
+                world.set(x, FLOOR, z, deepWater ? FakeWorldView.WATER : FakeWorldView.SOLID);
+                if (deepWater) {
+                    world.set(x, FLOOR - 1, z, FakeWorldView.SOLID);
+                }
+            }
+        }
+        return world;
+    }
+
+    @Test
+    void preskociMezeruSeSplashDoVody() {
+        Path path = new AStarPathfinder(splashGap(true))
+                .findPath(new BlockPos(0, FEET, 0), new BlockPos(6, FEET, 0), 0);
+
+        assertTrue(path.complete(), "mezera s doskokem do hluboké vody: " + path.waypoints());
+        // Cesta obsahuje skok přes ≥2 sloupce s dopadem do vody (x=3).
+        boolean splash = path.waypoints().stream()
+                .anyMatch(p -> p.x() == 3 && p.y() == FEET);
+        assertTrue(splash, "cesta má skočit do tůně: " + path.waypoints());
+    }
+
+    @Test
+    void neskaceDoMelkeVody() {
+        // Mělká tůň (jedna vrstva nad pevným dnem) – skok do ní by při dopadu
+        // z výšky ublížil jako na zem, plánovač ho nesmí nabídnout.
+        Path path = new AStarPathfinder(splashGap(false))
+                .findPath(new BlockPos(0, FEET, 0), new BlockPos(6, FEET, 0), 2000);
+
+        assertFalse(path.complete(), "do mělké vody se přes mezeru neskáče");
+    }
+
     @Test
     void obchaziPrasan() {
         FakeWorldView world = new FakeWorldView(FLOOR);

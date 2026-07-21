@@ -328,6 +328,41 @@ class BotPhysicsTest {
         assertEquals(FEET_Y + 1, physics.position().y(), 0.05, "dopad má být o blok výš");
     }
 
+    /** Sprint-skok přes mezeru s doskokem do hluboké vody – bez poškození. */
+    @Test
+    void sprintSkokSplashDoVody() {
+        FakeWorldView world = new FakeWorldView(0);
+        for (int x = -2; x <= 0; x++) {
+            for (int z = -2; z <= 2; z++) {
+                world.set(x, FLOOR, z, FakeWorldView.SOLID);
+            }
+        }
+        // Mezera x=1,2 (bezedno). Hluboká tůň x=3..6 s hladinou v úrovni nohou.
+        for (int x = 3; x <= 6; x++) {
+            for (int z = -2; z <= 2; z++) {
+                for (int y = (int) FEET_Y; y >= FLOOR - 2; y--) {
+                    world.set(x, y, z, FakeWorldView.WATER);
+                }
+            }
+        }
+        BotPhysics physics = new BotPhysics(world, new Vec3(0.5, FEET_Y, 0.5));
+
+        Vec3 east = new Vec3(1, 0, 0);
+        boolean reachedWater = false;
+        int maxDamage = 0;
+        for (int i = 0; i < 200 && !reachedWater; i++) {
+            boolean edge = !world.traitsAt(
+                    physics.position().add(0.7, 0, 0).toBlockPos().down()).solid();
+            boolean jump = physics.onGround() && edge;
+            physics.step(new MoveInput(east, true, jump, false));
+            maxDamage = Math.max(maxDamage, physics.lastFallDamage());
+            reachedWater = physics.inWater() && physics.position().x() > 2.6;
+        }
+
+        assertTrue(reachedWater, "bot má doskočit do vody, pos=" + physics.position());
+        assertEquals(0, maxDamage, "dopad do hluboké vody nesmí zranit");
+    }
+
     @Test
     void padDoPrasanuNezrani() {
         FakeWorldView world = new FakeWorldView(FLOOR);

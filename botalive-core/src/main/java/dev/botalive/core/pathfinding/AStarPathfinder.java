@@ -720,7 +720,8 @@ public final class AStarPathfinder {
          * sloupců u rohů, přes které hitbox při letu zavadí, a u výskoku i o patro
          * výš. Mezisloupec nesmí být pochozí (jinak stačí obyčejný krok) a nad
          * lávou/ohněm se neskáče – nepovedený skok by byl smrtelný. Odraz i dopad
-         * jen z „celých" výšek – z hrany desky se neskáče.
+         * jen z „celých" výšek – z hrany desky se neskáče. Dopad je buď na pevno,
+         * nebo splash-down do hluboké vody (voda tlumí, žádné poškození).
          */
         private void tryGapJump(Node current, double curFeet, int dx, int dz) {
             BlockPos pos = current.pos;
@@ -764,20 +765,24 @@ public final class AStarPathfinder {
                 BlockPos landing = pos.offset(dx * span, 0, dz * span);
                 double landFeet = feetHeight(landing);
                 if (flatLanding(landing, landFeet) && transitClear(landing.offset(0, 2, 0))
-                        && !traits(landing).liquid()) {
+                        && (!traits(landing).liquid() || deepWaterLanding(landing))) {
+                    // Dopad na pevno, nebo splash-down do hluboké vody (dopad
+                    // tlumí voda, žádné poškození – ověřeno fyzikální simulací;
+                    // terrainPenalty už vodní buňku zdraží).
                     tryAdd(current, landing, base + terrainPenalty(landing));
                     return;
                 }
                 // Dopad o blok níž (kardinálně i diagonálně): letí se dál a klesá,
                 // fyzikálně snazší než rovný dopad – ale dopadová plocha musí být
                 // volná i v celé letové výšce. Diagonální rohový let s klesáním je
-                // stále v dosahu (ověřeno fyzikální simulací).
+                // stále v dosahu (ověřeno fyzikální simulací). Hluboká voda tlumí
+                // dopad stejně jako u rovného skoku (splash-down).
                 {
                     BlockPos lower = landing.down();
                     double lowerFeet = feetHeight(lower);
                     if (flatLanding(lower, lowerFeet) && transitClear(landing.up())
                             && transitClear(landing.offset(0, 2, 0))
-                            && !traits(lower).liquid()) {
+                            && (!traits(lower).liquid() || deepWaterLanding(lower))) {
                         int cost = base + costFallPerBlock + terrainPenalty(lower);
                         tryAdd(current, lower, cost);
                         return;
@@ -848,6 +853,17 @@ public final class AStarPathfinder {
             }
             // Strop níž než světlost postavy (0,8 nad hlavou) – vestoje to neprojde.
             return head.lowestCollisionStart() < 0.8 - EPS;
+        }
+
+        /**
+         * Je buňka bezpečný dopad do hluboké vody (splash-down)? Vodní hladina
+         * (bez lávy) s vodou i pod sebou – aspoň dva bloky hluboká, takže dopad
+         * z výskoku spolehlivě tlumí a bot se v ní nadechne a doplave. Mělká
+         * voda (pod hladinou pevné dno) by při skoku z výšky ublížila jako zem.
+         */
+        private boolean deepWaterLanding(BlockPos cell) {
+            BlockTraits t = traits(cell);
+            return t.liquid() && !t.hazard() && traits(cell.down()).liquid();
         }
 
         /** Průchozí sloupec letové dráhy: úroveň nohou, hlavy i nad hlavou. */

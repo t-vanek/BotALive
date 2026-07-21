@@ -813,6 +813,14 @@ i o patro výš (stoupající hitbox o ně zavadí). Obě varianty potvrdila
 fyzikální simulace (bot rohový skok s klesáním i výskokem reálně
 provede), takže plánovač neslibuje nic, co fyzika neutáhne.
 
+Doladění: **splash-down do vody.** Skok přes mezeru dřív vyžadoval pevný
+dopad (vodní buňka se zamítala); nově smí dopadnout i do **hluboké vody**
+(hladina s vodou i pod sebou – stejná „deep water" pojistka jako
+u seskoků, mělčina se dál odmítá). Voda dopad tlumí (ověřeno simulací:
+nulové poškození), takže bot přeskočí i do tůně místo obchůzky nebo
+pomalého plavání. `terrainPenalty` vodní dopad zdraží, pevná zem tak
+zůstává preferovaná.
+
 Hotovo ve fázi 24: kopací hrany v plánu cesty (`TerrainAction`,
 `PathOptions.WITH_DIGGING`).
 
