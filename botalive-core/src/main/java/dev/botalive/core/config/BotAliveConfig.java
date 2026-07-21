@@ -212,11 +212,26 @@ public record BotAliveConfig(
      *                              večer družení, v noci domů (jemné násobiče utility)
      * @param desperation           nouzové chování: hladový bot bez prostředků krade
      *                              z truhel a v krajní nouzi přepadá (jen v mezích pvp.*)
+     * @param mood                  vnitřní nálada: emoce (strach, vztek, spokojenost,
+     *                              samota) z prožitků a těla jemně vychylují priority
+     *                              cílů (viz docs/BOT_LIFE.md)
+     * @param vitals                energie/únava: klesá bděním a námahou, obnovuje se
+     *                              spánkem; unavený bot vyhledá odpočinek a odloží
+     *                              dlouhé výpravy (viz docs/BOT_LIFE.md)
+     * @param drives                sjednocené pudy (Maslow): naléhavá základní potřeba
+     *                              (bezpečí, jídlo, odpočinek) tlumí cíle vyšších potřeb –
+     *                              hierarchická arbitráž priorit (viz docs/BOT_LIFE.md)
+     * @param crawling              EXPERIMENTÁLNÍ, default vypnuto: plazení
+     *                              jednoblokovými mezerami – A* je plánuje (s cenovou
+     *                              přirážkou) a fyzika v nich srazí hitbox na 0,6.
+     *                              Neověřeno proti živému serveru; zapínat obezřetně
+     *                              (viz docs/ARCHITECTURE.md §5 Pohyb)
      */
     public record Ai(int decisionIntervalTicks, double goalHysteresis,
                      int viewDistanceBlocks, String difficulty, boolean terraforming,
                      boolean ladders, boolean pillaring, boolean boats, boolean dailyRhythm,
-                     boolean desperation) {
+                     boolean desperation, boolean mood, boolean vitals, boolean drives,
+                     boolean crawling) {
     }
 
     /**

@@ -57,6 +57,17 @@ public final class BotPhysics {
     /** Svislý multiplikátor váznutí v pavučině (vanilla 0.05). */
     private static final double WEB_VERTICAL = 0.05;
 
+    /**
+     * Světlost nad podlahou nutná k narovnání (vestoje). Stojící hitbox 1,8
+     * zasahuje 0,8 do buňky nad hlavou; níž začínající strop = nutno se plazit.
+     */
+    private static final double STAND_CLEARANCE = 0.8;
+    /**
+     * Jak daleko před sebe bot „nakoukne", jestli ho čeká jednobloková mezera
+     * (přes hranici buňky do sousedního sloupce) – vstupní heuristika plazení.
+     */
+    private static final double CRAWL_PEEK = 0.6;
+
     private Vec3 position;
     private Vec3 velocity = Vec3.ZERO;
     private boolean onGround;
@@ -65,6 +76,14 @@ public final class BotPhysics {
     private boolean inPowderSnow;
     private boolean inWeb;
     private boolean horizontalCollision;
+
+    /**
+     * Plazení povoleno konfigurací ({@code ai.crawling}) – EXPERIMENTÁLNÍ,
+     * default vypnuto. Vypnuto = hitbox vždy 1,8 (žádná změna chování).
+     */
+    private boolean crawlEnabled;
+    /** Bot je právě sražený do plazivé pózy (hitbox {@link AABB#CRAWL_HEIGHT}). */
+    private boolean crawling;
     /** Kolik ticků v kuse má bot hlavu pod hladinou (dochází mu dech). */
     private int submergedTicks;
 
@@ -125,6 +144,24 @@ public final class BotPhysics {
     /** @return {@code true} pokud bot vázne v pavučině */
     public boolean inWeb() {
         return inWeb;
+    }
+
+    /**
+     * Zapne/vypne plazení ({@code ai.crawling}) – experimentální, default
+     * vypnuto. Vypnuto = hitbox zůstává vždy 1,8 (bez jakékoli změny fyziky).
+     *
+     * @param enabled povolit sražení do plazivé pózy v jednoblokových mezerách
+     */
+    public void setCrawlEnabled(boolean enabled) {
+        this.crawlEnabled = enabled;
+        if (!enabled) {
+            this.crawling = false;
+        }
+    }
+
+    /** @return {@code true} pokud je bot právě sražený do plazivé pózy (hitbox 0,6) */
+    public boolean crawling() {
+        return crawling;
     }
 
     /** @return počet ticků v kuse s hlavou pod hladinou (0 = dýchá) */
@@ -200,6 +237,7 @@ public final class BotPhysics {
      */
     public void step(MoveInput input) {
         updateMediums();
+        updateCrawlPose(input);
         boolean wasOnGround = onGround;
 
         double vx = velocity.x();
@@ -505,6 +543,78 @@ public final class BotPhysics {
         submergedTicks = headUnder ? submergedTicks + 1 : 0;
     }
 
+    /** Výška hitboxu pro tento tick: 0,6 při plazení, jinak plná 1,8. */
+    private double boxHeight() {
+        return crawling ? AABB.CRAWL_HEIGHT : AABB.PLAYER_HEIGHT;
+    }
+
+    /**
+     * Rozhodne plazivou pózu (experimentální, jen s {@code ai.crawling}).
+     *
+     * <p>Bot se plazí, když (a) se v aktuální buňce nemůže narovnat – strop
+     * začíná níž než {@link #STAND_CLEARANCE} nad hlavou (už je v mezeře),
+     * nebo (b) míří vpřed do sousední buňky, která je jednoblokovou mezerou
+     * (nohy volné a s oporou, strop nízko) – vstupní heuristika řešící
+     * slepičí problém: aby bot do mezery vůbec vkročil, musí se srazit už na
+     * jejím prahu. Jinak (volný strop a před ním nic nízkého) stojí. Ve vodě,
+     * na žebříku a v prašanu se neplazí – ty mají vlastní režim pohybu.</p>
+     */
+    private void updateCrawlPose(MoveInput input) {
+        if (!crawlEnabled || inWater || onClimbable || inPowderSnow) {
+            crawling = false;
+            return;
+        }
+        BlockPos feet = position.toBlockPos();
+        if (cannotStandAt(feet)) {
+            crawling = true;
+            return;
+        }
+        Vec3 dir = input.direction();
+        double len = dir.horizontalLength();
+        if (onGround && len > EPSILON) {
+            double px = position.x() + dir.x() / len * CRAWL_PEEK;
+            double pz = position.z() + dir.z() / len * CRAWL_PEEK;
+            if (crawlGapAt(new Vec3(px, position.y(), pz).toBlockPos())) {
+                crawling = true;
+                return;
+            }
+        }
+        crawling = false;
+    }
+
+    /**
+     * Nemůže se bot v této buňce narovnat? (strop v úrovni hlavy začíná níž
+     * než {@link #STAND_CLEARANCE} – stojící hitbox by narazil). Plazivé tělo
+     * 0,6 se přesto vejde, protože nesahá do buňky nad nohama.
+     */
+    private boolean cannotStandAt(BlockPos feet) {
+        return world.traitsAt(feet.up()).lowestCollisionStart() < STAND_CLEARANCE - EPSILON;
+    }
+
+    /**
+     * Je daná buňka jednobloková mezera k proplížení? Nohy volné pro tělo
+     * (nízký profil) s pevnou oporou pod nimi, bez tekutiny/hazardu/pavučiny,
+     * a strop tak nízko, že vestoje by to neprošlo (jinak stačí chůze).
+     */
+    private boolean crawlGapAt(BlockPos feet) {
+        BlockTraits t = world.traitsAt(feet);
+        BlockTraits head = world.traitsAt(feet.up());
+        if (t == BlockTraits.UNKNOWN || head == BlockTraits.UNKNOWN) {
+            return false;
+        }
+        if (t.hazard() || head.hazard() || t.web() || head.web() || t.liquid()) {
+            return false;
+        }
+        if (!t.lowProfile()) {
+            return false; // v buňce nohou je částečný/plný blok – tady se nechodí ani neplazí
+        }
+        double floorBelow = world.traitsAt(feet.down()).floorHeight();
+        if (floorBelow < 0.99 || floorBelow > 1.01) {
+            return false; // bez pevné podlahy pod mezerou
+        }
+        return head.lowestCollisionStart() < STAND_CLEARANCE - EPSILON;
+    }
+
     /**
      * Axis-by-axis kolizní řešení s automatickým výstupem na schod (step-up).
      *
@@ -520,7 +630,7 @@ public final class BotPhysics {
             motion = backOffFromEdge(motion);
         }
 
-        AABB box = AABB.playerAt(position);
+        AABB box = AABB.playerAt(position, boxHeight());
 
         double dy = clipAxis(box, motion.y(), Axis.Y);
         box = box.move(0, dy, 0);
@@ -542,7 +652,7 @@ public final class BotPhysics {
         // nelegálně přelézt plot (zbývajících 0,25 nad vrcholem skoku spadlo
         // do výšky schodu).
         if (collidedHorizontally && !onClimbable && onGround) {
-            AABB stepBox = AABB.playerAt(position);
+            AABB stepBox = AABB.playerAt(position, boxHeight());
             double stepUp = clipAxis(stepBox, STEP_HEIGHT, Axis.Y);
             stepBox = stepBox.move(0, stepUp, 0);
             double sdx = clipAxis(stepBox, motion.x(), Axis.X);

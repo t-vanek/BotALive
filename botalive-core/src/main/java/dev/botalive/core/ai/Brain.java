@@ -215,8 +215,11 @@ public final class Brain {
             if (utility <= 0) {
                 continue;
             }
-            // Profese vychyluje priority (kovář taví ochotněji, lovec loví...).
-            utility *= dev.botalive.core.role.RoleProfiles.weight(bot.role(), goal.id());
+            // Profese vychyluje priority (kovář taví ochotněji, lovec loví...) –
+            // přes registr rolí, aby fungovaly i cizí role pluginů.
+            utility *= bot instanceof dev.botalive.core.bot.BotImpl roleImpl
+                    ? roleImpl.roleWeight(goal.id())
+                    : dev.botalive.core.role.RoleProfiles.weight(bot.role(), goal.id());
             // Denní rytmus: ráno pole, přes den těžba/stavba, večer družení.
             // V Endu/Netheru není den a noc – rytmus tam neplatí.
             if (rhythm != null && DimensionPolicy.rhythmApplies(dimension)) {
@@ -227,6 +230,12 @@ public final class Brain {
                 utility *= impl.ambitionWeight(goal.id());
                 // Zaměstnání: dělník se soustředí na práci a míň se fláká.
                 utility *= impl.employmentWeight(goal.id());
+                // Nálada: aktuální emoce jemně vychyluje priority (viz docs/BOT_LIFE.md).
+                utility *= impl.moodWeight(goal.id());
+                // Únava: unavený bot odkládá dlouhé výpravy a vyhledá odpočinek.
+                utility *= impl.vitalsWeight(goal.id());
+                // Pudy: naléhavá základní potřeba tlumí cíle vyšších potřeb (Maslow).
+                utility *= impl.drivesWeight(goal.id());
             }
             // Hystereze aktivního cíle + drobný rozhodovací šum.
             if (goal == current) {
@@ -239,7 +248,16 @@ public final class Brain {
             }
         }
         if (best != current) {
-            switchTo(best);
+            // Rozhodovací hák: cizí plugin může přirozené přepnutí vetovat
+            // (podrží stávající cíl). Vynucený cíl (výše) sem nikdy nedojde.
+            String fromId = current == null ? null : current.id();
+            String toId = best == null ? null : best.id();
+            dev.botalive.api.event.BotGoalSelectEvent event =
+                    new dev.botalive.api.event.BotGoalSelectEvent(bot, fromId, toId);
+            event.callEvent();
+            if (!event.isCancelled()) {
+                switchTo(best);
+            }
         }
     }
 

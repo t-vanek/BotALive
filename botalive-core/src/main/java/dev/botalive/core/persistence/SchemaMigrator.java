@@ -238,6 +238,22 @@ public final class SchemaMigrator {
                         // Stávající boti kit zpětně nedostanou – už si vybavení
                         // obstarali sami. Týká se jen nově založených řádků.
                         "UPDATE ba_bots SET kit_given = 1"
+                ),
+                // v9 – key-value úložiště dat cizích pluginů, vázané na bota
+                // (BotDataStore). Klíč je trojice (bot, namespace, key); maže se
+                // s botem (purgeBot). Sloupce data_key/data_value se vyhýbají
+                // vyhrazeným slovům napříč dialekty.
+                List.of(
+                        """
+                        CREATE TABLE IF NOT EXISTS ba_ext_data (
+                            bot_id TEXT NOT NULL,
+                            namespace TEXT NOT NULL,
+                            data_key TEXT NOT NULL,
+                            data_value TEXT NOT NULL,
+                            updated_at BIGINT NOT NULL,
+                            PRIMARY KEY (bot_id, namespace, data_key)
+                        )
+                        """
                 )
         );
     }

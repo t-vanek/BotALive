@@ -79,7 +79,11 @@ public final class ConfigLoader {
                 c.getBoolean("ai.pillaring", true),
                 c.getBoolean("ai.boats", true),
                 c.getBoolean("ai.daily-rhythm", true),
-                c.getBoolean("ai.desperation", true)
+                c.getBoolean("ai.desperation", true),
+                c.getBoolean("ai.mood", true),
+                c.getBoolean("ai.vitals", true),
+                c.getBoolean("ai.drives", true),
+                c.getBoolean("ai.crawling", false)
         );
 
         var chat = new BotAliveConfig.Chat(

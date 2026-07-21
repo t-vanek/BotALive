@@ -222,7 +222,80 @@ bot.teleportToPlayer(player.getUniqueId());    // bot to a player
 bot.teleportPlayerToBot(player.getUniqueId()); // player to a bot
 ```
 
-Bukkit events (all fired asynchronously): `BotSpawnedEvent`, `BotRemovedEvent`, `BotChatEvent` (cancellable), `BotDiedEvent`, `BotGoalChangedEvent`, `SettlementWarDeclaredEvent`, `SettlementTruceEvent`, `BotHiredEvent`, `BotDismissedEvent`.
+A registered `Goal` receives a `Bot` and drives it through `bot.control()` — a
+safe, implementation-free action facade (`BotControl`). Called from the bot's
+tick thread, it exposes perception, navigation, and actions so a custom goal can
+do real work without depending on `botalive-core`:
+
+```java
+public final class MyGreetAdminsGoal implements Goal {
+    @Override public String id() { return "greet-admins"; }
+
+    @Override public double utility(Bot bot) {
+        BotControl c = bot.control();
+        // Higher urgency when a player stands close by.
+        return c.nearbyEntities(6).stream().anyMatch(NearbyEntity::player) ? 40 : 0;
+    }
+
+    @Override public void tick(Bot bot) {
+        BotControl c = bot.control();
+        c.nearbyEntities(6).stream().filter(NearbyEntity::player).findFirst().ifPresent(p -> {
+            c.lookAt(p.position().x(), p.position().y(), p.position().z());
+            c.navigateTo(p.position().blockX(), p.position().blockY(), p.position().blockZ());
+            c.say("zdravím!");
+        });
+    }
+    // start / stop / finished omitted
+}
+```
+
+Bukkit events (all fired asynchronously): `BotSpawnedEvent`, `BotRemovedEvent`, `BotChatEvent` (cancellable), `BotGoalSelectEvent` (cancellable — veto a goal switch), `BotDiedEvent`, `BotGoalChangedEvent`, `SettlementWarDeclaredEvent`, `SettlementTruceEvent`, `BotHiredEvent`, `BotDismissedEvent`.
+
+Add your own `/botalive` subcommands (with tab-complete) via the command SPI:
+
+```java
+api.subcommands().register(new BotSubcommand() {
+    @Override public String name() { return "greet"; }
+    @Override public String permission() { return "myplugin.greet"; } // null = no extra perm
+    @Override public void execute(CommandSender sender, String[] args) {
+        api.botManager().all().forEach(b -> b.say("zdravím " + sender.getName()));
+    }
+});
+```
+
+Register a custom **role** (a profession that biases which goals a bot pursues — built-in *or* your own):
+
+```java
+api.roles().register(new RoleDefinition("necromancer", "nekromant",
+        Map.of("hunt", 2.0, "my-plugin-goal", 3.0)));   // goalId -> utility multiplier
+bot.assignRole("necromancer");                          // survives restarts (stored by id)
+```
+
+Give bots your own **memory categories** (persisted, with optional time decay):
+
+```java
+api.memoryKinds().register(new MemoryKindDefinition("myplugin:shrine", 0.05, 0.1)); // id, decay/day, floor
+bot.memory().remember("myplugin:shrine", world.getName(), 100, 64, -200, null, Map.of(), 0.8);
+bot.memory().recall("myplugin:shrine").forEach(rec -> /* ... */ {});
+```
+
+Persist your own per-bot data (async, namespaced, deleted with the bot on purge):
+
+```java
+BotDataStore store = api.dataStore();
+store.put(bot.id(), "myplugin", "shrine", "100,64,-200");         // namespace, key, value
+store.get(bot.id(), "myplugin", "shrine")
+     .thenAccept(loc -> loc.ifPresent(l -> /* ... */ {}));
+```
+
+Compose behaviour from ready-made tactical tasks — a goal drives one `BotTask` per tick until it finishes:
+
+```java
+BotControl c = bot.control();
+if (task == null) task = c.walkTo(100, 64, -200);   // or c.mineBlock(x,y,z) / c.placeBlock(x,y,z, "COBBLESTONE")
+if (task.tick(c)) task = null;                        // task finished
+// api.tasks().register("my-task", MyTask::new) shares custom tasks by name
+```
 
 ## Building from Source
 

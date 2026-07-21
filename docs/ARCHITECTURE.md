@@ -120,6 +120,13 @@ kvantitativně i kvalitativně. Strategii (cíle) od taktiky (tasky
 se skládají z hotových primitiv. Cizí pluginy registrují cíle přes
 `GoalRegistry` bez zásahu do jádra.
 
+Užitečnost je součin modulačních vrstev (dimenze, role, denní rytmus, ambice,
+zaměstnání, **nálada**, **únava** a **pudy**) – každá jen jemně vychyluje
+priority, osobnost zůstává hlavní. Vnitřní stav (`BotMood` – emoce z prožitků
+a těla; `Vitals` – energie/únava; `BotDrives` – hierarchická arbitráž potřeb
+à la Maslow) je krátkodobá vrstva mezi celoživotní osobností a per-tik utilitou:
+v klidu neutrální, vypínatelná – viz [BOT_LIFE.md](BOT_LIFE.md).
+
 ### 5. Pohyb: simulovaná fyzika, ne teleportace
 
 `BotPhysics` integruje zjednodušenou vanilla kinematiku (akcelerace, tření,
@@ -130,6 +137,33 @@ limitech serveru. `MovementSender` replikuje paketový vzor vanilla klienta
 (Pos/Rot/PosRot dle změn, idle resend po 20 ticích, PlayerInput/PlayerCommand
 pro sneak/sprint, `ClientTickEnd` každý tick) – odchylky od vzoru jsou snadno
 detekovatelné anti-cheatem, proto se držíme věrně.
+
+Zdolávání překážek má primitiva pro obě svislé osy: nahoru `LadderTask`
+(přelezení stěny žebříkem) a `PillarUpTask` (pilířování skokem s pokládkou),
+dolů `StaircaseDownTask` (kontrolovaný sestup vyhloubením schodiště – bezpečný
+seskok o 1 na uvolněný stupeň, nikdy nad prázdno/do tekutiny). Vodorovně
+`BridgeTask` přemostí mezery a tekutiny. Assist (`planObstacleRecovery`) mezi
+nimi volí podle geometrie a směru k cíli.
+
+Zaseknutí řeší dvě vrstvy: `Navigator` reaguje rychle (replanning, kopací plán,
+assist, backoff nedosažitelných cílů), a když ani to nepomůže, tvrdý watchdog
+`BotImpl`u (30 s bez pohybu při aktivní navigaci) spustí `StuckRecovery` –
+repertoár lidských mikro-manévrů (couvnout → uhnout do strany → couvnout
+s poskokem → zavrtět se), který se bota snaží uvolnit **dřív**, než dojde na
+nouzový teleport. Manévr přebíjí navigaci, ale bezpečnostní reflexy (láva,
+hrana) ho dál smí ohnout; teleport zůstává jako poslední instance po opakovaném
+selhání na témže bloku. Čistá, testovaná třída (`StuckRecovery`).
+
+**Plazení** (`ai.crawling`, EXPERIMENTÁLNÍ, default vypnuto) rozšiřuje pohyb
+o jednoblokové mezery. Zapnuté nechá A* přidat plazivé hrany – kardinální krok
+do buňky s pevnou oporou pod nohama, ale stropem v úrovni jen 1,0 (vestoje
+neprůchozí) – s cenovou přirážkou ~3× chůze, takže pěší obchůzka vyhrává,
+kdykoli existuje. Fyzika řeší slepičí problém vstupu vstupní heuristikou:
+`BotPhysics` srazí hitbox z 1,8 na 0,6 (vanilla plazivá póza), když se bot
+v buňce nemůže narovnat, nebo když míří vpřed do takové mezery – jinak stojí.
+Vypnuté = hitbox vždy 1,8 a žádné plazivé hrany (beze změny chování). Vědomě
+je to opt-in: přijetí sraženého hitboxu server-side anti-cheatem se v simulaci
+nedá potvrdit, teprve provoz proti živému serveru ho ověří.
 
 ### 6. Humanizace jako průřezová vrstva
 
@@ -764,12 +798,28 @@ individualita.
 Hotovo ve fázi 23: rozšíření parkouru. Sprint-skok nově zvládá mezeru
 **3 bloků** prázdna (vanilla dolet ~4 bloky; strop `MAX_GAP = 3`,
 4 bloky se korektně odmítají) a přes jednoblokovou díru umí bot
-**parkour výskok na římsu o blok výš** (jen kardinálně, letová dráha
-se ověřuje o buňku výš nad odrazem i mezerou). Exekuce rozšířila
-svislé meze skokového segmentu (−1.6 až +1.7 – rozestup waypointů ≥ 2
-zaručuje, že jde o naplánovaný skok). Oba pohyby prošly simulačním
-kontraktem: bot je fyzicky doskočí bez poškození – dolet je ověřený
-proti reálné fyzice, ne jen slíbený plánovačem.
+**parkour výskok na římsu o blok výš** (letová dráha se ověřuje o buňku
+výš nad odrazem i mezerou). Exekuce rozšířila svislé meze skokového
+segmentu (−1.6 až +1.7 – rozestup waypointů ≥ 2 zaručuje, že jde
+o naplánovaný skok). Oba pohyby prošly simulačním kontraktem: bot je
+fyzicky doskočí bez poškození – dolet je ověřený proti reálné fyzice,
+ne jen slíbený plánovačem.
+
+Doladění: **diagonální parkour dorovnán na kardinální.** Rohový skok
+(delší let přes roh) dřív uměl jen dopad ve stejné výšce; nově zvládá
+i **dopad o blok níž** a **parkour výskok o blok výš** – stejně jako
+kardinální skok, jen s ověřením průchodnosti obou rohových sloupců
+i o patro výš (stoupající hitbox o ně zavadí). Obě varianty potvrdila
+fyzikální simulace (bot rohový skok s klesáním i výskokem reálně
+provede), takže plánovač neslibuje nic, co fyzika neutáhne.
+
+Doladění: **splash-down do vody.** Skok přes mezeru dřív vyžadoval pevný
+dopad (vodní buňka se zamítala); nově smí dopadnout i do **hluboké vody**
+(hladina s vodou i pod sebou – stejná „deep water" pojistka jako
+u seskoků, mělčina se dál odmítá). Voda dopad tlumí (ověřeno simulací:
+nulové poškození), takže bot přeskočí i do tůně místo obchůzky nebo
+pomalého plavání. `terrainPenalty` vodní dopad zdraží, pevná zem tak
+zůstává preferovaná.
 
 Hotovo ve fázi 24: kopací hrany v plánu cesty (`TerrainAction`,
 `PathOptions.WITH_DIGGING`).

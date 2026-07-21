@@ -160,7 +160,8 @@ public final class BotManagerImpl implements BotManager {
                 .thenCombine(repository.loadRole(botId), IdentityData::withRole)
                 .thenCompose(identity -> {
                     BotMemoryImpl memory = new BotMemoryImpl(botId, repository, identity.memories(),
-                            dev.botalive.core.memory.RelationDecay.fromConfig(config.memory()));
+                            dev.botalive.core.memory.RelationDecay.fromConfig(config.memory()),
+                            services.memoryKinds());
                     EconomyGateway gateway = config.economy().enabled() ? resolveEconomy() : null;
                     dev.botalive.api.economy.BotWallet wallet = gateway != null
                             ? new VaultBotWallet(botId, gateway, repository::saveWallet,
@@ -176,19 +177,25 @@ public final class BotManagerImpl implements BotManager {
 
                     repository.upsertBot(botId, spec.name(), null, 0, 0, 0);
 
-                    // Role: uložená z DB, jinak výběr podle osobnosti (lze vypnout).
-                    dev.botalive.api.role.BotRole role = dev.botalive.api.role.BotRole
-                            .parse(identity.role()).orElse(null);
-                    if (role == null) {
-                        role = config.bots().randomRoles()
+                    // Role: uložená z DB (vestavěná i cizí), jinak výběr podle
+                    // osobnosti (lze vypnout). Cizí role z registru přežije restart.
+                    String storedRole = identity.role();
+                    dev.botalive.api.role.BotRole builtIn = storedRole == null ? null
+                            : dev.botalive.api.role.BotRole.parse(storedRole).orElse(null);
+                    if (builtIn != null) {
+                        bot.role(builtIn);
+                    } else if (storedRole != null && !storedRole.isBlank()
+                            && bot.assignRole(storedRole)) {
+                        // cizí role z registru – zachovaná
+                    } else {
+                        bot.role(config.bots().randomRoles()
                                 ? dev.botalive.core.role.RolePicker.pick(identity.personality(),
                                         new dev.botalive.core.util.BotRandom(
                                                 identity.personality().seed()))
-                                : dev.botalive.api.role.BotRole.NONE;
+                                : dev.botalive.api.role.BotRole.NONE);
                     }
-                    bot.role(role);
                     LOG.info("Vytvářím bota '{}' ({}, archetyp {}, role {})", spec.name(), botId,
-                            identity.personality().archetype(), role.displayName());
+                            identity.personality().archetype(), bot.roleId());
 
                     String host = config.network().host();
                     int port = config.network().port() > 0 ? config.network().port() : Bukkit.getPort();

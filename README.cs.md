@@ -222,7 +222,80 @@ bot.teleportToPlayer(player.getUniqueId());    // bot k hráči
 bot.teleportPlayerToBot(player.getUniqueId()); // hráč k botovi
 ```
 
-Bukkit eventy (všechny asynchronní): `BotSpawnedEvent`, `BotRemovedEvent`, `BotChatEvent` (cancellable), `BotDiedEvent`, `BotGoalChangedEvent`, `SettlementWarDeclaredEvent`, `SettlementTruceEvent`, `BotHiredEvent`, `BotDismissedEvent`.
+Registrovaný `Goal` dostává `Bot` a řídí ho přes `bot.control()` – bezpečnou
+fasádu akcí (`BotControl`) bez závislosti na implementaci. Volá se z tick vlákna
+bota a vystavuje vnímání, navigaci i akce, takže vlastní cíl dělá skutečnou
+práci bez závislosti na `botalive-core`:
+
+```java
+public final class MyGreetAdminsGoal implements Goal {
+    @Override public String id() { return "greet-admins"; }
+
+    @Override public double utility(Bot bot) {
+        BotControl c = bot.control();
+        // Vyšší naléhavost, když je poblíž hráč.
+        return c.nearbyEntities(6).stream().anyMatch(NearbyEntity::player) ? 40 : 0;
+    }
+
+    @Override public void tick(Bot bot) {
+        BotControl c = bot.control();
+        c.nearbyEntities(6).stream().filter(NearbyEntity::player).findFirst().ifPresent(p -> {
+            c.lookAt(p.position().x(), p.position().y(), p.position().z());
+            c.navigateTo(p.position().blockX(), p.position().blockY(), p.position().blockZ());
+            c.say("zdravím!");
+        });
+    }
+    // start / stop / finished vynecháno
+}
+```
+
+Bukkit eventy (všechny asynchronní): `BotSpawnedEvent`, `BotRemovedEvent`, `BotChatEvent` (cancellable), `BotGoalSelectEvent` (cancellable — veto přepnutí cíle), `BotDiedEvent`, `BotGoalChangedEvent`, `SettlementWarDeclaredEvent`, `SettlementTruceEvent`, `BotHiredEvent`, `BotDismissedEvent`.
+
+Vlastní podpříkazy `/botalive` (i s tab-complete) přes command SPI:
+
+```java
+api.subcommands().register(new BotSubcommand() {
+    @Override public String name() { return "greet"; }
+    @Override public String permission() { return "myplugin.greet"; } // null = bez zvláštního oprávnění
+    @Override public void execute(CommandSender sender, String[] args) {
+        api.botManager().all().forEach(b -> b.say("zdravím " + sender.getName()));
+    }
+});
+```
+
+Vlastní **role** (profese, která vychyluje, kterým cílům se bot věnuje — vestavěným i vlastním):
+
+```java
+api.roles().register(new RoleDefinition("necromancer", "nekromant",
+        Map.of("hunt", 2.0, "my-plugin-goal", 3.0)));   // id cíle -> násobič utility
+bot.assignRole("necromancer");                          // přežije restart (ukládá se dle id)
+```
+
+Vlastní **kategorie vzpomínek** (persistované, s volitelným časovým rozpadem):
+
+```java
+api.memoryKinds().register(new MemoryKindDefinition("myplugin:shrine", 0.05, 0.1)); // id, rozpad/den, podlaha
+bot.memory().remember("myplugin:shrine", world.getName(), 100, 64, -200, null, Map.of(), 0.8);
+bot.memory().recall("myplugin:shrine").forEach(rec -> /* ... */ {});
+```
+
+Vlastní data na bota (async, s jmenným prostorem, mažou se s botem při purge):
+
+```java
+BotDataStore store = api.dataStore();
+store.put(bot.id(), "myplugin", "shrine", "100,64,-200");         // namespace, klíč, hodnota
+store.get(bot.id(), "myplugin", "shrine")
+     .thenAccept(loc -> loc.ifPresent(l -> /* ... */ {}));
+```
+
+Chování skládej z hotových taktických tasků — cíl tiká jeden `BotTask` za tick, dokud neskončí:
+
+```java
+BotControl c = bot.control();
+if (task == null) task = c.walkTo(100, 64, -200);   // nebo c.mineBlock(x,y,z) / c.placeBlock(x,y,z, "COBBLESTONE")
+if (task.tick(c)) task = null;                        // task dokončen
+// api.tasks().register("my-task", MyTask::new) sdílí vlastní tasky pod jménem
+```
 
 ## Build ze zdrojů
 

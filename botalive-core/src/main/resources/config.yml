@@ -144,6 +144,32 @@ ai:
   # okolního hráče/bota kvůli kořisti. Přepadení VŽDY respektuje sekci pvp
   # (enabled / attack-players / attack-bots + férovostní stropy).
   desperation: true
+  # Vnitřní nálada: bot má krátkodobé emoce (strach, vztek, spokojenost,
+  # samota), které rostou z prožitků (smrt, přepadení, dostavěný dům, sdílení)
+  # a z těla (nízké zdraví, hrozby, čas o samotě) a zase odeznívají. Nálada
+  # jemně vychyluje priority cílů (strach → úkryt/útěk, vztek → boj, samota →
+  # družení) a škáluje ji povaha. V klidu je chování beze změny. Viz
+  # docs/BOT_LIFE.md.
+  mood: true
+  # Energie a únava: bdění a námaha (pohyb, boj) energii ubírají, spánek ji
+  # obnovuje. Unavený bot vyhledá postel i mimo noc a odloží dlouhé výpravy
+  # (Nether, End, průzkum); vyčerpaný je náladovější. Jemné násobiče, svěží bot
+  # beze změny. Viz docs/BOT_LIFE.md.
+  vitals: true
+  # Sjednocené pudy (Maslow): bezpečí, jídlo, odpočinek, společnost,
+  # seberealizace. Naléhavá základní potřeba tlumí cíle vyšších potřeb –
+  # vyhladovělý, ohrožený bot nevyrazí na průzkum, i když by ho jednotlivé
+  # signály samy neodradily. Uspokojené potřeby = beze změny. Viz
+  # docs/BOT_LIFE.md.
+  drives: true
+  # EXPERIMENTÁLNÍ (default vypnuto): plazení jednoblokovými mezerami. Zapnuté
+  # nechá A* plánovat i skrz mezery s jen jednoblokovou světlostí (strop v úrovni
+  # 1,0 nad podlahou) – s cenovou přirážkou, takže pěší obchůzka vyhrává, kdykoli
+  # existuje – a fyzika bota v takové mezeře srazí hitbox na 0,6 (vanilla plazivá
+  # póza). Není ověřeno proti živému serveru (server-side přijetí plazivého
+  # hitboxu se v simulaci nedá potvrdit), proto default vypnuto; zapínat
+  # obezřetně. Viz docs/ARCHITECTURE.md (§5 Pohyb).
+  crawling: false
 
 chat:
   enabled: true

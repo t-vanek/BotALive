@@ -212,10 +212,18 @@ public final class CompositionRoot {
         registerBuiltInGoals(goalRegistry, crafting, containers, trades, furnaces,
                 enchanting, smithing, brewing, pvp, taming, anvils, market, socialGraph,
                 diplomacy, employmentService);
+        // Registr profesí (vestavěné role předregistrované; cizí přidává plugin).
+        dev.botalive.core.role.RoleRegistryImpl roles = container.register(
+                dev.botalive.core.role.RoleRegistryImpl.class,
+                new dev.botalive.core.role.RoleRegistryImpl());
+        // Registr kategorií vzpomínek (cizí druhy pluginů, vlastní rozpad).
+        dev.botalive.core.memory.MemoryKindRegistryImpl memoryKinds = container.register(
+                dev.botalive.core.memory.MemoryKindRegistryImpl.class,
+                new dev.botalive.core.memory.MemoryKindRegistryImpl());
         BotImpl.SharedServices services = new BotImpl.SharedServices(
                 config, worldViews, bridge, tickEngine, navigation, repository,
                 phrases, crimeLog, settlements,
-                diplomacy, socialGraph, market, employmentService, authority);
+                diplomacy, socialGraph, market, employmentService, authority, roles, memoryKinds);
         BotManagerImpl botManager = container.register(BotManagerImpl.class,
                 new BotManagerImpl(config, repository, goalRegistry, services));
         pvp.attach(botManager);
@@ -225,9 +233,26 @@ public final class CompositionRoot {
         socialGraph.attach(botManager);
         employmentService.attach(botManager);
 
+        // Registr cizích podpříkazů /botalive (vestavěná jména jsou vyhrazená).
+        dev.botalive.core.commands.SubcommandRegistryImpl subcommands = container.register(
+                dev.botalive.core.commands.SubcommandRegistryImpl.class,
+                new dev.botalive.core.commands.SubcommandRegistryImpl(
+                        BotAliveCommand.builtInSubcommands()));
+
+        // Úložiště dat cizích pluginů (namespaced key-value na bota).
+        dev.botalive.core.persistence.BotDataStoreImpl dataStore = container.register(
+                dev.botalive.core.persistence.BotDataStoreImpl.class,
+                new dev.botalive.core.persistence.BotDataStoreImpl(database));
+
+        // Registr taktických tasků cizích pluginů.
+        dev.botalive.core.tasks.TaskRegistryImpl tasks = container.register(
+                dev.botalive.core.tasks.TaskRegistryImpl.class,
+                new dev.botalive.core.tasks.TaskRegistryImpl());
+
         // Veřejné API.
         BotAliveApi api = container.register(BotAliveApi.class, new BotAliveApiImpl(
-                botManager, goalRegistry, plugin.getPluginMeta().getVersion()));
+                botManager, goalRegistry, subcommands, roles, memoryKinds, dataStore, tasks,
+                plugin.getPluginMeta().getVersion()));
         BotAliveProvider.register(api);
 
         // Bukkit integrace.
@@ -239,7 +264,7 @@ public final class CompositionRoot {
                 new dev.botalive.core.gateway.BotLoginGuard(botManager, authority, config.gateway()));
         container.register(BotAliveCommand.class,
                 new BotAliveCommand(botManager, goalRegistry, repository, config, settlements,
-                        diplomacy, employmentService, navigation));
+                        diplomacy, employmentService, navigation, subcommands, roles));
     }
 
     /** Vestavěná sada cílů – každý bot dostává vlastní instance. */

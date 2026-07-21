@@ -107,6 +107,53 @@ class BotMemoryImplTest {
         assertEquals(0.8, importance(memory, FRIEND), 1e-9);
     }
 
+    // -------------------------------------------------- cizí kategorie (Memory SPI)
+
+    @Test
+    void ciziKategorieSeUlozicteAIzoluje() {
+        MemoryKindRegistryImpl registry = new MemoryKindRegistryImpl();
+        BotMemoryImpl memory = new BotMemoryImpl(BOT, null, List.of(), RelationDecay.OFF, registry);
+        memory.remember("myplugin:shrine", "world", 10, 64, 10, null, Map.of("k", "v"), 0.7);
+        memory.remember("myplugin:altar", "world", 20, 64, 20, null, Map.of(), 0.5);
+
+        List<MemoryRecord> shrines = memory.recall("myplugin:shrine");
+        assertEquals(1, shrines.size());
+        assertEquals("myplugin:shrine", shrines.getFirst().kindId());
+        assertEquals(MemoryKind.PLUGIN, shrines.getFirst().kind());
+        assertEquals("v", shrines.getFirst().data().get("k"));
+        // Různé cizí druhy se nemíchají, ani s vestavěnými.
+        assertEquals(1, memory.recall("myplugin:altar").size());
+        assertTrue(memory.recall("myplugin:none").isEmpty());
+        assertTrue(memory.recall(MemoryKind.CHEST).isEmpty());
+    }
+
+    @Test
+    void ciziKategorieSeRozpadaPodleRegistru() {
+        MemoryKindRegistryImpl registry = new MemoryKindRegistryImpl();
+        registry.register(new dev.botalive.api.memory.MemoryKindDefinition("myplugin:grudge", 0.1, 0.2));
+        BotMemoryImpl memory = new BotMemoryImpl(BOT, null, List.of(), RelationDecay.OFF, registry);
+        memory.clock(() -> nowMs[0]);
+
+        memory.remember("myplugin:grudge", "world", 0, 64, 0, null, Map.of(), 0.9);
+        assertEquals(0.9, memory.recall("myplugin:grudge").getFirst().importance(), 1e-9);
+        nowMs[0] += 3 * DAY_MS;
+        assertEquals(0.6, memory.recall("myplugin:grudge").getFirst().importance(), 1e-9, "-0.1/den");
+        nowMs[0] += 100 * DAY_MS;
+        assertEquals(0.2, memory.recall("myplugin:grudge").getFirst().importance(), 1e-9, "podlaha drží");
+    }
+
+    @Test
+    void forgetCiziKategorieNechaOstatni() {
+        BotMemoryImpl memory = new BotMemoryImpl(BOT, null, List.of(), RelationDecay.OFF,
+                new MemoryKindRegistryImpl());
+        memory.remember("myplugin:a", "world", 0, 64, 0, null, Map.of(), 0.5);
+        memory.remember("myplugin:b", "world", 0, 64, 0, null, Map.of(), 0.5);
+
+        memory.forget("myplugin:a");
+        assertTrue(memory.recall("myplugin:a").isEmpty());
+        assertEquals(1, memory.recall("myplugin:b").size(), "cizí kategorie se nemažou hromadně");
+    }
+
     private static double importance(BotMemoryImpl memory, UUID subject) {
         List<MemoryRecord> records = memory.recallAbout(subject);
         assertEquals(1, records.size());

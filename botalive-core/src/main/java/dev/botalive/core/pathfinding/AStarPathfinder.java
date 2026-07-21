@@ -60,6 +60,13 @@ public final class AStarPathfinder {
     private static final int COST_STRAIGHT = 10;
     private static final int COST_DIAGONAL = 14;
     private static final int COST_JUMP = 8;
+    /**
+     * Přirážka za plazivý krok jednoblokovou mezerou (experimentální,
+     * {@code ai.crawling}). Plazení je pomalé a nepohodlné – krok stojí ~3×
+     * chůzi, aby pěší obchůzka vyhrála, kdykoli rozumná existuje; tunelem se
+     * bot proplazí jen, když je to podstatná zkratka nebo jediná cesta.
+     */
+    private static final int COST_CRAWL = 20;
     private static final int COST_FALL_PER_BLOCK = 6;
     private static final int COST_WATER = 25;
     /** Přirážka za buňku s hlavou pod hladinou – podvodní tunely stojí dech. */
@@ -601,6 +608,9 @@ public final class AStarPathfinder {
                     }
                     stepTowards(current, curFeet, pos.offset(dx, 0, dz), diagonal);
                     tryGapJump(current, curFeet, dx, dz);
+                    if (options.crawl() && !diagonal) {
+                        tryCrawlStep(current, curFeet, pos.offset(dx, 0, dz));
+                    }
                 }
             }
 
@@ -702,13 +712,16 @@ public final class AStarPathfinder {
         }
 
         /**
-         * Skok přes mezeru. Kardinálně 1–2 sloupce prázdna s dopadem ve stejné
-         * výšce nebo o blok níž; diagonálně jen rohová mezera 1 sloupce (delší let)
-         * se stejnou výškou dopadu. Letová dráha musí být průchozí v úrovni nohou,
-         * hlavy i nad hlavou – u diagonály včetně čtyř sloupců u rohů, přes které
-         * hitbox při letu zavadí. Mezisloupec nesmí být pochozí (jinak stačí
-         * obyčejný krok) a nad lávou/ohněm se neskáče – nepovedený skok by byl
-         * smrtelný. Odraz i dopad jen z „celých" výšek – z hrany desky se neskáče.
+         * Skok přes mezeru. Kardinálně 1–3 sloupce prázdna, diagonálně rohová
+         * mezera 1 sloupce (delší let). Dopad ve stejné výšce nebo o blok níž
+         * platí pro obě orientace; parkour výskok o blok výš jen přes jednoblokovou
+         * mezeru (span 2) – rovněž kardinálně i diagonálně. Letová dráha musí být
+         * průchozí v úrovni nohou, hlavy i nad hlavou – u diagonály včetně čtyř
+         * sloupců u rohů, přes které hitbox při letu zavadí, a u výskoku i o patro
+         * výš. Mezisloupec nesmí být pochozí (jinak stačí obyčejný krok) a nad
+         * lávou/ohněm se neskáče – nepovedený skok by byl smrtelný. Odraz i dopad
+         * jen z „celých" výšek – z hrany desky se neskáče. Dopad je buď na pevno,
+         * nebo splash-down do hluboké vody (voda tlumí, žádné poškození).
          */
         private void tryGapJump(Node current, double curFeet, int dx, int dz) {
             BlockPos pos = current.pos;
@@ -752,33 +765,42 @@ public final class AStarPathfinder {
                 BlockPos landing = pos.offset(dx * span, 0, dz * span);
                 double landFeet = feetHeight(landing);
                 if (flatLanding(landing, landFeet) && transitClear(landing.offset(0, 2, 0))
-                        && !traits(landing).liquid()) {
+                        && (!traits(landing).liquid() || deepWaterLanding(landing))) {
+                    // Dopad na pevno, nebo splash-down do hluboké vody (dopad
+                    // tlumí voda, žádné poškození – ověřeno fyzikální simulací;
+                    // terrainPenalty už vodní buňku zdraží).
                     tryAdd(current, landing, base + terrainPenalty(landing));
                     return;
                 }
-                // Dopad o blok níž (jen kardinálně): letí se dál a klesá, fyzikálně
-                // snazší než rovný dopad – ale dopadová plocha musí být volná i
-                // v celé letové výšce.
-                if (!diagonal) {
+                // Dopad o blok níž (kardinálně i diagonálně): letí se dál a klesá,
+                // fyzikálně snazší než rovný dopad – ale dopadová plocha musí být
+                // volná i v celé letové výšce. Diagonální rohový let s klesáním je
+                // stále v dosahu (ověřeno fyzikální simulací). Hluboká voda tlumí
+                // dopad stejně jako u rovného skoku (splash-down).
+                {
                     BlockPos lower = landing.down();
                     double lowerFeet = feetHeight(lower);
                     if (flatLanding(lower, lowerFeet) && transitClear(landing.up())
                             && transitClear(landing.offset(0, 2, 0))
-                            && !traits(lower).liquid()) {
+                            && (!traits(lower).liquid() || deepWaterLanding(lower))) {
                         int cost = base + costFallPerBlock + terrainPenalty(lower);
                         tryAdd(current, lower, cost);
                         return;
                     }
                 }
-                // Dopad o blok výš (jen kardinálně, jen jednobloková mezera):
-                // parkour výskok na vyšší římsu přes díru. Letová dráha vede
-                // výš – nad mezerou i nad odrazem musí být volno o buňku navíc.
-                if (!diagonal && span == 2) {
+                // Dopad o blok výš (jen jednobloková mezera, span 2): parkour
+                // výskok na vyšší římsu přes díru – kardinálně i diagonálně
+                // (ověřeno fyzikální simulací). Letová dráha vede výš: nad mezerou
+                // i nad odrazem musí být volno o buňku navíc, u diagonály i nad
+                // oběma rohovými sloupci, přes které stoupající hitbox zavadí.
+                if (span == 2) {
                     BlockPos higher = landing.up();
                     double higherFeet = feetHeight(higher);
-                    if (flatLanding(higher, higherFeet)
-                            && transitClear(pos.offset(0, 3, 0))
+                    boolean arcClear = transitClear(pos.offset(0, 3, 0))
                             && transitClear(gap.offset(0, 3, 0))
+                            && (!diagonal || (transitClear(pos.offset(dx, 3, 0))
+                                    && transitClear(pos.offset(0, 3, dz))));
+                    if (flatLanding(higher, higherFeet) && arcClear
                             && !traits(higher).liquid()) {
                         int cost = base + costJump + terrainPenalty(higher);
                         tryAdd(current, higher, cost);
@@ -786,6 +808,62 @@ public final class AStarPathfinder {
                     }
                 }
             }
+        }
+
+        /**
+         * Plazivý krok jednoblokovou mezerou (experimentální, {@code ai.crawling}).
+         * Kardinální krok na sousední buňku, která je nízkou mezerou (nohy volné
+         * a s pevnou oporou, strop tak nízko, že vestoje by to neprošlo). Vychází
+         * jen z pochozí úrovně (nohy na celé výšce buňky, ne uprostřed skoku/pádu);
+         * ze samotné mezery pak pokračuje dál mezerou nebo vystoupí obyčejným
+         * krokem na volný konec. Cena nese {@link #COST_CRAWL} přirážku, aby pěší
+         * obchůzka vyhrála všude, kde existuje.
+         */
+        private void tryCrawlStep(Node current, double curFeet, BlockPos target) {
+            if (Math.abs(curFeet - current.pos.y()) > 0.05) {
+                return; // jen z pevné pochozí úrovně, ne ve vzduchu
+            }
+            if (!crawlable(target)) {
+                return;
+            }
+            tryAdd(current, target, COST_STRAIGHT + COST_CRAWL + terrainPenalty(target));
+        }
+
+        /**
+         * Je buňka jednobloková mezera k proplížení? Nohy volné pro tělo (nízký
+         * profil), s pevnou oporou pod nimi, bez tekutiny/hazardu/pavučiny/neznáma,
+         * a strop tak nízko, že normální chůze buňku odmítla (jinak ji vezme
+         * {@link #stepTowards} a plazit se netřeba).
+         */
+        private boolean crawlable(BlockPos feet) {
+            BlockTraits t = traits(feet);
+            BlockTraits head = traits(feet.up());
+            if (t == BlockTraits.UNKNOWN || head == BlockTraits.UNKNOWN) {
+                return false;
+            }
+            if (t.hazard() || head.hazard() || t.web() || head.web() || t.liquid()) {
+                return false;
+            }
+            if (!t.lowProfile()) {
+                return false; // částečný/plný blok v buňce nohou – tady se nechodí ani neplazí
+            }
+            BlockTraits below = traits(feet.down());
+            if (below.floorHeight() < 0.99 || below.floorHeight() > 1.01) {
+                return false; // bez pevné podlahy pod mezerou
+            }
+            // Strop níž než světlost postavy (0,8 nad hlavou) – vestoje to neprojde.
+            return head.lowestCollisionStart() < 0.8 - EPS;
+        }
+
+        /**
+         * Je buňka bezpečný dopad do hluboké vody (splash-down)? Vodní hladina
+         * (bez lávy) s vodou i pod sebou – aspoň dva bloky hluboká, takže dopad
+         * z výskoku spolehlivě tlumí a bot se v ní nadechne a doplave. Mělká
+         * voda (pod hladinou pevné dno) by při skoku z výšky ublížila jako zem.
+         */
+        private boolean deepWaterLanding(BlockPos cell) {
+            BlockTraits t = traits(cell);
+            return t.liquid() && !t.hazard() && traits(cell.down()).liquid();
         }
 
         /** Průchozí sloupec letové dráhy: úroveň nohou, hlavy i nad hlavou. */

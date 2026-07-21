@@ -117,8 +117,29 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
     private volatile BotPhysics physics;
     private volatile CompletableFuture<Bot> spawnFuture;
 
-    /** Profese bota – násobí utility souvisejících cílů (viz RoleProfiles). */
-    private volatile dev.botalive.api.role.BotRole role = dev.botalive.api.role.BotRole.NONE;
+    /**
+     * Profese bota jako id (vestavěná nebo cizí) – násobí utility souvisejících
+     * cílů přes registr rolí. {@code "none"} = univerzál.
+     */
+    private volatile String roleId = "none";
+
+    /** Veřejné akční rozhraní bota pro cizí AI cíle (lazy, sdílená instance). */
+    private volatile dev.botalive.api.bot.BotControl control;
+
+    /** Krátkodobá nálada bota – jemně vychyluje priority cílů (viz docs/BOT_LIFE.md). */
+    private final dev.botalive.core.ai.BotMood mood = new dev.botalive.core.ai.BotMood();
+    /** Zapnutí náladové modulace ({@code ai.mood}). */
+    private final boolean moodEnabled;
+    /** Energie/únava bota – klesá bděním, obnovuje se spánkem (viz docs/BOT_LIFE.md). */
+    private final dev.botalive.core.ai.Vitals vitals = new dev.botalive.core.ai.Vitals();
+    /** Zapnutí únavové modulace ({@code ai.vitals}). */
+    private final boolean vitalsEnabled;
+    /** Pudy bota – hierarchická arbitráž potřeb (viz docs/BOT_LIFE.md). */
+    private final dev.botalive.core.ai.BotDrives drives = new dev.botalive.core.ai.BotDrives();
+    /** Zapnutí pudové arbitráže ({@code ai.drives}). */
+    private final boolean drivesEnabled;
+    /** Ticky od poslední aktualizace vnitřního stavu (nálada + vitály + pudy). */
+    private int ticksSinceInner;
 
     /** Pohyb vyžádaný cílem pro aktuální tick (přebíjí navigátor). */
     private MoveInput requestedMove;
@@ -204,6 +225,9 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
         this.wallet = wallet;
         this.stats = stats;
         this.config = services.config();
+        this.moodEnabled = config.ai().mood();
+        this.vitalsEnabled = config.ai().vitals();
+        this.drivesEnabled = config.ai().drives();
         this.worldViews = services.worldViews();
         this.bridge = services.bridge();
         this.tickEngine = services.tickEngine();
@@ -226,6 +250,7 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
                         org.geysermc.mcprotocollib.protocol.data.game.entity.object.Direction.NORTH),
                 rng, personality);
         this.navigator.terraforming(config.ai().terraforming());
+        this.navigator.crawling(config.ai().crawling());
         this.navigator.placeBudget(this::buildingBlockBudget);
         this.navigator.ladderBudget(this::ladderBudget);
         this.navigator.dangerSupplier(this::dangerMemories);
@@ -352,8 +377,8 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
      * dostane při vstupu nabídku, kde je potřeba.
      */
     private void maybeAdoptRole() {
-        if (role() != dev.botalive.api.role.BotRole.NONE) {
-            return;
+        if (!"none".equals(roleId)) {
+            return; // zaměřený bot (i cizí rolí) si řemeslo nevnucuje
         }
         services.settlements().settlementIdOf(id).ifPresent(settlementId ->
                 services.settlements().missingCoreRole(settlementId).ifPresent(needed -> {
@@ -851,6 +876,10 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
     @Override
     public void gainExperience(dev.botalive.core.personality.PersonalityEvolution
                                        .BotExperience experience) {
+        // Rychlá emoční reakce (nálada) – nezávisle na pomalém driftu osobnosti.
+        if (moodEnabled) {
+            mood.reactTo(experience, personality);
+        }
         if (!(personality instanceof dev.botalive.core.personality.PersonalityImpl impl)) {
             return;
         }
@@ -898,7 +927,9 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
             dev.botalive.core.social.SocialGraph socialGraph,
             dev.botalive.core.economy.MarketBoard market,
             dev.botalive.core.economy.EmploymentService employment,
-            dev.botalive.core.gateway.CredentialAuthority authority
+            dev.botalive.core.gateway.CredentialAuthority authority,
+            dev.botalive.core.role.RoleRegistryImpl roles,
+            dev.botalive.core.memory.MemoryKindRegistryImpl memoryKinds
     ) {
     }
 
@@ -1140,6 +1171,9 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
     private long watchdogLastRelocateAt;
     /** Okno, ve kterém druhý nouzový přesun eskaluje na povrch (ms). */
     private static final long WATCHDOG_RELOCATE_WINDOW_MS = 300_000L;
+    /** Vyproštění: mikro-manévry zkoušené dřív než watchdog teleport. */
+    private final dev.botalive.core.physics.StuckRecovery stuckRecovery =
+            new dev.botalive.core.physics.StuckRecovery();
 
     /** @return ticky nehybnosti při aktivní navigaci (pro flotilový přehled) */
     public int ticksWithoutMovement() {
@@ -1164,6 +1198,7 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
             combat.disengage();
         } else if (!clientState.dead() && deathHandled) {
             deathHandled = false; // po respawnu
+            vitals.refresh(); // čerstvé tělo je odpočaté
         }
 
         // Periodický snapshot serverového hráče a flush statistik.
@@ -1208,6 +1243,13 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
             if (services.employment() != null) {
                 services.employment().tick(this);
             }
+        }
+        // Vnitřní stav (nálada + energie + pudy): řídce (~1 s). Běží i u
+        // pozastaveného bota (život plyne dál), jen ne po smrti.
+        if ((moodEnabled || vitalsEnabled || drivesEnabled)
+                && !clientState.dead() && ++ticksSinceInner >= 20) {
+            ticksSinceInner = 0;
+            updateInnerState();
         }
 
         boolean alive = !clientState.dead();
@@ -1330,6 +1372,22 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
             input = MoveInput.IDLE;
         }
 
+        // Vyproštění: probíhá-li epizoda (spustil ji watchdog), přebij navigaci
+        // mikro-manévry (couvnout/uhnout/poskočit/zavrtět se) – repertoár, který
+        // se stojícího bota snaží uvolnit dřív, než dojde na nouzový teleport.
+        // Nedělá se v boji ani v tasku (ty řeší pohyb samy); bezpečnostní reflexy
+        // níže (láva, hrana) manévr dál smí ohnout.
+        if (alive && !paused.get() && stuckRecovery.active() && obstacleTask == null
+                && !combat.engaged() && worldView != null) {
+            Vec3 forward = stuckForward(input.direction());
+            Vec3 back = forward.mul(-1);
+            Vec3 left = new Vec3(-forward.z(), 0, forward.x());
+            Vec3 right = new Vec3(forward.z(), 0, -forward.x());
+            input = stuckRecovery.tick(forward, cellOpen(back), cellOpen(left), cellOpen(right),
+                    physics.onGround(), rng);
+            navDriven = false; // manévr není řízená cesta – reflexy ho smí ohnout
+        }
+
         // Vyhýbání davu: odpuzuj se od blízkých hráčů/botů, ať se boti neslévají
         // na stejné místo. Platí i v boji – tam se ale vyloučí cíl útoku, aby se
         // bot pořád mohl přiblížit k protivníkovi, jen se nehromadil na ostatních
@@ -1431,10 +1489,11 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
                 watchdogRepeats = 0;
             }
             if (watchdogRepeats >= 2) {
-                // Třetí reset na témže bloku: navigační resety nepomáhají, bot
-                // je uvězněný v něčem, co klientský model nezná (stojí na
-                // entitě – loď; kolizní desync). Poslední instance: přesun na
-                // sousední pevnou buňku s plným resyncem klienta.
+                // Třetí reset na témže bloku: navigační resety ani mikro-manévry
+                // nepomohly, bot je uvězněný v něčem, co klientský model nezná
+                // (stojí na entitě – loď; kolizní desync). Poslední instance:
+                // přesun na sousední pevnou buňku s plným resyncem klienta.
+                stuckRecovery.stop();
                 watchdogRepeats = 0;
                 watchdogLastResetPos = null;
                 String worldName = worldView != null ? worldView.worldName() : null;
@@ -1470,9 +1529,13 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
                             refuge.z() + 0.5));
                 }
             } else {
-                LOG.warn("[{}] watchdog: {} s bez pohybu na {} (goal {}, cíl {}) – reset navigace",
+                LOG.warn("[{}] watchdog: {} s bez pohybu na {} (goal {}, cíl {}) – reset "
+                                + "navigace + pokus o vyproštění",
                         name, WATCHDOG_STILL_TICKS / 20, here,
                         brain.currentGoalId(), navigator.currentObjective());
+                // Fyzický pokus o uvolnění (couvnout/uhnout/poskočit) souběžně
+                // s resetem navigace – dřív než další eskalace k teleportu.
+                stuckRecovery.begin();
             }
             navigator.stop();
         }
@@ -1846,6 +1909,14 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
             return new dev.botalive.core.tasks.PillarUpTask(destination.y());
         }
 
+        // Cíl níž za pevným svahem/srázem vyšším než bezpečný seskok → vyhloubit
+        // schodiště dolů (protějšek pilíře a žebříku pro cestu dolů). Jen skrz
+        // pevný, bezpečný materiál – do jeskyní, lávy a nad prázdno nikdy.
+        if (dy < 0
+                && dev.botalive.core.tasks.StaircaseDownTask.canDescendStep(worldView, feet, sx, sz)) {
+            return new dev.botalive.core.tasks.StaircaseDownTask(sx, sz, destination.y());
+        }
+
         // Kandidáti na vylámání podle směru (v pořadí důležitosti).
         List<BlockPos> candidates = dy > 0
                 ? List.of(feet.up().up(), front.up().up(), front.up())
@@ -2012,6 +2083,35 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
      * nouzového přesunu watchdogu. Bez nálezu vrací výchozí pozici (samotný
      * resync klienta často desync srovná).
      */
+    /**
+     * Směr, kterým se bot marně snaží jít (pro vyproštění): preferuje živý
+     * pohybový vstup, jinak směr k cíli navigace, nakonec směr pohledu.
+     */
+    private Vec3 stuckForward(Vec3 moveDir) {
+        if (moveDir.horizontalLength() > 0.01) {
+            return moveDir.horizontal().normalized();
+        }
+        BlockPos objective = navigator.currentObjective();
+        if (objective != null && physics != null) {
+            Vec3 toObjective = objective.center().sub(physics.position()).horizontal();
+            if (toObjective.horizontalLength() > 0.01) {
+                return toObjective.normalized();
+            }
+        }
+        double yaw = Math.toRadians(humanizer.yaw());
+        return new Vec3(-Math.sin(yaw), 0, Math.cos(yaw));
+    }
+
+    /** Je buňka o blok daným (vodorovným) směrem průchozí v úrovni nohou i hlavy? */
+    private boolean cellOpen(Vec3 dir) {
+        if (worldView == null || physics == null || dir.horizontalLength() < 0.01) {
+            return false;
+        }
+        Vec3 step = dir.horizontal().normalized();
+        BlockPos ahead = physics.position().add(step.x(), 0, step.z()).toBlockPos();
+        return worldView.traitsAt(ahead).passable() && worldView.traitsAt(ahead.up()).passable();
+    }
+
     private BlockPos findAdjacentGround(BlockPos around) {
         if (worldView == null) {
             return around;
@@ -2162,6 +2262,7 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
             return;
         }
         this.physics = new BotPhysics(worldView, position);
+        this.physics.setCrawlEnabled(config.ai().crawling());
         navigator.world(worldView);
         combat.world(worldView);
         entities.clear();
@@ -2262,7 +2363,7 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
                 worldView != null ? worldView.worldName() : null,
                 pos.x(), pos.y(), pos.z(), humanizer.yaw(), humanizer.pitch(),
                 clientState.health(), clientState.food(),
-                brain.currentGoalId(), role, connection.connected());
+                brain.currentGoalId(), role(), connection.connected());
     }
 
     @Override
@@ -2272,13 +2373,172 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
 
     @Override
     public dev.botalive.api.role.BotRole role() {
-        return role;
+        // Vestavěné role se promítnou zpět na enum; cizí role vrací NONE
+        // (typ zachovaný kvůli zpětné kompatibilitě – přesné id dá roleId()).
+        return dev.botalive.api.role.BotRole.parse(roleId)
+                .orElse(dev.botalive.api.role.BotRole.NONE);
     }
 
     @Override
     public void role(dev.botalive.api.role.BotRole newRole) {
-        this.role = newRole == null ? dev.botalive.api.role.BotRole.NONE : newRole;
-        repository.saveRole(id, this.role.name());
+        assignRoleId(newRole == null ? "none"
+                : newRole.name().toLowerCase(java.util.Locale.ROOT));
+    }
+
+    @Override
+    public String roleId() {
+        return roleId;
+    }
+
+    @Override
+    public boolean assignRole(String requestedRoleId) {
+        if (requestedRoleId == null) {
+            return false;
+        }
+        String norm = requestedRoleId.trim().toLowerCase(java.util.Locale.ROOT);
+        if (norm.equals("none")) {
+            assignRoleId("none");
+            return true;
+        }
+        if (services.roles().byId(norm).isEmpty()) {
+            return false; // neznámá role – bota neměníme
+        }
+        assignRoleId(norm);
+        return true;
+    }
+
+    /** Nastaví normalizované id role a persistuje ho. */
+    private void assignRoleId(String normalizedId) {
+        this.roleId = normalizedId;
+        repository.saveRole(id, normalizedId);
+    }
+
+    /**
+     * Násobič užitečnosti cíle podle profese bota (přes registr rolí – funguje
+     * pro vestavěné i cizí role). Volá mozek při rozhodování.
+     *
+     * @param goalId id cíle
+     * @return násobič ({@code 1.0} mimo profil / univerzál)
+     */
+    public double roleWeight(String goalId) {
+        return services.roles().weight(roleId, goalId);
+    }
+
+    /**
+     * Násobič užitečnosti cíle podle aktuální nálady (viz docs/BOT_LIFE.md).
+     * Volá mozek; v klidu (nebo když je nálada vypnutá) vrací 1.0.
+     *
+     * @param goalId id cíle
+     * @return náladový násobič
+     */
+    public double moodWeight(String goalId) {
+        return moodEnabled ? mood.modulate(goalId) : 1.0;
+    }
+
+    /**
+     * @return krátký popis dominantní nálady (pro {@code /botalive goal}),
+     *         nebo {@code null} když je nálada vypnutá
+     */
+    public String moodLine() {
+        return moodEnabled ? mood.describe() : null;
+    }
+
+    /**
+     * Násobič užitečnosti cíle podle únavy (viz docs/BOT_LIFE.md). Svěží bot
+     * (nebo vypnuté vitály) vrací 1.0.
+     *
+     * @param goalId id cíle
+     * @return únavový násobič
+     */
+    public double vitalsWeight(String goalId) {
+        return vitalsEnabled ? vitals.modulate(goalId) : 1.0;
+    }
+
+    /**
+     * @return krátký popis energie (pro {@code /botalive goal}), nebo
+     *         {@code null} když jsou vitály vypnuté
+     */
+    public String vitalsLine() {
+        return vitalsEnabled ? vitals.describe() : null;
+    }
+
+    /**
+     * Násobič užitečnosti cíle podle hierarchie potřeb (viz docs/BOT_LIFE.md):
+     * naléhavá základní potřeba tlumí cíle vyšších potřeb. Uspokojený bot (nebo
+     * vypnuté pudy) vrací 1.0.
+     *
+     * @param goalId id cíle
+     * @return pudový násobič
+     */
+    public double drivesWeight(String goalId) {
+        return drivesEnabled ? drives.modulate(goalId) : 1.0;
+    }
+
+    /**
+     * @return popis nejnaléhavější potřeby (pro {@code /botalive goal}), nebo
+     *         {@code null} když jsou pudy vypnuté
+     */
+    public String drivesLine() {
+        return drivesEnabled ? drives.describe() : null;
+    }
+
+    /** Aktualizuje vnitřní stav bota – energii (vitály), náladu (emoce) a pudy. */
+    private void updateInnerState() {
+        ServerSideView.Snapshot snapshot = serverView.latest();
+        boolean sleeping = snapshot != null && snapshot.sleeping();
+        Vec3 pos = position();
+        long time = worldTime();
+        boolean night = time >= 13_000 && time < 23_000;
+        // Rozhled potřebují jen nálada a pudy; jednou pro obě.
+        int hostiles = 0;
+        int company = 0;
+        if (moodEnabled || drivesEnabled) {
+            hostiles = entities.nearby(pos, 12.0,
+                    dev.botalive.core.entity.TrackedEntity::isHostile).size();
+            company = entities.nearby(pos, 12.0,
+                    dev.botalive.core.entity.TrackedEntity::isPlayer).size();
+        }
+
+        if (vitalsEnabled) {
+            double exertion = combat.engaged() || navigator.navigating() ? 0.9 : 0.25;
+            vitals.tick(sleeping, exertion);
+        }
+        if (moodEnabled) {
+            mood.observe(clientState.health(), clientState.food(), hostiles, company, night,
+                    personality.trait(dev.botalive.api.personality.Trait.SOCIABILITY));
+            mood.decay();
+            // Vyčerpaný bot je náladovější – propojení vitály → nálada.
+            if (vitalsEnabled && vitals.exhausted()) {
+                mood.feel(dev.botalive.core.ai.BotMood.Emotion.ANGER, 0.03);
+            }
+        }
+        if (drivesEnabled) {
+            // Pudy sjednocují tělo, únavu (vitály) a samotu (nálada).
+            double tiredness = vitalsEnabled ? 1.0 - vitals.energy() : 0.0;
+            double loneliness = moodEnabled
+                    ? mood.level(dev.botalive.core.ai.BotMood.Emotion.LONELY) : 0.0;
+            drives.update(clientState.health(), clientState.food(), hostiles, tiredness,
+                    loneliness, esteemResolve());
+        }
+    }
+
+    /**
+     * Odolnost seberealizace vůči supresi základními potřebami (osobnost + role):
+     * odvážní, zvídaví a hrabiví boti (a dobrodruzi/průzkumníci) tlačí na výpravy
+     * i přes nepohodlí; opatrní couvnou snáz.
+     *
+     * @return odolnost 0–1 (ořezává se v {@link dev.botalive.core.ai.BotDrives})
+     */
+    private double esteemResolve() {
+        double courage = personality.trait(dev.botalive.api.personality.Trait.COURAGE);
+        double curiosity = personality.trait(dev.botalive.api.personality.Trait.CURIOSITY);
+        double greed = personality.trait(dev.botalive.api.personality.Trait.GREED);
+        double caution = personality.trait(dev.botalive.api.personality.Trait.CAUTION);
+        double resolve = 0.15 + 0.35 * courage + 0.25 * curiosity + 0.15 * greed - 0.2 * caution;
+        if (roleId.equals("adventurer") || roleId.equals("scout")) {
+            resolve += 0.2;
+        }
+        return resolve;
     }
 
     @Override
@@ -2289,6 +2549,18 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
     @Override
     public BotWallet wallet() {
         return wallet;
+    }
+
+    @Override
+    public dev.botalive.api.bot.BotControl control() {
+        // Bezstavová fasáda – benigní závod při prvním čtení (nejvýš dvě
+        // instance, obě ekvivalentní), proto bez zámku.
+        dev.botalive.api.bot.BotControl existing = control;
+        if (existing == null) {
+            existing = new BotControlImpl(this);
+            control = existing;
+        }
+        return existing;
     }
 
     @Override

@@ -34,6 +34,26 @@ public record MemoryRecord(
         long updatedAt
 ) {
 
+    /** Klíč v {@link #data()}, pod kterým vzpomínky kategorie {@link MemoryKind#PLUGIN}
+     *  nesou své skutečné (pluginem definované) id. */
+    public static final String PLUGIN_KIND_KEY = "__kind";
+
+    /**
+     * Id kategorie vzpomínky: u vestavěných druhů název enumu (např.
+     * {@code "CHEST"}), u kategorie {@link MemoryKind#PLUGIN} skutečné id
+     * definované pluginem (z {@link #data()}). Vhodné pro vzpomínky, kde nezáleží,
+     * jestli jde o vestavěný nebo cizí druh.
+     *
+     * @return stabilní řetězcové id kategorie
+     */
+    public String kindId() {
+        if (kind == MemoryKind.PLUGIN) {
+            String custom = data == null ? null : data.get(PLUGIN_KIND_KEY);
+            return custom != null ? custom : MemoryKind.PLUGIN.name();
+        }
+        return kind.name();
+    }
+
     /**
      * @return kopie záznamu s novým primárním klíčem (po INSERTu do DB)
      */

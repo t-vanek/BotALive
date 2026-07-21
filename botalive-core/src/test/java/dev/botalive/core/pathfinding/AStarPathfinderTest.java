@@ -4,6 +4,7 @@ import dev.botalive.core.testutil.FakeWorldView;
 import dev.botalive.core.util.BlockPos;
 import org.junit.jupiter.api.Test;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -396,6 +397,65 @@ class AStarPathfinderTest {
         assertFalse(path.complete(), "diagonálně se skáče jen přes jeden roh");
     }
 
+    /**
+     * Jako {@link #cornerPlatforms(int)}, ale cílová plošina je o {@code bDelta}
+     * pater jinde (−1 = níž, +1 = výš) – pro diagonální skok s dopadem níž/výš.
+     */
+    private static FakeWorldView cornerPlatformsStepped(int gap, int bDelta) {
+        FakeWorldView world = new FakeWorldView(0);
+        int b = 1 + gap;
+        for (int x = -3; x <= 0; x++) {
+            for (int z = -3; z <= 0; z++) {
+                world.set(x, FLOOR, z, FakeWorldView.SOLID);
+            }
+        }
+        for (int x = b; x <= b + 3; x++) {
+            for (int z = b; z <= b + 3; z++) {
+                world.set(x, FLOOR + bDelta, z, FakeWorldView.SOLID);
+            }
+        }
+        return world;
+    }
+
+    /** Obsahuje cesta diagonální skok přes roh (|dx|=|dz|=2) s daným převýšením? */
+    private static boolean hasDiagonalCornerJump(Path path, BlockPos start, int dy) {
+        BlockPos prev = start;
+        for (BlockPos wp : path.waypoints()) {
+            if (Math.abs(wp.x() - prev.x()) == 2 && Math.abs(wp.z() - prev.z()) == 2
+                    && wp.y() - prev.y() == dy) {
+                return true;
+            }
+            prev = wp;
+        }
+        return false;
+    }
+
+    @Test
+    void preskociRohovouMezeruSDopademNiz() {
+        // Cílová plošina o blok níž – diagonální rohový skok s klesáním.
+        BlockPos start = new BlockPos(-1, FEET, -1);
+        Path path = new AStarPathfinder(cornerPlatformsStepped(1, -1))
+                .findPath(start, new BlockPos(3, FEET - 1, 3), 0);
+
+        assertTrue(path.complete(),
+                "rohová mezera s nižším dopadem má jít přeskočit: " + path.waypoints());
+        assertTrue(hasDiagonalCornerJump(path, start, -1),
+                "cesta má obsahovat diagonální skok přes roh s dopadem níž: " + path.waypoints());
+    }
+
+    @Test
+    void parkourRohovouMezeruNaVyssiRimsu() {
+        // Cílová plošina o blok výš – diagonální parkour výskok přes roh.
+        BlockPos start = new BlockPos(-1, FEET, -1);
+        Path path = new AStarPathfinder(cornerPlatformsStepped(1, 1))
+                .findPath(start, new BlockPos(3, FEET + 1, 3), 0);
+
+        assertTrue(path.complete(),
+                "rohová mezera s výskokem na vyšší římsu má jít přeskočit: " + path.waypoints());
+        assertTrue(hasDiagonalCornerJump(path, start, 1),
+                "cesta má obsahovat diagonální parkour výskok o blok výš: " + path.waypoints());
+    }
+
     @Test
     void preskociMezeruSDopademONizsi() {
         // Mezera 1 blok (x=3), dopadová platforma o blok níž (y = FLOOR−1).
@@ -424,6 +484,52 @@ class AStarPathfinderTest {
         }
         assertTrue(hasDropJump,
                 "cesta má obsahovat skok s dopadem níž: " + path.waypoints());
+    }
+
+    /**
+     * Odrazová plošina, mezera 2 bloky a za ní tůň s hladinou v úrovni nohou;
+     * {@code deepWater} rozhoduje, zda je tůň hluboká (voda i pod hladinou) –
+     * jinak jen jedna vrstva nad pevným dnem.
+     */
+    private static FakeWorldView splashGap(boolean deepWater) {
+        FakeWorldView world = new FakeWorldView(0);
+        for (int z = -1; z <= 1; z++) {
+            world.set(-1, FLOOR, z, FakeWorldView.SOLID);
+            world.set(0, FLOOR, z, FakeWorldView.SOLID);
+        }
+        // Mezera x=1,2 (bezedno). Tůň x=3..7 s hladinou v úrovni nohou (FEET).
+        for (int x = 3; x <= 7; x++) {
+            for (int z = -1; z <= 1; z++) {
+                world.set(x, FEET, z, FakeWorldView.WATER);
+                world.set(x, FLOOR, z, deepWater ? FakeWorldView.WATER : FakeWorldView.SOLID);
+                if (deepWater) {
+                    world.set(x, FLOOR - 1, z, FakeWorldView.SOLID);
+                }
+            }
+        }
+        return world;
+    }
+
+    @Test
+    void preskociMezeruSeSplashDoVody() {
+        Path path = new AStarPathfinder(splashGap(true))
+                .findPath(new BlockPos(0, FEET, 0), new BlockPos(6, FEET, 0), 0);
+
+        assertTrue(path.complete(), "mezera s doskokem do hluboké vody: " + path.waypoints());
+        // Cesta obsahuje skok přes ≥2 sloupce s dopadem do vody (x=3).
+        boolean splash = path.waypoints().stream()
+                .anyMatch(p -> p.x() == 3 && p.y() == FEET);
+        assertTrue(splash, "cesta má skočit do tůně: " + path.waypoints());
+    }
+
+    @Test
+    void neskaceDoMelkeVody() {
+        // Mělká tůň (jedna vrstva nad pevným dnem) – skok do ní by při dopadu
+        // z výšky ublížil jako na zem, plánovač ho nesmí nabídnout.
+        Path path = new AStarPathfinder(splashGap(false))
+                .findPath(new BlockPos(0, FEET, 0), new BlockPos(6, FEET, 0), 2000);
+
+        assertFalse(path.complete(), "do mělké vody se přes mezeru neskáče");
     }
 
     @Test
@@ -937,7 +1043,7 @@ class AStarPathfinderTest {
 
         // Jen pokládání (bez kopání) – deterministicky pilíř, ne schody do stěny.
         AStarPathfinder.Result pillared = new AStarPathfinder(world).findPath(
-                start, PathGoal.block(goal), 0, 0L, null, new PathOptions(false, 8, 0));
+                start, PathGoal.block(goal), 0, 0L, null, new PathOptions(false, 8, 0, false));
         assertTrue(pillared.path().complete(), "pilíř má na plošinu vynést: "
                 + pillared.path().waypoints());
         int places = pillared.path().actions().values().stream()
@@ -1277,5 +1383,80 @@ class AStarPathfinderTest {
         assertTrue(path.complete());
         assertTrue(path.waypoints().stream().allMatch(p -> p.z() == 0),
                 "vzdálená cestička nemá cestu přitáhnout: " + path.waypoints());
+    }
+
+    /**
+     * Uzavřená trubka podél osy X (boční zdi z=±1 a čela na obou koncích výšky
+     * 4), přes kterou stojí masiv (x=3..5) s jednoblokovou štolou v úrovni
+     * nohou. Jediná trasa vede středem – vestoje neprůchozí, plazením ano.
+     */
+    private FakeWorldView crawlTunnel() {
+        FakeWorldView world = new FakeWorldView(FLOOR);
+        for (int x = -1; x <= 10; x++) {
+            for (int y = FEET; y <= FEET + 3; y++) {
+                world.set(x, y, -1, FakeWorldView.SOLID);
+                world.set(x, y, 1, FakeWorldView.SOLID);
+            }
+        }
+        for (int y = FEET; y <= FEET + 3; y++) {
+            world.set(-1, y, 0, FakeWorldView.SOLID); // západní čelo trubky
+            world.set(10, y, 0, FakeWorldView.SOLID); // východní čelo trubky
+        }
+        for (int x = 3; x <= 5; x++) {
+            for (int y = FEET; y <= FEET + 3; y++) {
+                world.set(x, y, 0, FakeWorldView.SOLID);
+            }
+            world.set(x, FEET, 0, FakeWorldView.AIRLIKE); // štola: strop FEET+1 drží
+        }
+        return world;
+    }
+
+    @Test
+    void proplaziSeJednoblokovouStolou() {
+        FakeWorldView world = crawlTunnel();
+        BlockPos start = new BlockPos(0, FEET, 0);
+        BlockPos goal = new BlockPos(9, FEET, 0);
+
+        Path walkOnly = new AStarPathfinder(world).findPath(start, goal, 2000);
+        assertFalse(walkOnly.complete(), "vestoje se jednoblokovou štolou neprojde");
+
+        AStarPathfinder.Result crawl = new AStarPathfinder(world).findPath(
+                start, PathGoal.block(goal), 2000, 0L, null, PathOptions.WALK_WITH_CRAWL);
+        assertTrue(crawl.path().complete(),
+                "s plazením se štolou projde: " + crawl.path().waypoints());
+        assertTrue(crawl.path().waypoints().stream()
+                        .anyMatch(p -> p.x() == 4 && p.y() == FEET && p.z() == 0),
+                "cesta má vést štolou: " + crawl.path().waypoints());
+    }
+
+    @Test
+    void neplaziSeNadPrazdno() {
+        FakeWorldView world = crawlTunnel();
+        // Pod prostřední buňkou štoly chybí podlaha (propast) – plazit se nad
+        // prázdno se nesmí ani s povoleným plazením.
+        for (int y = FLOOR; y >= FLOOR - 4; y--) {
+            world.set(4, y, 0, FakeWorldView.AIRLIKE);
+        }
+        AStarPathfinder.Result crawl = new AStarPathfinder(world).findPath(
+                new BlockPos(0, FEET, 0), PathGoal.block(new BlockPos(9, FEET, 0)),
+                2000, 0L, null, PathOptions.WALK_WITH_CRAWL);
+        assertFalse(crawl.path().complete(),
+                "nad propastí se štolou neplazí: " + crawl.path().waypoints());
+    }
+
+    @Test
+    void neplaziSeKdyzToStaciChuze() {
+        // Bez nízkého stropu (běžná rovina) plazení nic nepřidá – cesta i s
+        // povoleným plazením zůstává čistě pěší (žádná regrese preferencí).
+        FakeWorldView world = new FakeWorldView(FLOOR);
+        Path plain = new AStarPathfinder(world)
+                .findPath(new BlockPos(0, FEET, 0), new BlockPos(6, FEET, 0), 0);
+        AStarPathfinder.Result withCrawl = new AStarPathfinder(world).findPath(
+                new BlockPos(0, FEET, 0), PathGoal.block(new BlockPos(6, FEET, 0)),
+                0, 0L, null, PathOptions.WALK_WITH_CRAWL);
+
+        assertTrue(plain.complete() && withCrawl.path().complete());
+        assertEquals(plain.waypoints(), withCrawl.path().waypoints(),
+                "na rovině plazení nemění cestu");
     }
 }
