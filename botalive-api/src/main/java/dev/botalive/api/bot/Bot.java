@@ -64,6 +64,17 @@ public interface Bot {
     BotWallet wallet();
 
     /**
+     * Bezpečné akční rozhraní bota pro cizí AI cíle – navigace, pohled, akce,
+     * inventář a vnímání světa bez závislosti na implementaci.
+     *
+     * <p>Vrací se stabilní instance vázaná na tohoto bota. Metody se volají
+     * z tick vlákna bota (typicky z {@link dev.botalive.api.ai.Goal#tick(Bot)}).</p>
+     *
+     * @return řídicí rozhraní tohoto bota
+     */
+    BotControl control();
+
+    /**
      * Pozastaví AI bota – bot zůstane připojený, ale nehýbe se a nerozhoduje.
      */
     void pause();

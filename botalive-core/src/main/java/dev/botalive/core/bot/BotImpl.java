@@ -120,6 +120,9 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
     /** Profese bota – násobí utility souvisejících cílů (viz RoleProfiles). */
     private volatile dev.botalive.api.role.BotRole role = dev.botalive.api.role.BotRole.NONE;
 
+    /** Veřejné akční rozhraní bota pro cizí AI cíle (lazy, sdílená instance). */
+    private volatile dev.botalive.api.bot.BotControl control;
+
     /** Pohyb vyžádaný cílem pro aktuální tick (přebíjí navigátor). */
     private MoveInput requestedMove;
     /** Probíhající zásah do terénu při zdolávání překážky (kopání/pokládání). */
@@ -2289,6 +2292,18 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
     @Override
     public BotWallet wallet() {
         return wallet;
+    }
+
+    @Override
+    public dev.botalive.api.bot.BotControl control() {
+        // Bezstavová fasáda – benigní závod při prvním čtení (nejvýš dvě
+        // instance, obě ekvivalentní), proto bez zámku.
+        dev.botalive.api.bot.BotControl existing = control;
+        if (existing == null) {
+            existing = new BotControlImpl(this);
+            control = existing;
+        }
+        return existing;
     }
 
     @Override

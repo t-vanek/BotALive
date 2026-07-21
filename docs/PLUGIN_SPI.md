@@ -75,7 +75,17 @@ zbytek. Proto je subsystém 0 keystone.
 
 ---
 
-## Subsystém 0 — Veřejné akční API bota (keystone)
+## Subsystém 0 — Veřejné akční API bota (keystone) — ✅ HOTOVO
+
+> **Stav: implementováno.** `dev.botalive.api.bot.BotControl` (+ hodnotové typy
+> `Position`, `NearbyEntity`) je v API; dostane se přes `Bot.control()`.
+> Implementuje ho `BotControlImpl` (core) jako bezstavovou fasádu nad
+> `BotContext`. **Zvolena nebreaking varianta:** podpis `Goal` se neměnil –
+> cíl dál dostává `Bot` a řídí bota přes `bot.control()`, takže žádný z ~55
+> vestavěných cílů se nepřepisoval a stará API zůstala kompatibilní.
+> Pokrytí: perception (pozice, vitály, čas, počasí, bloky, entity),
+> navigace (intent), pohled, útok, použití itemu, výběr nástroje, inventář,
+> řeč. Testy: `BotControlTest`.
 
 **Mezera.** Viz výše: cíl má jen `Bot`, síla je v interním `BotContext`.
 
@@ -128,6 +138,11 @@ používají vestavěné cíle nejčastěji (navigace, mine, place, attack, look
 ---
 
 ## Subsystém 1 — Goal SPI (dotažení stávajícího)
+
+> **Stav: základ hotový subsystémem 0.** Cizí cíl už dokáže bota reálně řídit
+> přes `bot.control()` – to byla podstata keystone. Níže popsané *dotažení*
+> (kategorie, dimenzní brány jako u vestavěných, majitel kvůli úklidu) zůstává
+> nepovinné rozšíření; podpis `Goal` se kvůli zpětné kompatibilitě neměnil.
 
 **Mezera.** `Goal` vidí jen `Bot`; nezná dimenzní/rolové/rytmické brány, které
 `Brain.decide` (`ai/Brain.java:175`) aplikuje na vestavěné cíle; nemá způsob,

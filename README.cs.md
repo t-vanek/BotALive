@@ -222,6 +222,33 @@ bot.teleportToPlayer(player.getUniqueId());    // bot k hráči
 bot.teleportPlayerToBot(player.getUniqueId()); // hráč k botovi
 ```
 
+Registrovaný `Goal` dostává `Bot` a řídí ho přes `bot.control()` – bezpečnou
+fasádu akcí (`BotControl`) bez závislosti na implementaci. Volá se z tick vlákna
+bota a vystavuje vnímání, navigaci i akce, takže vlastní cíl dělá skutečnou
+práci bez závislosti na `botalive-core`:
+
+```java
+public final class MyGreetAdminsGoal implements Goal {
+    @Override public String id() { return "greet-admins"; }
+
+    @Override public double utility(Bot bot) {
+        BotControl c = bot.control();
+        // Vyšší naléhavost, když je poblíž hráč.
+        return c.nearbyEntities(6).stream().anyMatch(NearbyEntity::player) ? 40 : 0;
+    }
+
+    @Override public void tick(Bot bot) {
+        BotControl c = bot.control();
+        c.nearbyEntities(6).stream().filter(NearbyEntity::player).findFirst().ifPresent(p -> {
+            c.lookAt(p.position().x(), p.position().y(), p.position().z());
+            c.navigateTo(p.position().blockX(), p.position().blockY(), p.position().blockZ());
+            c.say("zdravím!");
+        });
+    }
+    // start / stop / finished vynecháno
+}
+```
+
 Bukkit eventy (všechny asynchronní): `BotSpawnedEvent`, `BotRemovedEvent`, `BotChatEvent` (cancellable), `BotDiedEvent`, `BotGoalChangedEvent`, `SettlementWarDeclaredEvent`, `SettlementTruceEvent`, `BotHiredEvent`, `BotDismissedEvent`.
 
 ## Build ze zdrojů

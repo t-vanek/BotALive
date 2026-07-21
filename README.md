@@ -222,6 +222,33 @@ bot.teleportToPlayer(player.getUniqueId());    // bot to a player
 bot.teleportPlayerToBot(player.getUniqueId()); // player to a bot
 ```
 
+A registered `Goal` receives a `Bot` and drives it through `bot.control()` — a
+safe, implementation-free action facade (`BotControl`). Called from the bot's
+tick thread, it exposes perception, navigation, and actions so a custom goal can
+do real work without depending on `botalive-core`:
+
+```java
+public final class MyGreetAdminsGoal implements Goal {
+    @Override public String id() { return "greet-admins"; }
+
+    @Override public double utility(Bot bot) {
+        BotControl c = bot.control();
+        // Higher urgency when a player stands close by.
+        return c.nearbyEntities(6).stream().anyMatch(NearbyEntity::player) ? 40 : 0;
+    }
+
+    @Override public void tick(Bot bot) {
+        BotControl c = bot.control();
+        c.nearbyEntities(6).stream().filter(NearbyEntity::player).findFirst().ifPresent(p -> {
+            c.lookAt(p.position().x(), p.position().y(), p.position().z());
+            c.navigateTo(p.position().blockX(), p.position().blockY(), p.position().blockZ());
+            c.say("zdravím!");
+        });
+    }
+    // start / stop / finished omitted
+}
+```
+
 Bukkit events (all fired asynchronously): `BotSpawnedEvent`, `BotRemovedEvent`, `BotChatEvent` (cancellable), `BotDiedEvent`, `BotGoalChangedEvent`, `SettlementWarDeclaredEvent`, `SettlementTruceEvent`, `BotHiredEvent`, `BotDismissedEvent`.
 
 ## Building from Source
