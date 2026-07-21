@@ -207,6 +207,26 @@ class BotControlTest {
     }
 
     @Test
+    void walkToTaskDrivesNavigationAndFactoriesReturnTasks() {
+        FakeWorldView world = new FakeWorldView(64);
+        Navigator navigator = navigator(world);
+        BotControl control = newControl(new Vec3(0, 65, 0), world,
+                new EntityTracker(), navigator, new BotClientState());
+
+        dev.botalive.api.task.BotTask walk = control.walkTo(5, 65, 5);
+        assertFalse(control.navigating());
+        assertFalse(walk.tick(control), "první tick spustí navigaci, ještě není hotovo");
+        assertTrue(control.navigating());
+        walk.cancel(control);
+        assertFalse(control.navigating(), "cancel navigaci zastaví");
+
+        // Vestavěná primitiva vrací připravené tasky (bez ticku – ten už
+        // potřebuje síť; delegáti MineBlockTask/PlaceBlockTask jsou pokryté jinde).
+        assertNotNull(control.mineBlock(0, 64, 0));
+        assertNotNull(control.placeBlock(1, 65, 1, "COBBLESTONE"));
+    }
+
+    @Test
     void sayRoutesThroughBot() {
         BotControl control = newControl(new Vec3(0, 65, 0), new FakeWorldView(64),
                 new EntityTracker(), navigator(new FakeWorldView(64)), new BotClientState());

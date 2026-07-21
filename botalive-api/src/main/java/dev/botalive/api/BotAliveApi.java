@@ -5,6 +5,7 @@ import dev.botalive.api.bot.BotManager;
 import dev.botalive.api.command.SubcommandRegistry;
 import dev.botalive.api.persistence.BotDataStore;
 import dev.botalive.api.role.RoleRegistry;
+import dev.botalive.api.task.TaskRegistry;
 
 /**
  * Vstupní bod veřejného API pluginu BotAlive.
@@ -30,6 +31,12 @@ public interface BotAliveApi {
      *         přidat vlastní podpříkazy včetně tab-complete
      */
     SubcommandRegistry subcommands();
+
+    /**
+     * @return registr taktických tasků; umožňuje cizím pluginům registrovat
+     *         a vytvářet znovupoužitelná primitiva chování
+     */
+    TaskRegistry tasks();
 
     /**
      * @return registr profesí; umožňuje cizím pluginům přidat vlastní role

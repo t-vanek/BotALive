@@ -280,6 +280,15 @@ store.get(bot.id(), "myplugin", "shrine")
      .thenAccept(loc -> loc.ifPresent(l -> /* ... */ {}));
 ```
 
+Compose behaviour from ready-made tactical tasks — a goal drives one `BotTask` per tick until it finishes:
+
+```java
+BotControl c = bot.control();
+if (task == null) task = c.walkTo(100, 64, -200);   // or c.mineBlock(x,y,z) / c.placeBlock(x,y,z, "COBBLESTONE")
+if (task.tick(c)) task = null;                        // task finished
+// api.tasks().register("my-task", MyTask::new) shares custom tasks by name
+```
+
 ## Building from Source
 
 ```bash

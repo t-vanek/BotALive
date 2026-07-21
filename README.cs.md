@@ -280,6 +280,15 @@ store.get(bot.id(), "myplugin", "shrine")
      .thenAccept(loc -> loc.ifPresent(l -> /* ... */ {}));
 ```
 
+Chování skládej z hotových taktických tasků — cíl tiká jeden `BotTask` za tick, dokud neskončí:
+
+```java
+BotControl c = bot.control();
+if (task == null) task = c.walkTo(100, 64, -200);   // nebo c.mineBlock(x,y,z) / c.placeBlock(x,y,z, "COBBLESTONE")
+if (task.tick(c)) task = null;                        // task dokončen
+// api.tasks().register("my-task", MyTask::new) sdílí vlastní tasky pod jménem
+```
+
 ## Build ze zdrojů
 
 ```bash

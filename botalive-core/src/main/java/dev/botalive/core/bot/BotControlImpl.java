@@ -150,6 +150,26 @@ public final class BotControlImpl implements BotControl {
         ctx.navigator().stop();
     }
 
+    // ------------------------------------------------------ taktická primitiva
+
+    @Override
+    public dev.botalive.api.task.BotTask mineBlock(int x, int y, int z) {
+        return new dev.botalive.core.tasks.ApiTaskAdapter(ctx,
+                new dev.botalive.core.tasks.MineBlockTask(new BlockPos(x, y, z)));
+    }
+
+    @Override
+    public dev.botalive.api.task.BotTask placeBlock(int x, int y, int z, String material) {
+        Material mat = material == null ? null : Material.matchMaterial(material);
+        return new dev.botalive.core.tasks.ApiTaskAdapter(ctx,
+                new dev.botalive.core.tasks.EquipAndPlaceTask(new BlockPos(x, y, z), mat));
+    }
+
+    @Override
+    public dev.botalive.api.task.BotTask walkTo(int x, int y, int z) {
+        return new dev.botalive.core.tasks.WalkToTask(x, y, z);
+    }
+
     // ------------------------------------------------------------ pohled a akce
 
     @Override

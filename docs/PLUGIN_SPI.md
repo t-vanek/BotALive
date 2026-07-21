@@ -172,7 +172,16 @@ podpisu `Goal` – proto dělat spolu s 0.
 
 ---
 
-## Subsystém 2 — Task SPI (taktická primitiva)
+## Subsystém 2 — Task SPI (taktická primitiva) — ✅ HOTOVO
+
+> **Stav: implementováno.** Veřejný `dev.botalive.api.task.BotTask`
+> (`tick(BotControl)`/`cancel`) + `TaskRegistry` (registrace pojmenovaných
+> tasků, `api.tasks()`). Vestavěná primitiva jsou továrny na `BotControl`:
+> `mineBlock`, `placeBlock`, `walkTo`. Mine/place wrapují interní
+> `MineBlockTask`/`PlaceBlockTask` přes `ApiTaskAdapter` (zachytí `BotContext`
+> daného bota – tricky časování kopání/pokládání zůstává v jednom kódu);
+> `walkTo` stojí čistě na `BotControl`. Cíl si task drží a tiká ho, dokud
+> nevrátí hotovo. Testy: `TaskRegistryImplTest` + `walkTo` v `BotControlTest`.
 
 **Mezera.** `tasks/BotTask.java` je interní, běží nad `BotContext`, žádný
 registr. Cizí plugin nemůže znovupoužít „vytěž blok / postav most / přejdi
@@ -408,7 +417,7 @@ Návrh: vystavit read-only `ConfigView namespace(String)` nad libovolnou sekcí
 |---|---|---|---|
 | **A – Keystone** | 0 (`BotControl`) + 1 (Goal SPI) | ✅ 0 hotový, 1 základ | Bez nich je `GoalRegistry` nepoužitelné; odemyká vše ostatní |
 | **B – Rychlé zisky** | 5 (Event háky) + 7 (Command SPI) | ✅ 7 hotový, 5 vlajkový hák | Malé, izolované, nízké riziko, okamžitá hodnota pro integrace |
-| **C – Data & chování** | 2 (Task SPI) + 3 (Role SPI) + 6 (Persistence store) | 🟡 3 + 6 hotové; 2 dál | Plná tvorba chování a jeho persistence |
+| **C – Data & chování** | 2 (Task SPI) + 3 (Role SPI) + 6 (Persistence store) | ✅ hotová (2 + 3 + 6) | Plná tvorba chování a jeho persistence |
 | **D – Podle poptávky** | 4 (Memory SPI), 8 (Config), 9 (Chat/Trait) | ⬜ | Hlubší coupling / menší přínos; až bude konkrétní use-case |
 
 ## Průřezová infrastruktura (udělat v fázi A, používá ji vše)

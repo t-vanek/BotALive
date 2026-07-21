@@ -1,5 +1,7 @@
 package dev.botalive.api.bot;
 
+import dev.botalive.api.task.BotTask;
+
 import java.util.List;
 
 /**
@@ -115,6 +117,45 @@ public interface BotControl {
 
     /** Zruší navigaci – bot zůstane stát. */
     void stopNavigation();
+
+    // ------------------------------------------------------ taktická primitiva
+
+    /**
+     * Vytvoří task „vytěž blok" – zaměření, kopání po správnou dobu (server-side
+     * odhad podle drženého nástroje a efektů) a ověření zmizení bloku. Vhodné
+     * předtím {@link #selectBestTool(int, int, int)}. Task drží stav – tikejte
+     * ho z {@link dev.botalive.api.ai.Goal#tick(Bot)}, dokud nevrátí hotovo.
+     *
+     * @param x blok X
+     * @param y blok Y
+     * @param z blok Z
+     * @return nový task
+     */
+    BotTask mineBlock(int x, int y, int z);
+
+    /**
+     * Vytvoří task „polož blok" – vezme materiál do ruky a položí ho na cílovou
+     * pozici (opře se o pevného souseda), jako hráč pravým klikem.
+     *
+     * @param x        blok X
+     * @param y        blok Y
+     * @param z        blok Z
+     * @param material název materiálu k položení (např. {@code "COBBLESTONE"});
+     *                bot ho musí mít v inventáři
+     * @return nový task
+     */
+    BotTask placeBlock(int x, int y, int z, String material);
+
+    /**
+     * Vytvoří task „dojdi na pozici" – spustí navigaci a je hotový, jakmile bot
+     * dorazí (nebo se navigace vzdá). Zkratka nad {@link #navigateTo(int, int, int)}.
+     *
+     * @param x cílový blok X
+     * @param y cílový blok Y
+     * @param z cílový blok Z
+     * @return nový task
+     */
+    BotTask walkTo(int x, int y, int z);
 
     // ------------------------------------------------------------ pohled a akce
 
