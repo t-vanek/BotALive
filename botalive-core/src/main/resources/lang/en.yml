@@ -285,6 +285,18 @@ phrases:
     - "done, {name} has a market. trade happens here now"
     - "the stall is ready, neighbours, bring goods to sell"
 
+  # Účelné dílny: český název stanice se do angličtiny nepředává (jediný
+  # argument nese 1. pád českého názvu), proto jsou fráze záměrně obecné.
+  settlement-workshop-start:
+    - "our settlement needs a proper workshop – grabbing tools, on it"
+    - "new craft building going up for the settlement, hauling materials"
+    - "time this place had a workshop of its own – starting one"
+
+  settlement-workshop-done:
+    - "done! the new workshop stands and serves the settlement"
+    - "the craft building is up, neighbours – our trade will thrive now"
+    - "built – the settlement has its workshop on the square now"
+
   settlement-role-taken:
     - "nobody here worked as {name}, so I'm taking it up"
     - "the village needs a {name} around – that's me now"

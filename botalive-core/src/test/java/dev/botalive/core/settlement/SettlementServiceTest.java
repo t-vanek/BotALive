@@ -159,6 +159,88 @@ class SettlementServiceTest {
         assertTrue(service.neededProject(founder).isEmpty());
     }
 
+    /** Postaví město s 8 dostavěnými domy (zakladatel + 7 osadníků). */
+    private long townWithEightHouses() {
+        var village = foundVillage();
+        service.houseFinished(founder);
+        for (int i = 2; i <= 8; i++) {
+            UUID settler = new UUID(0, i);
+            var settlerView = view(settler, HOME_SITE.offset(30, 0, 0), 0.7, null,
+                    Map.of(founder, 0.6), Map.of(), Map.of());
+            assertTrue(service.join(village.id(), settlerView));
+            var slot = service.suggestPlots(village.id(), 1).getFirst();
+            assertTrue(service.claimPlot(village.id(), settler, slot));
+            service.houseFinished(settler);
+        }
+        return village.id();
+    }
+
+    /** Postaví studnu sídla (osada → vesnice). */
+    private void buildWell(long settlementId) {
+        assertTrue(service.neededProject(founder).isPresent()); // založí projekt studny
+        assertTrue(service.claimProject(settlementId,
+                SettlementService.ProjectKind.WELL, founder));
+        service.projectFinished(settlementId, SettlementService.ProjectKind.WELL);
+    }
+
+    // ------------------------------------------------------ účelné dílny
+
+    @Test
+    void ucelnaDilnaSeNabiziPodleRemeslaAzPoStudni() {
+        var village = villageWithFourHouses();
+        long id = village.id();
+        java.util.function.Function<UUID, dev.botalive.api.role.BotRole> roles =
+                botId -> botId.equals(founder)
+                        ? dev.botalive.api.role.BotRole.BLACKSMITH
+                        : dev.botalive.api.role.BotRole.NONE;
+
+        // Před studnou má přednost infrastruktura – nabízí se studna, ne kovárna.
+        assertEquals(Optional.of(SettlementService.ProjectKind.WELL),
+                service.nextProject(id, roles));
+        buildWell(id);
+
+        // Vesnice se 4 domy + kovář → kovárna (sýpka je až od 8 domů).
+        assertEquals(Optional.of(SettlementService.ProjectKind.FORGE),
+                service.nextProject(id, roles));
+
+        // Když řemeslo nikdo nedělá, žádná dílna se nestaví (poptávkově).
+        assertEquals(Optional.empty(),
+                service.nextProject(id, botId -> dev.botalive.api.role.BotRole.NONE));
+    }
+
+    @Test
+    void dilnySeNabizejiVPevnemPoradiPriority() {
+        var village = villageWithFourHouses();
+        long id = village.id();
+        buildWell(id);
+        // Kuchař i alchymista → dřív kuchyně (FORGE/KITCHEN mají přednost před ALCHEMY_LAB).
+        java.util.function.Function<UUID, dev.botalive.api.role.BotRole> roles = botId -> {
+            if (botId.equals(founder)) {
+                return dev.botalive.api.role.BotRole.ALCHEMIST;
+            }
+            if (botId.equals(joiner)) {
+                return dev.botalive.api.role.BotRole.COOK;
+            }
+            return dev.botalive.api.role.BotRole.NONE;
+        };
+        assertEquals(Optional.of(SettlementService.ProjectKind.KITCHEN),
+                service.nextProject(id, roles));
+    }
+
+    @Test
+    void mestoStaviInfrastrukturuPredDilnami() {
+        long id = townWithEightHouses();
+        buildWell(id);
+        // 8 domů + studna + kovář: sýpka (městská infrastruktura) má přednost
+        // před kovárnou – stupeň města je důležitější než řemeslná dílna.
+        java.util.function.Function<UUID, dev.botalive.api.role.BotRole> smith =
+                botId -> botId.equals(founder)
+                        ? dev.botalive.api.role.BotRole.BLACKSMITH
+                        : dev.botalive.api.role.BotRole.NONE;
+        assertEquals(Optional.of(SettlementService.ProjectKind.GRANARY),
+                service.nextProject(id, smith));
+    }
+
     @Test
     void starostaJeNejzakotvenejsiClen() {
         var village = foundVillage();

@@ -9,6 +9,7 @@ import dev.botalive.core.build.plan.Blueprints;
 import dev.botalive.core.build.plan.BuildPlan;
 import dev.botalive.core.build.plan.BuildPlanner;
 import dev.botalive.core.build.plan.BuildSession;
+import dev.botalive.core.build.plan.Workshops;
 import dev.botalive.core.chat.PhraseCategory;
 import dev.botalive.core.settlement.SettlementService;
 import dev.botalive.core.settlement.SettlementService.ProjectKind;
@@ -83,11 +84,10 @@ public final class CommunalBuildGoal extends AbstractGoal {
                     < blueprintFor(needed.get().kind()).blocksNeeded() + BLOCK_RESERVE) {
                 return 0;
             }
-            int chestsNeeded = chestsNeededFor(needed.get().kind());
-            if (chestsNeeded > 0
-                    && ctx.inventory().countItem(ctx.serverView().latest(), Material.CHEST)
-                            < chestsNeeded) {
-                return 0; // sýpka/tržiště bez truhel je jen kůlna
+            if (!hasRequiredItems(ctx, needed.get().kind())) {
+                // Sýpka/tržiště bez truhel je kůlna; dílna bez stanice prázdná
+                // kůlna – zahájí to jen člen, který nutné vybavení má.
+                return 0;
             }
         }
         double helpfulness = bot.personality().trait(Trait.HELPFULNESS);
@@ -120,36 +120,80 @@ public final class CommunalBuildGoal extends AbstractGoal {
     }
 
     private Blueprint blueprintFor(ProjectKind kind) {
+        if (kind.isWorkshop()) {
+            return Workshops.blueprint(kind.workshopRole().orElseThrow());
+        }
         return switch (kind) {
             case WELL -> Blueprints.well();
             case GRANARY -> Blueprints.granary();
             case MARKET_STALL -> Blueprints.marketStall();
+            default -> throw new IllegalStateException("není blueprint pro " + kind);
         };
     }
 
-    /** Kolik truhel stavba spotřebuje (sýpka dvojtruhla, tržiště jedna). */
-    private static int chestsNeededFor(ProjectKind kind) {
+    /**
+     * Vybavení, které musí mít stavitel v inventáři, aby stavbu <b>zahájil</b>
+     * (jinak by vznikla prázdná kůlna): sýpka dvojtruhla, tržiště jedna,
+     * dílna svou hlavní stanici. Vedlejší stanice je bonus (osadí se, když ji
+     * stavitel má) – proto tu není.
+     */
+    private static java.util.List<Material> requiredItems(ProjectKind kind) {
+        if (kind.isWorkshop()) {
+            return java.util.List.of(
+                    Workshops.spec(kind.workshopRole().orElseThrow()).station());
+        }
         return switch (kind) {
-            case GRANARY -> 2;
-            case MARKET_STALL -> 1;
-            case WELL -> 0;
+            case GRANARY -> java.util.List.of(Material.CHEST, Material.CHEST);
+            case MARKET_STALL -> java.util.List.of(Material.CHEST);
+            default -> java.util.List.of();
         };
+    }
+
+    /** Má stavitel v batohu vše nutné k zahájení dané stavby? */
+    private static boolean hasRequiredItems(BotContext ctx, ProjectKind kind) {
+        var snapshot = ctx.serverView().latest();
+        for (Material material : requiredItems(kind).stream().distinct().toList()) {
+            long need = requiredItems(kind).stream().filter(m -> m == material).count();
+            if (ctx.inventory().countItem(snapshot, material) < need) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private static PhraseCategory startPhrase(ProjectKind kind) {
+        if (kind.isWorkshop()) {
+            return PhraseCategory.SETTLEMENT_WORKSHOP_START;
+        }
         return switch (kind) {
             case WELL -> PhraseCategory.SETTLEMENT_WELL_START;
             case GRANARY -> PhraseCategory.SETTLEMENT_GRANARY_START;
             case MARKET_STALL -> PhraseCategory.SETTLEMENT_MARKET_START;
+            default -> throw new IllegalStateException("není hláška pro " + kind);
         };
     }
 
     private static PhraseCategory donePhrase(ProjectKind kind) {
+        if (kind.isWorkshop()) {
+            return PhraseCategory.SETTLEMENT_WORKSHOP_DONE;
+        }
         return switch (kind) {
             case WELL -> PhraseCategory.SETTLEMENT_WELL_DONE;
             case GRANARY -> PhraseCategory.SETTLEMENT_GRANARY_DONE;
             case MARKET_STALL -> PhraseCategory.SETTLEMENT_MARKET_DONE;
+            default -> throw new IllegalStateException("není hláška pro " + kind);
         };
+    }
+
+    /**
+     * Argument pro hlášku o projektu: u dílny její český název (aby chat řekl
+     * „stavíme kovárnu"), u infrastruktury jméno sídla.
+     */
+    private static String phraseArg(ProjectKind kind, String settlementName) {
+        if (kind.isWorkshop()) {
+            return Workshops.spec(kind.workshopRole().orElseThrow()).csName();
+        }
+        return settlementName;
     }
 
     private void tickClaim(BotContext ctx, Bot bot) {
@@ -172,7 +216,7 @@ public final class CommunalBuildGoal extends AbstractGoal {
             // Hlásí se jen NOVÝ projekt – opakované zamluvení téhož (návrat
             // ke stavbě, marné pokusy) by chat zaplavilo.
             lastAnnouncedProject = announceKey;
-            ctx.chat().sayFrom(startPhrase(project.kind()), name);
+            ctx.chat().sayFrom(startPhrase(project.kind()), phraseArg(project.kind(), name));
         }
         phase = Phase.GOTO;
     }
@@ -223,7 +267,7 @@ public final class CommunalBuildGoal extends AbstractGoal {
         claimed = false;
         String name = settlementName(ctx, bot);
         if (name != null) {
-            ctx.chat().sayFrom(donePhrase(project.kind()), name);
+            ctx.chat().sayFrom(donePhrase(project.kind()), phraseArg(project.kind(), name));
         }
         tier.ifPresent(t -> dev.botalive.core.settlement.SettlementAnnouncer
                 .sayTierUp(ctx.chat(), t, name));
@@ -274,10 +318,15 @@ public final class CommunalBuildGoal extends AbstractGoal {
         if (project == null) {
             return "stavím studnu pro sídlo";
         }
+        if (project.kind().isWorkshop()) {
+            return "stavím dílnu pro sídlo – "
+                    + Workshops.spec(project.kind().workshopRole().orElseThrow()).csName();
+        }
         return switch (project.kind()) {
             case WELL -> "stavím studnu pro sídlo";
             case GRANARY -> "stavím sýpku pro sídlo";
             case MARKET_STALL -> "stavím tržiště pro sídlo";
+            default -> "stavím pro sídlo";
         };
     }
 }

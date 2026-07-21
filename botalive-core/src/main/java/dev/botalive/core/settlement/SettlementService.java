@@ -1,6 +1,7 @@
 package dev.botalive.core.settlement;
 
 import dev.botalive.api.bot.Bot;
+import dev.botalive.api.role.BotRole;
 import dev.botalive.core.bot.BotManagerImpl;
 import dev.botalive.core.util.Cardinal;
 import dev.botalive.core.config.BotAliveConfig;
@@ -189,11 +190,56 @@ public final class SettlementService {
                           BlockPos plotOrigin, Cardinal facing, boolean houseDone) {
     }
 
-    /** Druh společné stavby sídla. */
+    /**
+     * Druh společné stavby sídla. Dva rody: <b>infrastruktura</b> (studna,
+     * sýpka, tržiště – {@code workshopRole == null}, dělá stupeň sídla) a
+     * <b>účelné řemeslné dílny</b>, které se pojí s profesí ({@link #workshopRole})
+     * a staví se jen tehdy, když dané řemeslo v sídle někdo dělá (poptávkově,
+     * ne dekretem – stejná DNA jako „vesnice si řemeslníky vychovává").
+     */
     public enum ProjectKind {
-        WELL,
-        GRANARY,
-        MARKET_STALL
+        /** Studna na návsi – dělá z osady vesnici. */
+        WELL(null),
+        /** Sýpka – první část městské infrastruktury. */
+        GRANARY(null),
+        /** Tržiště – druhá část městské infrastruktury (dělá město). */
+        MARKET_STALL(null),
+        /** Kovárna – dílna kováře (pec + kovářský stůl). */
+        FORGE(BotRole.BLACKSMITH),
+        /** Kuchyně – dílna kuchaře (udírna). */
+        KITCHEN(BotRole.COOK),
+        /** Dílna – ponk a řezák pro stavitele/univerzály. */
+        WORKSHOP(BotRole.BUILDER),
+        /** Kompostárna – dílna farmáře (composter). */
+        COMPOST_HUT(BotRole.FARMER),
+        /** Enchantovna – dílna enchantera (enchantovací stůl). */
+        ENCHANT_HALL(BotRole.ENCHANTER),
+        /** Alchymistická dílna – dílna alchymisty (varný stojan). */
+        ALCHEMY_LAB(BotRole.ALCHEMIST);
+
+        private final BotRole workshopRole;
+
+        ProjectKind(BotRole workshopRole) {
+            this.workshopRole = workshopRole;
+        }
+
+        /** @return {@code true} pro účelné řemeslné dílny (pojí se s profesí) */
+        public boolean isWorkshop() {
+            return workshopRole != null;
+        }
+
+        /** @return profese, které dílna slouží (prázdné pro infrastrukturu) */
+        public Optional<BotRole> workshopRole() {
+            return Optional.ofNullable(workshopRole);
+        }
+
+        /** @return účelné dílny v pevném pořadí priority stavby */
+        public static List<ProjectKind> workshops() {
+            return WORKSHOPS;
+        }
+
+        private static final List<ProjectKind> WORKSHOPS =
+                List.of(FORGE, KITCHEN, WORKSHOP, COMPOST_HUT, ENCHANT_HALL, ALCHEMY_LAB);
     }
 
     /**
@@ -320,7 +366,10 @@ public final class SettlementService {
                 if (settlement == null) {
                     continue; // osiřelý projekt – sídlo zaniklo
                 }
-                ProjectKind kind = ProjectKind.valueOf(row.kind());
+                ProjectKind kind = parseKind(row.kind());
+                if (kind == null) {
+                    continue; // neznámý druh (downgrade pluginu) – fyzická stavba zůstává
+                }
                 settlement.projects.put(kind, new Project(kind, row.plotIndex(),
                         new BlockPos(row.x(), row.y(), row.z()),
                         Cardinal.valueOf(row.facing()), row.done()));
@@ -707,6 +756,15 @@ public final class SettlementService {
         return project != null && project.done;
     }
 
+    /** Tolerantní parse druhu projektu z DB – {@code null} pro neznámý (downgrade). */
+    private static ProjectKind parseKind(String kind) {
+        try {
+            return ProjectKind.valueOf(kind);
+        } catch (IllegalArgumentException | NullPointerException ex) {
+            return null;
+        }
+    }
+
     // ==================================================== společné stavby
 
     /**
@@ -725,7 +783,7 @@ public final class SettlementService {
         if (settlement == null) {
             return Optional.empty();
         }
-        ProjectKind needed = nextProjectKind(settlement);
+        ProjectKind needed = nextProjectKind(settlement, this::currentRole);
         if (needed == null) {
             return Optional.empty();
         }
@@ -750,18 +808,23 @@ public final class SettlementService {
     }
 
     /**
-     * @return další společná stavba, kterou sídlo pro růst potřebuje:
-     *         studna dělá z osady vesnici, sýpka (od 8 domů) připravuje
-     *         město a otevírá sdílení jídla; {@code null} = nic netřeba
+     * @param settlement sídlo
+     * @param roleOf     zdroj profese člena (pro poptávku po dílnách)
+     * @return další společná stavba, kterou sídlo pro růst potřebuje.
+     *         Nejdřív <b>infrastruktura</b> (posouvá stupeň): studna dělá
+     *         z osady vesnici, sýpka a tržiště (od 8 domů) dělají město.
+     *         Pak <b>účelné dílny</b> (od vesnice, tj. po studni): pro každé
+     *         řemeslo, které v sídle někdo dělá a ještě nemá dílnu, v pevném
+     *         pořadí priority. {@code null} = nic netřeba.
      */
-    private ProjectKind nextProjectKind(Settlement settlement) {
+    private ProjectKind nextProjectKind(Settlement settlement,
+                                        java.util.function.Function<UUID, BotRole> roleOf) {
         int houses = houses(settlement);
-        if (houses >= SettlementTier.VILLAGE_HOUSES
-                && !projectDone(settlement, ProjectKind.WELL)) {
+        boolean wellDone = projectDone(settlement, ProjectKind.WELL);
+        if (houses >= SettlementTier.VILLAGE_HOUSES && !wellDone) {
             return ProjectKind.WELL;
         }
-        if (houses >= SettlementTier.TOWN_HOUSES
-                && projectDone(settlement, ProjectKind.WELL)
+        if (houses >= SettlementTier.TOWN_HOUSES && wellDone
                 && !projectDone(settlement, ProjectKind.GRANARY)) {
             return ProjectKind.GRANARY;
         }
@@ -771,7 +834,53 @@ public final class SettlementService {
                 && !projectDone(settlement, ProjectKind.MARKET_STALL)) {
             return ProjectKind.MARKET_STALL;
         }
+        // Účelné dílny: od vesnice (studna hotová), jen pro řemesla, která tu
+        // někdo dělá – nedostavěná infrastruktura (sýpka/tržiště) má přednost.
+        if (wellDone) {
+            for (ProjectKind workshop : ProjectKind.workshops()) {
+                if (!projectDone(settlement, workshop)
+                        && practisesCraft(settlement, roleOf, workshop.workshopRole().orElseThrow())) {
+                    return workshop;
+                }
+            }
+        }
         return null;
+    }
+
+    /** Dělá aspoň jeden člen sídla dané řemeslo? (poptávka po dílně). */
+    private static boolean practisesCraft(Settlement settlement,
+                                          java.util.function.Function<UUID, BotRole> roleOf,
+                                          BotRole craft) {
+        for (Member member : settlement.members.values()) {
+            if (roleOf.apply(member.botId()) == craft) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** Aktuální profese bota z manageru ({@code NONE} bez manageru/bota). */
+    private BotRole currentRole(UUID botId) {
+        BotManagerImpl manager = botManager;
+        return manager == null
+                ? BotRole.NONE
+                : manager.byId(botId).map(Bot::role).orElse(BotRole.NONE);
+    }
+
+    /**
+     * Testovací pohled na rozhodnutí „další stavba" s injektovaným zdrojem
+     * rolí – bez mutace (nezakládá projekt ani nerezervuje parcelu).
+     *
+     * @param settlementId sídlo
+     * @param roleOf       zdroj profese člena
+     * @return další potřebná stavba, nebo prázdné
+     */
+    synchronized Optional<ProjectKind> nextProject(long settlementId,
+            java.util.function.Function<UUID, BotRole> roleOf) {
+        Settlement settlement = settlements.get(settlementId);
+        return settlement == null
+                ? Optional.empty()
+                : Optional.ofNullable(nextProjectKind(settlement, roleOf));
     }
 
     /**

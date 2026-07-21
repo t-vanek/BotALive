@@ -16,5 +16,11 @@ public enum FurnishKind {
     /** Postel. */
     BED,
     /** Truhla (sýpka – dvojtruhla dvěma buňkami). */
-    CHEST
+    CHEST,
+    /**
+     * Pracovní stanice účelné dílny (pec, udírna, ponk, composter, enchantovací
+     * či varný stůl…). Konkrétní materiál nese {@link FurnishCell#material()} –
+     * jeden druh pokryje libovolnou stanici bez bobtnání enumu.
+     */
+    STATION
 }
