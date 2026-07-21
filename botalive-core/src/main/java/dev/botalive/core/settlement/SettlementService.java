@@ -162,6 +162,10 @@ public final class SettlementService {
         SettlementTier announcedTier = SettlementTier.OSADA;
         /** Společné stavby sídla (studna, později sýpka/tržiště). */
         final Map<ProjectKind, Project> projects = new HashMap<>();
+        /** Silniční síť: kdo ji zrovna dusá (jeden naráz), a kdy naposled. */
+        UUID roadBuilder;
+        long roadClaimedAt;
+        long roadsBuiltAt;
         /**
          * Součet FRIEND vazeb člena k ostatním členům – plní se oportunisticky
          * ze sousedských úvah ({@code checkCohesion}); nejlépe zakotvený člen
@@ -228,6 +232,8 @@ public final class SettlementService {
 
     /** Po jaké době bez dokončení expiruje zamluvení projektu (stavitel zmizel). */
     private static final long PROJECT_CLAIM_TTL_MS = 10 * 60_000L;
+    /** Po jaké době bez dokončení expiruje zamluvení dusání cest (stavitel zmizel). */
+    private static final long ROAD_CLAIM_TTL_MS = 10 * 60_000L;
 
     private final BotAliveConfig.Settlement config;
     private final BotRepository repository;
@@ -831,6 +837,76 @@ public final class SettlementService {
         project.builder = null;
         persistProject(settlement, project);
         return maybeAnnounceTier(settlement);
+    }
+
+    // ================================================================ cesty
+
+    /**
+     * Smí bot právě teď udusat silniční síť sídla? Levná brána utility:
+     * síť se nedusala nedávno a nikdo jiný ji zrovna nezamluvil (starý claim
+     * expiruje). Fyzická cesta je autorita, plán je idempotentní – proto se
+     * stav sítě nepersistuje (restart ji jednou přepočítá, většinou naprázdno).
+     *
+     * @param settlementId sídlo
+     * @param minIntervalMs minimální odstup od poslední seance (ms)
+     * @param botId        tazatel (jeho vlastní zamluvení nepřekáží)
+     * @return {@code true} když je síť volná ke stavbě
+     */
+    public synchronized boolean roadsDue(long settlementId, long minIntervalMs, UUID botId) {
+        Settlement settlement = settlements.get(settlementId);
+        if (settlement == null) {
+            return false;
+        }
+        if (clock.getAsLong() - settlement.roadsBuiltAt < minIntervalMs) {
+            return false;
+        }
+        UUID builder = activeRoadBuilder(settlement);
+        return builder == null || builder.equals(botId);
+    }
+
+    /**
+     * Zamluví dusání silniční sítě staviteli – první bere (vzor projektů).
+     *
+     * @return {@code false} když síť mezitím zamluvil jiný bot nebo sídlo zaniklo
+     */
+    public synchronized boolean claimRoads(long settlementId, UUID botId) {
+        Settlement settlement = settlements.get(settlementId);
+        if (settlement == null) {
+            return false;
+        }
+        UUID builder = activeRoadBuilder(settlement);
+        if (builder != null && !builder.equals(botId)) {
+            return false;
+        }
+        settlement.roadBuilder = botId;
+        settlement.roadClaimedAt = clock.getAsLong();
+        return true;
+    }
+
+    /** Stavitel to vzdal (přerušení cíle) – síť se uvolní dalšímu. */
+    public synchronized void releaseRoads(long settlementId, UUID botId) {
+        Settlement settlement = settlements.get(settlementId);
+        if (settlement != null && botId.equals(settlement.roadBuilder)) {
+            settlement.roadBuilder = null;
+        }
+    }
+
+    /** Seance dusání doběhla – nastaví odstup a uvolní síť dalšímu. */
+    public synchronized void roadsBuilt(long settlementId) {
+        Settlement settlement = settlements.get(settlementId);
+        if (settlement != null) {
+            settlement.roadsBuiltAt = clock.getAsLong();
+            settlement.roadBuilder = null;
+        }
+    }
+
+    /** @return stavitel sítě, nebo {@code null} po expiraci zamluvení */
+    private UUID activeRoadBuilder(Settlement settlement) {
+        if (settlement.roadBuilder != null
+                && clock.getAsLong() - settlement.roadClaimedAt > ROAD_CLAIM_TTL_MS) {
+            settlement.roadBuilder = null; // stavitel zmizel – síť je zase volná
+        }
+        return settlement.roadBuilder;
     }
 
     /** Řemesla, bez kterých sídlo kulhá – v pořadí naléhavosti. */

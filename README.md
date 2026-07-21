@@ -81,7 +81,7 @@ Every bot has its own identity, personality, memory, goals, inventory and histor
 
 ### 🏘️ Society & economy
 
-- **Settlements** — sociable bots found and join villages (with generated Czech names like "Pepov"), plots are allocated in rings around the green with doors facing the center, and finished houses get trodden paths and torch lighting. A fresh grudge can drive a bot out to found a rival village — best friends migrate along.
+- **Settlements** — sociable bots found and join villages (with generated Czech names like "Pepov"), plots are allocated in rings around the green with doors facing the center, and finished houses get trodden paths and torch lighting. From the village tier up, bots also link the whole settlement with a road network (main streets from the green out to the houses; towns get a perimeter ring) — the roads grow with the settlement because they are only packed over grass. A fresh grudge can drive a bot out to found a rival village — best friends migrate along.
 - **Bot-to-bot market** — surplus goods are offered in chat ("selling 5x bread for 12, anyone?"), reserved, delivered in person and paid for. Friends get discounts, the greedy add margins, and a hungry bot with money buys instead of stealing.
 - **Crime & consequence** — a starving bot may "borrow" from a stranger's chest or, in true desperation, rob someone (always respecting the `pvp` section; friends are off-limits). Thefts land in a shared crime book — the owner finds out, gets angry and remembers.
 - **Economy** — internal persistent wallets by default; with Vault installed, bots join the server economy (`/pay`, `/baltop`) and earnings from mining and trade are visible to everyone.

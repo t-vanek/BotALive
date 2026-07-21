@@ -65,6 +65,23 @@ Normy rostou s infrastrukturou, ne dekretem:
   a `RolePicker` dostane kontextový bias – vesnice si řemeslníky
   vychovává, nevnucuje.
 
+## Vnitřní cesty sídla (hotovo)
+
+Od stupně **VESNICE** boti neudržují jen cestičku od svých dveří k návsi
+(`VillageDecor`), ale propojí celé sídlo souvislou **silniční sítí**:
+hlavní ulice vedou od návsi k obsazeným parcelám (po hlavní ose ven, pak
+kolmé žebro k domu; sdílené páteře se nedusají dvakrát), **město** navíc
+dostane obvodový **okruh** po vnějším prstenci. Čistý plánovač
+`SettlementRoads` počítá síť ze živé geometrie parcel (`PlotLayout`);
+vykonává ji cíl `settlement-roads` toutéž mašinérií jako cestičky
+(`DecorWorker` – lopata, chůze, pauzy).
+
+Stejně jako u cestiček se **dusá jen po trávě**, takže plán je idempotentní:
+hotová cesta se přeskočí, nové parcely (růst sídla) přibydou k síti v další
+seanci a nikdy se nepřepíše podlaha domu, políčko ani voda. Síť vlastní
+`SettlementService` (jeden stavitel naráz – claim s TTL jako u společných
+projektů); stav se nepersistuje, protože fyzická cesta ve světě je autorita.
+
 ## Fáze D – město a krajina
 
 - **Tržiště** (třetí společná stavba): zastřešený pult u návsi; nabídky

@@ -273,6 +273,8 @@ public final class CompositionRoot {
         registry.register("escape", bot -> new dev.botalive.core.ai.goals.EscapeGoal());
         registry.register("communal-build",
                 bot -> new dev.botalive.core.ai.goals.CommunalBuildGoal());
+        registry.register("settlement-roads",
+                bot -> new dev.botalive.core.ai.goals.SettlementRoadsGoal());
         registry.register("camp", bot -> new dev.botalive.core.ai.goals.CampGoal());
         registry.register("shelter", bot -> new BuildShelterGoal());
         registry.register("house", bot -> new BuildHouseGoal());

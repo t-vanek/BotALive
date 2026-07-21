@@ -81,7 +81,7 @@ Každý bot má vlastní identitu, osobnost, paměť, cíle, inventář a histor
 
 ### 🏘️ Společenství a ekonomika
 
-- **Vesnice** — společenští boti zakládají a rozšiřují vesnice (s generovanými jmény jako „Pepov“ či „Nová Lhota“), parcely se přidělují v prstencích kolem návsi s dveřmi ke středu a dostavěné domy dostanou udusané cestičky s pochodněmi. Čerstvá zášť umí bota vyhnat založit si vlastní vesnici — nejlepší kamarádi se stěhují s ním.
+- **Vesnice** — společenští boti zakládají a rozšiřují vesnice (s generovanými jmény jako „Pepov“ či „Nová Lhota“), parcely se přidělují v prstencích kolem návsi s dveřmi ke středu a dostavěné domy dostanou udusané cestičky s pochodněmi. Od stupně vesnice boti navíc propojí celé sídlo silniční sítí (hlavní ulice od návsi k domům; město dostane obvodový okruh) — cesty rostou se sídlem, protože se dusají jen po trávě. Čerstvá zášť umí bota vyhnat založit si vlastní vesnici — nejlepší kamarádi se stěhují s ním.
 - **Trh mezi boty** — přebytky se vyvolávají v chatu („prodávám 5x bread za 12, kdo chce?“), zamluví se, osobně předají a zaplatí. Kamarádi mají slevu, chamtivci přirážku a hladový bot s penězi si koupí jídlo, místo aby kradl.
 - **Zločin má následky** — hladovějící bot si „půjčí“ z cizí truhly a v krajní nouzi i někoho přepadne (vždy respektuje sekci `pvp`; kamarádi jsou tabu). Krádeže se zapisují do sdílené knihy zločinů — majitel to odhalí, naštve se a pamatuje si.
 - **Ekonomika** — výchozí interní persistentní peněženky; s nainstalovaným Vaultem boti žijí v serverové ekonomice (`/pay`, `/baltop`) a výdělky z těžby či obchodu vidí všichni.

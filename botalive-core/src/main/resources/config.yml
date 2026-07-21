@@ -300,7 +300,9 @@ settlement:
   change-cooldown-minutes: 30
   # Po dostavění domu osvětlit pochodněmi linii ke návsi (méně mobů v noci).
   lighting: true
-  # Udusat lopatou cestičku od dveří k návsi (vesnice vypadá jako vesnice).
+  # Udusat lopatou cestičku od dveří k návsi. Od stupně VESNICE navíc
+  # propojí celé sídlo silniční sítí (hlavní ulice k domům, město dostane
+  # obvodový okruh); dusá se jen po trávě, takže cesty rostou se sídlem.
   paths: true
   # Po kolika dnech bez připojení se člen vesnice při startu serveru vyřadí
   # a uvolní parcelu (bot odstraněný bez purge; jeho dům ve vesnici zůstává).
