@@ -266,6 +266,68 @@ class BotPhysicsTest {
                 "bot nesmí propadnout do mezery, minY=" + minY);
     }
 
+    /** Dvě rohové plošiny; cílová o blok níž – diagonální skok s klesáním. */
+    @Test
+    void diagonalniSprintSkokSDopademONizsi() {
+        FakeWorldView world = new FakeWorldView(0);
+        for (int x = -2; x <= 0; x++) {
+            for (int z = -2; z <= 0; z++) {
+                world.set(x, FLOOR, z, FakeWorldView.SOLID);
+            }
+        }
+        for (int x = 2; x <= 4; x++) {
+            for (int z = 2; z <= 4; z++) {
+                world.set(x, FLOOR - 1, z, FakeWorldView.SOLID);
+            }
+        }
+        BotPhysics physics = new BotPhysics(world, new Vec3(-1.5, FEET_Y, -1.5));
+
+        Vec3 diag = new Vec3(1, 0, 1).normalized();
+        boolean crossed = false;
+        for (int i = 0; i < 300 && !crossed; i++) {
+            Vec3 ahead = physics.position().add(diag.mul(0.7));
+            boolean edge = !world.traitsAt(ahead.toBlockPos().down()).solid();
+            boolean jump = physics.onGround() && edge;
+            physics.step(new MoveInput(diag, true, jump, false));
+            crossed = physics.onGround()
+                    && physics.position().x() > 2.0 && physics.position().z() > 2.0;
+        }
+
+        assertTrue(crossed, "bot má přeskočit rohovou mezeru s dopadem níž, pos=" + physics.position());
+        assertEquals(FEET_Y - 1, physics.position().y(), 0.05, "dopad má být o blok níž");
+    }
+
+    /** Dvě rohové plošiny; cílová o blok výš – diagonální parkour výskok. */
+    @Test
+    void diagonalniParkourVyskokPresRoh() {
+        FakeWorldView world = new FakeWorldView(0);
+        for (int x = -2; x <= 0; x++) {
+            for (int z = -2; z <= 0; z++) {
+                world.set(x, FLOOR, z, FakeWorldView.SOLID);
+            }
+        }
+        for (int x = 2; x <= 4; x++) {
+            for (int z = 2; z <= 4; z++) {
+                world.set(x, FLOOR + 1, z, FakeWorldView.SOLID);
+            }
+        }
+        BotPhysics physics = new BotPhysics(world, new Vec3(-1.5, FEET_Y, -1.5));
+
+        Vec3 diag = new Vec3(1, 0, 1).normalized();
+        boolean crossed = false;
+        for (int i = 0; i < 300 && !crossed; i++) {
+            Vec3 ahead = physics.position().add(diag.mul(0.7));
+            boolean edge = !world.traitsAt(ahead.toBlockPos().down()).solid();
+            boolean jump = physics.onGround() && edge;
+            physics.step(new MoveInput(diag, true, jump, false));
+            crossed = physics.onGround()
+                    && physics.position().x() > 2.0 && physics.position().z() > 2.0;
+        }
+
+        assertTrue(crossed, "bot má vyskočit přes roh na vyšší římsu, pos=" + physics.position());
+        assertEquals(FEET_Y + 1, physics.position().y(), 0.05, "dopad má být o blok výš");
+    }
+
     @Test
     void padDoPrasanuNezrani() {
         FakeWorldView world = new FakeWorldView(FLOOR);

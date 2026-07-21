@@ -798,12 +798,20 @@ individualita.
 Hotovo ve fázi 23: rozšíření parkouru. Sprint-skok nově zvládá mezeru
 **3 bloků** prázdna (vanilla dolet ~4 bloky; strop `MAX_GAP = 3`,
 4 bloky se korektně odmítají) a přes jednoblokovou díru umí bot
-**parkour výskok na římsu o blok výš** (jen kardinálně, letová dráha
-se ověřuje o buňku výš nad odrazem i mezerou). Exekuce rozšířila
-svislé meze skokového segmentu (−1.6 až +1.7 – rozestup waypointů ≥ 2
-zaručuje, že jde o naplánovaný skok). Oba pohyby prošly simulačním
-kontraktem: bot je fyzicky doskočí bez poškození – dolet je ověřený
-proti reálné fyzice, ne jen slíbený plánovačem.
+**parkour výskok na římsu o blok výš** (letová dráha se ověřuje o buňku
+výš nad odrazem i mezerou). Exekuce rozšířila svislé meze skokového
+segmentu (−1.6 až +1.7 – rozestup waypointů ≥ 2 zaručuje, že jde
+o naplánovaný skok). Oba pohyby prošly simulačním kontraktem: bot je
+fyzicky doskočí bez poškození – dolet je ověřený proti reálné fyzice,
+ne jen slíbený plánovačem.
+
+Doladění: **diagonální parkour dorovnán na kardinální.** Rohový skok
+(delší let přes roh) dřív uměl jen dopad ve stejné výšce; nově zvládá
+i **dopad o blok níž** a **parkour výskok o blok výš** – stejně jako
+kardinální skok, jen s ověřením průchodnosti obou rohových sloupců
+i o patro výš (stoupající hitbox o ně zavadí). Obě varianty potvrdila
+fyzikální simulace (bot rohový skok s klesáním i výskokem reálně
+provede), takže plánovač neslibuje nic, co fyzika neutáhne.
 
 Hotovo ve fázi 24: kopací hrany v plánu cesty (`TerrainAction`,
 `PathOptions.WITH_DIGGING`).

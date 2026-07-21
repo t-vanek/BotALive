@@ -712,13 +712,15 @@ public final class AStarPathfinder {
         }
 
         /**
-         * Skok přes mezeru. Kardinálně 1–2 sloupce prázdna s dopadem ve stejné
-         * výšce nebo o blok níž; diagonálně jen rohová mezera 1 sloupce (delší let)
-         * se stejnou výškou dopadu. Letová dráha musí být průchozí v úrovni nohou,
-         * hlavy i nad hlavou – u diagonály včetně čtyř sloupců u rohů, přes které
-         * hitbox při letu zavadí. Mezisloupec nesmí být pochozí (jinak stačí
-         * obyčejný krok) a nad lávou/ohněm se neskáče – nepovedený skok by byl
-         * smrtelný. Odraz i dopad jen z „celých" výšek – z hrany desky se neskáče.
+         * Skok přes mezeru. Kardinálně 1–3 sloupce prázdna, diagonálně rohová
+         * mezera 1 sloupce (delší let). Dopad ve stejné výšce nebo o blok níž
+         * platí pro obě orientace; parkour výskok o blok výš jen přes jednoblokovou
+         * mezeru (span 2) – rovněž kardinálně i diagonálně. Letová dráha musí být
+         * průchozí v úrovni nohou, hlavy i nad hlavou – u diagonály včetně čtyř
+         * sloupců u rohů, přes které hitbox při letu zavadí, a u výskoku i o patro
+         * výš. Mezisloupec nesmí být pochozí (jinak stačí obyčejný krok) a nad
+         * lávou/ohněm se neskáče – nepovedený skok by byl smrtelný. Odraz i dopad
+         * jen z „celých" výšek – z hrany desky se neskáče.
          */
         private void tryGapJump(Node current, double curFeet, int dx, int dz) {
             BlockPos pos = current.pos;
@@ -766,10 +768,11 @@ public final class AStarPathfinder {
                     tryAdd(current, landing, base + terrainPenalty(landing));
                     return;
                 }
-                // Dopad o blok níž (jen kardinálně): letí se dál a klesá, fyzikálně
-                // snazší než rovný dopad – ale dopadová plocha musí být volná i
-                // v celé letové výšce.
-                if (!diagonal) {
+                // Dopad o blok níž (kardinálně i diagonálně): letí se dál a klesá,
+                // fyzikálně snazší než rovný dopad – ale dopadová plocha musí být
+                // volná i v celé letové výšce. Diagonální rohový let s klesáním je
+                // stále v dosahu (ověřeno fyzikální simulací).
+                {
                     BlockPos lower = landing.down();
                     double lowerFeet = feetHeight(lower);
                     if (flatLanding(lower, lowerFeet) && transitClear(landing.up())
@@ -780,15 +783,19 @@ public final class AStarPathfinder {
                         return;
                     }
                 }
-                // Dopad o blok výš (jen kardinálně, jen jednobloková mezera):
-                // parkour výskok na vyšší římsu přes díru. Letová dráha vede
-                // výš – nad mezerou i nad odrazem musí být volno o buňku navíc.
-                if (!diagonal && span == 2) {
+                // Dopad o blok výš (jen jednobloková mezera, span 2): parkour
+                // výskok na vyšší římsu přes díru – kardinálně i diagonálně
+                // (ověřeno fyzikální simulací). Letová dráha vede výš: nad mezerou
+                // i nad odrazem musí být volno o buňku navíc, u diagonály i nad
+                // oběma rohovými sloupci, přes které stoupající hitbox zavadí.
+                if (span == 2) {
                     BlockPos higher = landing.up();
                     double higherFeet = feetHeight(higher);
-                    if (flatLanding(higher, higherFeet)
-                            && transitClear(pos.offset(0, 3, 0))
+                    boolean arcClear = transitClear(pos.offset(0, 3, 0))
                             && transitClear(gap.offset(0, 3, 0))
+                            && (!diagonal || (transitClear(pos.offset(dx, 3, 0))
+                                    && transitClear(pos.offset(0, 3, dz))));
+                    if (flatLanding(higher, higherFeet) && arcClear
                             && !traits(higher).liquid()) {
                         int cost = base + costJump + terrainPenalty(higher);
                         tryAdd(current, higher, cost);

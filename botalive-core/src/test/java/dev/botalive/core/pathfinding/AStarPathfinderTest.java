@@ -397,6 +397,65 @@ class AStarPathfinderTest {
         assertFalse(path.complete(), "diagonálně se skáče jen přes jeden roh");
     }
 
+    /**
+     * Jako {@link #cornerPlatforms(int)}, ale cílová plošina je o {@code bDelta}
+     * pater jinde (−1 = níž, +1 = výš) – pro diagonální skok s dopadem níž/výš.
+     */
+    private static FakeWorldView cornerPlatformsStepped(int gap, int bDelta) {
+        FakeWorldView world = new FakeWorldView(0);
+        int b = 1 + gap;
+        for (int x = -3; x <= 0; x++) {
+            for (int z = -3; z <= 0; z++) {
+                world.set(x, FLOOR, z, FakeWorldView.SOLID);
+            }
+        }
+        for (int x = b; x <= b + 3; x++) {
+            for (int z = b; z <= b + 3; z++) {
+                world.set(x, FLOOR + bDelta, z, FakeWorldView.SOLID);
+            }
+        }
+        return world;
+    }
+
+    /** Obsahuje cesta diagonální skok přes roh (|dx|=|dz|=2) s daným převýšením? */
+    private static boolean hasDiagonalCornerJump(Path path, BlockPos start, int dy) {
+        BlockPos prev = start;
+        for (BlockPos wp : path.waypoints()) {
+            if (Math.abs(wp.x() - prev.x()) == 2 && Math.abs(wp.z() - prev.z()) == 2
+                    && wp.y() - prev.y() == dy) {
+                return true;
+            }
+            prev = wp;
+        }
+        return false;
+    }
+
+    @Test
+    void preskociRohovouMezeruSDopademNiz() {
+        // Cílová plošina o blok níž – diagonální rohový skok s klesáním.
+        BlockPos start = new BlockPos(-1, FEET, -1);
+        Path path = new AStarPathfinder(cornerPlatformsStepped(1, -1))
+                .findPath(start, new BlockPos(3, FEET - 1, 3), 0);
+
+        assertTrue(path.complete(),
+                "rohová mezera s nižším dopadem má jít přeskočit: " + path.waypoints());
+        assertTrue(hasDiagonalCornerJump(path, start, -1),
+                "cesta má obsahovat diagonální skok přes roh s dopadem níž: " + path.waypoints());
+    }
+
+    @Test
+    void parkourRohovouMezeruNaVyssiRimsu() {
+        // Cílová plošina o blok výš – diagonální parkour výskok přes roh.
+        BlockPos start = new BlockPos(-1, FEET, -1);
+        Path path = new AStarPathfinder(cornerPlatformsStepped(1, 1))
+                .findPath(start, new BlockPos(3, FEET + 1, 3), 0);
+
+        assertTrue(path.complete(),
+                "rohová mezera s výskokem na vyšší římsu má jít přeskočit: " + path.waypoints());
+        assertTrue(hasDiagonalCornerJump(path, start, 1),
+                "cesta má obsahovat diagonální parkour výskok o blok výš: " + path.waypoints());
+    }
+
     @Test
     void preskociMezeruSDopademONizsi() {
         // Mezera 1 blok (x=3), dopadová platforma o blok níž (y = FLOOR−1).
