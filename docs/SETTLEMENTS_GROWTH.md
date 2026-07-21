@@ -52,10 +52,17 @@ a postaví ho stejnou mašinérií jako dům (blueprint → `PlaceBlockTask`).
 
 Normy rostou s infrastrukturou, ne dekretem:
 
-- **Sýpka mění nouzi**: hladový člen si PŘED krádeží (desperation)
-  a před prosbou dojde do sýpky; přebytky jídla ze `StashGoal` končí
-  v sýpce místo soukromé truhly. Sdílení jídla přestává být osobní
-  laskavost a stává se institucí.
+- **Sýpka mění nouzi** *(hotovo)*: cíl `granary` (`GranaryGoal`) ze sýpky
+  udělal instituci – hladový člen si z ní vezme jídlo s vyšší užitečností
+  než `StealGoal`, takže sáhne do vlastní společné špajzky **dřív, než jde
+  krást** do cizí truhly; člen s přebytkem jídla ji naopak doplní (nechá si
+  zásobu na cestu). Pozici truhly si cíl dopočítá z geometrie sýpky
+  (`ContainerService.depositFood` / `withdrawSupplies`).
+- **Společný sklad na materiál** *(hotovo)*: čtvrtá společná stavba
+  `WAREHOUSE` (zásobárna s dvojtruhlou, od vesnice, po dílnách) – člen s
+  přebytkem materiálu ho přes `StashGoal` uloží do společného skladu místo
+  soukromé truhly (je-li rozumně blízko). Přebytky přestávají hnít po
+  kapsách jednotlivců.
 - **Starosta** – odvozený, ne volený: člen s nejsilnějším součtem
   FRIEND vazeb na ostatní členy (lazy přepočet ze `SocialView`).
   Přednostně vítá hráče (`tickVillageWelcome`), přednostně staví

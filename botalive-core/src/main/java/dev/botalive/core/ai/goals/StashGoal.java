@@ -256,11 +256,17 @@ public final class StashGoal extends AbstractGoal {
                 });
     }
 
-    /** Najde truhlu: paměť → sken okolí. */
+    /** Najde truhlu: společný sklad sídla → paměť → sken okolí. */
     private BlockPos findChest(BotContext ctx, Bot bot) {
         WorldView world = ctx.worldView();
         if (world == null) {
             return null;
+        }
+        // Člen sídla s hotovým skladem ukládá přebytky do společné zásobárny
+        // (je-li rozumně blízko – jinak by táhl materiál přes půl světa).
+        BlockPos warehouse = warehouseChest(ctx, bot, world);
+        if (warehouse != null) {
+            return warehouse;
         }
         BlockPos center = ctx.position().toBlockPos();
         var remembered = bot.memory().recallNearest(MemoryKind.CHEST, world.worldName(),
@@ -288,6 +294,37 @@ public final class StashGoal extends AbstractGoal {
             }
         }
         return null;
+    }
+
+    /**
+     * Truhla společného skladu sídla (je-li bot členem, sklad hotový a
+     * rozumně blízko a truhla ve světě opravdu stojí), jinak {@code null}.
+     */
+    private BlockPos warehouseChest(BotContext ctx, Bot bot, WorldView world) {
+        var settlements = ctx.settlements();
+        if (settlements == null) {
+            return null;
+        }
+        var id = settlements.settlementIdOf(bot.id());
+        if (id.isEmpty()) {
+            return null;
+        }
+        var store = settlements.doneProject(id.getAsLong(),
+                dev.botalive.core.settlement.SettlementService.ProjectKind.WAREHOUSE);
+        if (store.isEmpty()) {
+            return null;
+        }
+        BlockPos chest = dev.botalive.core.build.HouseBlueprint.bedSpot(
+                store.get().origin(), store.get().facing());
+        if (chest.distanceSquared(ctx.position().toBlockPos()) > 96 * 96) {
+            return null; // moc daleko – ulož radši do bližší truhly
+        }
+        Material material = world.materialAt(chest);
+        if (material != null && material != Material.CHEST
+                && material != Material.TRAPPED_CHEST) {
+            return null; // sklad zbořený/jiný svět – truhla tam není
+        }
+        return chest;
     }
 
     @Override

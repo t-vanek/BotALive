@@ -204,6 +204,8 @@ public final class SettlementService {
         GRANARY(null),
         /** Tržiště – druhá část městské infrastruktury (dělá město). */
         MARKET_STALL(null),
+        /** Sklad – společná zásobárna materiálu (od vesnice). */
+        WAREHOUSE(null),
         /** Kovárna – dílna kováře (pec + kovářský stůl). */
         FORGE(BotRole.BLACKSMITH),
         /** Kuchyně – dílna kuchaře (udírna). */
@@ -864,6 +866,11 @@ public final class SettlementService {
                 }
             }
         }
+        // Společný sklad na materiál: od vesnice, po dílnách (řemesla mají
+        // přednost, ale zásobárnu si vesnice nakonec postaví taky).
+        if (wellDone && !projectDone(settlement, ProjectKind.WAREHOUSE)) {
+            return ProjectKind.WAREHOUSE;
+        }
         return null;
     }
 
@@ -913,6 +920,21 @@ public final class SettlementService {
                 ? null : settlement.projects.get(ProjectKind.GRANARY);
         return granary != null && granary.done
                 ? Optional.of(granary.origin) : Optional.empty();
+    }
+
+    /**
+     * Dokončená společná stavba daného druhu (origin + orientace) – aby si cíl
+     * dopočítal pozici truhly z geometrie blueprintu (sýpka, sklad).
+     *
+     * @param settlementId sídlo
+     * @param kind         druh stavby
+     * @return projekt, pokud je dokončený; jinak prázdné
+     */
+    public synchronized Optional<ProjectInfo> doneProject(long settlementId, ProjectKind kind) {
+        Settlement settlement = settlements.get(settlementId);
+        Project project = settlement == null ? null : settlement.projects.get(kind);
+        return project != null && project.done
+                ? Optional.of(projectInfo(settlement, project)) : Optional.empty();
     }
 
     /** @return stavitel projektu, nebo {@code null} po expiraci zamluvení */

@@ -24,7 +24,7 @@ class RoleCoverageTest {
 
     /** Cíle registrované v mozku – proti nim se ověřuje, že profil neukazuje do prázdna. */
     private static final Set<String> REGISTERED_GOALS = Set.of(
-            "home", "stash", "sleep", "mine", "craft", "smelt", "farm", "explore",
+            "home", "stash", "granary", "sleep", "mine", "craft", "smelt", "farm", "explore",
             "wander", "idle", "smith", "compost", "maintain", "buy", "dragon-fight",
             "communal-build", "hunt", "nether", "pvp", "brew", "drink", "camp",
             "reconcile", "minecart", "collect", "deliver-work", "repair", "shelter",

@@ -116,9 +116,10 @@ class SettlementServiceTest {
         var info = service.settlementOf(founder).orElseThrow();
         assertEquals(SettlementTier.VESNICE, info.tier());
         assertEquals(4, info.houses());
-        // Po studně sídlo se 4 domy nic dalšího nepotřebuje – sýpka je až
-        // od 8 domů (příprava města).
-        assertTrue(service.neededProject(founder).isEmpty());
+        // Po studně (a bez řemesel) si vesnice postaví společný sklad; sýpka
+        // je až od 8 domů (příprava města).
+        assertEquals(SettlementService.ProjectKind.WAREHOUSE,
+                service.neededProject(founder).orElseThrow().kind());
     }
 
     @Test
@@ -152,11 +153,17 @@ class SettlementServiceTest {
                 service.neededProject(founder).orElseThrow().kind());
         service.claimProject(village.id(), SettlementService.ProjectKind.MARKET_STALL, founder);
         service.projectFinished(village.id(), SettlementService.ProjectKind.MARKET_STALL);
-        // Sýpka + tržiště + 8 domů + studna = město; víc společných staveb netřeba.
+        // Sýpka + tržiště + 8 domů + studna = město (víc pro stupeň netřeba).
         assertEquals(SettlementTier.MESTO,
                 service.settlementOf(founder).orElseThrow().tier(),
                 "tržiště po sýpce dělá z vesnice město");
-        assertTrue(service.neededProject(founder).isEmpty());
+        // Poslední společnou stavbou zázemí je sklad na materiál.
+        assertEquals(SettlementService.ProjectKind.WAREHOUSE,
+                service.neededProject(founder).orElseThrow().kind());
+        service.claimProject(village.id(), SettlementService.ProjectKind.WAREHOUSE, founder);
+        service.projectFinished(village.id(), SettlementService.ProjectKind.WAREHOUSE);
+        assertTrue(service.neededProject(founder).isEmpty(),
+                "se skladem už město nic dalšího nepotřebuje");
     }
 
     /** Postaví město s 8 dostavěnými domy (zakladatel + 7 osadníků). */
@@ -203,8 +210,9 @@ class SettlementServiceTest {
         assertEquals(Optional.of(SettlementService.ProjectKind.FORGE),
                 service.nextProject(id, roles));
 
-        // Když řemeslo nikdo nedělá, žádná dílna se nestaví (poptávkově).
-        assertEquals(Optional.empty(),
+        // Když řemeslo nikdo nedělá, žádná dílna se nestaví (poptávkově) –
+        // zbývá jen společný sklad na materiál.
+        assertEquals(Optional.of(SettlementService.ProjectKind.WAREHOUSE),
                 service.nextProject(id, botId -> dev.botalive.api.role.BotRole.NONE));
     }
 
@@ -239,6 +247,33 @@ class SettlementServiceTest {
                         : dev.botalive.api.role.BotRole.NONE;
         assertEquals(Optional.of(SettlementService.ProjectKind.GRANARY),
                 service.nextProject(id, smith));
+    }
+
+    @Test
+    void skladSeNabiziAzPoDilnachAJeDohledatelny() {
+        var village = villageWithFourHouses();
+        long id = village.id();
+        buildWell(id);
+        // S kovářem má přednost kovárna (dílna) před skladem.
+        java.util.function.Function<UUID, dev.botalive.api.role.BotRole> smith =
+                b -> b.equals(founder)
+                        ? dev.botalive.api.role.BotRole.BLACKSMITH
+                        : dev.botalive.api.role.BotRole.NONE;
+        assertEquals(Optional.of(SettlementService.ProjectKind.FORGE),
+                service.nextProject(id, smith));
+        // Bez řemesel rovnou sklad.
+        assertEquals(Optional.of(SettlementService.ProjectKind.WAREHOUSE),
+                service.nextProject(id, b -> dev.botalive.api.role.BotRole.NONE));
+        // Dokončený sklad je dohledatelný (origin+facing pro pozici truhly).
+        var warehouse = service.neededProject(founder).orElseThrow();
+        assertEquals(SettlementService.ProjectKind.WAREHOUSE, warehouse.kind());
+        service.claimProject(id, SettlementService.ProjectKind.WAREHOUSE, founder);
+        service.projectFinished(id, SettlementService.ProjectKind.WAREHOUSE);
+        var done = service.doneProject(id, SettlementService.ProjectKind.WAREHOUSE);
+        assertTrue(done.isPresent(), "hotový sklad musí být dohledatelný pro StashGoal");
+        assertEquals(warehouse.origin(), done.orElseThrow().origin());
+        // Nehotový projekt doneProject nevrací.
+        assertTrue(service.doneProject(id, SettlementService.ProjectKind.GRANARY).isEmpty());
     }
 
     @Test

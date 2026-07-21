@@ -312,6 +312,7 @@ public final class CompositionRoot {
         registry.register("farm", bot -> new FarmGoal());
         registry.register("sleep", bot -> new SleepGoal());
         registry.register("stash", bot -> new StashGoal(containers, diplomacy));
+        registry.register("granary", bot -> new dev.botalive.core.ai.goals.GranaryGoal(containers));
         registry.register("steal", bot -> new dev.botalive.core.ai.goals.StealGoal(containers));
         registry.register("rob", bot -> new dev.botalive.core.ai.goals.RobGoal(pvp));
         registry.register("repair", bot -> new dev.botalive.core.ai.goals.RepairGoal(anvils));

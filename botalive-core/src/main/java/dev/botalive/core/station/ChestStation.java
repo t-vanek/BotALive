@@ -60,4 +60,17 @@ public interface ChestStation {
      * @return future s počtem uložených kusů (0 = nic/chyba)
      */
     CompletableFuture<Integer> depositLoot(BotContext ctx, String worldName, BlockPos chestPos);
+
+    /**
+     * Uloží do kontejneru přebytek jídla (opak {@link #withdrawSupplies}) –
+     * člen doplňuje společnou sýpku. Nechá si zásobu na cestu.
+     *
+     * @param ctx       kontext bota (stojí u otevřeného kontejneru)
+     * @param worldName svět kontejneru
+     * @param chestPos  pozice kontejneru
+     * @param keepFood  kolik kusů jídla si nechat v inventáři
+     * @return future s počtem uložených kusů (0 = nic/chyba)
+     */
+    CompletableFuture<Integer> depositFood(BotContext ctx, String worldName, BlockPos chestPos,
+                                           int keepFood);
 }

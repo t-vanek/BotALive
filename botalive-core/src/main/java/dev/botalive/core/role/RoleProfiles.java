@@ -41,7 +41,7 @@ public final class RoleProfiles {
                     "fish", 2.6, "boat", 1.4, "sell", 1.4)),
             Map.entry(BotRole.FARMER, Map.of(
                     "farm", 2.5, "trade", 1.3, "craft", 1.1, "share", 1.5, "compost", 2.0,
-                    "sell", 1.6, "breed", 2.4)),
+                    "sell", 1.6, "breed", 2.4, "granary", 1.3)),
 
             // ---- profese doplněné, aby hotové cíle měly svého "majitele"
             // (brew, tame, reconcile, deliver-work, camp, minecart, rob…
@@ -70,10 +70,10 @@ public final class RoleProfiles {
                     "end-outer", 1.5, "end-harvest", 1.4)),
             Map.entry(BotRole.COURIER, Map.of(
                     "deliver-work", 2.5, "stash", 1.8, "collect", 1.4, "trade", 1.3,
-                    "minecart", 1.3)),
+                    "minecart", 1.3, "granary", 1.8)),
             Map.entry(BotRole.COOK, Map.of(
                     "smelt", 2.2, "farm", 1.4, "share", 1.8,
-                    "compost", 1.5, "fish", 1.3, "breed", 1.6)),
+                    "compost", 1.5, "fish", 1.3, "breed", 1.6, "granary", 1.4)),
 
             // ---- vanilla vesnická povolání (biasují existující chování,
             // ať nejsou jen popisky – hlídá RoleCoverageTest)

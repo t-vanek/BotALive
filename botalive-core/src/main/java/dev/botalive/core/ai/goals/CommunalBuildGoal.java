@@ -127,6 +127,7 @@ public final class CommunalBuildGoal extends AbstractGoal {
             case WELL -> Blueprints.well();
             case GRANARY -> Blueprints.granary();
             case MARKET_STALL -> Blueprints.marketStall();
+            case WAREHOUSE -> Blueprints.granary(); // sklad = zásobárna s dvojtruhlou
             default -> throw new IllegalStateException("není blueprint pro " + kind);
         };
     }
@@ -143,7 +144,7 @@ public final class CommunalBuildGoal extends AbstractGoal {
                     Workshops.spec(kind.workshopRole().orElseThrow()).station());
         }
         return switch (kind) {
-            case GRANARY -> java.util.List.of(Material.CHEST, Material.CHEST);
+            case GRANARY, WAREHOUSE -> java.util.List.of(Material.CHEST, Material.CHEST);
             case MARKET_STALL -> java.util.List.of(Material.CHEST);
             default -> java.util.List.of();
         };
@@ -169,6 +170,7 @@ public final class CommunalBuildGoal extends AbstractGoal {
             case WELL -> PhraseCategory.SETTLEMENT_WELL_START;
             case GRANARY -> PhraseCategory.SETTLEMENT_GRANARY_START;
             case MARKET_STALL -> PhraseCategory.SETTLEMENT_MARKET_START;
+            case WAREHOUSE -> PhraseCategory.SETTLEMENT_WAREHOUSE_START;
             default -> throw new IllegalStateException("není hláška pro " + kind);
         };
     }
@@ -181,6 +183,7 @@ public final class CommunalBuildGoal extends AbstractGoal {
             case WELL -> PhraseCategory.SETTLEMENT_WELL_DONE;
             case GRANARY -> PhraseCategory.SETTLEMENT_GRANARY_DONE;
             case MARKET_STALL -> PhraseCategory.SETTLEMENT_MARKET_DONE;
+            case WAREHOUSE -> PhraseCategory.SETTLEMENT_WAREHOUSE_DONE;
             default -> throw new IllegalStateException("není hláška pro " + kind);
         };
     }
@@ -326,6 +329,7 @@ public final class CommunalBuildGoal extends AbstractGoal {
             case WELL -> "stavím studnu pro sídlo";
             case GRANARY -> "stavím sýpku pro sídlo";
             case MARKET_STALL -> "stavím tržiště pro sídlo";
+            case WAREHOUSE -> "stavím sklad pro sídlo";
             default -> "stavím pro sídlo";
         };
     }

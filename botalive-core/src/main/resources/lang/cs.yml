@@ -299,6 +299,16 @@ phrases:
     - "hotovo, {name} má tržiště. tady se bude obchodovat"
     - "pult je hotový, sousedi, přineste zboží na prodej"
 
+  settlement-warehouse-start:
+    - "beru prkna a truhly, {name} potřebuje společný sklad"
+    - "stavím sklad, ať má {name} kam dát přebytky"
+    - "společná zásobárna se hodí – jdu postavit sklad pro {name:4}"
+
+  settlement-warehouse-done:
+    - "sklad stojí! přebytky {name:2} už nebudou po kapsách"
+    - "hotovo, {name} má sklad. noste, co přebývá, ať to leží společně"
+    - "společná zásobárna je hotová, sousedi"
+
   settlement-workshop-start:
     - "sídlu chybí {name} – beru nářadí a jdu na to"
     - "nová stavba pro sídlo: {name}, nosím materiál"
