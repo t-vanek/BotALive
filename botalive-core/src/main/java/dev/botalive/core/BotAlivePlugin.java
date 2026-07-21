@@ -66,6 +66,9 @@ public final class BotAlivePlugin extends JavaPlugin {
      * při startu – vytvoření bota pak selže se stejnou zprávou.</p>
      */
     private void logVersionCompatibility(BotAliveConfig config) {
+        // Podporovaný rozsah (baseline + Via politika) oznámíme vždy při startu,
+        // ať admin zná kompatibilní kontrakt bez čtení dokumentace.
+        getLogger().info(ViaCompat.supportContract());
         if (!config.network().targetsLocalServer(Bukkit.getPort())) {
             getLogger().info(ViaCompat.remoteTarget(config.network().host()).message());
             return;
@@ -77,6 +80,7 @@ public final class BotAlivePlugin extends JavaPlugin {
         } else if (via.translated()) {
             getLogger().info(via.message());
         }
+        // NATIVE_MATCH: kontrakt výše stačí, další řádek by byl šum.
     }
 
     /**

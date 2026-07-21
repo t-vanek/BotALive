@@ -91,4 +91,15 @@ class ViaCompatTest {
         assertFalse(ViaCompat.botVersion().isBlank());
         assertTrue(ViaCompat.botProtocol() > 0);
     }
+
+    @Test
+    void supportContractZminiBaselineIObaViaSmery() {
+        // Kontrakt podporovaných verzí – jediný zdroj věty pro log/diagnostiku.
+        String contract = ViaCompat.supportContract();
+        assertTrue(contract.contains(ViaCompat.botVersion()),
+                "kontrakt má jmenovat nativní baseline (verzi botů)");
+        assertTrue(contract.contains("ViaVersion"), "kontrakt má zmínit ViaVersion");
+        assertTrue(contract.contains("ViaBackwards"),
+                "kontrakt má zmínit ViaBackwards pro novější servery");
+    }
 }

@@ -107,7 +107,7 @@ Každý bot má vlastní identitu, osobnost, paměť, cíle, inventář a histor
 
 |           |                                                                                     |
 |-----------|-------------------------------------------------------------------------------------|
-| Server    | Paper 26.1.x nebo Folia (jiné verze přes ViaVersion / ViaBackwards)                 |
+| Server    | Paper 26.1+ nebo Folia (26.1 nativně; novější verze přes ViaVersion + ViaBackwards) |
 | Java      | 25+                                                                                 |
 | Režim     | `online-mode=false` (boti jsou offline klienti), příp. Velocity s offline backendem |
 | Databáze  | nic (vestavěná SQLite); volitelně PostgreSQL                                        |

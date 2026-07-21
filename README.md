@@ -107,7 +107,7 @@ Every bot has its own identity, personality, memory, goals, inventory and histor
 
 |          |                                                                                   |
 |----------|-----------------------------------------------------------------------------------|
-| Server   | Paper 26.1.x or Folia (other versions via ViaVersion / ViaBackwards)              |
+| Server   | Paper 26.1+ or Folia (26.1 natively; newer versions via ViaVersion + ViaBackwards) |
 | Java     | 25+                                                                               |
 | Mode     | `online-mode=false` (bots are offline clients), or Velocity with an offline backend |
 | Database | none required (embedded SQLite); PostgreSQL optional                              |

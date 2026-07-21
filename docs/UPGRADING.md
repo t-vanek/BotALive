@@ -17,6 +17,38 @@ centralizovaně a verzně citlivá místa jsou tady vyjmenovaná.
 
 ---
 
+## 0. Podporované verze serveru (kompatibilní kontrakt)
+
+**BotAlive podporuje Minecraft 26.1 a novější jedním jarem.** Rozsah drží model
+z §11 (pevný protokol klienta + překlad na serveru), ne kompilace per verze:
+
+| Verze serveru | Co je potřeba | Chování |
+|---------------|---------------|---------|
+| **= 26.1** (baseline) | nic | nativní shoda protokolu, plná přesnost |
+| **> 26.1** (novější) | **ViaVersion + ViaBackwards** na serveru | boti se připojí; block-state se čte přes fallback (viz §4) |
+| **< 26.1** (starší) | ViaVersion na serveru | funguje, ale je *pod* baseline – mimo cílený rozsah „26.1+" |
+
+Baseline = verze zabudované MCProtocolLib (`ViaCompat.botVersion()`), dnes 26.1.
+Kontrakt se **loguje při startu** (`ViaCompat.supportContract()`), takže admin
+podporovaný rozsah vidí v konzoli.
+
+**Proč to drží „a výše" bez rebuildu:**
+
+- **Plugin se načte** na novějším serveru – `api-version: '26.1'` server ≥ 26.1
+  přijme a jar (`--release 25`) běží na Javě 25+ (novější JVM starší bytecode spustí).
+- **Boti se připojí** – jsou starší než server, takže překládá ViaVersion +
+  ViaBackwards. Chybí-li, `ViaCompat` **odmítne vytvoření bota s návodem** místo
+  tichého timeoutu (`BotManagerImpl`, kill-switch `network.version-check`).
+- **Reflexe do serveru degraduje, nepadá** – když se v nové verzi změní interní
+  názvy NMS, `CollisionShapes` se vrátí `null` → heuristické tvary z Bukkit block
+  dat (zaloguje se jednou). Stejný vzor má vypínání event-loopu (`BotEventLoop`).
+
+**Pozn.:** „a výše" přes ViaVersion znamená u překládaných serverů degradaci
+přesnosti block-state (§4). Nativní přesnost je jen na baseline (26.1). Nativní
+podpora bez ViaVersion by znamenala multi-verzního klienta (§11 ji zamítá).
+
+---
+
 ## 1. Dvě nezávislé osy verze
 
 | Osa | Co určuje | Kde se pin nastavuje |
