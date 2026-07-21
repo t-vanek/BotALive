@@ -258,7 +258,7 @@ public final class ConfigLoader {
                 c.getInt("persistence.flush-seconds", 15)
         );
 
-        int buildWidth = Math.max(5, c.getInt("build.width", 7));
+        int buildWidth = Math.max(5, c.getInt("build.width", 9));
         if (buildWidth % 2 == 0) {
             buildWidth++; // lichý půdorys – čistý střed pro stavitele
         }

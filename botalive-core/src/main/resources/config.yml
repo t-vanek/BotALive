@@ -531,9 +531,16 @@ build:
   # původní domek 4×4 (plná zpětná kompatibilita).
   complex: true
   # Strop šířky/hloubky půdorysu (lichá, >= 5). Skutečnou velikost volí bot
-  # podle stupně sídla a povahy: osada staví útulné 5×5, vesnice a město
-  # větší až k tomuto stropu (líný bot staví malý). Malý dům postaví bot
-  # z jednoho místa, větší z několika stanovišť po vnitřní podlaze.
-  width: 7
+  # podle stupně sídla a povahy: osada staví útulné 5×5, vesnice 7×7, město
+  # až k tomuto stropu (líný bot staví malý). Malý dům postaví bot z jednoho
+  # místa, větší z několika stanovišť po vnitřní podlaze.
+  #
+  # Strop 9 je záměrný kompromis: dá žebříček 5 → 7 → 9 v zákrytu se stupni
+  # sídla a nechá mezi parcelami 3 bloky na cestičky. Zvyšovat dál se
+  # nevyplácí – dům 11×11 chce 403 bloků v batohu naráz (brána v
+  # BuildHouseGoal je vyžaduje před zahájením) a při rozestupu parcel 12
+  # zbude mezi domy jediný blok; od 13 se parcely překrývají. Když strop
+  # zvedáš, zvedni s ním i settlement.plot-spacing.
+  width: 9
   # Výška zdí.
   wall-height: 3
