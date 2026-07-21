@@ -85,6 +85,49 @@ class SettlementServiceTest {
         return village;
     }
 
+    /**
+     * Stavitel doladil výšku staveniště podle terénu – evidence to musí
+     * převzít. Po restartu se ke stavbě navazuje z uloženého originu a cíle
+     * si z něj dopočítávají truhlu sýpky i skladu; kdyby v evidenci zůstala
+     * výška návsi, stavba by se hledala několik bloků ve vzduchu.
+     */
+    @Test
+    void doladenaVyskaStavenisteSeVratiDoEvidence() {
+        var village = villageWithFourHouses();
+        var project = service.neededProject(founder).orElseThrow();
+        BlockPos planned = project.origin();
+        BlockPos onGround = planned.offset(0, -8, 0);
+
+        service.updateProjectOrigin(village.id(), project.kind(), onGround);
+
+        assertEquals(onGround, service.neededProject(founder).orElseThrow().origin(),
+                "projekt zná skutečnou výšku staveniště");
+        service.projectFinished(village.id(), project.kind());
+        assertEquals(onGround,
+                service.doneProject(village.id(), project.kind()).orElseThrow().origin(),
+                "hotová stavba se eviduje tam, kde opravdu stojí");
+    }
+
+    /**
+     * Nepoužitelné staveniště (sráz, jezero) projekt přestěhuje na jinou
+     * parcelu. Bez toho by sídlo na jedné špatné parcele uvázlo napořád –
+     * {@code neededProject} by pořád vracel týž nestavitelný projekt.
+     */
+    @Test
+    void nepouzitelneStavenisteProjektPrestehuje() {
+        var village = villageWithFourHouses();
+        var project = service.neededProject(founder).orElseThrow();
+        BlockPos hopeless = project.origin();
+
+        assertTrue(service.relocateProject(village.id(), project.kind()));
+
+        var moved = service.neededProject(founder).orElseThrow();
+        assertEquals(project.kind(), moved.kind(), "pořád tatáž stavba");
+        assertFalse(moved.origin().equals(hopeless), "staveniště se přesunulo");
+        // Zamluvení padlo s přesunem – stavbu si bere kdokoli, včetně souseda.
+        assertTrue(service.claimProject(village.id(), moved.kind(), joiner));
+    }
+
     @Test
     void studnaDovrsiVesnici() {
         var village = villageWithFourHouses();

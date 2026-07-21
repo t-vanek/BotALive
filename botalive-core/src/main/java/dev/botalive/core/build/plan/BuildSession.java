@@ -8,8 +8,12 @@ import dev.botalive.core.util.BlockPos;
 
 import org.bukkit.Material;
 
+import dev.botalive.core.world.WorldView;
+
 import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.Deque;
+import java.util.List;
 
 /**
  * Sdílený vykonavatel stavby: odbaví {@link BuildSchedule} po krocích místo
@@ -24,6 +28,13 @@ import java.util.Deque;
  *   <li><b>FURNISH</b> – z vnitřního stanoviště osadit dveře/světlo/postel/
  *       truhlu; co chybí v batohu nebo už stojí, přeskočí (bonus).</li>
  * </ol>
+ *
+ * <p>Po odbavení všech dávek se stavba <b>ověří proti světu</b>: pokládka je
+ * fire-and-forget ({@code PlaceBlockTask} hlásí „hotovo" i když blok nepoložil –
+ * nebylo se o co opřít, server pokládku odmítl), takže bez kontroly by plán
+ * ve vzduchu proběhl jako řada no-opů a skončil stavem {@link State#DONE} nad
+ * prázdným staveništěm. Chybějící bloky dostanou ještě jeden průchod, pak je
+ * to {@link State#INCOMPLETE} – torzo, ne hotová stavba.</p>
  *
  * <p>Pořadí bloků napříč jednotkami drží oporu; už pevná pozice se přeskočí
  * (resume world-diffem), došlý materiál vrátí {@link State#BLOCKED_MATERIAL}.
@@ -42,7 +53,13 @@ public final class BuildSession {
         /** Došel stavební materiál (viz {@link #missing()}). */
         BLOCKED_MATERIAL,
         /** Na stanoviště se nedá dojít. */
-        UNREACHABLE
+        UNREACHABLE,
+        /**
+         * Bloky se nepodařilo položit ani na druhý pokus – staveniště zůstalo
+         * prázdné nebo torzo. Cíl to <b>nesmí</b> brát jako hotovo: fyzická
+         * stavba je autorita a sídlo si nemá připsat stavbu, která nestojí.
+         */
+        INCOMPLETE
     }
 
     private enum Phase { TERRAFORM, UNIT_GOTO, UNIT_PLACE, FURNISH_GOTO, FURNISH, DONE }
@@ -51,6 +68,8 @@ public final class BuildSession {
     private static final int STAND_TOLERANCE_SQ = 2;
     /** Kolik ticků nejvýš zkoušet dojít na stanoviště, než to bot vzdá. */
     private static final int NAV_BUDGET = 300;
+    /** Kolikrát projet chybějící bloky znovu, než se stavba prohlásí za torzo. */
+    private static final int MAX_VERIFY_PASSES = 2;
 
     private final BlockPos furnishStand;
     private final boolean standExact;
@@ -60,12 +79,15 @@ public final class BuildSession {
     private final Deque<WorkUnit> units;
     private final Deque<PlacementCell> placements = new ArrayDeque<>();
     private final Deque<FurnishCell> furnish;
+    /** Odbavené dávky – po vyprázdnění fronty se ověří proti světu. */
+    private final List<WorkUnit> attempted = new ArrayList<>();
 
     private Phase phase = Phase.TERRAFORM;
     private BotTask current;
     private boolean navigating;
     private BlockPos target;
     private int navTicks;
+    private int verifyPasses;
     private PaletteRole missing;
 
     /**
@@ -165,11 +187,10 @@ public final class BuildSession {
         if (placements.isEmpty()) {
             WorkUnit unit = units.poll();
             if (unit == null) {
-                target = furnishStand;
-                phase = Phase.FURNISH_GOTO;
-                return State.RUNNING;
+                return finishUnits(ctx);
             }
             placements.addAll(unit.placements());
+            attempted.add(unit);
             target = unit.stand();
             navTicks = 0;
             // Nové stanoviště – příchod se ověří příští tick (po přesunu).
@@ -206,6 +227,55 @@ public final class BuildSession {
         placements.poll();
         current = new PlaceBlockTask(cell.pos());
         return State.RUNNING;
+    }
+
+    /**
+     * Fronta dávek je prázdná – než se přejde k vybavení, ověřit stavbu proti
+     * světu. Ověření není přepych: {@code PlaceBlockTask} hlásí „hotovo" i když
+     * blok vůbec nepoložil (nebylo se o co opřít, server pokládku odmítl,
+     * bot mezitím odešel ze stanoviště), a session cely z fronty odebírá
+     * dopředu. Bez kontroly by celý plán ve vzduchu proběhl jako řada
+     * neškodných no-opů a skončil stavem DONE nad prázdným staveništěm.
+     *
+     * <p>Co chybí, se ještě jednou zařadí ze stejného stanoviště (typicky se
+     * mezitím doplnila opora nebo bot dokročil). Co nestojí ani pak, je
+     * {@link State#INCOMPLETE} – torzo, ne hotová stavba.</p>
+     */
+    private State finishUnits(BotContext ctx) {
+        List<WorkUnit> missingUnits = missingUnits(ctx);
+        if (!missingUnits.isEmpty()) {
+            if (verifyPasses >= MAX_VERIFY_PASSES) {
+                return State.INCOMPLETE;
+            }
+            verifyPasses++;
+            attempted.clear();
+            units.addAll(missingUnits);
+            return State.RUNNING;
+        }
+        target = furnishStand;
+        phase = Phase.FURNISH_GOTO;
+        return State.RUNNING;
+    }
+
+    /** Dávky s bloky, které po odbavení ve světě nestojí (po stanovištích). */
+    private List<WorkUnit> missingUnits(BotContext ctx) {
+        WorldView world = ctx.worldView();
+        if (world == null) {
+            return List.of(); // bez pohledu na svět se ověřit nedá
+        }
+        List<WorkUnit> result = new ArrayList<>();
+        for (WorkUnit unit : attempted) {
+            List<PlacementCell> missingCells = new ArrayList<>();
+            for (PlacementCell cell : unit.placements()) {
+                if (!world.traitsAt(cell.pos()).solid()) {
+                    missingCells.add(cell);
+                }
+            }
+            if (!missingCells.isEmpty()) {
+                result.add(new WorkUnit(unit.stand(), missingCells));
+            }
+        }
+        return result;
     }
 
     private State tickFurnishGoto(BotContext ctx) {

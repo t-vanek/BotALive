@@ -80,6 +80,29 @@ class BuildSessionSimulationTest {
         assertTrue(world.traitsAt(plan.furnishing().get(0).pos()).solid(), "pochodeň studny");
     }
 
+    /**
+     * Plán ve vzduchu (nesrovnaná výška staveniště) se NESMÍ ohlásit jako
+     * hotový. {@code PlaceBlockTask} hlásí „hotovo" i když blok vůbec
+     * nepoložil (není se o co opřít), takže bez ověření proti světu by celý
+     * plán proběhl jako řada no-opů a skončil stavem DONE nad prázdným
+     * staveništěm – sídlo si pak připsalo studnu, která nikdy nestála.
+     */
+    @Test
+    void floatingPlanEndsIncompleteInsteadOfDone() {
+        FakeWorldView world = new FakeWorldView(FLOOR_Y);
+        BlockPos floating = new BlockPos(0, FLOOR_Y + 9, 0); // osm bloků nad terénem
+        BuildPlan plan = BuildPlan.of(Blueprints.well(), floating, Cardinal.NORTH);
+        BuildSchedule schedule = BuildPlanner.schedule(plan, world);
+        FakeBotContext ctx = botAt(world, plan.stand())
+                .give(Material.COBBLESTONE, 50)
+                .give(Material.TORCH, 1);
+
+        assertEquals(BuildSession.State.INCOMPLETE,
+                run(ctx, new BuildSession(schedule), 1500));
+        assertTrue(plan.cells().stream().noneMatch(c -> world.traitsAt(c.pos()).solid()),
+                "ve vzduchu nevznikl jediný blok");
+    }
+
     @Test
     void marketStallBuildsWithRoofAndChest() {
         FakeWorldView world = new FakeWorldView(FLOOR_Y);
