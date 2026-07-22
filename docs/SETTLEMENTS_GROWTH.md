@@ -173,11 +173,16 @@ Od stupně **VESNICE** obežene sídlo kamenné **hradby**: cíl `settlement-wal
 `BarrierWorker` nad `Enclosure`. Obvod se počítá po **vnějším obsazeném prstenci**
 parcel (`wallBounds` – stejné odvození prstence jako `SettlementRoads`), takže
 hradba roste se sídlem; **brány** jsou na čtyřech osách, kudy vyjíždějí hlavní
-ulice – cíl je nechává jako otevřené průchody přes celou výšku.
+ulice.
 
 - **Materiál z běžných bloků**: hradby se staví z toho, co bot sbírá jako na domy
   (`equipBuildingBlock` – `BarrierWorker` s `post = null`), takže se reálně
   stavějí bez zvláštního zásobování; výška je `settlement.wall-height`.
+- **Brány jako průchody** (`Enclosure.gateway`): branka dole, volné nadpraží a
+  překlad nahoře, takže se projde i vysokou hradbou. Branku si bot dorobí z prken
+  (best-effort, jako plot) – když prkna/ponk nemá, zůstane otevřený **oblouk**
+  (branka je bonus, ne podmínka: `BarrierWorker` chybějící branku jen přeskočí,
+  hradba nezůstane torzem).
 - Idempotentní jako cesty: hotové sloupce se přeskočí, velká hradba se dostaví
   napříč seancemi (strop sloupců na seanci). Váhy rolí: kameník a stavitel;
   hlášky `settlement-walls-start/done`.

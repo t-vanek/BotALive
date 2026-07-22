@@ -19,8 +19,11 @@ import java.util.List;
  * = {@code null}); jedna implementace chůze, equipů a pauz.
  *
  * <p>Idempotentní jako plán sám: buňka, kde už bariéra stojí, se přeskočí
- * (kolize ve světě – world-diff jako {@code BuildSession}). Když dojde materiál
- * daného druhu, seance skončí – zbytek se dodělá příště (cíl mezitím dorobí).</p>
+ * (kolize ve světě – world-diff jako {@code BuildSession}). Když dojde stavební
+ * materiál sloupku, seance skončí – zbytek se dodělá příště (cíl mezitím dorobí).
+ * <b>Branka</b> je ale bonus: když ji bot nemá, buňka se jen přeskočí (zůstane
+ * otevřený průchod) a stavba běží dál – hradba tak nezůstane torzem kvůli chybějící
+ * brance a plot má aspoň otevřený vstup.</p>
  *
  * <p><b>Branka</b> se klade z <b>vnitřní strany</b> ohrady: směr branky se
  * odvozuje z pohledu bota při pokládce, a když bot stojí uvnitř a klade ven,
@@ -106,7 +109,11 @@ final class BarrierWorker {
                         ? ctx.inventory().equipItem(snapshot, post)
                         : ctx.inventory().equipBuildingBlock(snapshot)); // hradba: běžný blok
         if (!equipped) {
-            steps.clear(); // došel materiál – zbytek příště (cíl dorobí, plán je idempotentní)
+            if (isGate) {
+                steps.poll(); // branka není – nech otevřený průchod a stav dál (bonus)
+                return false;
+            }
+            steps.clear(); // došel stavební materiál – zbytek příště (plán je idempotentní)
             return false;
         }
         steps.poll();

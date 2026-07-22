@@ -126,6 +126,26 @@ public final class Enclosure {
     }
 
     /**
+     * Průchod ve vysoké bariéře (hradbě): <b>branka</b> dole, nad ní jeden
+     * <b>volný</b> blok (nadpraží – aby se dalo projít), pak <b>překlad</b>
+     * z bariéry přes zbytek výšky. Pro výšku 1–2 je to jen branka (na překlad
+     * není místo). Na rozdíl od {@link #column} tak zůstane brána průchozí i
+     * u hradby, která je vyšší než postava.
+     *
+     * @param post   sloupec s brankou z {@link #plan}
+     * @param height výška bariéry v blocích
+     * @return bloky k položení odspodu nahoru (branka + překlad)
+     */
+    public static List<Placement> gateway(Post post, int height) {
+        List<Placement> cells = new ArrayList<>();
+        cells.add(new Placement(post.base(), Cell.GATE));
+        for (int y = 2; y < height; y++) { // y == 1 zůstává volné (průchod)
+            cells.add(new Placement(post.base().offset(0, y, 0), Cell.POST));
+        }
+        return cells;
+    }
+
+    /**
      * Obvodové sloupce obdélníku ve světových XZ (bez dotazu na svět) – po směru
      * hodinových ručiček od severozápadního rohu. Každá buňka právě jednou.
      *
