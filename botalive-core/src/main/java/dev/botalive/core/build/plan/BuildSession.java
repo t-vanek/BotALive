@@ -62,7 +62,7 @@ public final class BuildSession {
         INCOMPLETE
     }
 
-    private enum Phase { TERRAFORM, UNIT_GOTO, UNIT_PLACE, FURNISH_GOTO, FURNISH, DONE }
+    private enum Phase { TERRAFORM, UNIT_GOTO, UNIT_PLACE, CLEANUP, FURNISH_GOTO, FURNISH, DONE }
 
     /** Tolerance dokročení u tolerantní stavby (dům): stačí okolí stanoviště. */
     private static final int STAND_TOLERANCE_SQ = 2;
@@ -79,6 +79,8 @@ public final class BuildSession {
     private final Deque<WorkUnit> units;
     private final Deque<PlacementCell> placements = new ArrayDeque<>();
     private final Deque<FurnishCell> furnish;
+    /** Dočasné lešení k úklidu po pokládce (shora dolů, ať bot bezpečně slézá). */
+    private final Deque<BlockPos> scaffold;
     /** Odbavené dávky – po vyprázdnění fronty se ověří proti světu. */
     private final List<WorkUnit> attempted = new ArrayList<>();
 
@@ -111,6 +113,11 @@ public final class BuildSession {
         this.fill = new ArrayDeque<>(schedule.fill());
         this.units = new ArrayDeque<>(schedule.units());
         this.furnish = new ArrayDeque<>(schedule.furnishing());
+        // Lešení se odklízí shora dolů: bot slézá po vytěžených blocích a
+        // neuvázne nad vzniklou dírou.
+        List<BlockPos> topDown = new ArrayList<>(schedule.scaffold());
+        topDown.sort((a, b) -> Integer.compare(b.y(), a.y()));
+        this.scaffold = new ArrayDeque<>(topDown);
         this.target = furnishStand;
     }
 
@@ -125,6 +132,7 @@ public final class BuildSession {
             case TERRAFORM -> tickTerraform(ctx);
             case UNIT_GOTO -> tickUnitGoto(ctx);
             case UNIT_PLACE -> tickPlace(ctx);
+            case CLEANUP -> tickCleanup(ctx);
             case FURNISH_GOTO -> tickFurnishGoto(ctx);
             case FURNISH -> tickFurnish(ctx);
             case DONE -> State.DONE;
@@ -252,8 +260,35 @@ public final class BuildSession {
             units.addAll(missingUnits);
             return State.RUNNING;
         }
-        target = furnishStand;
-        phase = Phase.FURNISH_GOTO;
+        // Stavba stojí – odklidit lešení (dřív než vybavení: pilíř bývá ve
+        // sloupci vnitřního stanoviště, odkud se osazuje).
+        phase = Phase.CLEANUP;
+        return State.RUNNING;
+    }
+
+    /**
+     * Odklidí dočasné lešení (pilíře pod vyvýšenými stanovišti) – vytěží ho
+     * shora dolů, takže stavitel po blocích slézá zpět na podlahu a zůstane
+     * jen stavba. Co ve světě nestojí (nízká stavba bez lešení, nebo blok
+     * mezitím zmizel), přeskočí. Prázdné lešení projde rovnou na vybavení.
+     */
+    private State tickCleanup(BotContext ctx) {
+        if (current != null) {
+            if (current.tick(ctx)) {
+                current = null;
+            }
+            return State.RUNNING;
+        }
+        BlockPos block = scaffold.poll();
+        if (block == null) {
+            target = furnishStand;
+            phase = Phase.FURNISH_GOTO;
+            return State.RUNNING;
+        }
+        if (ctx.worldView() != null && !ctx.worldView().traitsAt(block).solid()) {
+            return State.RUNNING; // není co těžit (nepostavené lešení / už pryč)
+        }
+        current = new MineBlockTask(block);
         return State.RUNNING;
     }
 

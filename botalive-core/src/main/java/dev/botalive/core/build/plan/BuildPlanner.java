@@ -1,5 +1,6 @@
 package dev.botalive.core.build.plan;
 
+import dev.botalive.core.tasks.PillarUpTask;
 import dev.botalive.core.util.BlockPos;
 import dev.botalive.core.util.Vec3;
 import dev.botalive.core.world.WorldView;
@@ -105,8 +106,26 @@ public final class BuildPlanner {
         }
         List<PlacementCell> ordered = order(plan.cells(), plan.groundColumns());
         List<WorkUnit> units = segment(ordered, plan);
+        List<BlockPos> scaffold = scaffoldFor(units, plan.stand().y());
         return new BuildSchedule(mine, fill, units, plan.stand(),
-                plan.standExact(), plan.furnishing());
+                plan.standExact(), plan.furnishing(), scaffold);
+    }
+
+    /**
+     * Dočasné bloky lešení: pod každým vyvýšeným stanovištěm (nad úrovní
+     * podlahy) stojí pilíř od podlahy po blok pod nohama stavitele – ten si ho
+     * cestou nahoru sám vypilíruje ({@code PillarUpTask}) a {@code BuildSession}
+     * ho po dostavbě vytěží. Stanoviště na úrovni podlahy pilíř nepotřebují.
+     */
+    private static List<BlockPos> scaffoldFor(List<WorkUnit> units, int floorY) {
+        Set<BlockPos> scaffold = new LinkedHashSet<>();
+        for (WorkUnit unit : units) {
+            BlockPos stand = unit.stand();
+            for (int y = floorY; y < stand.y(); y++) {
+                scaffold.add(new BlockPos(stand.x(), y, stand.z()));
+            }
+        }
+        return new ArrayList<>(scaffold);
     }
 
     /**
@@ -165,21 +184,67 @@ public final class BuildPlanner {
         return best;
     }
 
-    /** Kandidátní stanoviště: volná místa vnitřní podlahy (nad podlahou, mimo stavbu). */
+    /**
+     * Kandidátní stanoviště: volná místa vnitřní podlahy (nad podlahou, mimo
+     * stavbu) a nad nimi <b>vyvýšená pilířová stanoviště</b> pro bloky, na které
+     * ze země není dosah. Pilíř roste volným vnitřním sloupcem; stavitel na něj
+     * vyleze pilířováním ({@code PillarUpTask}) a po dostavbě ho session odklidí.
+     * Stoupá se, dokud je sloupec (nohy i hlava) volný a nepřesáhne strop
+     * jednoho pilíře ({@code PillarUpTask.MAX_HEIGHT}) ani vršek stavby.
+     */
     private static List<BlockPos> candidateStands(BuildPlan plan) {
         Set<Long> structure = new HashSet<>();
+        int topY = Integer.MIN_VALUE;
         for (PlacementCell cell : plan.cells()) {
             structure.add(cell.pos().asLong());
+            topY = Math.max(topY, cell.pos().y());
         }
-        Set<BlockPos> stands = new LinkedHashSet<>();
-        stands.add(plan.stand());
-        for (BlockPos ground : plan.groundColumns()) {
-            BlockPos floor = ground.up();
+        // Stanoviště na podlaze: deklarované + volná vnitřní podlaha.
+        Set<BlockPos> ground = new LinkedHashSet<>();
+        ground.add(plan.stand());
+        for (BlockPos g : plan.groundColumns()) {
+            BlockPos floor = g.up();
             if (!structure.contains(floor.asLong())) {
-                stands.add(floor);
+                ground.add(floor); // sloupec je zastavěný (zeď) → přeskočí se
+            }
+        }
+        // Lešení přidáme jen když na některý blok ze země nedosáhne žádné
+        // stanoviště – jinak se staví po podlaze (víc stanovišť, ale bez pilířů,
+        // což je levnější i čistší; velké sály takhle staví dál jako dřív).
+        if (reachableFromSome(plan.cells(), ground)) {
+            return new ArrayList<>(ground);
+        }
+        // Vyvýšená pilířová stanoviště nad volnými vnitřními sloupci.
+        Set<BlockPos> stands = new LinkedHashSet<>(ground);
+        for (BlockPos floor : ground) {
+            int maxY = Math.min(topY, floor.y() + PillarUpTask.MAX_HEIGHT);
+            for (int y = floor.y() + 1; y <= maxY; y++) {
+                BlockPos stand = new BlockPos(floor.x(), y, floor.z());
+                if (structure.contains(stand.asLong()) || structure.contains(stand.up().asLong())) {
+                    break; // tělo bota (nohy/hlava) by kolidovalo se stavbou
+                }
+                stands.add(stand);
             }
         }
         return new ArrayList<>(stands);
+    }
+
+    /** Dosáhne na každý blok aspoň jedno ze stanovišť? */
+    private static boolean reachableFromSome(List<PlacementCell> cells,
+                                             Collection<BlockPos> stands) {
+        for (PlacementCell cell : cells) {
+            boolean any = false;
+            for (BlockPos stand : stands) {
+                if (reaches(stand, cell.pos())) {
+                    any = true;
+                    break;
+                }
+            }
+            if (!any) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private static boolean allReachable(List<PlacementCell> cells, BlockPos stand) {
