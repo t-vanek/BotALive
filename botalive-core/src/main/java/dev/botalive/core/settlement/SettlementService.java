@@ -213,6 +213,8 @@ public final class SettlementService {
         WAREHOUSE(null),
         /** Radnice – prestižní stavba města (neposouvá stupeň). */
         TOWN_HALL(null),
+        /** Zvonice – prestižní stavba města (neposouvá stupeň). */
+        BELL_TOWER(null),
         /** Kostel – prestižní stavba města (neposouvá stupeň). */
         CHURCH(null),
         /** Kovárna – dílna kováře (pec + kovářský stůl). */
@@ -1038,10 +1040,14 @@ public final class SettlementService {
             return ProjectKind.WAREHOUSE;
         }
         // Prestižní stavby, až když je sídlo už město (neposouvají stupeň):
-        // nejdřív radnice, pak kostel.
+        // nejdřív radnice, pak zvonice, pak kostel.
         if (tierOf(settlement) == SettlementTier.MESTO
                 && !projectDone(settlement, ProjectKind.TOWN_HALL)) {
             return ProjectKind.TOWN_HALL;
+        }
+        if (tierOf(settlement) == SettlementTier.MESTO
+                && !projectDone(settlement, ProjectKind.BELL_TOWER)) {
+            return ProjectKind.BELL_TOWER;
         }
         if (tierOf(settlement) == SettlementTier.MESTO
                 && !projectDone(settlement, ProjectKind.CHURCH)) {

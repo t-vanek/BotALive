@@ -305,6 +305,16 @@ phrases:
     - "done, {name} has a town hall. the whole town will gather here"
     - "town hall finished, neighbours – the square has a real building now"
 
+  settlement-belltower-start:
+    - "{name} needs a bell tower – hauling stone, raising the belfry"
+    - "starting a bell tower for {name}, so a bell can ring over it"
+    - "a town without a bell tower? off to raise the belfry for {name}"
+
+  settlement-belltower-done:
+    - "the bell tower is up! a bell rings over {name}"
+    - "done, {name} has a bell tower. it'll call folk with the bell now"
+    - "belfry finished, neighbours – the bell hangs under the canopy"
+
   settlement-church-start:
     - "{name} is a proud town – it deserves a church. hauling stone, raising the nave"
     - "starting a church for {name}, so the settlement has its sanctuary"

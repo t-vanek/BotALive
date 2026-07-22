@@ -162,6 +162,29 @@ class BuildSessionSimulationTest {
     }
 
     @Test
+    void bellTowerBuildsOpenBelfryWithBell() {
+        FakeWorldView world = new FakeWorldView(FLOOR_Y);
+        BuildPlan plan = BuildPlan.of(Blueprints.bellTower(), ORIGIN, Cardinal.NORTH);
+        BuildSchedule schedule = BuildPlanner.schedule(plan, world);
+        // Skromná výška je záměr: celá zvonice je z jednoho stanoviště (bez lešení).
+        assertEquals(1, schedule.units().size(), "zvonice se staví z jednoho stanoviště");
+
+        FakeBotContext ctx = botAt(world, plan.stand())
+                .give(Material.COBBLESTONE, 100)
+                .give(Material.OAK_DOOR, 1)
+                .give(Material.BELL, 1)
+                .give(Material.TORCH, 1);
+
+        assertEquals(BuildSession.State.DONE, run(ctx, new BuildSession(schedule), 4000));
+        assertTrue(allSolid(world, plan), "základna, sloupky i baldachýn zvonice stojí");
+        for (FurnishCell f : plan.furnishing()) {
+            assertTrue(world.traitsAt(f.pos()).solid(), "vybavení zvonice osazeno: " + f.kind());
+        }
+        assertTrue(plan.furnishing().stream().anyMatch(f -> f.kind() == FurnishKind.BELL),
+                "zvonice má zvon");
+    }
+
+    @Test
     void granaryBuildsWithDoubleChest() {
         FakeWorldView world = new FakeWorldView(FLOOR_Y);
         BuildPlan plan = BuildPlan.of(Blueprints.granary(), ORIGIN, Cardinal.NORTH);

@@ -26,6 +26,7 @@ public final class Blueprints {
     private static final Blueprint MARKET_STALL = new MarketStallLegacy();
     private static final Blueprint TOWN_HALL = new CivicHall(5, 5, 3, true);
     private static final Blueprint CHURCH = new CivicHall(5, 7, 4, false);
+    private static final Blueprint BELL_TOWER = new BellTower();
 
     private Blueprints() {
     }
@@ -58,6 +59,11 @@ public final class Blueprints {
     /** @return blueprint kostela (obdélníková loď 5×7 s plochou střechou; prestižní stavba města). */
     public static Blueprint church() {
         return CHURCH;
+    }
+
+    /** @return blueprint zvonice (otevřená zvonička 3×3 se zvonem; prestižní stavba města). */
+    public static Blueprint bellTower() {
+        return BELL_TOWER;
     }
 
     /**
@@ -419,6 +425,136 @@ public final class Blueprints {
         }
     }
 
+    // =================================================================== zvonice
+
+    /**
+     * Zvonice – malá otevřená zvonička sídla (prestižní stavba města). Zděná
+     * základna 3×3 s dveřmi k návsi, nad ní čtyři rohové sloupky a plochý
+     * baldachýn; ve zvonovém patře visí pod baldachýnem zvon a korunu značí
+     * pochodeň. Bloky role {@code GENERIC} jako ostatní civilní stavby.
+     *
+     * <p>Výška je záměrně skromná (baldachýn v {@code y=4}): build engine staví
+     * z jednoho stanoviště na zemi (dosah {@code REACH_ASSIGN}=4,3 od očí ve
+     * výšce 1,62), takže vyšší věž by potřebovala lešení (V2d). I tahle
+     * zvonička ale vyčnívá nad sály (radnice v3, kostel v4) a zvon ji dělá
+     * nezaměnitelnou. Nejvzdálenější buňka (roh baldachýnu) je od stanoviště
+     * ~3,2 ≤ 4,3 → jedno stanoviště, {@code standExact}.</p>
+     */
+    private record BellTower() implements Blueprint {
+
+        private static final int SIZE = 3;
+        private static final int WALL_HEIGHT = 3; // základna y=0..2
+        private static final int POST_Y = 3;      // rohové sloupky (zvonové patro)
+        private static final int CANOPY_Y = 4;    // plochý baldachýn
+        private static final int BELL_Y = 3;      // zvon visí pod baldachýnem
+        private static final int TORCH_Y = 5;     // pochodeň na koruně
+
+        private static boolean isPerimeter(int x, int z) {
+            return x == 0 || x == SIZE - 1 || z == 0 || z == SIZE - 1;
+        }
+
+        private static boolean isCorner(int x, int z) {
+            return (x == 0 || x == SIZE - 1) && (z == 0 || z == SIZE - 1);
+        }
+
+        /** Spodní buňka dveří na straně k návsi. */
+        private static BlockPos doorBottom(BlockPos origin, Cardinal facing) {
+            return origin.offset(SIZE / 2 + facing.dx() * (SIZE / 2), 0,
+                    SIZE / 2 + facing.dz() * (SIZE / 2));
+        }
+
+        @Override
+        public List<PlacementCell> cells(BlockPos origin, Cardinal facing) {
+            BlockPos door = doorBottom(origin, facing);
+            List<PlacementCell> result = new ArrayList<>();
+            // Základna: obvodové zdi mimo otvor dveří (2 buňky y=0,1).
+            for (int y = 0; y < WALL_HEIGHT; y++) {
+                for (int x = 0; x < SIZE; x++) {
+                    for (int z = 0; z < SIZE; z++) {
+                        if (!isPerimeter(x, z)) {
+                            continue;
+                        }
+                        BlockPos pos = origin.offset(x, y, z);
+                        if (pos.x() == door.x() && pos.z() == door.z() && y < 2) {
+                            continue; // otvor dveří
+                        }
+                        result.add(new PlacementCell(pos, BlockSpec.GENERIC));
+                    }
+                }
+            }
+            // Zvonové patro: čtyři rohové sloupky (mezi nimi je otevřeno).
+            for (int x = 0; x < SIZE; x++) {
+                for (int z = 0; z < SIZE; z++) {
+                    if (isCorner(x, z)) {
+                        result.add(new PlacementCell(origin.offset(x, POST_Y, z), BlockSpec.GENERIC));
+                    }
+                }
+            }
+            // Plochý baldachýn.
+            for (int x = 0; x < SIZE; x++) {
+                for (int z = 0; z < SIZE; z++) {
+                    result.add(new PlacementCell(origin.offset(x, CANOPY_Y, z), BlockSpec.GENERIC));
+                }
+            }
+            return result;
+        }
+
+        @Override
+        public List<BlockPos> clearVolume(BlockPos origin, Cardinal facing) {
+            List<BlockPos> result = new ArrayList<>();
+            for (int x = 0; x < SIZE; x++) {
+                for (int y = 0; y <= CANOPY_Y; y++) {
+                    for (int z = 0; z < SIZE; z++) {
+                        result.add(origin.offset(x, y, z));
+                    }
+                }
+            }
+            return result;
+        }
+
+        @Override
+        public List<BlockPos> groundColumns(BlockPos origin, Cardinal facing) {
+            List<BlockPos> result = new ArrayList<>();
+            for (int x = 0; x < SIZE; x++) {
+                for (int z = 0; z < SIZE; z++) {
+                    result.add(origin.offset(x, -1, z));
+                }
+            }
+            return result;
+        }
+
+        @Override
+        public List<FurnishCell> furnishing(BlockPos origin, Cardinal facing) {
+            // Dveře k návsi, zvon visící ve středu pod baldachýnem, pochodeň na koruně.
+            return List.of(
+                    new FurnishCell(FurnishKind.DOOR, doorBottom(origin, facing)),
+                    new FurnishCell(FurnishKind.BELL, origin.offset(SIZE / 2, BELL_Y, SIZE / 2)),
+                    new FurnishCell(FurnishKind.TORCH, origin.offset(SIZE / 2, TORCH_Y, SIZE / 2)));
+        }
+
+        @Override
+        public BlockPos standPoint(BlockPos origin, Cardinal facing) {
+            return origin.offset(SIZE / 2, 0, SIZE / 2);
+        }
+
+        @Override
+        public Optional<BlockPos> doorCell(BlockPos origin, Cardinal facing) {
+            return Optional.of(doorBottom(origin, facing));
+        }
+
+        @Override
+        public int blocksNeeded() {
+            int perimeter = 4 * SIZE - 4;          // 8 obvodových buněk 3×3
+            int base = perimeter * WALL_HEIGHT - 2; // − otvor dveří (2)
+            return base + 4 /* sloupky */ + SIZE * SIZE /* baldachýn */;
+        }
+
+        @Override
+        public boolean standExact() {
+            return true; // malá věž – staví se přesně ze středu základny
+        }
+    }
+
     // ==================================================================== dílna
 
     /**
@@ -492,6 +628,7 @@ public final class Blueprints {
             case TORCH -> m -> m == Material.TORCH;
             case BED -> m -> m.name().endsWith("_BED");
             case CHEST -> m -> m == Material.CHEST;
+            case BELL -> m -> m == Material.BELL;
             case STATION -> throw new IllegalArgumentException(
                     "STATION nese materiál v FurnishCell.material() – použij ho místo itemFor");
         };

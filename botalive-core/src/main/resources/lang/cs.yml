@@ -319,6 +319,16 @@ phrases:
     - "hotovo, {name} má radnici. tady se sejde celé město"
     - "radnice dostavěná, sousedi – náves teď zdobí pořádná stavba"
 
+  settlement-belltower-start:
+    - "{name} potřebuje zvonici – beru kámen a stavím zvoničku"
+    - "pouštím se do zvonice pro {name:4}, ať má nad čím zní zvon"
+    - "město bez zvonice? jdu vztyčit zvoničku pro {name}"
+
+  settlement-belltower-done:
+    - "zvonice stojí! nad {name:7} se rozezní zvon"
+    - "hotovo, {name} má zvonici. teď svolá lidi zvonem"
+    - "zvonička dostavěná, sousedi – zvon už visí pod baldachýnem"
+
   settlement-church-start:
     - "{name} je hrdé město – zaslouží kostel. beru kámen a stavím loď"
     - "pouštím se do kostela pro {name:4}, ať má sídlo svatostánek"

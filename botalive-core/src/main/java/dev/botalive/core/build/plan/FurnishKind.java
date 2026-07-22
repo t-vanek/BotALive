@@ -17,6 +17,8 @@ public enum FurnishKind {
     BED,
     /** Truhla (sýpka – dvojtruhla dvěma buňkami). */
     CHEST,
+    /** Zvon (koruna zvonice). */
+    BELL,
     /**
      * Pracovní stanice účelné dílny (pec, udírna, ponk, composter, enchantovací
      * či varný stůl…). Konkrétní materiál nese {@link FurnishCell#material()} –

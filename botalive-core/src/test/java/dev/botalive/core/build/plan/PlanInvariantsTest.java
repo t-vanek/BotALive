@@ -27,7 +27,8 @@ class PlanInvariantsTest {
 
     private static List<Blueprint> blueprints() {
         return List.of(Blueprints.house(), Blueprints.well(), Blueprints.granary(),
-                Blueprints.marketStall(), Blueprints.townHall(), Blueprints.church());
+                Blueprints.marketStall(), Blueprints.townHall(), Blueprints.church(),
+                Blueprints.bellTower());
     }
 
     /** Nezávislá kontrola opory (nepoužívá interní BuildPlanner). */

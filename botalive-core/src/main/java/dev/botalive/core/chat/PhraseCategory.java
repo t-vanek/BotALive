@@ -102,6 +102,12 @@ public enum PhraseCategory {
     /** Radnice sídla dokončena ({@code {name}} = jméno sídla). */
     SETTLEMENT_TOWNHALL_DONE,
 
+    /** Bot začíná stavět zvonici sídla ({@code {name}} = jméno sídla). */
+    SETTLEMENT_BELLTOWER_START,
+
+    /** Zvonice sídla dokončena ({@code {name}} = jméno sídla). */
+    SETTLEMENT_BELLTOWER_DONE,
+
     /** Bot začíná stavět kostel sídla ({@code {name}} = jméno sídla). */
     SETTLEMENT_CHURCH_START,
 
