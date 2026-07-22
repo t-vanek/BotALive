@@ -45,6 +45,8 @@ public final class FarmGoal extends AbstractGoal {
 
     /** Délka zakládaného obilného řádku (buňky farmlandu v dosahu pokládky). */
     private static final int FIELD_SIZE = 3;
+    /** Kolik bloků nad polem musí být volno, aby šlo o otevřené prostranství. */
+    private static final int SKY_CLEARANCE = 6;
 
     /** Motyka libovolného materiálu – zorá hlínu/trávu na farmland. */
     private static final java.util.function.Predicate<Material> HOE =
@@ -355,7 +357,7 @@ public final class FarmGoal extends AbstractGoal {
         var snapshot = ctx.serverView().latest();
         if (world == null || snapshot == null || !snapshot.hasItem(HOE)
                 || dev.botalive.core.inventory.InventoryHelper.countItem(
-                        snapshot, Material.WHEAT_SEEDS) < FIELD_SIZE) {
+                        snapshot, Material.WHEAT_SEEDS) < FIELD_SIZE * FIELD_SIZE) {
             return false;
         }
         // Pole patří k zázemí – zakládá se jen u domova nebo známého pole.
@@ -371,27 +373,124 @@ public final class FarmGoal extends AbstractGoal {
         if (!nearBase) {
             return false;
         }
-        // Řádek zoratelné země v dosahu (žádná chůze): hlína/tráva s volným
-        // místem nad ní pro plodinu; zkusí čtyři směry od bota.
-        int[][] dirs = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}};
-        for (int[] d : dirs) {
-            java.util.List<BlockPos> row = new java.util.ArrayList<>();
-            for (int i = 1; i <= FIELD_SIZE; i++) {
-                BlockPos ground = feet.offset(d[0] * i, -1, d[1] * i);
-                if (tillable(world, ground) && world.traitsAt(ground.up()).passable()) {
-                    row.add(ground);
+        java.util.List<BlockPos> plot = fieldPlot(ctx, bot, feet);
+        if (plot.isEmpty()) {
+            return false;
+        }
+        fieldCells = java.util.List.copyOf(plot);
+        fieldQueue.clear();
+        fieldQueue.addAll(plot);
+        fieldTicks = 0;
+        phase = Phase.FIELD_TILL;
+        return true;
+    }
+
+    /**
+     * Buňky pole k zorání – souvislý čtverec {@code FIELD_SIZE×FIELD_SIZE}.
+     *
+     * <p>Členovi sídla vyhradí sídlo vlastní parcelu ({@code fieldSite}), takže
+     * pole je řádná součást vesnice a nikdo na něm nepostaví dům. Samotář si
+     * plochu najde vedle domu. V obou případech musí každá buňka projít
+     * {@link #plowable} – dřív se oral prostě řádek od nohou bota, takže
+     * farmář stojící doma zoral podlahu vlastního domu (uvnitř domu je
+     * přírodní tráva, obruba základů je jen po obvodu).</p>
+     *
+     * @param ctx  kontext bota
+     * @param bot  farmář
+     * @param feet pozice bota
+     * @return buňky pole, nebo prázdný seznam (není kde)
+     */
+    private java.util.List<BlockPos> fieldPlot(BotContext ctx, Bot bot, BlockPos feet) {
+        WorldView world = ctx.worldView();
+        if (ctx.settlements() != null) {
+            var reserved = ctx.settlements().fieldSite(bot.id(), FIELD_SIZE);
+            if (reserved.isPresent()) {
+                java.util.List<BlockPos> cells = squareAt(world, reserved.get(), ctx);
+                if (!cells.isEmpty()) {
+                    return cells;
                 }
-            }
-            if (row.size() == FIELD_SIZE) {
-                fieldCells = java.util.List.copyOf(row);
-                fieldQueue.clear();
-                fieldQueue.addAll(row);
-                fieldTicks = 0;
-                phase = Phase.FIELD_TILL;
-                return true;
+                // Parcela je zrovna nezoratelná (skála, voda) – ať farmář
+                // nestojí, zkusí se plocha u něj; parcela zůstává rezervovaná.
             }
         }
-        return false;
+        // Samotář (nebo nepoužitelná parcela): souvislý čtverec poblíž, ale
+        // s odstupem od bota, ať pole nezačíná pod nohama uvnitř zázemí.
+        for (int radius = 2; radius <= 8; radius++) {
+            for (int[] d : new int[][] {{1, 0}, {-1, 0}, {0, 1}, {0, -1}}) {
+                BlockPos corner = feet.offset(d[0] * radius, -1, d[1] * radius);
+                java.util.List<BlockPos> cells = squareAt(world, corner, ctx);
+                if (!cells.isEmpty()) {
+                    return cells;
+                }
+            }
+        }
+        return java.util.List.of();
+    }
+
+    /**
+     * Čtverec pole s rohem v {@code corner} (úroveň země), nebo prázdno, když
+     * kterákoli buňka nejde zorat. Výšku rohu si dorovná podle terénu ±1.
+     *
+     * @param world  pohled na svět
+     * @param corner roh pole (úroveň země)
+     * @param ctx    kontext bota
+     * @return buňky čtverce, nebo prázdný seznam
+     */
+    private java.util.List<BlockPos> squareAt(WorldView world, BlockPos corner, BotContext ctx) {
+        for (int dy = 0; dy >= -2; dy--) {
+            java.util.List<BlockPos> cells = new java.util.ArrayList<>();
+            for (int dx = 0; dx < FIELD_SIZE; dx++) {
+                for (int dz = 0; dz < FIELD_SIZE; dz++) {
+                    BlockPos cell = corner.offset(dx, dy, dz);
+                    if (!plowable(world, cell, ctx)) {
+                        cells.clear();
+                        break;
+                    }
+                    cells.add(cell);
+                }
+                if (cells.isEmpty()) {
+                    break;
+                }
+            }
+            if (cells.size() == FIELD_SIZE * FIELD_SIZE) {
+                return cells;
+            }
+        }
+        return java.util.List.of();
+    }
+
+    /**
+     * Smí se tahle buňka zorat? Musí to být hlína/tráva s volnem nad sebou,
+     * MIMO jakoukoli stavbu a pod otevřenou oblohou.
+     *
+     * <p>Kontrola staveb je bez výjimky pro majitele: orat si podlahu ve
+     * vlastním domě je stejný nesmysl jako v cizím. Obloha navíc vyloučí
+     * jeskyně a podloubí – obilí by tam stejně nerostlo.</p>
+     *
+     * @param world pohled na svět
+     * @param pos   buňka (úroveň země)
+     * @param ctx   kontext bota
+     * @return true, když se tu smí založit pole
+     */
+    private static boolean plowable(WorldView world, BlockPos pos, BotContext ctx) {
+        if (!tillable(world, pos) || !world.traitsAt(pos.up()).passable()) {
+            return false;
+        }
+        if (ctx.settlements() != null
+                && ctx.settlements().isStructureProtected(world.worldName(), pos)) {
+            return false; // uvnitř domu/stavby se neoře
+        }
+        return openToSky(world, pos);
+    }
+
+    /** Volno nad buňkou (aproximace oblohy) – vyloučí interiéry a jeskyně. */
+    private static boolean openToSky(WorldView world, BlockPos ground) {
+        for (int dy = 1; dy <= SKY_CLEARANCE; dy++) {
+            if (!world.traitsAt(ground.offset(0, dy, 0)).passable()) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /** Zoratelná půda: hlína nebo tráva (motyka z ní udělá farmland). */

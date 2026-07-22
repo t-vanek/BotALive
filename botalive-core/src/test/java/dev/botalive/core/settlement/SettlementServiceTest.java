@@ -952,6 +952,38 @@ class SettlementServiceTest {
                 "daleko od spawnu se zakládá normálně");
     }
 
+    /**
+     * Pole je řádná parcela sídla: vyhradí se jednou, je chráněné a nikdo ho
+     * nesmí dostat jako rozdělanou práci. Bez vlastní parcely oral farmář tam,
+     * kde zrovna stál – včetně podlahy vlastního domu.
+     */
+    @Test
+    void poleDostaneVlastniParceluSidla() {
+        var village = villageWithFourHouses();
+
+        BlockPos field = service.fieldSite(founder, 3).orElseThrow();
+
+        assertEquals(field, service.fieldSite(founder, 3).orElseThrow(),
+                "parcela pole se vyhradí jednou, další dotaz vrátí tutéž");
+        assertEquals(field, service.fieldSite(joiner, 3).orElseThrow(),
+                "pole je obecní – sdílí ho celé sídlo");
+        assertTrue(service.isStructureProtected(WORLD, field),
+                "na poli se netěží");
+        // Stavitelům se pole nikdy nenabídne jako práce.
+        var needed = service.neededProject(founder);
+        assertTrue(needed.isEmpty()
+                        || needed.get().kind() != SettlementService.ProjectKind.FIELD,
+                "pole není stavba pro CommunalBuildGoal");
+        assertTrue(service.doneProject(village.id(), SettlementService.ProjectKind.FIELD)
+                .isPresent(), "parcela pole je evidovaná (a tím persistovaná)");
+    }
+
+    /** Bot bez sídla parcelu pole nedostane – řeší si ho u domu sám. */
+    @Test
+    void samotarParceluPoleNedostane() {
+        assertTrue(service.fieldSite(third, 3).isEmpty());
+    }
+
     /** Vypnutá ochrana = chování jako dřív (nic není chráněné). */
     @Test
     void vypnutaOchranaNicNechrani() {
