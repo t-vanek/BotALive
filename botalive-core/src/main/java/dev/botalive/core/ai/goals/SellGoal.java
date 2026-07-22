@@ -5,16 +5,22 @@ import dev.botalive.api.memory.MemoryKind;
 import dev.botalive.api.personality.Trait;
 import dev.botalive.core.ai.BotContext;
 import dev.botalive.core.bot.ServerSideView;
+import dev.botalive.core.build.plan.Blueprints;
 import dev.botalive.core.chat.PhraseCategory;
 import dev.botalive.core.economy.MarketBoard;
 import dev.botalive.core.economy.MarketPrices;
 import dev.botalive.core.entity.TrackedEntity;
 import dev.botalive.core.inventory.InventoryHelper;
+import dev.botalive.core.pathfinding.PathGoal;
 import dev.botalive.core.pvp.PvpCoordinator;
+import dev.botalive.core.settlement.SettlementService;
+import dev.botalive.core.util.BlockPos;
+import dev.botalive.core.util.Cardinal;
 import org.bukkit.Material;
 
 import java.util.Locale;
 import java.util.Optional;
+import java.util.OptionalLong;
 
 /**
  * Prodej přebytků na trhu – chamtivá sestra {@code ShareGoal}.
@@ -49,13 +55,15 @@ public final class SellGoal extends AbstractGoal {
     /** Hráč potřebuje čas dojít a napsat /pay (~90 s). */
     private static final int PLAYER_HANDOVER_TICKS = 1800;
 
-    private enum Phase { OFFER, WAIT, HANDOVER, DONE }
+    private enum Phase { GO, OFFER, WAIT, HANDOVER, DONE }
 
     private final MarketBoard market;
     private final dev.botalive.core.social.SocialGraph graph;
 
     private Phase phase = Phase.OFFER;
     private Sale sale;
+    /** Kam se má vyvěsit nabídka (pult tržiště), nebo {@code null} = kde bot stojí. */
+    private BlockPos offerPos;
     private MarketBoard.Deal deal;
     private int waitTicks;
     private int handoverTicks;
@@ -118,8 +126,9 @@ public final class SellGoal extends AbstractGoal {
 
     @Override
     public void start(Bot bot) {
-        phase = Phase.OFFER;
+        phase = Phase.GO;
         sale = null;
+        offerPos = null;
         deal = null;
         given = 0;
         giveTicks = 0;
@@ -134,6 +143,7 @@ public final class SellGoal extends AbstractGoal {
     public void tick(Bot bot) {
         BotContext ctx = ctx(bot);
         switch (phase) {
+            case GO -> goToStall(ctx, bot);
             case OFFER -> offer(ctx, bot);
             case WAIT -> waitForBuyer(ctx, bot);
             case HANDOVER -> handover(ctx, bot);
@@ -159,6 +169,7 @@ public final class SellGoal extends AbstractGoal {
     @Override
     public String explain(Bot bot) {
         return switch (phase) {
+            case GO -> "jdu prodávat na tržiště";
             case OFFER, WAIT -> "prodávám na trhu"
                     + (sale == null ? "" : " – " + describe(sale));
             case HANDOVER -> "předávám zboží kupci";
@@ -167,6 +178,59 @@ public final class SellGoal extends AbstractGoal {
     }
 
     // ==================================================================
+
+    /**
+     * Cesta k tržišti sídla před vyvěšením nabídky – členové města prodávají
+     * od pultu, ne kdekoli zrovna stojí. Bez tržiště (loner, mladé sídlo) nebo
+     * když je pult nedosažitelný se prodává na místě (dnešní chování).
+     */
+    private void goToStall(BotContext ctx, Bot bot) {
+        // Rozjednaný obchod – kupec už jde; necestovat, offer() přejde do předávky.
+        if (market.pendingDeal(bot.id()).isPresent()) {
+            phase = Phase.OFFER;
+            return;
+        }
+        Optional<BlockPos> stall = marketStallSpot(ctx, bot);
+        if (stall.isEmpty()) {
+            offerPos = null; // není tržiště – prodej na místě (fallback)
+            phase = Phase.OFFER;
+            return;
+        }
+        BlockPos target = stall.get();
+        if (target.center().distanceSquared(ctx.position()) > 3.0 * 3.0) {
+            ctx.navigator().navigateTo(ctx.position(), PathGoal.near(target, 2));
+            if (!ctx.navigator().navigating()) {
+                offerPos = null; // pult nedosažitelný – prodej na místě
+                phase = Phase.OFFER;
+            }
+            return;
+        }
+        ctx.navigator().stop();
+        offerPos = target;
+        phase = Phase.OFFER;
+    }
+
+    /** Pozice pultu hotového tržiště bota (kotva nabídky), nebo prázdné. */
+    private Optional<BlockPos> marketStallSpot(BotContext ctx, Bot bot) {
+        if (ctx.settlements() == null || ctx.worldView() == null) {
+            return Optional.empty();
+        }
+        OptionalLong id = ctx.settlements().settlementIdOf(bot.id());
+        if (id.isEmpty()) {
+            return Optional.empty();
+        }
+        return ctx.settlements()
+                .doneProject(id.getAsLong(), SettlementService.ProjectKind.MARKET_STALL)
+                .map(p -> stallAnchor(p.origin(), p.facing()));
+    }
+
+    /**
+     * Kotva nabídky pro dané tržiště: střed pultu pod stříškou (geometrie
+     * {@link Blueprints#marketStall()} – jediný zdroj pravdy o rozměrech).
+     */
+    static BlockPos stallAnchor(BlockPos origin, Cardinal facing) {
+        return Blueprints.marketStall().standPoint(origin, facing);
+    }
 
     private void offer(BotContext ctx, Bot bot) {
         // Rozjednaný obchod z minula (cíl mezitím přerušen) – rovnou předávka.
@@ -184,9 +248,9 @@ public final class SellGoal extends AbstractGoal {
             phase = Phase.DONE;
             return;
         }
+        BlockPos pos = offerPos != null ? offerPos : ctx.position().toBlockPos();
         market.post(bot.id(), bot.name(), ctx.worldView().worldName(),
-                ctx.position().toBlockPos(), sale.material(), sale.count(),
-                sale.price());
+                pos, sale.material(), sale.count(), sale.price());
         ctx.chat().sayFrom(PhraseCategory.MARKET_OFFER, describe(sale));
         waitTicks = 900; // ~45 s vyvolávání
         phase = Phase.WAIT;

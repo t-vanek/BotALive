@@ -196,6 +196,9 @@ class SettlementServiceTest {
                 service.neededProject(founder).orElseThrow().kind());
         service.claimProject(village.id(), SettlementService.ProjectKind.MARKET_STALL, founder);
         service.projectFinished(village.id(), SettlementService.ProjectKind.MARKET_STALL);
+        assertTrue(service.doneProject(village.id(),
+                        SettlementService.ProjectKind.MARKET_STALL).isPresent(),
+                "hotové tržiště je dohledatelné jako kotva prodejních nabídek (SellGoal)");
         // Sýpka + tržiště + 8 domů + studna = město (víc pro stupeň netřeba).
         assertEquals(SettlementTier.MESTO,
                 service.settlementOf(founder).orElseThrow().tier(),
