@@ -286,9 +286,28 @@ nové testy K1–K4 zelené; `CommunalBuildGoal` bez per-druh větvení.
 > - `BuildGuardGoal` (nový cíl `build-guard`, GUARDIAN) – drží stráž
 >   u staveniště; boj přebírá `CombatGoal`/`PvpGoal`.
 >
-> **Zbývá z bodu 3 jako budoucí V2c**: per-etapová BOM (`contributionNeeds`),
-> stavy projektu `SITE→SUPPLY→BUILD→DONE` v DB (migrace v10) a přesné
-> materiálové palety – teprve až je vynutí šablonové stavby.
+> **HOTOVO (bod 2 – stavy projektu + BOM).** Migrace **v10** přidala
+> `state`/`needed`/`contributed` do `ba_settlement_projects` (round-trip test
+> nad SQLite). `SettlementService`: enum `ProjectState`, API `projectState`,
+> `beginSupply` (SITE→SUPPLY + zápis BOM), `beginBuild` (→BUILD), `contribute`
+> a `contributionNeeds` (BOM − nasbíráno; prázdné bez BOM → fallback). `done`
+> zůstává autoritou dokončení (`DONE ⟺ done`). Zapojeno: `CommunalBuildGoal`
+> hlásí `beginSupply`/`beginBuild`, `SupplyGoal` přestane nosit při dost
+> materiálu a připisuje `contribute`. **Odchylka od plánu**: `design`/
+> `params_json`/`chest_x/y/z` sloupce netřeba (truhla = sklad, palety zatím
+> netřeba – `GENERIC`); „minus obsah truhly" je aproximováno `contributed`
+> (monotonní), ne živým čtením truhly.
+>
+> **HOTOVO (bod 5 – vícparcelová rezervace).** `PlotLayout.indexFor` (inverze
+> `cellFor`, round-trip přes katastr) + `plotSpan`; `SettlementService
+> .reserveSite(id, w, d)` zabere souvislý blok přiléhajících parcel
+> (`unusablePlots.put(index, Long.MAX_VALUE)`), origin vycentrovaný nad
+> blokem. Dnes se všechny civilní stavby vejdou do parcely (≤ rozestup), tak
+> je to připravená schopnost pro budoucí velké stavby, ne změna chování.
+>
+> **Zbývá z V2c**: šablonový loader (bod 1), `BELL_TOWER` (bod 4 – potřebuje
+> lešení z V2d na pravou věž) a přesné materiálové palety – teprve až je
+> vynutí šablonové stavby.
 
 ## V2d – konsolidace
 
