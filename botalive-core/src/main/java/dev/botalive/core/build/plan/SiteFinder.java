@@ -238,16 +238,16 @@ public final class SiteFinder {
     }
 
     /**
-     * Největší rozměr půdorysu (šířka, nebo hloubka) odvozený z {@code
-     * groundColumns} – kolik místa stavba v rovině zabere. Volající z něj
-     * a z rozestupu parcel spočítá, jak daleko smí {@link #search} posunout,
-     * aby stavba zůstala ve své parcele.
+     * Rozměry půdorysu {@code {šířka X, hloubka Z}} odvozené z {@code
+     * groundColumns} – kolik místa stavba v rovině zabere. Z nich a z rozestupu
+     * parcel se počítá jak vycentrování stavby na parcelu, tak dosah posunu
+     * ({@link #search}).
      *
      * @param blueprint geometrie stavby
      * @param facing    orientace (obdélníkový půdorys se s ní může otočit)
-     * @return {@code max(šířka, hloubka)} v blocích, {@code 0} pro prázdný půdorys
+     * @return {@code {šířka, hloubka}} v blocích, {@code {0, 0}} pro prázdný půdorys
      */
-    public static int footprintSpan(Blueprint blueprint, Cardinal facing) {
+    public static int[] footprintDims(Blueprint blueprint, Cardinal facing) {
         int minX = Integer.MAX_VALUE;
         int maxX = Integer.MIN_VALUE;
         int minZ = Integer.MAX_VALUE;
@@ -259,9 +259,15 @@ public final class SiteFinder {
             maxZ = Math.max(maxZ, column.z());
         }
         if (minX > maxX) {
-            return 0; // prázdný půdorys (teoreticky)
+            return new int[]{0, 0}; // prázdný půdorys (teoreticky)
         }
-        return Math.max(maxX - minX + 1, maxZ - minZ + 1);
+        return new int[]{maxX - minX + 1, maxZ - minZ + 1};
+    }
+
+    /** @return větší z rozměrů půdorysu (viz {@link #footprintDims}). */
+    public static int footprintSpan(Blueprint blueprint, Cardinal facing) {
+        int[] dims = footprintDims(blueprint, facing);
+        return Math.max(dims[0], dims[1]);
     }
 
     // ---------------------------------------------------------------- pomocné

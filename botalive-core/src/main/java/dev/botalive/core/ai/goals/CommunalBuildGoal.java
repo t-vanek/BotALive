@@ -15,9 +15,11 @@ import dev.botalive.core.pathfinding.PathGoal;
 import dev.botalive.core.chat.PhraseCategory;
 import dev.botalive.core.crafting.CraftingService;
 import dev.botalive.core.station.CraftingStation;
+import dev.botalive.core.settlement.PlotLayout;
 import dev.botalive.core.settlement.SettlementService;
 import dev.botalive.core.settlement.SettlementService.ProjectKind;
 import dev.botalive.core.util.BlockPos;
+import dev.botalive.core.util.Cardinal;
 import dev.botalive.core.world.WorldDimension;
 import dev.botalive.core.world.WorldView;
 
@@ -432,12 +434,16 @@ public final class CommunalBuildGoal extends AbstractGoal {
      */
     private boolean adjustSite(BotContext ctx, WorldView world) {
         Blueprint blueprint = blueprintFor(project.kind());
+        // Vycentrovat půdorys na parcelu: plotOrigin počítá roh z rozměru domu
+        // (4×4), takže studna/tržiště/kostel s jiným rozměrem sedí mimo střed.
+        // Idempotentní snap na mřížku – rozestavěná stavba se trefí zpět.
+        BlockPos suggested = centerOnPlot(ctx, blueprint, project.origin(), project.facing());
         // Kolik se smí staveniště posunout v parcele: rezerva k sousedovi
         // (rozestup − půdorys) zpola, nejvýš MAX_SITE_SEARCH_RADIUS.
         int radius = Math.max(1, Math.min(MAX_SITE_SEARCH_RADIUS,
                 (ctx.config().settlement().plotSpacing()
                         - SiteFinder.footprintSpan(blueprint, project.facing())) / 2));
-        BlockPos usable = SiteFinder.search(world, blueprint, project.origin(),
+        BlockPos usable = SiteFinder.search(world, blueprint, suggested,
                 project.facing(), ctx.config().ai().terraforming(), radius).orElse(null);
         if (usable == null) {
             ctx.settlements().relocateProject(project.settlementId(), project.kind());
@@ -452,6 +458,22 @@ public final class CommunalBuildGoal extends AbstractGoal {
             plan = BuildPlan.of(blueprint, usable, project.facing());
         }
         return true;
+    }
+
+    /**
+     * Vycentruje roh staveniště na střed parcely podle skutečného půdorysu
+     * (idempotentně – rozestavěná stavba se trefí zpět do svého originu). Bez
+     * sídla (nemá mřížku) vrací roh beze změny.
+     */
+    private BlockPos centerOnPlot(BotContext ctx, Blueprint blueprint, BlockPos origin,
+                                  Cardinal facing) {
+        var info = ctx.settlements().settlementOf(selfId);
+        if (info.isEmpty()) {
+            return origin;
+        }
+        int[] dims = SiteFinder.footprintDims(blueprint, facing);
+        return PlotLayout.centerFootprint(origin, dims[0], dims[1],
+                info.get().center(), ctx.config().settlement().plotSpacing());
     }
 
     private void tickSession(BotContext ctx, Bot bot) {

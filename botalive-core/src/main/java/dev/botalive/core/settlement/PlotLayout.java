@@ -38,6 +38,36 @@ public final class PlotLayout {
     }
 
     /**
+     * Vycentruje půdorys stavby na střed parcely. {@link #plotOrigin} počítá roh
+     * z rozměru domu (4×4); stavba s jiným půdorysem (studna 3×3, kostel 5×7)
+     * by tak seděla mimo střed parcely. Tahle funkce posune roh tak, aby
+     * <b>střed půdorysu</b> padl na nejbližší uzel mřížky parcel. Je
+     * <b>idempotentní</b> – už vycentrovaný roh se nehne, takže rozestavěná
+     * stavba se vždy trefí zpět do svého originu.
+     *
+     * @param origin     dosavadní roh půdorysu
+     * @param footprintW šířka půdorysu (X)
+     * @param footprintD hloubka půdorysu (Z)
+     * @param center     střed vesnice (uzel mřížky)
+     * @param spacing    rozestup buněk mřížky
+     * @return vycentrovaný roh (Y beze změny)
+     */
+    public static BlockPos centerFootprint(BlockPos origin, int footprintW, int footprintD,
+                                           BlockPos center, int spacing) {
+        if (spacing <= 0) {
+            return origin;
+        }
+        int gx = snapToGrid(origin.x() + footprintW / 2, center.x(), spacing) - footprintW / 2;
+        int gz = snapToGrid(origin.z() + footprintD / 2, center.z(), spacing) - footprintD / 2;
+        return new BlockPos(gx, origin.y(), gz);
+    }
+
+    /** Nejbližší uzel mřížky {@code origin + k×spacing} k dané souřadnici. */
+    private static int snapToGrid(int coord, int origin, int spacing) {
+        return origin + Math.round((float) (coord - origin) / spacing) * spacing;
+    }
+
+    /**
      * Orientace domu na parcele – dveřmi k návsi.
      *
      * @param plotOrigin origin parcely

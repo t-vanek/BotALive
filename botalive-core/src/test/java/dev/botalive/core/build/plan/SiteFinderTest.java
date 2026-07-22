@@ -190,6 +190,16 @@ class SiteFinderTest {
     }
 
     @Test
+    void footprintDimsAreWidthAndDepth() {
+        int[] church = SiteFinder.footprintDims(Blueprints.church(), Cardinal.NORTH);
+        assertEquals(5, church[0], "kostel šířka X = 5");
+        assertEquals(7, church[1], "kostel hloubka Z = 7");
+        int[] hall = SiteFinder.footprintDims(Blueprints.townHall(), Cardinal.NORTH);
+        assertEquals(5, hall[0], "radnice 5×5");
+        assertEquals(5, hall[1], "radnice 5×5");
+    }
+
+    @Test
     void searchSnapsToExactOriginForResume() {
         FakeWorldView world = new FakeWorldView(FLOOR_Y);
         BlockPos suggested = new BlockPos(10, GROUND, 10);

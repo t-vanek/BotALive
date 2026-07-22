@@ -71,4 +71,33 @@ class PlotLayoutTest {
         BlockPos north = new BlockPos(-2, 64, -SPACING - 2);
         assertEquals(Cardinal.SOUTH, PlotLayout.facingToward(north, CENTER));
     }
+
+    @Test
+    void centerFootprintPosuneObdelnikDoStreduParcely() {
+        BlockPos plot = PlotLayout.plotOrigin(CENTER, 1, SPACING); // roh z rozměru 4×4
+        // Kostel 5×7: šířka 5 je vycentrovaná stejně jako 4×4 (X beze změny),
+        // hloubka 7 se posune o 1, aby střed padl na uzel mřížky.
+        BlockPos centered = PlotLayout.centerFootprint(plot, 5, 7, CENTER, SPACING);
+        assertEquals(plot.x(), centered.x(), "šířka 5 už je vycentrovaná");
+        assertEquals(plot.z() - 1, centered.z(), "hloubka 7 se posune o 1 ke středu");
+        assertEquals(plot.y(), centered.y(), "výška beze změny");
+    }
+
+    @Test
+    void centerFootprintNechavaCtyriKratCtyriBezeZmeny() {
+        BlockPos plot = PlotLayout.plotOrigin(CENTER, 3, SPACING);
+        // Dům/sýpka 4×4: plotOrigin z něj počítá roh, takže je už vycentrovaný.
+        assertEquals(plot, PlotLayout.centerFootprint(plot, 4, 4, CENTER, SPACING),
+                "4×4 zůstává");
+    }
+
+    @Test
+    void centerFootprintJeIdempotentni() {
+        BlockPos plot = PlotLayout.plotOrigin(CENTER, 5, SPACING);
+        // Studna 3×3: opakované vycentrování nic nemění – rozestavěná stavba
+        // se tak vždy trefí zpět do svého originu (resume-safe).
+        BlockPos once = PlotLayout.centerFootprint(plot, 3, 3, CENTER, SPACING);
+        BlockPos twice = PlotLayout.centerFootprint(once, 3, 3, CENTER, SPACING);
+        assertEquals(once, twice, "opakované vycentrování je no-op");
+    }
 }
