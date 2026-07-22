@@ -324,6 +324,15 @@ phrases:
     - "vesnice potřebuje, aby tu byl {name} – hlásím se"
     - "měním řemeslo, {name} tady prostě scházel"
 
+  settlement-fence-start:
+    - "obeženu si dům plotem, ať mám svůj kus"
+    - "beru prkna, kolem domu chce pořádnou ohradu"
+    - "postavím si plot, dvorek se hodí"
+  settlement-fence-done:
+    - "plot stojí, dům je konečně obehnaný"
+    - "hotovo, kolem domu mám ohradu i s brankou"
+    - "tak, dvorek je oplocený. vejde se brankou"
+
   camp-setup:
     - "domů je to daleko, rozdělám si tady oheň a přečkám noc"
     - "na noční pochod to nevidím, táborím tady"

@@ -312,6 +312,15 @@ phrases:
     - "the village needs a {name} around – that's me now"
     - "changing trades, we simply had no {name} here"
 
+  settlement-fence-start:
+    - "fencing in my house, want a yard of my own"
+    - "grabbing planks, the house needs a proper fence"
+    - "putting up a fence, a little yard will do nicely"
+  settlement-fence-done:
+    - "fence is up, the house is finally enclosed"
+    - "done, got a yard around the house with a gate"
+    - "there, the yard's fenced in. walk in through the gate"
+
   camp-setup:
     - "home is far away, I'll light a fire here and wait out the night"
     - "not marching through the night, making camp here"

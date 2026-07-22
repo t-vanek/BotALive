@@ -127,7 +127,7 @@ seanci a nikdy se nepřepíše podlaha domu, políčko ani voda. Síť vlastní
 `SettlementService` (jeden stavitel naráz – claim s TTL jako u společných
 projektů); stav se nepersistuje, protože fyzická cesta ve světě je autorita.
 
-## Ohradní bariéry: ploty a hradby (základ)
+## Ohradní bariéry: ploty a hradby
 
 Uzavřené obvodové stavby – **plot** kolem parcel domů a stád, **hradby** kolem
 sídel – patří ke stejnému modelu jako cesty: čistý plán nad `WorldView` po
@@ -147,12 +147,30 @@ terénu, idempotentní, se stropem kroků na seanci. Základ tvoří dva primiti
 Fyzicky ploty už fungují (kolize `TALL_BOXES` v `BlockTraits`, otevírání branek
 přes `DoorOpener`), takže postavená bariéra zvířata udrží a boti brankou projdou.
 
-**Zatím bez chování**: primitiv nikdo z cílů nevolá – je to připravený základ,
-ne zapojená smyčka. Autonomní stavění (cíl `settlement-walls` s `DecorWorker`-stylem
-exekuce nad `Enclosure`+`BarrierStyle`, plot kolem parcel domů a stád) se zapne za
-`settlement.walls`/`settlement.fences` a je navazující krok. DNA zůstane stejná:
-staví se ve dne, poblíž domova, jeden stavitel naráz (claim s TTL jako u cest),
-a rozdělaná bariéra se dodělá napříč seancemi.
+### Plot kolem domu (hotovo, za `settlement.fences`)
+
+Cíl `settlement-fences` (`SettlementFenceGoal`) obežene parcelu domu plotem
+6×6 (dvorek s odsazením 1) s **brankou na straně dveří**; funguje pro člena
+vesnice i samotáře (parcelu zná z `SettlementService.claimedPlot`, jinak z HOME
+dat – jako `MaintainHomeGoal`). DNA jako u cest/domů: staví se ve dne, poblíž
+domova, nízká priorita (řeší se, když je klid), a rozdělaný plot se dodělá
+napříč seancemi (plán je idempotentní).
+
+- **Materiál z prken**: plot v batohu bot skoro nikdy nemá, tak si plaňky a
+  branku vyrobí z prken (`CraftingService.craftFencing`, klacky se domáčknou
+  z prken – stejný vzor jako stanice dílen); potřebuje ponk.
+- **Vykonavatel** `BarrierWorker` (sestra `DecorWorker`) klade po obvodu; branku
+  staví z **vnitřní strany** ohrady, aby yaw mířil ven a branka se napojila na
+  plot (ne napříč) – `PlaceBlockTask` + stanoviště, ne jen pohled.
+- Váhy rolí: farmář/pastýř (drží zvířata) a stavitel k plotu tíhnou; hlášky
+  `settlement-fence-start/done`.
+
+### Hradby kolem sídel a ohrady zvířat (základ / navazující krok)
+
+Zbývá autonomní stavění: **hradby** kolem sídla (cíl `settlement-walls`
+roads-style nad `Enclosure`, z běžných stavebních bloků – ty boti mají) a
+**ohrady** kolem stád (výběr místa a velikosti, sehnání zvířat). Primitivy
+(`Enclosure`, `BarrierStyle`) i vypínač `settlement.walls` jsou připravené.
 
 ## Fáze D – město a krajina
 
@@ -171,10 +189,10 @@ a rozdělaná bariéra se dodělá napříč seancemi.
 - Max 8 členů (`settlement.max-members`) drží sídla lidská; město je
   „plná vesnice s infrastrukturou", ne metropole. Zvětšování kapacity
   podle stupně je možné rozšíření (config), ne předpoklad.
-- **Hradby a ploty**: stavební *základ* (primitiv `Enclosure` + materiály
-  `BarrierStyle` + config vypínače `settlement.walls`/`settlement.fences`) je
-  **hotový**, ale autonomní stavění je za konfigurací a defaultně vypnuté –
-  zapnutí je navazující krok (viz „Ohradní bariéry (základ)"). Radnice a druhé
+- **Ploty kolem domů**: hotové (cíl `settlement-fences`, za `settlement.fences`,
+  defaultně vypnuto). **Hradby** kolem sídel a **ohrady** kolem zvířat mají
+  hotový základ (`Enclosure`/`BarrierStyle` + vypínač `settlement.walls`), ale
+  autonomní stavění je navazující krok (viz „Ohradní bariéry"). Radnice a druhé
   prstence budov zůstávají mimo plán, dokud se neukáže, že B–D substance
   nestačí. (Účelné řemeslné dílny fáze E jsou výjimka odůvodněná specializací –
   nezvětšují sídlo, jen ho prohlubují.)

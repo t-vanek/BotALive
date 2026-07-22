@@ -20,7 +20,7 @@ public final class RoleProfiles {
             Map.entry(BotRole.BUILDER, Map.of(
                     "shelter", 2.5, "house", 3.0, "communal-build", 2.5,
                     "craft", 1.4, "mine", 1.3, "home", 1.3,
-                    "maintain", 2.2, "shear", 1.3)),
+                    "maintain", 2.2, "shear", 1.3, "settlement-fences", 1.8)),
             Map.entry(BotRole.MINER, Map.of(
                     "mine", 2.5, "collect", 1.3, "craft", 1.2, "smelt", 1.3,
                     "nether", 1.6, "smith", 1.4, "end-harvest", 1.4)),
@@ -41,7 +41,7 @@ public final class RoleProfiles {
                     "fish", 2.6, "boat", 1.4, "sell", 1.4)),
             Map.entry(BotRole.FARMER, Map.of(
                     "farm", 2.5, "trade", 1.3, "craft", 1.1, "share", 1.5, "compost", 2.0,
-                    "sell", 1.6, "breed", 2.4, "granary", 1.3)),
+                    "sell", 1.6, "breed", 2.4, "granary", 1.3, "settlement-fences", 2.0)),
 
             // ---- profese doplněné, aby hotové cíle měly svého "majitele"
             // (brew, tame, reconcile, deliver-work, camp, minecart, rob…
@@ -96,7 +96,7 @@ public final class RoleProfiles {
                     "hunt", 2.0, "breed", 1.8, "craft", 1.6, "trade", 1.3)),
             Map.entry(BotRole.SHEPHERD, Map.of(
                     "breed", 2.4, "shear", 2.4, "farm", 1.4, "collect", 1.4,
-                    "share", 1.3, "craft", 1.2))
+                    "share", 1.3, "craft", 1.2, "settlement-fences", 2.2))
     );
 
     private RoleProfiles() {
