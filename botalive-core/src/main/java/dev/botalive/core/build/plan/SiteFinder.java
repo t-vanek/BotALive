@@ -78,19 +78,29 @@ public final class SiteFinder {
      */
     public static int cost(WorldView world, Blueprint blueprint, BlockPos origin,
                            Cardinal facing, Set<BlockPos> skip, boolean terraforming) {
+        List<BlockPos> ground = blueprint.groundColumns(origin, facing);
+        // Rozpočet úprav roste s velikostí půdorysu: velký sál na stejném svahu
+        // jako studna smí srovnat úměrně víc (jinak by ho fixní strop nikam
+        // nepustil). Malé stavby (studna 9, dům 16 sloupců) zůstávají na
+        // MAX_FILLS/MAX_DIGS – ty jsou spodní mez, ne pevná hodnota.
+        int maxFills = Math.max(MAX_FILLS, ground.size() / 4);
+        int maxDigs = Math.max(MAX_DIGS, ground.size() / 2);
         int fills = 0;
         // Podlaha: pod celým půdorysem musí být pevno (díry se zasypou).
-        for (BlockPos ground : blueprint.groundColumns(origin, facing)) {
-            BlockTraits traits = world.traitsAt(ground);
+        for (BlockPos column : ground) {
+            BlockTraits traits = world.traitsAt(column);
             if (traits == BlockTraits.UNKNOWN) {
                 return COST_UNKNOWN;
+            }
+            if (traits.hazard()) {
+                return COST_INVALID; // podlaha na lávě/magmatu – nikdy (i když je pevná)
             }
             if (traits.liquid()) {
                 return COST_INVALID;
             }
             if (!traits.solid()) {
                 fills++;
-                if (fills > MAX_FILLS || !terraforming) {
+                if (fills > maxFills || !terraforming) {
                     return COST_INVALID;
                 }
             }
@@ -105,12 +115,15 @@ public final class SiteFinder {
             if (traits == BlockTraits.UNKNOWN) {
                 return COST_UNKNOWN;
             }
+            if (traits.hazard()) {
+                return COST_INVALID; // oheň/magma v objemu (i průchozí) – nestavět kolem
+            }
             if (traits.liquid()) {
                 return COST_INVALID;
             }
             if (traits.solid()) {
                 digs++;
-                if (digs > MAX_DIGS || !terraforming) {
+                if (digs > maxDigs || !terraforming) {
                     return COST_INVALID;
                 }
             }
@@ -172,6 +185,56 @@ public final class SiteFinder {
             }
         }
         return Optional.empty();
+    }
+
+    /**
+     * Robustní výběr rohu: nejdřív <b>přesně navržené místo</b> (parita a resume –
+     * rozestavěná stavba se trefí do svého originu a naváže world-diffem, protože
+     * vlastní bloky se nepočítají); když je nepoužitelné, <b>posune se v okně</b>
+     * {@code ±radius} kolem návrhu (než sídlo sáhne po úplně jiné parcele) a vybere
+     * nejrovnější (nejlevnější, při shodě nejbližší) použitelný roh. Radius drží
+     * volající malý, ať posun nevyleze z parcely do sousedovy.
+     *
+     * @param world        pohled na svět (načtené okolí staveniště)
+     * @param blueprint    geometrie stavby
+     * @param suggested    navržený roh půdorysu
+     * @param facing       orientace stavby
+     * @param terraforming smí bot upravovat terén?
+     * @param radius       kolik bloků do stran se smí posunout (v rámci parcely)
+     * @return roh ke stavbě, nebo prázdné (ani v okně není místo)
+     */
+    public static Optional<BlockPos> search(WorldView world, Blueprint blueprint,
+                                            BlockPos suggested, Cardinal facing,
+                                            boolean terraforming, int radius) {
+        Optional<BlockPos> exact = usableOrigin(world, blueprint, suggested, facing, terraforming);
+        if (exact.isPresent()) {
+            return exact; // přesné místo sedí (nebo je tam rozestavěná stavba) – neposouvat
+        }
+        BlockPos best = null;
+        int bestCost = Integer.MAX_VALUE;
+        long bestDist = Long.MAX_VALUE;
+        for (int dz = -radius; dz <= radius; dz++) {
+            for (int dx = -radius; dx <= radius; dx++) {
+                if (dx == 0 && dz == 0) {
+                    continue; // přesný roh už zkoušen výše
+                }
+                BlockPos base = new BlockPos(suggested.x() + dx, suggested.y(),
+                        suggested.z() + dz);
+                long dist = (long) dx * dx + (long) dz * dz;
+                for (BlockPos candidate : candidates(world, blueprint, base, facing)) {
+                    int c = cost(world, blueprint, candidate, facing, Set.of(), terraforming);
+                    if (c < 0) {
+                        continue; // INVALID i UNKNOWN přeskoč (na místě jsou chunky načtené)
+                    }
+                    if (c < bestCost || (c == bestCost && dist < bestDist)) {
+                        best = candidate;
+                        bestCost = c;
+                        bestDist = dist;
+                    }
+                }
+            }
+        }
+        return Optional.ofNullable(best);
     }
 
     // ---------------------------------------------------------------- pomocné
