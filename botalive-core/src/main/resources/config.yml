@@ -330,6 +330,16 @@ settlement:
   # propojí celé sídlo silniční sítí (hlavní ulice k domům, město dostane
   # obvodový okruh); dusá se jen po trávě, takže cesty rostou se sídlem.
   paths: true
+  # PŘIPRAVENO (zatím bez efektu): stavební primitiv pro ohradní bariéry
+  # (Enclosure) je hotový, ale boti sami ještě hradby ani ploty nestaví –
+  # autonomní stavění je navazující krok a zapne se odsud.
+  # Obehnat sídla (vesnice/město) hradbami – kamenná zídka po vnějším prstenci
+  # s brankami u výjezdů cest.
+  walls: false
+  # Obehnat parcely domů a stáda zvířat plotem s brankou (z místního dřeva).
+  fences: false
+  # Výška hradby v blocích (plot je vždy 1 blok vysoký).
+  wall-height: 2
   # Po kolika dnech bez připojení se člen vesnice při startu serveru vyřadí
   # a uvolní parcelu (bot odstraněný bez purge; jeho dům ve vesnici zůstává).
   # 0 = duchové se nevymetají nikdy.

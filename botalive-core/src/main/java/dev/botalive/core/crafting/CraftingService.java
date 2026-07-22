@@ -266,6 +266,81 @@ public final class CraftingService implements dev.botalive.core.station.Crafting
         return true;
     }
 
+    // ---------------------------------------------------------- výroba plotu
+
+    /** Klacky se domáčknou z prken (2 prkna → 4 klacky), jako meziprodukt stanic. */
+    private static final int STICKS_PER_BATCH = 4;
+    private static final int PLANKS_PER_STICK_BATCH = 2;
+    /** Recept plaňky: 4 prkna + 2 klacky → 3 plaňky; branka: 2 prkna + 4 klacky → 1. */
+    private static final int PLANKS_PER_FENCE_BATCH = 4;
+    private static final int STICKS_PER_FENCE_BATCH = 2;
+    private static final int FENCES_PER_BATCH = 3;
+    private static final int PLANKS_PER_GATE = 2;
+    private static final int STICKS_PER_GATE = 4;
+
+    /**
+     * Má bot prkna (a klacky, případně domáčknutelné z prken) na výrobu daného
+     * počtu plaňků a branek? Čistá brána pro utility cíle plotu (běží na tick
+     * vlákně bota), stejný vzor jako {@link #canCraftStation}.
+     *
+     * @param snapshot inventářový snímek bota
+     * @param planks   druh prken (musí ho být dost jednoho druhu)
+     * @param fences   kolik plaňků
+     * @param gates    kolik branek
+     * @return {@code true} když na to prkna stačí
+     */
+    public static boolean canCraftFencing(dev.botalive.core.bot.ServerSideView.Snapshot snapshot,
+                                          Material planks, int fences, int gates) {
+        if (snapshot == null || planks == null) {
+            return false;
+        }
+        int fenceBatches = (Math.max(0, fences) + FENCES_PER_BATCH - 1) / FENCES_PER_BATCH;
+        int planksNeeded = fenceBatches * PLANKS_PER_FENCE_BATCH + Math.max(0, gates) * PLANKS_PER_GATE;
+        int sticksNeeded = fenceBatches * STICKS_PER_FENCE_BATCH + Math.max(0, gates) * STICKS_PER_GATE;
+        int haveSticks = countSnapshot(snapshot, m -> m == Material.STICK);
+        int stickBatches = (Math.max(0, sticksNeeded - haveSticks) + STICKS_PER_BATCH - 1) / STICKS_PER_BATCH;
+        int planksForSticks = stickBatches * PLANKS_PER_STICK_BATCH;
+        Material p = planks;
+        return countSnapshot(snapshot, m -> m == p) >= planksNeeded + planksForSticks;
+    }
+
+    /**
+     * Druh prken, kterých má bot v batohu nejvíc (plot se staví z jednoho druhu,
+     * aby recept sedl) – jinak {@code null}.
+     *
+     * @param snapshot inventářový snímek bota
+     * @return převažující {@code *_PLANKS}, nebo {@code null} když žádné nemá
+     */
+    public static Material dominantPlanks(dev.botalive.core.bot.ServerSideView.Snapshot snapshot) {
+        if (snapshot == null) {
+            return null;
+        }
+        Map<Material, Integer> tally = new java.util.HashMap<>();
+        tallyPlanks(tally, snapshot.hotbar(), snapshot.hotbarCounts());
+        tallyPlanks(tally, snapshot.mainInventory(), snapshot.mainCounts());
+        Material best = null;
+        int bestCount = 0;
+        for (Map.Entry<Material, Integer> entry : tally.entrySet()) {
+            if (entry.getValue() > bestCount) {
+                bestCount = entry.getValue();
+                best = entry.getKey();
+            }
+        }
+        return best;
+    }
+
+    private static void tallyPlanks(Map<Material, Integer> tally, Material[] items, int[] counts) {
+        if (items == null) {
+            return;
+        }
+        for (int i = 0; i < items.length; i++) {
+            if (items[i] != null && PLANKS.test(items[i])) {
+                int count = counts != null && i < counts.length ? counts[i] : 1;
+                tally.merge(items[i], count, Integer::sum);
+            }
+        }
+    }
+
     /**
      * Vyrobí stanici dílny na míru (spotřebuje suroviny, přidá blok) – jen
      * pro stanice mimo běžnou progresi. Chybějící meziprodukty (kamenná
@@ -299,6 +374,59 @@ public final class CraftingService implements dev.botalive.core.station.Crafting
                 removeMatching(inventory, ingredient.match(), ingredient.count());
             }
             addOrDrop(player, new ItemStack(station, 1));
+            return true;
+        }).exceptionally(t -> false);
+    }
+
+    /**
+     * Vyrobí plaňky plotu a branky z prken (klacky domáčkne z prken) –
+     * spotřeba surovin + vložení výsledku, jako {@link #craftStation}, jen s
+     * pevným receptem plotu. Vyžaduje ponk (3-široký recept). Neúspěch (málo
+     * prken, chybí ponk) vrací {@code false}; cíl to zkusí menší dávkou příště.
+     *
+     * @param botId  UUID bota
+     * @param planks druh prken
+     * @param fence  materiál plaňky
+     * @param gate   materiál branky
+     * @param fences kolik plaňků vyrobit
+     * @param gates  kolik branek vyrobit
+     * @return future s výsledkem (true = materiál v inventáři)
+     */
+    @Override
+    public CompletableFuture<Boolean> craftFencing(UUID botId, Material planks, Material fence,
+                                                   Material gate, int fences, int gates) {
+        Player player = Bukkit.getPlayer(botId);
+        if (player == null || planks == null || fence == null || gate == null) {
+            return CompletableFuture.completedFuture(false);
+        }
+        int fenceCount = Math.max(0, fences);
+        int gateCount = Math.max(0, gates);
+        return bridge.callForEntity(player, () -> {
+            PlayerInventory inventory = player.getInventory();
+            if (!inventory.contains(Material.CRAFTING_TABLE)) {
+                return false; // plaňka i branka jsou 3-široké recepty (ponk)
+            }
+            int fenceBatches = (fenceCount + FENCES_PER_BATCH - 1) / FENCES_PER_BATCH;
+            int planksNeeded = fenceBatches * PLANKS_PER_FENCE_BATCH + gateCount * PLANKS_PER_GATE;
+            int sticksNeeded = fenceBatches * STICKS_PER_FENCE_BATCH + gateCount * STICKS_PER_GATE;
+            int missingSticks = Math.max(0, sticksNeeded - count(inventory, Material.STICK));
+            int stickBatches = (missingSticks + STICKS_PER_BATCH - 1) / STICKS_PER_BATCH;
+            int planksForSticks = stickBatches * PLANKS_PER_STICK_BATCH;
+            if (count(inventory, planks) < planksNeeded + planksForSticks) {
+                return false; // prkna mezitím ubyla
+            }
+            if (stickBatches > 0) {
+                removeMatching(inventory, m -> m == planks, planksForSticks);
+                addOrDrop(player, new ItemStack(Material.STICK, stickBatches * STICKS_PER_BATCH));
+            }
+            removeMatching(inventory, m -> m == planks, planksNeeded);
+            removeMatching(inventory, m -> m == Material.STICK, sticksNeeded);
+            if (fenceBatches > 0) {
+                addOrDrop(player, new ItemStack(fence, fenceBatches * FENCES_PER_BATCH));
+            }
+            if (gateCount > 0) {
+                addOrDrop(player, new ItemStack(gate, gateCount));
+            }
             return true;
         }).exceptionally(t -> false);
     }

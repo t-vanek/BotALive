@@ -408,6 +408,12 @@ public record BotAliveConfig(
      * @param lighting              po dostavění domu osvětlit pochodněmi linii
      *                              ke návsi (méně mobů ve vesnici v noci)
      * @param paths                 udusat lopatou cestičku od dveří k návsi
+     * @param walls                 obehnat sídla (vesnice/město) hradbami –
+     *                              PŘIPRAVENO, zatím bez efektu (primitiv
+     *                              {@code Enclosure} hotový, cíl přijde později)
+     * @param fences                obehnat parcely domů a stáda zvířat plotem –
+     *                              PŘIPRAVENO, zatím bez efektu
+     * @param wallHeight            výška hradby v blocích (plot je vždy 1)
      * @param ghostDays             po kolika dnech bez připojení se člen
      *                              vesnice při startu serveru vyřadí
      *                              (0 = nikdy; dům mu ve vesnici zůstává)
@@ -420,7 +426,8 @@ public record BotAliveConfig(
                              int joinRadius, int minVillageDistance,
                              double lonerSociability, double grudgeThreshold,
                              int changeCooldownMinutes, boolean lighting,
-                             boolean paths, int ghostDays, int grudgeWindowHours,
+                             boolean paths, boolean walls, boolean fences,
+                             int wallHeight, int ghostDays, int grudgeWindowHours,
                              War war) {
     }
 
