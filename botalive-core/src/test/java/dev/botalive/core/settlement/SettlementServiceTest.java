@@ -337,6 +337,39 @@ class SettlementServiceTest {
                 service.projectState(village.id(), kind).orElseThrow(), "hotový zůstává DONE");
     }
 
+    // ------------------------------------------------ vícparcelová rezervace
+
+    @Test
+    void reserveSiteMalaStavbaZaberaJednuParcelu() {
+        var village = foundVillage();
+        long id = village.id();
+        int before = service.suggestPlots(id, 300).size();
+        // Kostel 5×7 se vejde do jedné parcely (≤ spacing 12).
+        var slot = service.reserveSite(id, 5, 7).orElseThrow();
+        assertEquals(before - 1, service.suggestPlots(id, 300).size(),
+                "malá stavba zabere právě jednu parcelu");
+        assertTrue(service.suggestPlots(id, 300).stream()
+                        .noneMatch(s -> s.index() == slot.index()),
+                "rezervovaná parcela se už nenabízí");
+    }
+
+    @Test
+    void reserveSiteVelkaStavbaZaberaVicParcel() {
+        var village = foundVillage();
+        long id = village.id();
+        int before = service.suggestPlots(id, 300).size();
+        // Půdorys 20×12: 20 > spacing 12 → 2 buňky v X, 12 → 1 v Z = 2 parcely.
+        service.reserveSite(id, 20, 12).orElseThrow();
+        assertEquals(before - 2, service.suggestPlots(id, 300).size(),
+                "stavba přes parcelu zabere dvě přiléhající");
+    }
+
+    @Test
+    void reserveSiteNeznameSidloVratiPrazdno() {
+        assertTrue(service.reserveSite(999L, 5, 5).isEmpty(),
+                "neexistující sídlo nemá kde rezervovat");
+    }
+
     /** Postaví město s 8 dostavěnými domy (zakladatel + 7 osadníků). */
     private long townWithEightHouses() {
         var village = foundVillage();

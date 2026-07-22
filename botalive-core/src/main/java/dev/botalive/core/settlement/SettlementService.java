@@ -1459,21 +1459,91 @@ public final class SettlementService {
     /** @return první parcela nezabraná členem ani zákazem, nebo {@code null} */
     private Integer freePlotIndex(Settlement settlement) {
         for (int index = 1; index <= MAX_PLOT_INDEX; index++) {
-            if (settlement.unusablePlots.containsKey(index)) {
-                continue;
-            }
-            boolean taken = false;
-            for (Member member : settlement.members.values()) {
-                if (member.plotIndex() == index) {
-                    taken = true;
-                    break;
-                }
-            }
-            if (!taken) {
+            if (plotAvailable(settlement, index)) {
                 return index;
             }
         }
         return null;
+    }
+
+    /** Volná parcela: v rozsahu katastru, ne rezervovaná a nikým nezabraná. */
+    private boolean plotAvailable(Settlement settlement, int index) {
+        if (index < 1 || index > MAX_PLOT_INDEX || settlement.unusablePlots.containsKey(index)) {
+            return false;
+        }
+        for (Member member : settlement.members.values()) {
+            if (member.plotIndex() == index) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * Rezervuje staveniště pro stavbu, která je větší než jedna parcela –
+     * zabere souvislý blok přiléhajících parcel ({@code cellsX×cellsZ} buněk
+     * mřížky) tak, aby se do nich nepostavil dům. Malá stavba (do rozestupu)
+     * spadne na jednu parcelu jako dosud. Origin je vycentrovaný nad blokem,
+     * výšku i jemné umístění doladí stavitel ({@code SiteFinder}).
+     *
+     * <p>Blokace je trvalá (jako u projektových parcel): vzor
+     * {@code unusablePlots.put(index, Long.MAX_VALUE)}. Volá se, až bude druh
+     * stavby s půdorysem přes parcelu (dnes se všechny civilní stavby vejdou
+     * do jedné – studna 3×3 až kostel 5×7 ≤ rozestup); metoda je připravená
+     * pro budoucí větší stavby (zvonice, hradní sál).</p>
+     *
+     * @param settlementId sídlo
+     * @param footprintW   šířka půdorysu (X, bloky)
+     * @param footprintD   hloubka půdorysu (Z, bloky)
+     * @return kotevní parcela s vycentrovaným originem, nebo prázdné (plno /
+     *         sídlo neexistuje)
+     */
+    public synchronized Optional<PlotSlot> reserveSite(long settlementId, int footprintW,
+                                                       int footprintD) {
+        Settlement settlement = settlements.get(settlementId);
+        if (settlement == null) {
+            return Optional.empty();
+        }
+        int spacing = config.plotSpacing();
+        int cellsX = PlotLayout.plotSpan(footprintW, spacing);
+        int cellsZ = PlotLayout.plotSpan(footprintD, spacing);
+        settlement.unusablePlots.values().removeIf(until -> until < clock.getAsLong());
+        for (int anchor = 1; anchor <= MAX_PLOT_INDEX; anchor++) {
+            int[] cell = PlotLayout.cellFor(anchor);
+            List<Integer> block = blockIndices(cell[0], cell[1], cellsX, cellsZ);
+            if (block == null || !block.stream().allMatch(i -> plotAvailable(settlement, i))) {
+                continue; // mimo katastr / obsahuje náves / nějaká buňka obsazená
+            }
+            for (int index : block) {
+                settlement.unusablePlots.put(index, Long.MAX_VALUE);
+            }
+            int cx = settlement.center.x() + Math.round((cell[0] + (cellsX - 1) / 2.0f) * spacing);
+            int cz = settlement.center.z() + Math.round((cell[1] + (cellsZ - 1) / 2.0f) * spacing);
+            BlockPos origin = new BlockPos(cx - footprintW / 2, settlement.center.y(),
+                    cz - footprintD / 2);
+            Cardinal facing = Cardinal.toward(cx, cz, settlement.center.x(), settlement.center.z());
+            return Optional.of(new PlotSlot(anchor, origin, facing));
+        }
+        return Optional.empty();
+    }
+
+    /**
+     * Indexy parcel v obdélníkovém bloku {@code cellsX×cellsZ} mřížky s kotvou
+     * v levém předním rohu {@code (ax, az)}; {@code null}, když blok sahá za
+     * katastr nebo na náves (index mimo {@code [1, MAX_PLOT_INDEX]}).
+     */
+    private static List<Integer> blockIndices(int ax, int az, int cellsX, int cellsZ) {
+        List<Integer> block = new ArrayList<>(cellsX * cellsZ);
+        for (int i = 0; i < cellsX; i++) {
+            for (int j = 0; j < cellsZ; j++) {
+                int index = PlotLayout.indexFor(ax + i, az + j);
+                if (index < 1 || index > MAX_PLOT_INDEX) {
+                    return null; // mimo katastr nebo náves
+                }
+                block.add(index);
+            }
+        }
+        return block;
     }
 
     private void persistProject(Settlement settlement, Project project) {

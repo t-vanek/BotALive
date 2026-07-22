@@ -100,4 +100,28 @@ class PlotLayoutTest {
         BlockPos twice = PlotLayout.centerFootprint(once, 3, 3, CENTER, SPACING);
         assertEquals(once, twice, "opakované vycentrování je no-op");
     }
+
+    @Test
+    void indexForJeInverzeCellFor() {
+        // Round-trip přes celý katastr (7 prstenců): index → buňka → index.
+        for (int index = 1; index <= 224; index++) {
+            int[] cell = PlotLayout.cellFor(index);
+            assertEquals(index, PlotLayout.indexFor(cell[0], cell[1]),
+                    "indexFor(cellFor(" + index + ")) se musí vrátit");
+        }
+        assertEquals(0, PlotLayout.indexFor(0, 0), "buňka (0,0) je náves = index 0");
+    }
+
+    @Test
+    void plotSpanPocitaBunkyPodleRozestupu() {
+        // Vejde se do jedné parcely: studna 3, radnice 5, kostel 7 ≤ spacing 12.
+        assertEquals(1, PlotLayout.plotSpan(3, SPACING), "3 ≤ spacing → 1 buňka");
+        assertEquals(1, PlotLayout.plotSpan(7, SPACING), "7 ≤ spacing → 1 buňka");
+        assertEquals(1, PlotLayout.plotSpan(SPACING, SPACING), "přesně spacing → 1 buňka");
+        // Přes parcelu: strop podílu.
+        assertEquals(2, PlotLayout.plotSpan(SPACING + 1, SPACING), "o blok víc → 2 buňky");
+        assertEquals(2, PlotLayout.plotSpan(2 * SPACING, SPACING), "dvojnásobek → 2 buňky");
+        assertEquals(3, PlotLayout.plotSpan(2 * SPACING + 1, SPACING), "→ 3 buňky");
+        assertEquals(1, PlotLayout.plotSpan(0, SPACING), "nulový/neznámý → 1");
+    }
 }

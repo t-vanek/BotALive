@@ -116,4 +116,49 @@ public final class PlotLayout {
         i -= side;
         return new int[]{-ring, ring - i};
     }
+
+    /**
+     * Index parcely pro buňku mřížky – inverze {@link #cellFor}. Slouží
+     * vícparcelové rezervaci ({@code SettlementService.reserveSite}) k dohledání
+     * indexů sousedních buněk bloku.
+     *
+     * @param dx buňka x (v jednotkách prstenců)
+     * @param dz buňka z (v jednotkách prstenců)
+     * @return index parcely (0 = náves/střed)
+     */
+    static int indexFor(int dx, int dz) {
+        int ring = Math.max(Math.abs(dx), Math.abs(dz));
+        if (ring == 0) {
+            return 0; // náves
+        }
+        int start = 1 + 4 * ring * (ring - 1); // první index prstence
+        int side = 2 * ring;
+        int i;
+        if (dz == -ring && dx < ring) {          // horní hrana: dx ∈ [-ring, ring-1]
+            i = dx + ring;
+        } else if (dx == ring && dz < ring) {    // pravá hrana: dz ∈ [-ring, ring-1]
+            i = side + (dz + ring);
+        } else if (dz == ring && dx > -ring) {   // spodní hrana: dx ∈ [-ring+1, ring]
+            i = 2 * side + (ring - dx);
+        } else {                                 // levá hrana: dx == -ring
+            i = 3 * side + (ring - dz);
+        }
+        return start + i;
+    }
+
+    /**
+     * Kolik buněk mřížky zabere půdorys dané délky podél jedné osy – strop
+     * podílu s rozestupem. Stavba menší nebo rovná rozestupu se vejde do jedné
+     * parcely; větší si vyžádá sousední (vícparcelová rezervace).
+     *
+     * @param footprint délka půdorysu (bloky) v ose
+     * @param spacing   rozestup buněk mřížky (bloky)
+     * @return počet buněk (≥ 1)
+     */
+    public static int plotSpan(int footprint, int spacing) {
+        if (spacing <= 0 || footprint <= 0) {
+            return 1;
+        }
+        return Math.max(1, (footprint + spacing - 1) / spacing);
+    }
 }
