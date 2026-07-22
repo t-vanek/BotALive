@@ -38,12 +38,24 @@ import org.bukkit.Material;
  */
 public final class CommunalBuildGoal extends AbstractGoal {
 
-    private enum Phase { CLAIM, CRAFT, GOTO, SESSION, FINISH, DONE }
+    private enum Phase { CLAIM, CRAFT, PROVISION, GOTO, SESSION, FINISH, DONE }
 
     /** Rezerva bloků nad čistou spotřebu stavby (zásypy podlahy). */
     private static final int BLOCK_RESERVE = 8;
     /** Vodorovná vzdálenost od staveniště, kde se doladí výška a začne stavět. */
     private static final int APPROACH_RADIUS = 3;
+    /**
+     * Minimum stavebních bloků k zahájení – zbytek dodá PROVISION (dotěží
+     * v okolí) nebo další seance. Velká stavba (radnice, kostel) se tak
+     * dostaví po částech: BLOCKED_MATERIAL uvolní claim, world-diff drží
+     * pokrok a další stavitel naváže. U malých staveb je práh jejich plná
+     * spotřeba, takže studna/sýpka/tržiště se chovají jako dřív.
+     */
+    private static final int MIN_BLOCKS = 24;
+    /** Kámen/hlína, jejichž vytěžení dá stavební blok (dozásobení staveniště). */
+    private static final java.util.function.Predicate<Material> STONE = m ->
+            m == Material.STONE || m == Material.COBBLESTONE || m == Material.DEEPSLATE
+                    || m == Material.COBBLED_DEEPSLATE || m == Material.DIRT;
 
     private final CraftingStation crafting;
 
@@ -51,6 +63,7 @@ public final class CommunalBuildGoal extends AbstractGoal {
     private SettlementService.ProjectInfo project;
     private BuildPlan plan;
     private BuildSession session;
+    private BarrierGather gather;
     private java.util.concurrent.CompletableFuture<Boolean> stationCraft;
     private int cooldownTicks;
     private boolean claimed;
@@ -94,9 +107,13 @@ public final class CommunalBuildGoal extends AbstractGoal {
             if (time >= 11500 && time <= 23000) {
                 return 0;
             }
+            // Stačí ČÁST bloků k zahájení – velkou stavbu dozásobí PROVISION
+            // a dostaví se po částech; u malých staveb je práh jejich plná
+            // spotřeba, takže se chování studny/sýpky/tržiště nemění.
             BotNeeds needs = BotNeeds.assess(ctx.serverView().latest());
-            if (needs.buildingBlocks()
-                    < blueprintFor(needed.get().kind()).blocksNeeded() + BLOCK_RESERVE) {
+            int startBlocks = Math.min(MIN_BLOCKS,
+                    blueprintFor(needed.get().kind()).blocksNeeded() + BLOCK_RESERVE);
+            if (needs.buildingBlocks() < startBlocks) {
                 return 0;
             }
             if (!hasRequiredItems(ctx, needed.get().kind())) {
@@ -117,6 +134,7 @@ public final class CommunalBuildGoal extends AbstractGoal {
         project = null;
         plan = null;
         session = null;
+        gather = null;
         stationCraft = null;
         claimed = false;
         selfId = bot.id();
@@ -128,6 +146,7 @@ public final class CommunalBuildGoal extends AbstractGoal {
         switch (phase) {
             case CLAIM -> tickClaim(ctx, bot);
             case CRAFT -> tickCraft(ctx, bot);
+            case PROVISION -> tickProvision(ctx);
             case GOTO -> tickGoto(ctx);
             case SESSION -> tickSession(ctx, bot);
             case FINISH -> finishProject(ctx, bot);
@@ -252,7 +271,7 @@ public final class CommunalBuildGoal extends AbstractGoal {
             ctx.chat().sayFrom(startPhrase(project.kind()), phraseArg(project.kind(), name));
         }
         // Dílna, jejíž stanici bot nemá, ale umí ji vyrobit na míru → nejdřív craft.
-        phase = needsStationCraft(ctx) ? Phase.CRAFT : Phase.GOTO;
+        phase = needsStationCraft(ctx) ? Phase.CRAFT : Phase.PROVISION;
     }
 
     /** Chybí staviteli stanice dílny, ale má na ni suroviny (vyrobí na míru)? */
@@ -279,9 +298,37 @@ public final class CommunalBuildGoal extends AbstractGoal {
         boolean crafted = stationCraft.getNow(false);
         stationCraft = null;
         if (crafted) {
-            phase = Phase.GOTO; // stanici má – jde stavět (osadí ji ve vybavení)
+            phase = Phase.PROVISION; // stanici má – dozásobí bloky a jde stavět
         } else {
             giveUp(ctx, 2400); // suroviny mezitím ubyly – projekt uvolní dalšímu
+        }
+    }
+
+    /**
+     * Dozásobí stavební bloky na projekt – co chybí, dojde vytěžit v okolí
+     * (kámen/hlína, vzor hradeb {@link BarrierGather}). Velkou stavbu shání
+     * dokud lokální zdroje stačí; když dojdou, postaví se aspoň s tím, co má
+     * (zbytek dostaví další seance přes world-diff). Bez zdroje a bez minima
+     * bloků projekt uvolní dalšímu.
+     */
+    private void tickProvision(BotContext ctx) {
+        int have = BotNeeds.assess(ctx.serverView().latest()).buildingBlocks();
+        int want = blueprintFor(project.kind()).blocksNeeded() + BLOCK_RESERVE;
+        if (have >= want) {
+            gather = null;
+            phase = Phase.GOTO;
+            return;
+        }
+        if (gather == null) {
+            gather = new BarrierGather(STONE);
+        }
+        if (gather.tick(ctx) == BarrierGather.State.EXHAUSTED) {
+            gather = null;
+            if (have >= Math.min(MIN_BLOCKS, want)) {
+                phase = Phase.GOTO; // postaví aspoň s tím, co má (zbytek příště)
+            } else {
+                giveUp(ctx, 2400); // v okolí není kámen ani hlína
+            }
         }
     }
 
@@ -305,9 +352,10 @@ public final class CommunalBuildGoal extends AbstractGoal {
                 return; // staveniště nepoužitelné – projekt přesunut na jinou parcelu
             }
             session = new BuildSession(BuildPlanner.schedule(plan, world));
-            // Rozpočet: vzdát se dřív, než zůstane stavba poloviční.
+            // Stačí část bloků – zbytek se dostaví po částech (BLOCKED_MATERIAL
+            // uvolní claim, world-diff drží pokrok, další seance naváže).
             if (BotNeeds.assess(ctx.serverView().latest()).buildingBlocks()
-                    < plan.cells().size()) {
+                    < Math.min(MIN_BLOCKS, plan.cells().size())) {
                 giveUp(ctx, 2400);
                 return;
             }
@@ -390,6 +438,10 @@ public final class CommunalBuildGoal extends AbstractGoal {
     }
 
     private void giveUp(BotContext ctx, int cooldown) {
+        if (gather != null) {
+            gather.cancel(ctx);
+            gather = null;
+        }
         if (claimed && project != null) {
             ctx.settlements().releaseProject(project.settlementId(), project.kind(), selfId);
             claimed = false;
@@ -412,6 +464,10 @@ public final class CommunalBuildGoal extends AbstractGoal {
         if (session != null) {
             session.cancel(ctx(bot));
         }
+        if (gather != null) {
+            gather.cancel(ctx(bot));
+            gather = null;
+        }
         ctx(bot).navigator().stop();
     }
 
@@ -427,6 +483,9 @@ public final class CommunalBuildGoal extends AbstractGoal {
 
     @Override
     public String explain(Bot bot) {
+        if (phase == Phase.PROVISION) {
+            return "sháním materiál na stavbu pro sídlo";
+        }
         if (project == null) {
             return "stavím studnu pro sídlo";
         }
