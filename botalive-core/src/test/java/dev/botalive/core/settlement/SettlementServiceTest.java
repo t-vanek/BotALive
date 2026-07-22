@@ -276,6 +276,67 @@ class SettlementServiceTest {
                 "nečlen nemá sídlo → žádné staveniště");
     }
 
+    // ------------------------------------------- stavy projektu + rozpis (BOM)
+
+    @Test
+    void stavProjektuProchaziZivotnimCyklem() {
+        var village = villageWithFourHouses();
+        var kind = service.neededProject(founder).orElseThrow().kind();
+        assertEquals(SettlementService.ProjectState.SITE,
+                service.projectState(village.id(), kind).orElseThrow(), "nový projekt je SITE");
+
+        assertTrue(service.claimProject(village.id(), kind, founder));
+        service.beginSupply(village.id(), kind, 40);
+        assertEquals(SettlementService.ProjectState.SUPPLY,
+                service.projectState(village.id(), kind).orElseThrow(), "beginSupply → SUPPLY");
+
+        service.beginBuild(village.id(), kind);
+        assertEquals(SettlementService.ProjectState.BUILD,
+                service.projectState(village.id(), kind).orElseThrow(), "beginBuild → BUILD");
+
+        service.projectFinished(village.id(), kind);
+        assertEquals(SettlementService.ProjectState.DONE,
+                service.projectState(village.id(), kind).orElseThrow(), "dokončení → DONE");
+    }
+
+    @Test
+    void contributionNeedsOdectaNasbirane() {
+        var village = villageWithFourHouses();
+        var kind = service.neededProject(founder).orElseThrow().kind();
+        assertTrue(service.claimProject(village.id(), kind, founder));
+        // Bez rozpisu (BOM 0) sběrač potřebu nezná – nosí, dokud má přebytek.
+        assertTrue(service.contributionNeeds(village.id()).isEmpty(), "bez BOM prázdno");
+
+        service.beginSupply(village.id(), kind, 40);
+        assertEquals(40, service.contributionNeeds(village.id()).orElseThrow(), "BOM = 40");
+
+        assertEquals(15, service.contribute(village.id(), 25), "40 − 25 = 15 zbývá");
+        assertEquals(15, service.contributionNeeds(village.id()).orElseThrow());
+
+        assertEquals(0, service.contribute(village.id(), 100), "přeplněno → 0 zbývá");
+        assertEquals(0, service.contributionNeeds(village.id()).orElseThrow());
+    }
+
+    @Test
+    void contributionNeedsPrazdneBezAktivniStavby() {
+        var village = villageWithFourHouses();
+        service.neededProject(founder); // založí projekt, ale nikdo ho nezamluvil
+        assertTrue(service.contributionNeeds(village.id()).isEmpty(),
+                "bez aktivního stavitele není co zásobovat");
+        assertEquals(0, service.contribute(village.id(), 10), "příspěvek bez stavby propadne");
+    }
+
+    @Test
+    void beginSupplyNevraciHotovyProjektZpet() {
+        var village = villageWithFourHouses();
+        var kind = service.neededProject(founder).orElseThrow().kind();
+        service.claimProject(village.id(), kind, founder);
+        service.projectFinished(village.id(), kind);
+        service.beginSupply(village.id(), kind, 40); // hotový → no-op
+        assertEquals(SettlementService.ProjectState.DONE,
+                service.projectState(village.id(), kind).orElseThrow(), "hotový zůstává DONE");
+    }
+
     /** Postaví město s 8 dostavěnými domy (zakladatel + 7 osadníků). */
     private long townWithEightHouses() {
         var village = foundVillage();

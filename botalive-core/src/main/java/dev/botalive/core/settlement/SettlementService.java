@@ -14,6 +14,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.OptionalInt;
 import java.util.OptionalLong;
 import java.util.Set;
 import java.util.UUID;
@@ -273,6 +274,14 @@ public final class SettlementService {
     }
 
     /**
+     * Fáze životního cyklu společné stavby: parcela → materiál → stavba →
+     * hotovo. Navazuje na {@code done} (autoritu dokončení): {@code DONE ⟺
+     * done}. {@code SUPPLY} znamená „sháníme materiál" (sběrači nosí do
+     * skladu), {@code BUILD} „staví se" (stráž drží stráž ostřeji).
+     */
+    public enum ProjectState { SITE, SUPPLY, BUILD, DONE }
+
+    /**
      * Společná stavba (pohled ven).
      *
      * @param settlementId sídlo
@@ -297,14 +306,29 @@ public final class SettlementService {
         /** Kdy si stavitel projekt zamluvil – starý claim expiruje. */
         long claimedAt;
         boolean done;
+        /** Fáze životního cyklu (perzistentní); {@code DONE ⟺ done}. */
+        ProjectState state;
+        /** Rozpis materiálu (BOM) – kolik bloků stavba chce (0 = neznámo). */
+        int needed;
+        /** Kolik bloků už sběrači nanosili na tuto stavbu. */
+        int contributed;
 
         Project(ProjectKind kind, int plotIndex, BlockPos origin, Cardinal facing,
                 boolean done) {
+            this(kind, plotIndex, origin, facing, done,
+                    done ? ProjectState.DONE : ProjectState.SITE, 0, 0);
+        }
+
+        Project(ProjectKind kind, int plotIndex, BlockPos origin, Cardinal facing,
+                boolean done, ProjectState state, int needed, int contributed) {
             this.kind = kind;
             this.plotIndex = plotIndex;
             this.origin = origin;
             this.facing = facing;
             this.done = done;
+            this.state = state;
+            this.needed = needed;
+            this.contributed = contributed;
         }
     }
 
@@ -406,7 +430,8 @@ public final class SettlementService {
                 }
                 settlement.projects.put(kind, new Project(kind, row.plotIndex(),
                         new BlockPos(row.x(), row.y(), row.z()),
-                        Cardinal.valueOf(row.facing()), row.done()));
+                        Cardinal.valueOf(row.facing()), row.done(),
+                        parseState(row.state(), row.done()), row.needed(), row.contributed()));
                 // Parcela projektu není pro domy – trvale.
                 settlement.unusablePlots.put(row.plotIndex(), Long.MAX_VALUE);
             }
@@ -858,8 +883,14 @@ public final class SettlementService {
     public synchronized Optional<ProjectInfo> activeProject(UUID botId) {
         Long id = memberIndex.get(botId);
         Settlement settlement = id == null ? null : settlements.get(id);
+        Project active = activeProjectOf(settlement);
+        return active == null ? Optional.empty() : Optional.of(projectInfo(settlement, active));
+    }
+
+    /** Nejčerstvěji zamluvená rozestavěná stavba sídla (i po expiraci claimu). */
+    private Project activeProjectOf(Settlement settlement) {
         if (settlement == null) {
-            return Optional.empty();
+            return null;
         }
         Project active = null;
         for (Project project : settlement.projects.values()) {
@@ -870,7 +901,98 @@ public final class SettlementService {
                 active = project; // nejčerstvější rozestavěné staveniště
             }
         }
-        return active == null ? Optional.empty() : Optional.of(projectInfo(settlement, active));
+        return active;
+    }
+
+    /**
+     * Fáze životního cyklu stavby daného druhu (SITE→SUPPLY→BUILD→DONE).
+     *
+     * @param settlementId sídlo
+     * @param kind         druh stavby
+     * @return stav, nebo prázdné (projekt neexistuje)
+     */
+    public synchronized Optional<ProjectState> projectState(long settlementId, ProjectKind kind) {
+        Settlement settlement = settlements.get(settlementId);
+        Project project = settlement == null ? null : settlement.projects.get(kind);
+        return project == null ? Optional.empty() : Optional.of(project.state);
+    }
+
+    /**
+     * Zahájí shánění materiálu (SITE→SUPPLY) a zapíše rozpis (BOM) – kolik
+     * bloků stavba chce. Volá stavitel po zamluvení, když zná blueprint;
+     * idempotentní, hotový projekt nevrací zpět. Rozpis pak čtou sběrači
+     * přes {@link #contributionNeeds}.
+     *
+     * @param settlementId sídlo
+     * @param kind         druh stavby
+     * @param needed       počet bloků k dostavbě (BOM)
+     */
+    public synchronized void beginSupply(long settlementId, ProjectKind kind, int needed) {
+        Settlement settlement = settlements.get(settlementId);
+        Project project = settlement == null ? null : settlement.projects.get(kind);
+        if (project == null || project.done) {
+            return;
+        }
+        project.needed = Math.max(0, needed);
+        if (project.state == ProjectState.SITE) {
+            project.state = ProjectState.SUPPLY;
+        }
+        persistProject(settlement, project);
+    }
+
+    /**
+     * Přejde do stavby (→BUILD). Volá stavitel při zahájení seance pokládky.
+     * Idempotentní; hotový projekt nevrací zpět.
+     *
+     * @param settlementId sídlo
+     * @param kind         druh stavby
+     */
+    public synchronized void beginBuild(long settlementId, ProjectKind kind) {
+        Settlement settlement = settlements.get(settlementId);
+        Project project = settlement == null ? null : settlement.projects.get(kind);
+        if (project == null || project.done || project.state == ProjectState.BUILD) {
+            return;
+        }
+        project.state = ProjectState.BUILD;
+        persistProject(settlement, project);
+    }
+
+    /**
+     * Sběrač přispěl {@code blocks} bloky na aktivní stavbu sídla; zvýší
+     * evidenci nasbíraného a vrátí, kolik ještě chybí (BOM − nasbíráno, ≥0).
+     * Bez aktivní stavby (nebo bez známého BOM) vrací 0 – sběrač si to bere
+     * jako „dost".
+     *
+     * @param settlementId sídlo
+     * @param blocks       počet přispěných bloků
+     * @return zbývající potřeba bloků (0 = dost / žádná aktivní stavba)
+     */
+    public synchronized int contribute(long settlementId, int blocks) {
+        Settlement settlement = settlements.get(settlementId);
+        Project project = activeProjectOf(settlement);
+        if (project == null) {
+            return 0;
+        }
+        project.contributed = Math.max(0, project.contributed + blocks);
+        persistProject(settlement, project);
+        return project.needed <= 0 ? 0 : Math.max(0, project.needed - project.contributed);
+    }
+
+    /**
+     * Kolik bloků ještě chybí aktivní stavbě sídla (BOM − nasbíráno). Prázdné,
+     * když se nic nestaví nebo BOM není znám ({@code needed == 0}) – sběrač to
+     * pak bere jako „nos, dokud máš přebytek" (fallback na dřívější chování).
+     *
+     * @param settlementId sídlo
+     * @return zbývající potřeba bloků, nebo prázdné
+     */
+    public synchronized OptionalInt contributionNeeds(long settlementId) {
+        Settlement settlement = settlements.get(settlementId);
+        Project project = activeProjectOf(settlement);
+        if (project == null || project.needed <= 0) {
+            return OptionalInt.empty();
+        }
+        return OptionalInt.of(Math.max(0, project.needed - project.contributed));
     }
 
     /**
@@ -1099,6 +1221,7 @@ public final class SettlementService {
             return Optional.empty();
         }
         project.done = true;
+        project.state = ProjectState.DONE;
         project.builder = null;
         persistProject(settlement, project);
         return maybeAnnounceTier(settlement);
@@ -1357,7 +1480,23 @@ public final class SettlementService {
         if (repository != null) {
             repository.upsertSettlementProject(settlement.id, project.kind.name(),
                     project.plotIndex, project.origin.x(), project.origin.y(),
-                    project.origin.z(), project.facing.name(), project.done);
+                    project.origin.z(), project.facing.name(), project.done,
+                    project.state.name(), project.needed, project.contributed);
+        }
+    }
+
+    /** Stav z DB (hotové = DONE; neznámý/null → SITE) – tolerantní k downgradu. */
+    private static ProjectState parseState(String state, boolean done) {
+        if (done) {
+            return ProjectState.DONE;
+        }
+        if (state == null) {
+            return ProjectState.SITE;
+        }
+        try {
+            return ProjectState.valueOf(state);
+        } catch (IllegalArgumentException e) {
+            return ProjectState.SITE;
         }
     }
 

@@ -254,6 +254,21 @@ public final class SchemaMigrator {
                             PRIMARY KEY (bot_id, namespace, data_key)
                         )
                         """
+                ),
+                // v10 – životní cyklus společné stavby SITE→SUPPLY→BUILD→DONE
+                // a rozpis materiálu (BOM): sběrači vidí, kolik bloků ještě
+                // chybí (needed − contributed), a stav je perzistentní přes
+                // restart. Sloupce se přidávají s defaulty; done zůstává
+                // autoritou dokončení, state je navázaná vrstva (DONE ⟺ done).
+                List.of(
+                        "ALTER TABLE ba_settlement_projects "
+                                + "ADD COLUMN state TEXT NOT NULL DEFAULT 'SITE'",
+                        "ALTER TABLE ba_settlement_projects "
+                                + "ADD COLUMN needed INTEGER NOT NULL DEFAULT 0",
+                        "ALTER TABLE ba_settlement_projects "
+                                + "ADD COLUMN contributed INTEGER NOT NULL DEFAULT 0",
+                        // Hotové stavby dostanou stav DONE, ať evidence sedí.
+                        "UPDATE ba_settlement_projects SET state = 'DONE' WHERE done = 1"
                 )
         );
     }

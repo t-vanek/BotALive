@@ -520,9 +520,13 @@ public final class BotRepository {
      * @param z            origin stavby z
      * @param facing       orientace (název {@code Cardinal})
      * @param done         stavba dokončena
+     * @param state        stav životního cyklu (název {@code ProjectState})
+     * @param needed       rozpis materiálu (BOM) – kolik bloků stavba chce
+     * @param contributed  kolik bloků už sběrači nanosili
      */
     public record SettlementProjectRow(long settlementId, String kind, int plotIndex,
-                                       int x, int y, int z, String facing, boolean done) {
+                                       int x, int y, int z, String facing, boolean done,
+                                       String state, int needed, int contributed) {
     }
 
     /**
@@ -532,13 +536,14 @@ public final class BotRepository {
         return db.async(connection -> {
             List<SettlementProjectRow> result = new ArrayList<>();
             try (PreparedStatement ps = connection.prepareStatement(
-                    "SELECT settlement_id, kind, plot_index, x, y, z, facing, done "
-                            + "FROM ba_settlement_projects");
+                    "SELECT settlement_id, kind, plot_index, x, y, z, facing, done, "
+                            + "state, needed, contributed FROM ba_settlement_projects");
                  ResultSet rs = ps.executeQuery()) {
                 while (rs.next()) {
                     result.add(new SettlementProjectRow(rs.getLong(1), rs.getString(2),
                             rs.getInt(3), rs.getInt(4), rs.getInt(5), rs.getInt(6),
-                            rs.getString(7), rs.getInt(8) != 0));
+                            rs.getString(7), rs.getInt(8) != 0,
+                            rs.getString(9), rs.getInt(10), rs.getInt(11)));
                 }
                 return result;
             } catch (SQLException e) {
@@ -552,12 +557,17 @@ public final class BotRepository {
      */
     public CompletableFuture<Void> upsertSettlementProject(long settlementId, String kind,
                                                            int plotIndex, int x, int y, int z,
-                                                           String facing, boolean done) {
+                                                           String facing, boolean done,
+                                                           String state, int needed,
+                                                           int contributed) {
         String sql = "INSERT INTO ba_settlement_projects(settlement_id, kind, plot_index, "
-                + "x, y, z, facing, done) VALUES (?,?,?,?,?,?,?,?)"
+                + "x, y, z, facing, done, state, needed, contributed) "
+                + "VALUES (?,?,?,?,?,?,?,?,?,?,?)"
                 + db.dialect().upsertSuffix("settlement_id, kind",
                 "plot_index=excluded.plot_index, x=excluded.x, y=excluded.y, "
-                        + "z=excluded.z, facing=excluded.facing, done=excluded.done");
+                        + "z=excluded.z, facing=excluded.facing, done=excluded.done, "
+                        + "state=excluded.state, needed=excluded.needed, "
+                        + "contributed=excluded.contributed");
         return db.async(connection -> {
             try (PreparedStatement ps = connection.prepareStatement(sql)) {
                 ps.setLong(1, settlementId);
@@ -568,6 +578,9 @@ public final class BotRepository {
                 ps.setInt(6, z);
                 ps.setString(7, facing);
                 ps.setInt(8, done ? 1 : 0);
+                ps.setString(9, state);
+                ps.setInt(10, needed);
+                ps.setInt(11, contributed);
                 ps.executeUpdate();
                 return null;
             } catch (SQLException e) {
