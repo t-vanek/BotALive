@@ -66,8 +66,14 @@ public final class BuildSession {
 
     /** Tolerance dokročení u tolerantní stavby (dům): stačí okolí stanoviště. */
     private static final int STAND_TOLERANCE_SQ = 2;
-    /** Kolik ticků nejvýš zkoušet dojít na stanoviště, než to bot vzdá. */
+    /** Kolik ticků nejvýš zkoušet dojít na stanoviště po rovině, než to bot vzdá. */
     private static final int NAV_BUDGET = 300;
+    /**
+     * Přídavek k rozpočtu chůze na každý blok výstupu na vyvýšené stanoviště:
+     * pilířování je pomalé (skok, pokládka, dopad, ověření – {@code PillarUpTask}),
+     * takže vysoký pilíř by jinak vyčerpal rovinný rozpočet dřív, než bot vyleze.
+     */
+    private static final int NAV_PER_CLIMB_BLOCK = 30;
     /** Kolikrát projet chybějící bloky znovu, než se stavba prohlásí za torzo. */
     private static final int MAX_VERIFY_PASSES = 2;
 
@@ -89,6 +95,7 @@ public final class BuildSession {
     private boolean navigating;
     private BlockPos target;
     private int navTicks;
+    private int navBudget = NAV_BUDGET;
     private int verifyPasses;
     private PaletteRole missing;
 
@@ -199,8 +206,7 @@ public final class BuildSession {
             }
             placements.addAll(unit.placements());
             attempted.add(unit);
-            target = unit.stand();
-            navTicks = 0;
+            setTarget(unit.stand());
             // Nové stanoviště – příchod se ověří příští tick (po přesunu).
             return State.RUNNING;
         }
@@ -281,7 +287,7 @@ public final class BuildSession {
         }
         BlockPos block = scaffold.poll();
         if (block == null) {
-            target = furnishStand;
+            setTarget(furnishStand);
             phase = Phase.FURNISH_GOTO;
             return State.RUNNING;
         }
@@ -366,13 +372,24 @@ public final class BuildSession {
         return here;
     }
 
+    /**
+     * Nastaví nové stanoviště a rozpočet chůze k němu: rovinný základ plus
+     * přídavek za každý blok výstupu (vyvýšené stanoviště se leze pilířem,
+     * což je pomalé). Bez škálování by bot vysoký pilíř vzdal v půlce.
+     */
+    private void setTarget(BlockPos t) {
+        target = t;
+        navTicks = 0;
+        navBudget = NAV_BUDGET + Math.max(0, t.y() - furnishStand.y()) * NAV_PER_CLIMB_BLOCK;
+    }
+
     private State navigate(BotContext ctx, BlockPos t) {
         ctx.navigator().navigateTo(ctx.position(), t);
         navigating = true;
         // Nedosažitelné (backoff) nebo příliš dlouho bez příchodu → vzdát se;
         // cíl to ošetří cooldownem a případně stavbu dokončí jindy (resume).
         if ((!ctx.navigator().navigating() && !ctx.navigator().hasPath())
-                || ++navTicks > NAV_BUDGET) {
+                || ++navTicks > navBudget) {
             return State.UNREACHABLE;
         }
         return State.RUNNING;

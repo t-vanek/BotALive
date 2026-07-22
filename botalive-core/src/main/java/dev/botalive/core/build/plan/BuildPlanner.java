@@ -1,6 +1,5 @@
 package dev.botalive.core.build.plan;
 
-import dev.botalive.core.tasks.PillarUpTask;
 import dev.botalive.core.util.BlockPos;
 import dev.botalive.core.util.Vec3;
 import dev.botalive.core.world.WorldView;
@@ -189,8 +188,9 @@ public final class BuildPlanner {
      * stavbu) a nad nimi <b>vyvýšená pilířová stanoviště</b> pro bloky, na které
      * ze země není dosah. Pilíř roste volným vnitřním sloupcem; stavitel na něj
      * vyleze pilířováním ({@code PillarUpTask}) a po dostavbě ho session odklidí.
-     * Stoupá se, dokud je sloupec (nohy i hlava) volný a nepřesáhne strop
-     * jednoho pilíře ({@code PillarUpTask.MAX_HEIGHT}) ani vršek stavby.
+     * Stoupá se až po vršek stavby ({@code topY}) – výšku určuje stavba, ne
+     * engine: pilíř vyšší než {@code PillarUpTask.MAX_HEIGHT} navigace vyleze
+     * nadvakrát (replan po dosažení vršku každého úseku).
      */
     private static List<BlockPos> candidateStands(BuildPlan plan) {
         Set<Long> structure = new HashSet<>();
@@ -214,11 +214,11 @@ public final class BuildPlanner {
         if (reachableFromSome(plan.cells(), ground)) {
             return new ArrayList<>(ground);
         }
-        // Vyvýšená pilířová stanoviště nad volnými vnitřními sloupci.
+        // Vyvýšená pilířová stanoviště nad volnými vnitřními sloupci – až po
+        // vršek stavby (vyšší pilíř navigace vyleze nadvakrát).
         Set<BlockPos> stands = new LinkedHashSet<>(ground);
         for (BlockPos floor : ground) {
-            int maxY = Math.min(topY, floor.y() + PillarUpTask.MAX_HEIGHT);
-            for (int y = floor.y() + 1; y <= maxY; y++) {
+            for (int y = floor.y() + 1; y <= topY; y++) {
                 BlockPos stand = new BlockPos(floor.x(), y, floor.z());
                 if (structure.contains(stand.asLong()) || structure.contains(stand.up().asLong())) {
                     break; // tělo bota (nohy/hlava) by kolidovalo se stavbou

@@ -184,6 +184,34 @@ class ScaffoldPlanTest {
     }
 
     @Test
+    void veryTallTowerExceedsSinglePillarHeight() {
+        FakeWorldView world = new FakeWorldView(FLOOR_Y);
+        int height = 20; // nad strop jednoho pilíře (PillarUpTask.MAX_HEIGHT = 12)
+        BuildPlan plan = BuildPlan.of(tower(height), ORIGIN, Cardinal.NORTH);
+        BuildSchedule schedule = BuildPlanner.schedule(plan, world);
+
+        // Planner nabídne stanoviště až k vršku, ne jen do 12 – výšku určuje
+        // stavba; pilíř vyšší než jeden úsek navigace vyleze nadvakrát.
+        int topStand = schedule.units().stream().mapToInt(u -> u.stand().y()).max().orElseThrow();
+        assertTrue(topStand > ORIGIN.y() + 12,
+                "vysoká věž má stanoviště nad strop jednoho pilíře, ne oříznutá na 12");
+
+        FakeBotContext ctx = new FakeBotContext(world, personality());
+        ctx.give(Material.COBBLESTONE, 1000);
+        BuildSession session = new BuildSession(schedule);
+        BuildSession.State state = BuildSession.State.RUNNING;
+        for (int i = 0; i < 60000 && state == BuildSession.State.RUNNING; i++) {
+            BlockPos s = session.currentStand();
+            ctx.update(new Vec3(s.x() + 0.5, s.y(), s.z() + 0.5), true);
+            state = session.tick(ctx);
+        }
+        assertEquals(BuildSession.State.DONE, state, "i vysoká věž (>12) se dostaví");
+        for (PlacementCell cell : plan.cells()) {
+            assertTrue(world.traitsAt(cell.pos()).solid(), "blok vysoké věže stojí: " + cell.pos());
+        }
+    }
+
+    @Test
     void scaffoldSupportHoldsAcrossUnitOrder() {
         FakeWorldView world = new FakeWorldView(FLOOR_Y);
         BuildPlan plan = BuildPlan.of(tower(10), ORIGIN, Cardinal.NORTH);
