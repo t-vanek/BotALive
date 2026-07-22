@@ -111,6 +111,18 @@ public enum PhraseCategory {
     /** Plot kolem domu dokončen (bez placeholderu). */
     SETTLEMENT_FENCE_DONE,
 
+    /** Bot začíná stavět hradby kolem sídla ({@code {name}} = jméno sídla). */
+    SETTLEMENT_WALLS_START,
+
+    /** Hradby kolem sídla dokončeny ({@code {name}} = jméno sídla). */
+    SETTLEMENT_WALLS_DONE,
+
+    /** Bot začíná stavět ohradu kolem stáda (bez placeholderu). */
+    PEN_START,
+
+    /** Ohrada kolem stáda dokončena (bez placeholderu). */
+    PEN_DONE,
+
     /** Bot daleko od domova si na noc rozdělává tábor (bez placeholderu). */
     CAMP_SETUP,
     /** Běh pro věci po smrti – vyrážím. */

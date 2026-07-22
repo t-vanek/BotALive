@@ -320,6 +320,22 @@ phrases:
     - "fence is up, the house is finally enclosed"
     - "done, got a yard around the house with a gate"
     - "there, the yard's fenced in. walk in through the gate"
+  settlement-walls-start:
+    - "grabbing stone, {name} deserves proper walls"
+    - "off to build the walls, keeping {name} safe"
+    - "we'll wall {name} in – hauling stone"
+  settlement-walls-done:
+    - "the walls are up! {name} is behind stone now"
+    - "done, {name} has its walls, gates and all"
+    - "there, {name} is walled in. the gates stay open"
+  pen-start:
+    - "fencing in the animals so they stop wandering off"
+    - "grabbing fence posts, the herd needs a pen"
+    - "building a pen, the livestock shouldn't roam"
+  pen-done:
+    - "the pen is up, the herd's finally fenced in"
+    - "done, the animals have a paddock with a gate"
+    - "there, the livestock's penned. no more strays"
 
   camp-setup:
     - "home is far away, I'll light a fire here and wait out the night"

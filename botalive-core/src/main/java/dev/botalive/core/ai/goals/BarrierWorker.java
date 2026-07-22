@@ -15,7 +15,8 @@ import java.util.List;
 /**
  * Vykonavatel ohradní bariéry ({@link Enclosure}) – sestra {@link DecorWorker}:
  * projde naplánované buňky obvodu, vezme materiál a položí plaňku/branku. Sdílí
- * ho stavba plotu i (později) hradby; jedna implementace chůze, equipů a pauz.
+ * ho stavba plotu (plaňky z dřeva) i hradby (běžné stavební bloky, {@code post}
+ * = {@code null}); jedna implementace chůze, equipů a pauz.
  *
  * <p>Idempotentní jako plán sám: buňka, kde už bariéra stojí, se přeskočí
  * (kolize ve světě – world-diff jako {@code BuildSession}). Když dojde materiál
@@ -46,8 +47,10 @@ final class BarrierWorker {
     /**
      * @param planned buňky bariéry (z {@link Enclosure#plan} + {@link Enclosure#column})
      * @param center  střed ohrady (pro vnitřní stanoviště branky)
-     * @param post    materiál plaňky ({@code *_FENCE})
-     * @param gate    materiál branky ({@code *_FENCE_GATE})
+     * @param post    materiál sloupku ({@code *_FENCE} u plotu); {@code null} =
+     *                jakýkoli stavební blok (hradba – ty boti sbírají)
+     * @param gate    materiál branky ({@code *_FENCE_GATE}); {@code null} = bez
+     *                branek (hradba s otevřenými průchody, brány cíl vynechá)
      */
     BarrierWorker(List<Enclosure.Placement> planned, BlockPos center, Material post, Material gate) {
         this.steps.addAll(planned);
@@ -96,8 +99,13 @@ final class BarrierWorker {
         }
         ctx.navigator().stop();
         navTicks = 0;
-        Material want = isGate ? gate : post;
-        if (!ctx.inventory().equipItem(ctx.serverView().latest(), want)) {
+        var snapshot = ctx.serverView().latest();
+        boolean equipped = isGate
+                ? (gate != null && ctx.inventory().equipItem(snapshot, gate))
+                : (post != null
+                        ? ctx.inventory().equipItem(snapshot, post)
+                        : ctx.inventory().equipBuildingBlock(snapshot)); // hradba: běžný blok
+        if (!equipped) {
             steps.clear(); // došel materiál – zbytek příště (cíl dorobí, plán je idempotentní)
             return false;
         }
