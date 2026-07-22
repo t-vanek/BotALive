@@ -262,6 +262,34 @@ nové testy K1–K4 zelené; `CommunalBuildGoal` bez per-druh větvení.
 6. **Trh**: ukotvení `SellGoal` nabídek k tržišti (fáze D růstové
    roadmapy) + fráze `SETTLEMENT_MARKET_*`, `SETTLEMENT_TOWNHALL_*`…
 
+> **HOTOVO (dělba práce u velkých staveb) – lehčí cestou než bod 3.**
+> Zásobovací řetězec „sběrač → truhla → stavitel" i stráž staveniště jsou
+> hotové, ale **bez migrace a bez per-staveništní truhly**. Materiálovým
+> skladem je **dvojtruhla `WAREHOUSE`** (sídlo si ho staví jako „společný
+> sklad na materiál") – je perzistentní, postavený a jeho truhla se
+> dopočítá z geometrie (`HouseBlueprint.bedSpot`, parita s `GranaryGoal`),
+> takže odpadá `chest_x/y/z` i pokládka truhly. Řetězec je **bonus, ne
+> podmínka**: naskočí až po dostavbě skladu (tj. právě u velkých
+> prestižních staveb – radnice, kostel), jinak se stavitel zásobuje sám
+> jako dřív. Hotové kusy:
+> - `ChestStation.deposit/withdrawBuildingBlocks` (obě v `ContainerService`,
+>   `bridge.callAt` + limit 6 bloků) – materiálové primitivum místo
+>   `deposit/withdrawMaterials(Map)`; kategorie stavební blok stačí, protože
+>   civilní stavby jedou na `GENERIC` (blok se počítá kusově, ne paletou).
+> - `SettlementService.activeProject(botId)` – rozestavěná stavba pro
+>   sběrače i stráž (nejčerstvější zamluvení, mizí po dostavbě/expiraci).
+> - `MaterialDepot.chest(settlements, botId)` – sdílený lokátor truhly skladu.
+> - `SupplyGoal` (nový cíl `supply`, HELPFULNESS, boost MASON/MINER) – nosí
+>   přebytek bloků do skladu, když se staví.
+> - `CommunalBuildGoal` fáze `DRAW` – stavitel si v PROVISION dobere ze
+>   skladu, než začne dolovat (jednou za pokus, guard `drewFromDepot`).
+> - `BuildGuardGoal` (nový cíl `build-guard`, GUARDIAN) – drží stráž
+>   u staveniště; boj přebírá `CombatGoal`/`PvpGoal`.
+>
+> **Zbývá z bodu 3 jako budoucí V2c**: per-etapová BOM (`contributionNeeds`),
+> stavy projektu `SITE→SUPPLY→BUILD→DONE` v DB (migrace v10) a přesné
+> materiálové palety – teprve až je vynutí šablonové stavby.
+
 ## V2d – konsolidace
 
 - Portál a wither oltář na engine: planner dostane material-exact
