@@ -431,6 +431,55 @@ public final class CraftingService implements dev.botalive.core.station.Crafting
         }).exceptionally(t -> false);
     }
 
+    /**
+     * Zpracuje klády na prkna (1 kláda → 4 prkna dle dřeva). Mezikrok, když si
+     * bot na opravu plotu nasekal dřevo. Spotřeba + vložení, jako {@code craftStation}.
+     *
+     * @param botId   UUID bota
+     * @param maxLogs kolik klád nejvýš zpracovat
+     * @return future s výsledkem (true = aspoň jedna kláda zpracována)
+     */
+    @Override
+    public CompletableFuture<Boolean> craftPlanks(UUID botId, int maxLogs) {
+        Player player = Bukkit.getPlayer(botId);
+        if (player == null || maxLogs <= 0) {
+            return CompletableFuture.completedFuture(false);
+        }
+        return bridge.callForEntity(player, () -> {
+            PlayerInventory inventory = player.getInventory();
+            int done = 0;
+            ItemStack[] contents = inventory.getStorageContents();
+            for (int i = 0; i < contents.length && done < maxLogs; i++) {
+                ItemStack item = contents[i];
+                if (item == null || !Tag.LOGS.isTagged(item.getType())) {
+                    continue;
+                }
+                int take = Math.min(item.getAmount(), maxLogs - done);
+                if (take >= item.getAmount()) {
+                    inventory.setItem(i, null);
+                } else {
+                    item.setAmount(item.getAmount() - take);
+                    inventory.setItem(i, item);
+                }
+                addOrDrop(player, new ItemStack(planksFromLog(item.getType()), take * 4));
+                done += take;
+            }
+            return done > 0;
+        }).exceptionally(t -> false);
+    }
+
+    /** Prkna odpovídající kládě ({@code OAK_LOG→OAK_PLANKS}); neznámé → dub. */
+    static Material planksFromLog(Material log) {
+        String name = log.name().replace("STRIPPED_", "")
+                .replace("_LOG", "_PLANKS").replace("_WOOD", "_PLANKS")
+                .replace("_STEM", "_PLANKS").replace("_HYPHAE", "_PLANKS");
+        try {
+            return Material.valueOf(name);
+        } catch (IllegalArgumentException e) {
+            return Material.OAK_PLANKS;
+        }
+    }
+
     /** Domáčkne chybějící meziprodukt z běžných surovin (dokud jsou a je ho třeba). */
     private static void deriveIfNeeded(Player player, PlayerInventory inventory,
                                        StationIngredient ingredient) {

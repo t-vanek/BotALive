@@ -42,7 +42,7 @@ import java.util.concurrent.CompletableFuture;
  */
 public final class PenGoal extends AbstractGoal {
 
-    private enum Phase { CRAFT, WORK, DONE }
+    private enum Phase { PROVISION, WORK, DONE }
 
     /** Poloměr hledání stáda (bloky) – jako {@link BreedGoal}. */
     private static final int SCAN_RADIUS = 16;
@@ -56,6 +56,7 @@ public final class PenGoal extends AbstractGoal {
     private static final int MAX_STEPS = 40;
 
     private final CraftingStation crafting;
+    private final RepairAssessor assessor = new RepairAssessor();
 
     private Phase phase = Phase.DONE;
     private BlockPos penMin;
@@ -64,6 +65,7 @@ public final class PenGoal extends AbstractGoal {
     private Material post;
     private Material gate;
     private BarrierWorker worker;
+    private BarrierGather gather;
     private CompletableFuture<Boolean> craftFuture;
     private int cooldownTicks;
 
@@ -89,20 +91,32 @@ public final class PenGoal extends AbstractGoal {
         if (!cfg.enabled() || !cfg.fences()) {
             return 0;
         }
-        boolean inProgress = worker != null || phase == Phase.CRAFT || phase == Phase.WORK;
+        PenRect rect = resolvePen(ctx);
+        if (rect == null) {
+            return 0; // není soustředěné stádo k ohrazení
+        }
+        boolean inProgress = worker != null || gather != null
+                || phase == Phase.PROVISION || phase == Phase.WORK;
+        Enclosure.Assessment a = assessor.assess(ctx, rect.min(), rect.max(), rect.min().y(),
+                Set.of(Cardinal.NORTH));
+        boolean damaged = BarrierRepair.isDamaged(a);
         if (!inProgress) {
             long time = ctx.worldTime();
-            if (time >= 11500 && time <= 23000) {
-                return 0; // staví se za světla
+            // Nová ohrada jen ve dne; poškozenou (zvířata utíkají) i v noci.
+            if (time >= 11500 && time <= 23000 && !damaged) {
+                return 0;
             }
-            if (resolvePen(ctx) == null) {
-                return 0; // není soustředěné stádo k ohrazení
+            if (a.total() > 0 && a.missing() == 0) {
+                return 0; // ohrada celá stojí
             }
-            if (!canProvision(ctx)) {
-                return 0; // nemá prkna (ani hotové ploty) na materiál
+            if (!damaged && !canProvision(ctx)) {
+                return 0; // nová stavba čeká na materiál (oprava si ho dojde sehnat)
             }
         }
-        // Ohrada je klidná chovatelská práce – trpělivost a ochota pomoci.
+        if (damaged) {
+            return BarrierRepair.penUrgency(a); // oprava – ať neutečou zvířata (nad plotem domu)
+        }
+        // Nová ohrada je klidná chovatelská práce – trpělivost a ochota pomoci.
         double patience = bot.personality().trait(Trait.PATIENCE);
         double helpfulness = bot.personality().trait(Trait.HELPFULNESS);
         return 3.5 + patience * 4 + helpfulness * 2;
@@ -111,8 +125,9 @@ public final class PenGoal extends AbstractGoal {
     @Override
     public void start(Bot bot) {
         BotContext ctx = ctx(bot);
-        phase = Phase.CRAFT;
+        phase = Phase.PROVISION;
         worker = null;
+        gather = null;
         craftFuture = null;
         PenRect rect = resolvePen(ctx);
         if (rect == null) {
@@ -132,46 +147,74 @@ public final class PenGoal extends AbstractGoal {
     public void tick(Bot bot) {
         BotContext ctx = ctx(bot);
         switch (phase) {
-            case CRAFT -> tickCraft(ctx, bot);
+            case PROVISION -> tickProvision(ctx, bot);
             case WORK -> tickWork(ctx);
             case DONE -> {
             }
         }
     }
 
-    /** Doplní materiál (vyrobí plaňky/branku z prken), pak jde stavět. */
-    private void tickCraft(BotContext ctx, Bot bot) {
+    /**
+     * Zajistí materiál: dost plaňků (vyrobí z prken; nasekané klády napřed
+     * zpracuje na prkna); když prkna ani klády nejsou, dojde nasekat dřevo
+     * ({@link BarrierGather}). Branka je bonus – neblokuje. Pak jde stavět.
+     */
+    private void tickProvision(BotContext ctx, Bot bot) {
+        if (craftFuture != null) {
+            if (!craftFuture.isDone()) {
+                return;
+            }
+            craftFuture.getNow(false);
+            craftFuture = null;
+            return; // přehodnotit příští tick (materiál se změnil)
+        }
         ServerSideView.Snapshot snapshot = ctx.serverView().latest();
-        if (snapshot == null || post == null) {
+        if (snapshot == null) {
             giveUp(1200);
             return;
         }
-        int needFences = FENCE_ESTIMATE - ctx.inventory().countItem(snapshot, post);
-        int needGates = 1 - ctx.inventory().countItem(snapshot, gate);
-        if (needFences <= 0 && needGates <= 0) {
-            phase = Phase.WORK;
+        chooseMaterials(ctx); // druh dřeva podle aktuálního inventáře (i po sehnání)
+        int haveFences = ctx.inventory().countItem(snapshot, post);
+        boolean hasTable = snapshot.hasItem(m -> m == Material.CRAFTING_TABLE);
+
+        if (haveFences < FENCE_ESTIMATE) {
+            int need = FENCE_ESTIMATE - haveFences;
+            if (planks != null && hasTable
+                    && CraftingService.canCraftFencing(snapshot, planks, need, 0)) {
+                craftFuture = crafting.craftFencing(bot.id(), planks, post, gate, need, 0);
+                return;
+            }
+            if (snapshot.hasItem(m -> m.name().endsWith("_LOG"))) {
+                craftFuture = crafting.craftPlanks(bot.id(), 8); // klády → prkna
+                return;
+            }
+            if (!hasTable) {
+                giveUp(2400); // bez ponku ohradu nevyrobí
+                return;
+            }
+            if (gather == null) {
+                gather = new BarrierGather(m -> m.name().endsWith("_LOG"));
+            }
+            if (gather.tick(ctx) == BarrierGather.State.EXHAUSTED) {
+                gather = null;
+                giveUp(2400); // v okolí není dřevo
+            }
             return;
         }
-        if (craftFuture == null) {
-            craftFuture = crafting.craftFencing(bot.id(), planks, post, gate,
-                    Math.max(0, needFences), Math.max(0, needGates));
+        // Dost plaňků; branka je bonus – dorob ji, když jde, ale neblokuj na ní.
+        if (ctx.inventory().countItem(snapshot, gate) < 1 && planks != null && hasTable
+                && CraftingService.canCraftFencing(snapshot, planks, 0, 1)) {
+            craftFuture = crafting.craftFencing(bot.id(), planks, post, gate, 0, 1);
             return;
         }
-        if (!craftFuture.isDone()) {
-            return;
-        }
-        boolean crafted = craftFuture.getNow(false);
-        craftFuture = null;
-        if (crafted) {
-            phase = Phase.WORK;
-        } else {
-            giveUp(2400);
-        }
+        gather = null;
+        phase = Phase.WORK;
     }
 
     /** Postaví ohradu sdíleným vykonavatelem; plán je idempotentní. */
     private void tickWork(BotContext ctx) {
         if (worker == null) {
+            chooseMaterials(ctx); // z čeho bot nakonec staví
             List<Enclosure.Placement> cells = planPen(ctx.worldView());
             if (cells.isEmpty()) {
                 finish(ctx, false); // ohrada už stojí (nebo není kde) – tiše konec
@@ -280,12 +323,14 @@ public final class PenGoal extends AbstractGoal {
             ctx.chat().sayFrom(PhraseCategory.PEN_DONE, null);
         }
         worker = null;
+        gather = null;
         cooldownTicks = ctx.rng().rangeInt(6000, 12000);
         phase = Phase.DONE;
     }
 
     private void giveUp(int cooldown) {
         worker = null;
+        gather = null;
         craftFuture = null;
         cooldownTicks = cooldown;
         phase = Phase.DONE;
@@ -293,11 +338,16 @@ public final class PenGoal extends AbstractGoal {
 
     @Override
     public void stop(Bot bot) {
+        BotContext ctx = ctx(bot);
         if (worker != null) {
-            worker.cancel(ctx(bot));
+            worker.cancel(ctx);
             worker = null;
         }
-        ctx(bot).navigator().stop();
+        if (gather != null) {
+            gather.cancel(ctx);
+            gather = null;
+        }
+        ctx.navigator().stop();
     }
 
     @Override

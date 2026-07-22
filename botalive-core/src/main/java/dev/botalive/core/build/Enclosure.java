@@ -108,6 +108,73 @@ public final class Enclosure {
     }
 
     /**
+     * Stav bariéry po obvodu (čisté počty) – pro opravu. {@code standing} =
+     * sloupce, kde bariéra stojí; {@code missing} = kde chybí a dá se postavit.
+     * Sloupec bez opory / nenačtený se nepočítá (obvod se pak netváří jako
+     * poškozený). „Pár chybějících v jinak stojící bariéře" = poškození (viz
+     * {@code BarrierRepair}).
+     *
+     * @param standing sloupce se stojící bariérou
+     * @param missing  chybějící (postavitelné) sloupce
+     */
+    public record Assessment(int standing, int missing) {
+
+        /** Nic neposouzeno (nenačteno / prázdný obvod). */
+        public static final Assessment EMPTY = new Assessment(0, 0);
+
+        /** @return celkem posouzených sloupců */
+        public int total() {
+            return standing + missing;
+        }
+
+        /** @return poměr chybějících sloupců (0 když není co posoudit) */
+        public double missingRatio() {
+            return total() == 0 ? 0 : (double) missing / total();
+        }
+    }
+
+    /**
+     * Posoudí stav bariéry po obvodu obdélníku – kolik sloupců stojí a kolik
+     * chybí. Jeden sken (vzor {@link #plan}), levné pro občasné volání.
+     *
+     * @param world pohled na svět
+     * @param min   roh oblasti (min XZ)
+     * @param max   roh oblasti (max XZ)
+     * @param yHint výška, kolem které se hledá zem
+     * @param gates strany s brankou (posuzují se přes blok nad zemí)
+     * @return počty stojících a chybějících sloupců
+     */
+    public static Assessment assess(WorldView world, BlockPos min, BlockPos max, int yHint,
+                                    Set<Cardinal> gates) {
+        if (world == null || min == null || max == null) {
+            return Assessment.EMPTY;
+        }
+        int minX = Math.min(min.x(), max.x());
+        int maxX = Math.max(min.x(), max.x());
+        int minZ = Math.min(min.z(), max.z());
+        int maxZ = Math.max(min.z(), max.z());
+        Set<Long> gateCells = gateCells(minX, minZ, maxX, maxZ, gates);
+        int standing = 0;
+        int missing = 0;
+        for (BlockPos column : perimeter(minX, minZ, maxX, maxZ, yHint)) {
+            BlockPos ground = VillageDecor.groundAt(world, column.x(), yHint, column.z());
+            if (ground == null) {
+                continue; // sráz/nenačteno – nepočítá se
+            }
+            boolean gate = gateCells.contains(new BlockPos(column.x(), 0, column.z()).asLong());
+            // Sloupek: groundAt vyleze na pevnou bariéru → materiál země JE bariéra.
+            // Branka není pevná (groundAt na ni nevyleze) → posoudí se blok nad zemí.
+            Material mat = gate ? world.materialAt(ground.up()) : world.materialAt(ground);
+            if (isBarrier(mat)) {
+                standing++;
+            } else {
+                missing++;
+            }
+        }
+        return new Assessment(standing, missing);
+    }
+
+    /**
      * Rozvine naplánovaný sloupec do výšky: branka (nebo první sloupek) dole,
      * sloupky nad ním. Čistá geometrie – vykonavatel z toho udělá pokládku.
      *
