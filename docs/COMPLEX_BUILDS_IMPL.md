@@ -305,9 +305,18 @@ nové testy K1–K4 zelené; `CommunalBuildGoal` bez per-druh větvení.
 > blokem. Dnes se všechny civilní stavby vejdou do parcely (≤ rozestup), tak
 > je to připravená schopnost pro budoucí velké stavby, ne změna chování.
 >
-> **Zbývá z V2c**: šablonový loader (bod 1), `BELL_TOWER` (bod 4 – potřebuje
-> lešení z V2d na pravou věž) a přesné materiálové palety – teprve až je
-> vynutí šablonové stavby.
+> **HOTOVO (bod 4 – `BELL_TOWER`, zvonice).** Prestižní trojice kompletní
+> (radnice → zvonice → kostel). `FurnishKind.BELL` + `itemFor`; blueprint
+> `Blueprints.bellTower()` – otevřená zvonička 3×3 (zděná základna s dveřmi,
+> rohové sloupky, plochý baldachýn, zvon pod ním, pochodeň na koruně).
+> `ProjectKind.BELL_TOWER` mezi radnicí a kostelem (žádná neposouvá stupeň),
+> `CommunalBuildGoal` větve + fráze `settlement-belltower-*` (cs+en).
+> **Vědomá mez**: výška skromná (baldachýn y=4), aby se stavěla z jednoho
+> stanoviště na zemi – engine nemá lešení (V2d), pravá vysoká věž počká.
+> Simulační test staví celou zvoničku vč. zvonu z jednoho stanoviště.
+>
+> **Zbývá z V2c**: šablonový loader (bod 1 – datové blueprinty z YAML)
+> a přesné materiálové palety – teprve až je vynutí šablonové stavby.
 
 ## V2d – konsolidace
 
