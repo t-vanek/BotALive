@@ -24,8 +24,8 @@ public final class Blueprints {
     private static final Blueprint GRANARY = new HouseLegacy(true);
     private static final Blueprint WELL = new WellLegacy();
     private static final Blueprint MARKET_STALL = new MarketStallLegacy();
-    private static final Blueprint TOWN_HALL = new CivicHall(5, 5, 3, true);
-    private static final Blueprint CHURCH = new CivicHall(5, 7, 4, false);
+    private static final Blueprint TOWN_HALL = new CivicHall(5, 5, 5, false);
+    private static final Blueprint CHURCH = new CivicHall(5, 7, 6, false);
     private static final Blueprint BELL_TOWER = new BellTower();
 
     private Blueprints() {
