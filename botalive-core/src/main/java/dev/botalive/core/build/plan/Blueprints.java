@@ -315,6 +315,16 @@ public final class Blueprints {
             return x == 0 || x == SIZE - 1 || z == 0 || z == SIZE - 1;
         }
 
+        /** Střed stěny (okenní štěrbina ve výšce očí) – ne roh; z každé strany jedna. */
+        private static boolean isWindow(int x, int z) {
+            boolean xWall = x == 0 || x == SIZE - 1;
+            boolean zWall = z == 0 || z == SIZE - 1;
+            if (xWall == zWall) {
+                return false; // roh (obě strany) nebo vnitřek (žádná)
+            }
+            return xWall ? z == SIZE / 2 : x == SIZE / 2;
+        }
+
         /** Spodní buňka dveří na straně, kterou se radnice dívá k návsi. */
         private static BlockPos doorBottom(BlockPos origin, Cardinal facing) {
             return origin.offset(SIZE / 2 + facing.dx() * (SIZE / 2), 0,
@@ -335,6 +345,9 @@ public final class Blueprints {
                         BlockPos pos = origin.offset(x, y, z);
                         if (y < 2 && pos.x() == door.x() && pos.z() == door.z()) {
                             continue; // otvor dveří (y=0,1)
+                        }
+                        if (y == 1 && isWindow(x, z)) {
+                            continue; // okenní štěrbina uprostřed stěny
                         }
                         result.add(new PlacementCell(pos, BlockSpec.GENERIC));
                     }
@@ -393,7 +406,8 @@ public final class Blueprints {
 
         @Override
         public int blocksNeeded() {
-            return 4 * (SIZE - 1) * WALL_HEIGHT - 2 + SIZE * SIZE;
+            // −2 dveře (2 buňky) − 3 okna (3 stěny mimo dveřní).
+            return 4 * (SIZE - 1) * WALL_HEIGHT - 5 + SIZE * SIZE;
         }
 
         @Override
@@ -421,6 +435,16 @@ public final class Blueprints {
             return x == 0 || x == WIDTH - 1 || z == 0 || z == DEPTH - 1;
         }
 
+        /** Střed stěny (okenní štěrbina ve výšce očí) – ne roh; z každé strany jedna. */
+        private static boolean isWindow(int x, int z) {
+            boolean xWall = x == 0 || x == WIDTH - 1;
+            boolean zWall = z == 0 || z == DEPTH - 1;
+            if (xWall == zWall) {
+                return false; // roh (obě strany) nebo vnitřek (žádná)
+            }
+            return xWall ? z == DEPTH / 2 : x == WIDTH / 2;
+        }
+
         /** Spodní buňka dveří na straně, kterou se kostel dívá k návsi. */
         private static BlockPos doorBottom(BlockPos origin, Cardinal facing) {
             return origin.offset(WIDTH / 2 + facing.dx() * (WIDTH / 2), 0,
@@ -440,6 +464,9 @@ public final class Blueprints {
                         BlockPos pos = origin.offset(x, y, z);
                         if (y < 2 && pos.x() == door.x() && pos.z() == door.z()) {
                             continue; // otvor dveří (y=0,1)
+                        }
+                        if (y == 1 && isWindow(x, z)) {
+                            continue; // okenní štěrbina uprostřed stěny
                         }
                         result.add(new PlacementCell(pos, BlockSpec.GENERIC));
                     }
@@ -497,7 +524,8 @@ public final class Blueprints {
 
         @Override
         public int blocksNeeded() {
-            return (2 * WIDTH + 2 * DEPTH - 4) * WALL_HEIGHT - 2 + WIDTH * DEPTH;
+            // −2 dveře (2 buňky) − 3 okna (3 stěny mimo dveřní).
+            return (2 * WIDTH + 2 * DEPTH - 4) * WALL_HEIGHT - 5 + WIDTH * DEPTH;
         }
 
         @Override
