@@ -82,6 +82,10 @@ public final class StarterKitService {
         kit.put(Material.COBBLESTONE, 64);
         kit.put(Material.TORCH, 16);
         kit.put(Material.CRAFTING_TABLE, 1);
+        // Sklo na okna: dům jich chce jen 3, ale bez skla v batohu sáhne
+        // stavba po náhradním bloku a barák zůstane slepý. Na doplnění si
+        // bot pak taví písek (FurnaceService.SMELTABLE).
+        kit.put(Material.GLASS, 8);
         switch (role) {
             case BUILDER -> {
                 // Dům chce 80–153 bloků; stavitel má začít hned, ne až po těžbě.

@@ -39,7 +39,7 @@ class SettlementServiceTest {
     }
 
     private static BotAliveConfig.Settlement config() {
-        return new BotAliveConfig.Settlement(true, 12, 8, 200, 150, 0.30, 0.60, 30, true, true, false, false, 2, 0, 2, war());
+        return new BotAliveConfig.Settlement(true, 12, 8, 200, 150, 0.30, 0.60, 30, true, true, false, false, 2, 0, 2, true, 8, 24, war());
     }
 
     private static BotAliveConfig.War war() {
@@ -616,7 +616,7 @@ class SettlementServiceTest {
 
     @Test
     void plnaVesniceNoveClenyNebere() {
-        var config = new BotAliveConfig.Settlement(true, 12, 2, 200, 150, 0.30, 0.60, 30, true, true, false, false, 2, 0, 2, war());
+        var config = new BotAliveConfig.Settlement(true, 12, 2, 200, 150, 0.30, 0.60, 30, true, true, false, false, 2, 0, 2, true, 8, 24, war());
         service = new SettlementService(config, null, () -> now);
         var village = foundVillage();
         assertTrue(service.join(village.id(),
@@ -762,7 +762,7 @@ class SettlementServiceTest {
 
     @Test
     void vypnuteVesniceNicNedelaji() {
-        var config = new BotAliveConfig.Settlement(false, 12, 8, 200, 150, 0.30, 0.60, 30, true, true, false, false, 2, 0, 2, war());
+        var config = new BotAliveConfig.Settlement(false, 12, 8, 200, 150, 0.30, 0.60, 30, true, true, false, false, 2, 0, 2, true, 8, 24, war());
         service = new SettlementService(config, null, () -> now);
         assertEquals(SettlementService.HomePlan.Kind.SOLO,
                 service.planHome(plainView(founder, 0.9)).kind());
@@ -857,5 +857,82 @@ class SettlementServiceTest {
         assertFalse(service.claimWalls(id, joiner), "founder je drží");
         now += 11 * 60_000L; // po TTL zamluvení
         assertTrue(service.claimWalls(id, joiner), "stavitel zmizel – hradby jsou zase volné");
+    }
+
+    // ------------------------------------------- ochrana proti poddolování
+
+    /**
+     * Parcela člena je chráněná i pod základy: přesně tam boti kopali
+     * schodiště do dolu a prokopali si vlastní vesnici.
+     */
+    @Test
+    void parcelaJeChranenaVcetnePodlozi() {
+        foundVillage();
+        BlockPos plot = service.claimedPlot(founder).orElseThrow().origin();
+
+        assertTrue(service.isStructureProtected(WORLD, plot), "vlastní blok stavby");
+        assertTrue(service.isStructureProtected(WORLD, plot.offset(0, -6, 0)),
+                "podloží těsně pod domem se nesmí vybrat");
+        assertTrue(service.isStructureProtected(WORLD, plot.offset(3, 4, 3)),
+                "objem domu do výšky");
+    }
+
+    /** Hluboko pod vesnicí i kus za ní se kopat smí – ochrana není klec. */
+    @Test
+    void hloubkaAOkoliMimoOchranuZustavajiTezitelne() {
+        foundVillage();
+        BlockPos plot = service.claimedPlot(founder).orElseThrow().origin();
+
+        assertFalse(service.isStructureProtected(WORLD, plot.offset(0, -40, 0)),
+                "hlubinný důl pod vesnicí nikomu nepodhrabává základy");
+        assertFalse(service.isStructureProtected(WORLD, plot.offset(40, 0, 40)),
+                "kus za vesnicí je běžný terén");
+        assertFalse(service.isStructureProtected("nether", plot),
+                "ochrana platí jen ve světě sídla");
+    }
+
+    /**
+     * Vlastní parcela se staviteli nechrání – jinak ho ochrana uvězní před
+     * jeho vlastním domem (živě: 8 watchdog resetů s cílem {@code house},
+     * protože si nesměl prokopat cestu na staveniště). Sousedovi chráněná
+     * zůstává.
+     */
+    @Test
+    void vlastniParcelaStaviteleNeblokuje() {
+        foundVillage();
+        BlockPos plot = service.claimedPlot(founder).orElseThrow().origin();
+
+        assertFalse(service.isStructureProtected(WORLD, plot, founder),
+                "na vlastní staveniště si bot cestu prokopat smí");
+        assertTrue(service.isStructureProtected(WORLD, plot, joiner),
+                "sousedův dům je pro ostatní pořád chráněný");
+        assertTrue(service.isStructureProtected(WORLD, plot),
+                "těžba (bez výjimky) zůstává zapovězená i vlastníkovi");
+    }
+
+    /** Vypnutá ochrana = chování jako dřív (nic není chráněné). */
+    @Test
+    void vypnutaOchranaNicNechrani() {
+        var config = new BotAliveConfig.Settlement(true, 12, 8, 200, 150, 0.30, 0.60, 30,
+                true, true, false, false, 2, 0, 2, false, 8, 24, war());
+        var plain = new SettlementService(config, null, () -> now);
+        plain.foundSettlement(plainView(founder, 0.7), HOME_SITE,
+                HOME_SITE.offset(-2, 0, -2), Cardinal.NORTH, 42L);
+        BlockPos plot = plain.claimedPlot(founder).orElseThrow().origin();
+
+        assertFalse(plain.isStructureProtected(WORLD, plot));
+    }
+
+    /** Vzdálenost k nejbližší návsi řídí, kde smí vzniknout ústí dolu. */
+    @Test
+    void vzdalenostKSidluRidiZakladaniDolu() {
+        foundVillage();
+
+        assertEquals(0, service.distanceToNearestSettlement(WORLD, HOME_SITE).orElseThrow());
+        assertEquals(60,
+                service.distanceToNearestSettlement(WORLD, HOME_SITE.offset(60, 0, 0))
+                        .orElseThrow());
+        assertTrue(service.distanceToNearestSettlement("nether", HOME_SITE).isEmpty(),
+                "v jiném světě sídlo není");
     }
 }
