@@ -182,12 +182,23 @@ ulice – cíl je nechává jako otevřené průchody přes celou výšku.
   napříč seancemi (strop sloupců na seanci). Váhy rolí: kameník a stavitel;
   hlášky `settlement-walls-start/done`.
 
-### Ohrady kolem zvířat (navazující krok)
+### Ohrady kolem zvířat (hotovo, za `settlement.fences`)
 
-Zbývá autonomní **ohrada** kolem stád (výběr místa a velikosti kolem pohyblivého
-stáda, sehnání zvířat dovnitř). Primitivy (`Enclosure`, `BarrierStyle`,
-`BarrierWorker`, výroba plotu z prken) jsou připravené – chybí jen cíl, který
-vybere obdélník kolem shluku hospodářských zvířat.
+Cíl `pen` (`PenGoal`) obežene shluk hospodářských zvířat plotem s brankou –
+chov (`BreedGoal`) stádo rozmnoží, ohrada mu dá výběh (a přestane utíkat).
+Chová se u chovatelských profesí (farmář, pastýř, krotitel).
+
+Otevřený problém „kam a jak velkou ohradu kolem **pohyblivého** stáda" řeší
+**pevná ohrada přichycená na mřížku**: spočítá se těžiště stáda, zaokrouhlí na
+mřížku (7×7) a ohradí se ta buňka. Obdélník je tím **deterministický** –
+opakovaný běh dá tentýž, takže se ohrady nepřekrývají a plán je idempotentní
+(`penRect`, čistá funkce). Branka je otevíratelná (`DoorOpener`), takže se bot
+nezavře. Materiál i vykonavatel jsou stejné jako u plotu domu
+(`craftFencing` z prken, `BarrierWorker`); hlášky `pen-start/done`.
+
+Tím je „obehnat zvířata i domy plotem, sídla hradbami" kompletní – ploty, hradby
+i ohrady stojí na jednom primitivu (`Enclosure`) a jednom vykonavateli
+(`BarrierWorker`).
 
 ## Fáze D – město a krajina
 
@@ -206,12 +217,11 @@ vybere obdélník kolem shluku hospodářských zvířat.
 - Max 8 členů (`settlement.max-members`) drží sídla lidská; město je
   „plná vesnice s infrastrukturou", ne metropole. Zvětšování kapacity
   podle stupně je možné rozšíření (config), ne předpoklad.
-- **Ploty kolem domů** (cíl `settlement-fences`, za `settlement.fences`) i
-  **hradby kolem sídel** (cíl `settlement-walls`, za `settlement.walls`) jsou
-  hotové, defaultně vypnuté. Zbývají **ohrady kolem zvířat** – základ
-  (`Enclosure`/`BarrierStyle`/`BarrierWorker`) je připravený, chybí cíl (viz
-  „Ohradní bariéry"). Radnice a druhé prstence budov zůstávají mimo plán, dokud
-  se neukáže, že B–D substance
+- **Ohradní bariéry hotové** (defaultně vypnuté): ploty kolem domů
+  (`settlement-fences`) a ohrady kolem zvířat (`pen`) za `settlement.fences`,
+  hradby kolem sídel (`settlement-walls`) za `settlement.walls` – vše na jednom
+  primitivu `Enclosure` a vykonavateli `BarrierWorker`. Radnice a druhé prstence
+  budov zůstávají mimo plán, dokud se neukáže, že B–D substance
   nestačí. (Účelné řemeslné dílny fáze E jsou výjimka odůvodněná specializací –
   nezvětšují sídlo, jen ho prohlubují.)
 - Žádná „městská práva" mechanika pro hráče – sídla botů zůstávají

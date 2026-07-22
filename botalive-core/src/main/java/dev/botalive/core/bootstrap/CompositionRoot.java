@@ -312,6 +312,7 @@ public final class CompositionRoot {
                 bot -> new dev.botalive.core.ai.goals.SettlementFenceGoal(crafting));
         registry.register("settlement-walls",
                 bot -> new dev.botalive.core.ai.goals.SettlementWallGoal());
+        registry.register("pen", bot -> new dev.botalive.core.ai.goals.PenGoal(crafting));
         registry.register("camp", bot -> new dev.botalive.core.ai.goals.CampGoal());
         registry.register("shelter", bot -> new BuildShelterGoal());
         registry.register("house", bot -> new BuildHouseGoal());
