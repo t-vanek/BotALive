@@ -137,6 +137,27 @@ class EnclosureTest {
         assertEquals(new BlockPos(0, Y + 1, 0), col.get(0).pos());
     }
 
+    @Test
+    void branaVHradbeMaProchodANadprazi() {
+        // Hradba výšky 3: branka dole, y=1 volné (průchod), překlad na y=2.
+        Enclosure.Post gate = new Enclosure.Post(new BlockPos(2, Y + 1, 0), true);
+        List<Enclosure.Placement> col = Enclosure.gateway(gate, 3);
+        assertEquals(2, col.size());
+        assertEquals(Enclosure.Cell.GATE, col.get(0).kind());
+        assertEquals(new BlockPos(2, Y + 1, 0), col.get(0).pos());
+        assertEquals(Enclosure.Cell.POST, col.get(1).kind());
+        assertEquals(new BlockPos(2, Y + 3, 0), col.get(1).pos(), "překlad až nad nadpražím");
+    }
+
+    @Test
+    void nizkaBranaJeJenBranka() {
+        // Výška 2 (i 1): na překlad nad nadpražím není místo – zůstane jen branka.
+        Enclosure.Post gate = new Enclosure.Post(new BlockPos(2, Y + 1, 0), true);
+        List<Enclosure.Placement> col = Enclosure.gateway(gate, 2);
+        assertEquals(1, col.size());
+        assertEquals(Enclosure.Cell.GATE, col.get(0).kind());
+    }
+
     /** Base sloupce na dané XZ (musí existovat). */
     private static BlockPos baseAt(List<Enclosure.Post> posts, int x, int z) {
         return posts.stream().filter(p -> p.base().x() == x && p.base().z() == z)

@@ -4,15 +4,21 @@ import dev.botalive.api.bot.Bot;
 import dev.botalive.api.personality.Trait;
 import dev.botalive.core.ai.BotContext;
 import dev.botalive.core.ai.BotNeeds;
+import dev.botalive.core.bot.ServerSideView;
+import dev.botalive.core.build.BarrierStyle;
 import dev.botalive.core.build.Enclosure;
 import dev.botalive.core.build.HouseBlueprint;
 import dev.botalive.core.chat.PhraseCategory;
+import dev.botalive.core.crafting.CraftingService;
 import dev.botalive.core.settlement.SettlementService;
 import dev.botalive.core.settlement.SettlementTier;
+import dev.botalive.core.station.CraftingStation;
 import dev.botalive.core.util.BlockPos;
 import dev.botalive.core.util.Cardinal;
 import dev.botalive.core.world.WorldDimension;
 import dev.botalive.core.world.WorldView;
+
+import org.bukkit.Material;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -46,6 +52,10 @@ public final class SettlementWallGoal extends AbstractGoal {
     private static final int NEAR_HOME_RINGS = 8;
     /** Minimum stavebních bloků k zahájení seance (zbytek se dodělá později). */
     private static final int MIN_BLOCKS = 24;
+    /** Kolik branek má hradba (jedna na každou osu, kudy vede cesta). */
+    private static final int GATE_COUNT = 4;
+
+    private final CraftingStation crafting;
 
     private Phase phase = Phase.DONE;
     private long settlementId;
@@ -54,9 +64,13 @@ public final class SettlementWallGoal extends AbstractGoal {
     private int cooldownTicks;
     private UUID selfId;
 
-    /** Vytvoří cíl. */
-    public SettlementWallGoal() {
+    /**
+     * @param crafting služba craftingu – branky do hradeb si bot dorobí z prken
+     *                 (bonus; bez prken zůstanou otevřené oblouky)
+     */
+    public SettlementWallGoal(CraftingStation crafting) {
         super("settlement-walls");
+        this.crafting = crafting;
     }
 
     @Override
@@ -160,11 +174,44 @@ public final class SettlementWallGoal extends AbstractGoal {
             finish(ctx, false); // hradba už drží (nebo není kde stavět)
             return;
         }
-        worker = new BarrierWorker(cells, center, null, null); // běžné bloky, bez branek
+        Material gate = provisionGates(ctx, bot, cells);
+        worker = new BarrierWorker(cells, center, null, gate); // sloupky z běžných bloků
         if (ctx.rng().chance(0.6)) {
             ctx.chat().sayFrom(PhraseCategory.SETTLEMENT_WALLS_START, settlement.name());
         }
         phase = Phase.WORK;
+    }
+
+    /**
+     * Materiál branky (dřevo okolí, jinak dub) a best-effort dorobení branek
+     * z prken pro <b>ještě nepostavené</b> průchody. Branka je bonus: bez prken
+     * nebo ponku se nevyrobí a průchod zůstane otevřeným obloukem (viz
+     * {@link BarrierWorker}). Craft je fire-and-forget – než k bráně stavitel
+     * dojde (po obvodu), je hotová; jinak ji osadí příští seance (idempotence).
+     *
+     * @return materiál branky pro {@link BarrierWorker}
+     */
+    private Material provisionGates(BotContext ctx, Bot bot, List<Enclosure.Placement> cells) {
+        ServerSideView.Snapshot snapshot = ctx.serverView().latest();
+        Material planks = CraftingService.dominantPlanks(snapshot);
+        BarrierStyle.Materials mats = BarrierStyle.FENCE.materials(planks); // planks==null → dub
+        Material gate = mats.gate();
+        if (planks == null || snapshot == null
+                || !snapshot.hasItem(m -> m == Material.CRAFTING_TABLE)) {
+            return gate; // bez prken/ponku branku nevyrobí – zůstanou otevřené oblouky
+        }
+        int openGates = 0;
+        for (Enclosure.Placement cell : cells) {
+            if (cell.kind() == Enclosure.Cell.GATE
+                    && ctx.worldView().traitsAt(cell.pos()).noCollision()) {
+                openGates++; // průchod, kam branka teprve přijde (ne už osazená)
+            }
+        }
+        int toCraft = openGates - ctx.inventory().countItem(snapshot, gate);
+        if (toCraft > 0 && CraftingService.canCraftFencing(snapshot, planks, 0, toCraft)) {
+            crafting.craftFencing(bot.id(), planks, mats.post(), gate, 0, toCraft);
+        }
+        return gate;
     }
 
     private void tickWork(BotContext ctx) {
@@ -177,17 +224,15 @@ public final class SettlementWallGoal extends AbstractGoal {
 
     /**
      * Naplánuje hradbu po obvodu daného obdélníku do výšky {@code height}. Brány
-     * (sloupce označené {@code gate}) se vynechají celé – zůstane otevřený
-     * průchod, tudy vede cesta z návsi.
+     * (sloupce označené {@code gate}) dostanou <b>průchod</b> ({@link
+     * Enclosure#gateway}): branka dole, volné nadpraží a překlad nahoře – tudy
+     * vede cesta z návsi a dá se projít i vysokou hradbou.
      */
     private List<Enclosure.Placement> planWall(WorldView world, WallBounds bounds, int height) {
         List<Enclosure.Placement> cells = new ArrayList<>();
         for (Enclosure.Post p : Enclosure.plan(world, bounds.min(), bounds.max(), center.y(),
                 GATES, MAX_COLUMNS)) {
-            if (p.gate()) {
-                continue; // brána = otevřený průchod přes celou výšku hradby
-            }
-            cells.addAll(Enclosure.column(p, height));
+            cells.addAll(p.gate() ? Enclosure.gateway(p, height) : Enclosure.column(p, height));
         }
         return cells;
     }
