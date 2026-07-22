@@ -49,7 +49,7 @@ class DiplomacyServiceTest {
 
     private static BotAliveConfig.Settlement settlementConfig() {
         return new BotAliveConfig.Settlement(true, 12, 8, 200, 150, 0.30, 0.60,
-                30, true, true, false, false, 2, 0, 2, true, 8, 24, warConfig(true));
+                30, true, true, false, false, 2, 0, 2, true, 8, 24, 48, warConfig(true));
     }
 
     private static BotAliveConfig.War warConfig(boolean enabled) {

@@ -39,7 +39,7 @@ class SettlementServiceTest {
     }
 
     private static BotAliveConfig.Settlement config() {
-        return new BotAliveConfig.Settlement(true, 12, 8, 200, 150, 0.30, 0.60, 30, true, true, false, false, 2, 0, 2, true, 8, 24, war());
+        return new BotAliveConfig.Settlement(true, 12, 8, 200, 150, 0.30, 0.60, 30, true, true, false, false, 2, 0, 2, true, 8, 24, 48, war());
     }
 
     private static BotAliveConfig.War war() {
@@ -616,7 +616,7 @@ class SettlementServiceTest {
 
     @Test
     void plnaVesniceNoveClenyNebere() {
-        var config = new BotAliveConfig.Settlement(true, 12, 2, 200, 150, 0.30, 0.60, 30, true, true, false, false, 2, 0, 2, true, 8, 24, war());
+        var config = new BotAliveConfig.Settlement(true, 12, 2, 200, 150, 0.30, 0.60, 30, true, true, false, false, 2, 0, 2, true, 8, 24, 48, war());
         service = new SettlementService(config, null, () -> now);
         var village = foundVillage();
         assertTrue(service.join(village.id(),
@@ -762,7 +762,7 @@ class SettlementServiceTest {
 
     @Test
     void vypnuteVesniceNicNedelaji() {
-        var config = new BotAliveConfig.Settlement(false, 12, 8, 200, 150, 0.30, 0.60, 30, true, true, false, false, 2, 0, 2, true, 8, 24, war());
+        var config = new BotAliveConfig.Settlement(false, 12, 8, 200, 150, 0.30, 0.60, 30, true, true, false, false, 2, 0, 2, true, 8, 24, 48, war());
         service = new SettlementService(config, null, () -> now);
         assertEquals(SettlementService.HomePlan.Kind.SOLO,
                 service.planHome(plainView(founder, 0.9)).kind());
@@ -910,11 +910,53 @@ class SettlementServiceTest {
                 "těžba (bez výjimky) zůstává zapovězená i vlastníkovi");
     }
 
+    /**
+     * Dům MIMO parcelu sídla (samotář) musí být chráněný taky. Bez toho kryla
+     * ochrana jen menšinu zástavby – naměřeno 74 domovů proti 30 parcelám –
+     * a právě pod ty ostatní se boti prokopali.
+     */
+    @Test
+    void domMimoSidloJeChranenyTaky() {
+        BlockPos loner = new BlockPos(900, 70, 900);
+        service.registerHouse(WORLD, loner, third);
+
+        assertTrue(service.isStructureProtected(WORLD, loner), "vlastní blok domu");
+        assertTrue(service.isStructureProtected(WORLD, loner.offset(0, -6, 0)),
+                "podloží pod domem samotáře");
+        assertFalse(service.isStructureProtected(WORLD, loner.offset(0, -40, 0)),
+                "hlubinný důl pod ním je pořád v pořádku");
+        assertFalse(service.isStructureProtected(WORLD, loner, third),
+                "majitel má na vlastní dům stejnou výjimku jako na parcelu");
+        assertTrue(service.isStructureProtected(WORLD, loner, joiner),
+                "sousedovi chráněný zůstává");
+    }
+
+    /** U spawnu serveru se nestaví – ani dům, ani náves. */
+    @Test
+    void uSpawnuSeNestavi() {
+        service.setWorldSpawn(WORLD, new BlockPos(0, 64, 0));
+
+        assertTrue(service.isTooCloseToSpawn(WORLD, new BlockPos(30, 64, 10)),
+                "30 bloků od spawnu je uvnitř pásma 48");
+        assertFalse(service.isTooCloseToSpawn(WORLD, new BlockPos(60, 64, 0)),
+                "za pásmem se stavět smí");
+        assertFalse(service.isTooCloseToSpawn("nether", new BlockPos(5, 64, 5)),
+                "svět bez známého spawnu neomezujeme");
+
+        // Vesnice u spawnu nevznikne, kus dál ano.
+        assertTrue(service.foundSettlement(plainView(founder, 0.7), new BlockPos(10, 64, 10),
+                new BlockPos(8, 64, 8), Cardinal.NORTH, 1L).isEmpty(),
+                "náves u spawnu se nezaloží");
+        assertTrue(service.foundSettlement(plainView(founder, 0.7), new BlockPos(400, 64, 400),
+                new BlockPos(398, 64, 398), Cardinal.NORTH, 1L).isPresent(),
+                "daleko od spawnu se zakládá normálně");
+    }
+
     /** Vypnutá ochrana = chování jako dřív (nic není chráněné). */
     @Test
     void vypnutaOchranaNicNechrani() {
         var config = new BotAliveConfig.Settlement(true, 12, 8, 200, 150, 0.30, 0.60, 30,
-                true, true, false, false, 2, 0, 2, false, 8, 24, war());
+                true, true, false, false, 2, 0, 2, false, 8, 24, 48, war());
         var plain = new SettlementService(config, null, () -> now);
         plain.foundSettlement(plainView(founder, 0.7), HOME_SITE,
                 HOME_SITE.offset(-2, 0, -2), Cardinal.NORTH, 42L);

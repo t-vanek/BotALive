@@ -380,6 +380,12 @@ public final class BuildHouseGoal extends AbstractGoal {
             for (int dz = -8; dz <= 8; dz += 2) {
                 for (int dy = -1; dy <= 1; dy++) {
                     BlockPos candidate = feet.offset(dx, dy, dz);
+                    // Spawn serveru je společný prostor hráčů – barák bota (ani
+                    // zárodek vesnice) tam nepatří.
+                    if (ctx.settlements() != null
+                            && ctx.settlements().isTooCloseToSpawn(world.worldName(), candidate)) {
+                        continue;
+                    }
                     // Půdorys domku je na orientaci nezávislý – dveře se natočí až
                     // podle vesnice, na cenu staveniště vliv nemají.
                     int cost = SiteFinder.cost(world, Blueprints.house(), candidate,
@@ -689,6 +695,12 @@ public final class BuildHouseGoal extends AbstractGoal {
             }
             bot.memory().remember(MemoryKind.HOME, ctx.worldView().worldName(),
                     stand.x(), stand.y(), stand.z(), null, Map.copyOf(data), 0.9);
+            // Ochrana proti poddolování: parcely v sídle zná SettlementService
+            // sama, dům samotáře nikdo – bez téhle registrace zůstane
+            // nechráněný a boti se pod něj prokopou.
+            if (settlements != null) {
+                settlements.registerHouse(ctx.worldView().worldName(), origin, bot.id());
+            }
         }
         if (ctx.rng().chance(0.7)) {
             ctx.chat().say(settlementName == null

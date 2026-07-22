@@ -49,6 +49,17 @@ public final class BotAlivePlugin extends JavaPlugin {
             command.setTabCompleter(executor);
         }
 
+        // Spawny světů si evidence staveb zapamatuje teď, na hlavním vlákně –
+        // cíle běží jinde a Bukkit se ptát nemají. Kolem spawnu se nestaví.
+        var settlementService = root.get(dev.botalive.core.settlement.SettlementService.class);
+        if (settlementService != null) {
+            for (org.bukkit.World world : Bukkit.getWorlds()) {
+                var spawn = world.getSpawnLocation();
+                settlementService.setWorldSpawn(world.getName(), new dev.botalive.core.util.BlockPos(
+                        spawn.getBlockX(), spawn.getBlockY(), spawn.getBlockZ()));
+            }
+        }
+
         // Automatický spawn botů po startu serveru.
         if (config.bots().autoSpawnEnabled()) {
             scheduleAutoSpawn(config);

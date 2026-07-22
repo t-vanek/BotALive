@@ -23,6 +23,7 @@ import org.slf4j.LoggerFactory;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Collection;
+import dev.botalive.core.util.BlockPos;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -113,6 +114,40 @@ public final class BotManagerImpl implements BotManager {
         return economyGateway;
     }
 
+    /**
+     * Vrátí domy z paměti bota do evidence chráněných staveb.
+     *
+     * <p>Origin je v metadatech vzpomínky ({@code ox/oy/oz}) – vzpomínka sama
+     * míří na stanoviště u dveří. Když metadata chybí (starší zápis), bere se
+     * pozice vzpomínky; chráněné pásmo je dost velké, aby to stačilo.</p>
+     *
+     * @param botId    bot
+     * @param memories načtené vzpomínky
+     */
+    private void registerRememberedHouses(UUID botId,
+                                          List<dev.botalive.api.memory.MemoryRecord> memories) {
+        if (services.settlements() == null) {
+            return;
+        }
+        for (var record : memories) {
+            if (record.kind() != dev.botalive.api.memory.MemoryKind.HOME) {
+                continue;
+            }
+            Map<String, String> data = record.data();
+            BlockPos origin;
+            try {
+                origin = data != null && data.containsKey("ox")
+                        ? new BlockPos(Integer.parseInt(data.get("ox")),
+                                Integer.parseInt(data.get("oy")),
+                                Integer.parseInt(data.get("oz")))
+                        : new BlockPos(record.x(), record.y(), record.z());
+            } catch (NumberFormatException malformed) {
+                origin = new BlockPos(record.x(), record.y(), record.z());
+            }
+            services.settlements().registerHouse(record.world(), origin, botId);
+        }
+    }
+
     @Override
     public CompletableFuture<Bot> create(BotSpawnSpec spec) {
         if (byId.size() >= config.bots().maxCount()) {
@@ -162,6 +197,10 @@ public final class BotManagerImpl implements BotManager {
                     BotMemoryImpl memory = new BotMemoryImpl(botId, repository, identity.memories(),
                             dev.botalive.core.memory.RelationDecay.fromConfig(config.memory()),
                             services.memoryKinds());
+                    // Domy z minulých běhů zpátky pod ochranu proti poddolování:
+                    // parcely zná sídlo samo, dům samotáře žije jen v paměti
+                    // HOME – bez tohohle by po restartu zůstal nechráněný.
+                    registerRememberedHouses(botId, identity.memories());
                     EconomyGateway gateway = config.economy().enabled() ? resolveEconomy() : null;
                     dev.botalive.api.economy.BotWallet wallet = gateway != null
                             ? new VaultBotWallet(botId, gateway, repository::saveWallet,

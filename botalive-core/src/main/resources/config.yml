@@ -331,6 +331,10 @@ settlement:
   # Jak daleko od návsi musí bot odejít, než založí důl (bloky). Ústí dolu
   # tak vzniká za humny jako samostatná stavba, ne na návsi. 0 = kdekoliv.
   mine-distance: 24
+  # Ochranné pásmo kolem SPAWNU serveru (bloky): uvnitř nevznikne ani dům
+  # bota, ani náves nové vesnice. Spawn je společný prostor hráčů – boti si
+  # ho jinak zastaví domky hned v prvních minutách. 0 = ochrana vypnutá.
+  spawn-keepout: 48
   # Pod tímto rysem SOCIABILITY je bot samotář a vesnice neřeší.
   loner-sociability: 0.30
   # Důležitost nepřátelské vzpomínky na souseda, která se počítá jako vážná
