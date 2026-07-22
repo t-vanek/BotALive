@@ -307,13 +307,14 @@ nové testy K1–K4 zelené; `CommunalBuildGoal` bez per-druh větvení.
 >
 > **HOTOVO (bod 4 – `BELL_TOWER`, zvonice).** Prestižní trojice kompletní
 > (radnice → zvonice → kostel). `FurnishKind.BELL` + `itemFor`; blueprint
-> `Blueprints.bellTower()` – otevřená zvonička 3×3 (zděná základna s dveřmi,
-> rohové sloupky, plochý baldachýn, zvon pod ním, pochodeň na koruně).
+> `Blueprints.bellTower()` – **pravá věž**: dutá šachta 3×3 (5 vysoká,
+> s dveřmi), nahoře otevřené zvonové patro s rohovými sloupky, baldachýn
+> v `y=6` a zvon visící v `y=5`. Horní patro je nad dosah ze země, takže se
+> staví **z vyvýšeného pilířového stanoviště** (lešení) – původní mez „nízká
+> zvonička" padla, jakmile přibylo lešení a zvedly se stropy výšky.
 > `ProjectKind.BELL_TOWER` mezi radnicí a kostelem (žádná neposouvá stupeň),
 > `CommunalBuildGoal` větve + fráze `settlement-belltower-*` (cs+en).
-> **Vědomá mez**: výška skromná (baldachýn y=4), aby se stavěla z jednoho
-> stanoviště na zemi – engine nemá lešení (V2d), pravá vysoká věž počká.
-> Simulační test staví celou zvoničku vč. zvonu z jednoho stanoviště.
+> Simulační test staví celou věž vč. zvonu přes vyvýšená stanoviště.
 >
 > **Zbývá z V2c**: šablonový loader (bod 1 – datové blueprinty z YAML)
 > a přesné materiálové palety – teprve až je vynutí šablonové stavby.
