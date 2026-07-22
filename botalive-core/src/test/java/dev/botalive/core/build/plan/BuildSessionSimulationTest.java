@@ -135,6 +135,33 @@ class BuildSessionSimulationTest {
     }
 
     @Test
+    void churchBuildsLongNaveAcrossStandpoints() {
+        FakeWorldView world = new FakeWorldView(FLOOR_Y);
+        BuildPlan plan = BuildPlan.of(Blueprints.church(), ORIGIN, Cardinal.NORTH);
+        BuildSchedule schedule = BuildPlanner.schedule(plan, world);
+        assertTrue(schedule.units().size() > 1, "dlouhá loď kostela se staví z víc stanovišť");
+
+        FakeBotContext ctx = new FakeBotContext(world, personality())
+                .give(Material.COBBLESTONE, 200)
+                .give(Material.OAK_DOOR, 1)
+                .give(Material.TORCH, 1);
+
+        BuildSession session = new BuildSession(schedule);
+        BuildSession.State state = BuildSession.State.RUNNING;
+        for (int i = 0; i < 30000 && state == BuildSession.State.RUNNING; i++) {
+            // Simulace navigace: bot je vždy na stanovišti, kam session míří.
+            BlockPos s = session.currentStand();
+            ctx.update(new Vec3(s.x() + 0.5, s.y(), s.z() + 0.5), true);
+            state = session.tick(ctx);
+        }
+        assertEquals(BuildSession.State.DONE, state, "kostel se dostaví");
+        assertTrue(allSolid(world, plan), "zdi i střecha kostela stojí");
+        for (FurnishCell f : plan.furnishing()) {
+            assertTrue(world.traitsAt(f.pos()).solid(), "vybavení kostela osazeno: " + f.kind());
+        }
+    }
+
+    @Test
     void granaryBuildsWithDoubleChest() {
         FakeWorldView world = new FakeWorldView(FLOOR_Y);
         BuildPlan plan = BuildPlan.of(Blueprints.granary(), ORIGIN, Cardinal.NORTH);

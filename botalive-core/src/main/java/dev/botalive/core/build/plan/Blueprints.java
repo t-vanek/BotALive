@@ -25,6 +25,7 @@ public final class Blueprints {
     private static final Blueprint WELL = new WellLegacy();
     private static final Blueprint MARKET_STALL = new MarketStallLegacy();
     private static final Blueprint TOWN_HALL = new TownHallLegacy();
+    private static final Blueprint CHURCH = new ChurchLegacy();
 
     private Blueprints() {
     }
@@ -52,6 +53,11 @@ public final class Blueprints {
     /** @return blueprint radnice (zděný sál 5×5 s plochou střechou; prestižní stavba města). */
     public static Blueprint townHall() {
         return TOWN_HALL;
+    }
+
+    /** @return blueprint kostela (obdélníková loď 5×7 s plochou střechou; prestižní stavba města). */
+    public static Blueprint church() {
+        return CHURCH;
     }
 
     /**
@@ -393,6 +399,110 @@ public final class Blueprints {
         @Override
         public boolean standExact() {
             return true; // celý sál se staví přesně ze středu
+        }
+    }
+
+    // ==================================================================== kostel
+
+    /**
+     * Kostel: obdélníková loď 5×7 s vysokými zdmi (4) a plochou střechou,
+     * dveře orientované k návsi. Bloky role {@code GENERIC}; větší než radnice,
+     * proto se staví z <b>více stanovišť</b> – planner ho rozdělí a
+     * {@code BuildSession} přechází mezi vnitřními buňkami podlahy. Prestižní
+     * stavba města – neposouvá stupeň.
+     */
+    private record ChurchLegacy() implements Blueprint {
+
+        private static final int WIDTH = 5;
+        private static final int DEPTH = 7;
+        private static final int WALL_HEIGHT = 4;
+
+        private static boolean isPerimeter(int x, int z) {
+            return x == 0 || x == WIDTH - 1 || z == 0 || z == DEPTH - 1;
+        }
+
+        /** Spodní buňka dveří na straně, kterou se kostel dívá k návsi. */
+        private static BlockPos doorBottom(BlockPos origin, Cardinal facing) {
+            return origin.offset(WIDTH / 2 + facing.dx() * (WIDTH / 2), 0,
+                    DEPTH / 2 + facing.dz() * (DEPTH / 2));
+        }
+
+        @Override
+        public List<PlacementCell> cells(BlockPos origin, Cardinal facing) {
+            BlockPos door = doorBottom(origin, facing);
+            List<PlacementCell> result = new ArrayList<>();
+            for (int y = 0; y < WALL_HEIGHT; y++) {
+                for (int x = 0; x < WIDTH; x++) {
+                    for (int z = 0; z < DEPTH; z++) {
+                        if (!isPerimeter(x, z)) {
+                            continue;
+                        }
+                        BlockPos pos = origin.offset(x, y, z);
+                        if (y < 2 && pos.x() == door.x() && pos.z() == door.z()) {
+                            continue; // otvor dveří (y=0,1)
+                        }
+                        result.add(new PlacementCell(pos, BlockSpec.GENERIC));
+                    }
+                }
+            }
+            for (int x = 0; x < WIDTH; x++) {
+                for (int z = 0; z < DEPTH; z++) {
+                    result.add(new PlacementCell(origin.offset(x, WALL_HEIGHT, z), BlockSpec.GENERIC));
+                }
+            }
+            return result;
+        }
+
+        @Override
+        public List<BlockPos> clearVolume(BlockPos origin, Cardinal facing) {
+            List<BlockPos> result = new ArrayList<>();
+            for (int x = 0; x < WIDTH; x++) {
+                for (int y = 0; y <= WALL_HEIGHT; y++) {
+                    for (int z = 0; z < DEPTH; z++) {
+                        result.add(origin.offset(x, y, z));
+                    }
+                }
+            }
+            return result;
+        }
+
+        @Override
+        public List<BlockPos> groundColumns(BlockPos origin, Cardinal facing) {
+            List<BlockPos> result = new ArrayList<>();
+            for (int x = 0; x < WIDTH; x++) {
+                for (int z = 0; z < DEPTH; z++) {
+                    result.add(origin.offset(x, -1, z));
+                }
+            }
+            return result;
+        }
+
+        @Override
+        public List<FurnishCell> furnishing(BlockPos origin, Cardinal facing) {
+            // Dveře k návsi + jedna pochodeň uvnitř (u zdi, při každé orientaci).
+            return List.of(
+                    new FurnishCell(FurnishKind.DOOR, doorBottom(origin, facing)),
+                    new FurnishCell(FurnishKind.TORCH, origin.offset(1, 1, 1)));
+        }
+
+        @Override
+        public BlockPos standPoint(BlockPos origin, Cardinal facing) {
+            return origin.offset(WIDTH / 2, 0, DEPTH / 2);
+        }
+
+        @Override
+        public Optional<BlockPos> doorCell(BlockPos origin, Cardinal facing) {
+            return Optional.of(doorBottom(origin, facing));
+        }
+
+        @Override
+        public int blocksNeeded() {
+            return (2 * WIDTH + 2 * DEPTH - 4) * WALL_HEIGHT - 2 + WIDTH * DEPTH;
+        }
+
+        @Override
+        public boolean standExact() {
+            return false; // velká loď – staví se z více vnitřních stanovišť
         }
     }
 

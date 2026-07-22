@@ -217,8 +217,17 @@ class SettlementServiceTest {
         assertEquals(SettlementTier.MESTO,
                 service.settlementOf(founder).orElseThrow().tier(),
                 "radnice neposouvá stupeň");
+        // Po radnici se nabídne druhá prestižní stavba – kostel.
+        assertEquals(SettlementService.ProjectKind.CHURCH,
+                service.neededProject(founder).orElseThrow().kind());
+        service.claimProject(village.id(), SettlementService.ProjectKind.CHURCH, founder);
+        service.projectFinished(village.id(), SettlementService.ProjectKind.CHURCH);
+        // Ani kostel neposouvá stupeň – pořád město.
+        assertEquals(SettlementTier.MESTO,
+                service.settlementOf(founder).orElseThrow().tier(),
+                "kostel neposouvá stupeň");
         assertTrue(service.neededProject(founder).isEmpty(),
-                "s radnicí už město nic dalšího nepotřebuje");
+                "s radnicí i kostelem už město nic dalšího nepotřebuje");
     }
 
     /** Postaví město s 8 dostavěnými domy (zakladatel + 7 osadníků). */

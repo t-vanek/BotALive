@@ -305,6 +305,16 @@ phrases:
     - "done, {name} has a town hall. the whole town will gather here"
     - "town hall finished, neighbours – the square has a real building now"
 
+  settlement-church-start:
+    - "{name} is a proud town – it deserves a church. hauling stone, raising the nave"
+    - "starting a church for {name}, so the settlement has its sanctuary"
+    - "a town without a church? off to raise the nave walls for {name}"
+
+  settlement-church-done:
+    - "the church is up! {name} has its sanctuary"
+    - "done, {name} has a church. we'll gather here now"
+    - "church finished, neighbours – the nave rises over the square"
+
   # Účelné dílny: český název stanice se do angličtiny nepředává (jediný
   # argument nese 1. pád českého názvu), proto jsou fráze záměrně obecné.
   settlement-workshop-start:

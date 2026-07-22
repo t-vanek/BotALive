@@ -319,6 +319,16 @@ phrases:
     - "hotovo, {name} má radnici. tady se sejde celé město"
     - "radnice dostavěná, sousedi – náves teď zdobí pořádná stavba"
 
+  settlement-church-start:
+    - "{name} je hrdé město – zaslouží kostel. beru kámen a stavím loď"
+    - "pouštím se do kostela pro {name:4}, ať má sídlo svatostánek"
+    - "město bez kostela? jdu vztyčit zdi lodi pro {name}"
+
+  settlement-church-done:
+    - "kostel stojí! {name} má svůj svatostánek"
+    - "hotovo, {name} má kostel. tady se sejdeme"
+    - "kostel dostavěný, sousedi – loď se tyčí nad návsí"
+
   settlement-workshop-start:
     - "sídlu chybí {name} – beru nářadí a jdu na to"
     - "nová stavba pro sídlo: {name}, nosím materiál"

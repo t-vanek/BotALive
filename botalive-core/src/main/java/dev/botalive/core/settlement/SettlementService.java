@@ -212,6 +212,8 @@ public final class SettlementService {
         WAREHOUSE(null),
         /** Radnice – prestižní stavba města (neposouvá stupeň). */
         TOWN_HALL(null),
+        /** Kostel – prestižní stavba města (neposouvá stupeň). */
+        CHURCH(null),
         /** Kovárna – dílna kováře (pec + kovářský stůl). */
         FORGE(BotRole.BLACKSMITH),
         /** Kuchyně – dílna kuchaře (udírna). */
@@ -881,10 +883,15 @@ public final class SettlementService {
         if (wellDone && !projectDone(settlement, ProjectKind.WAREHOUSE)) {
             return ProjectKind.WAREHOUSE;
         }
-        // Radnice: prestižní stavba, až když je sídlo už město (neposouvá stupeň).
+        // Prestižní stavby, až když je sídlo už město (neposouvají stupeň):
+        // nejdřív radnice, pak kostel.
         if (tierOf(settlement) == SettlementTier.MESTO
                 && !projectDone(settlement, ProjectKind.TOWN_HALL)) {
             return ProjectKind.TOWN_HALL;
+        }
+        if (tierOf(settlement) == SettlementTier.MESTO
+                && !projectDone(settlement, ProjectKind.CHURCH)) {
+            return ProjectKind.CHURCH;
         }
         return null;
     }
