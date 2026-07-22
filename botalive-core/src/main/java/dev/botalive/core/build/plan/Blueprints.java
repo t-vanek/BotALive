@@ -24,8 +24,8 @@ public final class Blueprints {
     private static final Blueprint GRANARY = new HouseLegacy(true);
     private static final Blueprint WELL = new WellLegacy();
     private static final Blueprint MARKET_STALL = new MarketStallLegacy();
-    private static final Blueprint TOWN_HALL = new TownHallLegacy();
-    private static final Blueprint CHURCH = new ChurchLegacy();
+    private static final Blueprint TOWN_HALL = new CivicHall(5, 5, 3, true);
+    private static final Blueprint CHURCH = new CivicHall(5, 7, 4, false);
 
     private Blueprints() {
     }
@@ -298,65 +298,72 @@ public final class Blueprints {
         }
     }
 
-    // ==================================================================== radnice
+    // ============================================================== civilní sály
 
     /**
-     * Radnice: prestižní sál 5×5 – obvodové zdi vysoké 3, plochá střecha,
-     * dveře orientované k návsi. Bloky role {@code GENERIC} (jako sýpka nebo
-     * tržiště), staví se z jednoho stanoviště ve středu (na roh střechy je
-     * ~3,4 &lt; dosah 4,3). Neposouvá stupeň sídla – je čistě prestižní.
+     * Civilní sál sídla (radnice, kostel) – parametrická obdélníková zděná
+     * stavba {@code width×depth} s plochou střechou, dveřmi orientovanými
+     * k návsi a okenními štěrbinami uprostřed ostatních stěn (od výšky očí po
+     * předposlední řadu, takže vyšší zdi mají vyšší okna). Bloky role
+     * {@code GENERIC} jako sýpka/tržiště. Prestižní stavby města – neposouvají
+     * stupeň. Parametry drží vrstvu laditelnou: malý sál ({@code standExact})
+     * se postaví z jednoho stanoviště, větší přes multi-standpoint planneru.
+     *
+     * @param width      šířka (X); okno je ve středu stěn kolmých na X
+     * @param depth      hloubka (Z)
+     * @param wallHeight výška zdí (≥ 3)
+     * @param standExact staví se přesně ze středu (malý sál), nebo z více míst
      */
-    private record TownHallLegacy() implements Blueprint {
+    private record CivicHall(int width, int depth, int wallHeight, boolean standExact)
+            implements Blueprint {
 
-        private static final int SIZE = 5;
-        private static final int WALL_HEIGHT = 3;
-
-        private static boolean isPerimeter(int x, int z) {
-            return x == 0 || x == SIZE - 1 || z == 0 || z == SIZE - 1;
+        private boolean isPerimeter(int x, int z) {
+            return x == 0 || x == width - 1 || z == 0 || z == depth - 1;
         }
 
-        /** Střed stěny (okenní štěrbina ve výšce očí) – ne roh; z každé strany jedna. */
-        private static boolean isWindow(int x, int z) {
-            boolean xWall = x == 0 || x == SIZE - 1;
-            boolean zWall = z == 0 || z == SIZE - 1;
+        /** Střed stěny (okenní štěrbina) – ne roh; z každé strany jedna. */
+        private boolean isWindow(int x, int z) {
+            boolean xWall = x == 0 || x == width - 1;
+            boolean zWall = z == 0 || z == depth - 1;
             if (xWall == zWall) {
                 return false; // roh (obě strany) nebo vnitřek (žádná)
             }
-            return xWall ? z == SIZE / 2 : x == SIZE / 2;
+            return xWall ? z == depth / 2 : x == width / 2;
         }
 
-        /** Spodní buňka dveří na straně, kterou se radnice dívá k návsi. */
-        private static BlockPos doorBottom(BlockPos origin, Cardinal facing) {
-            return origin.offset(SIZE / 2 + facing.dx() * (SIZE / 2), 0,
-                    SIZE / 2 + facing.dz() * (SIZE / 2));
+        /** Spodní buňka dveří na straně, kterou se sál dívá k návsi. */
+        private BlockPos doorBottom(BlockPos origin, Cardinal facing) {
+            return origin.offset(width / 2 + facing.dx() * (width / 2), 0,
+                    depth / 2 + facing.dz() * (depth / 2));
         }
 
         @Override
         public List<PlacementCell> cells(BlockPos origin, Cardinal facing) {
             BlockPos door = doorBottom(origin, facing);
             List<PlacementCell> result = new ArrayList<>();
-            // Obvodové zdi mimo dvoublokový otvor dveří.
-            for (int y = 0; y < WALL_HEIGHT; y++) {
-                for (int x = 0; x < SIZE; x++) {
-                    for (int z = 0; z < SIZE; z++) {
+            // Obvodové zdi mimo otvor dveří (2 buňky) a okenní štěrbiny.
+            for (int y = 0; y < wallHeight; y++) {
+                for (int x = 0; x < width; x++) {
+                    for (int z = 0; z < depth; z++) {
                         if (!isPerimeter(x, z)) {
                             continue;
                         }
                         BlockPos pos = origin.offset(x, y, z);
-                        if (y < 2 && pos.x() == door.x() && pos.z() == door.z()) {
+                        boolean doorColumn = pos.x() == door.x() && pos.z() == door.z();
+                        if (doorColumn && y < 2) {
                             continue; // otvor dveří (y=0,1)
                         }
-                        if (y == 1 && isWindow(x, z)) {
-                            continue; // okenní štěrbina uprostřed stěny
+                        if (!doorColumn && isWindow(x, z) && y >= 1 && y <= wallHeight - 2) {
+                            continue; // okno: od očí po předposlední řadu (sokl a překlad zůstanou)
                         }
                         result.add(new PlacementCell(pos, BlockSpec.GENERIC));
                     }
                 }
             }
             // Plná plochá střecha.
-            for (int x = 0; x < SIZE; x++) {
-                for (int z = 0; z < SIZE; z++) {
-                    result.add(new PlacementCell(origin.offset(x, WALL_HEIGHT, z), BlockSpec.GENERIC));
+            for (int x = 0; x < width; x++) {
+                for (int z = 0; z < depth; z++) {
+                    result.add(new PlacementCell(origin.offset(x, wallHeight, z), BlockSpec.GENERIC));
                 }
             }
             return result;
@@ -365,9 +372,9 @@ public final class Blueprints {
         @Override
         public List<BlockPos> clearVolume(BlockPos origin, Cardinal facing) {
             List<BlockPos> result = new ArrayList<>();
-            for (int x = 0; x < SIZE; x++) {
-                for (int y = 0; y <= WALL_HEIGHT; y++) {
-                    for (int z = 0; z < SIZE; z++) {
+            for (int x = 0; x < width; x++) {
+                for (int y = 0; y <= wallHeight; y++) {
+                    for (int z = 0; z < depth; z++) {
                         result.add(origin.offset(x, y, z));
                     }
                 }
@@ -378,8 +385,8 @@ public final class Blueprints {
         @Override
         public List<BlockPos> groundColumns(BlockPos origin, Cardinal facing) {
             List<BlockPos> result = new ArrayList<>();
-            for (int x = 0; x < SIZE; x++) {
-                for (int z = 0; z < SIZE; z++) {
+            for (int x = 0; x < width; x++) {
+                for (int z = 0; z < depth; z++) {
                     result.add(origin.offset(x, -1, z));
                 }
             }
@@ -396,7 +403,7 @@ public final class Blueprints {
 
         @Override
         public BlockPos standPoint(BlockPos origin, Cardinal facing) {
-            return origin.offset(SIZE / 2, 0, SIZE / 2);
+            return origin.offset(width / 2, 0, depth / 2);
         }
 
         @Override
@@ -406,131 +413,9 @@ public final class Blueprints {
 
         @Override
         public int blocksNeeded() {
-            // −2 dveře (2 buňky) − 3 okna (3 stěny mimo dveřní).
-            return 4 * (SIZE - 1) * WALL_HEIGHT - 5 + SIZE * SIZE;
-        }
-
-        @Override
-        public boolean standExact() {
-            return true; // celý sál se staví přesně ze středu
-        }
-    }
-
-    // ==================================================================== kostel
-
-    /**
-     * Kostel: obdélníková loď 5×7 s vysokými zdmi (4) a plochou střechou,
-     * dveře orientované k návsi. Bloky role {@code GENERIC}; větší než radnice,
-     * proto se staví z <b>více stanovišť</b> – planner ho rozdělí a
-     * {@code BuildSession} přechází mezi vnitřními buňkami podlahy. Prestižní
-     * stavba města – neposouvá stupeň.
-     */
-    private record ChurchLegacy() implements Blueprint {
-
-        private static final int WIDTH = 5;
-        private static final int DEPTH = 7;
-        private static final int WALL_HEIGHT = 4;
-
-        private static boolean isPerimeter(int x, int z) {
-            return x == 0 || x == WIDTH - 1 || z == 0 || z == DEPTH - 1;
-        }
-
-        /** Střed stěny (okenní štěrbina ve výšce očí) – ne roh; z každé strany jedna. */
-        private static boolean isWindow(int x, int z) {
-            boolean xWall = x == 0 || x == WIDTH - 1;
-            boolean zWall = z == 0 || z == DEPTH - 1;
-            if (xWall == zWall) {
-                return false; // roh (obě strany) nebo vnitřek (žádná)
-            }
-            return xWall ? z == DEPTH / 2 : x == WIDTH / 2;
-        }
-
-        /** Spodní buňka dveří na straně, kterou se kostel dívá k návsi. */
-        private static BlockPos doorBottom(BlockPos origin, Cardinal facing) {
-            return origin.offset(WIDTH / 2 + facing.dx() * (WIDTH / 2), 0,
-                    DEPTH / 2 + facing.dz() * (DEPTH / 2));
-        }
-
-        @Override
-        public List<PlacementCell> cells(BlockPos origin, Cardinal facing) {
-            BlockPos door = doorBottom(origin, facing);
-            List<PlacementCell> result = new ArrayList<>();
-            for (int y = 0; y < WALL_HEIGHT; y++) {
-                for (int x = 0; x < WIDTH; x++) {
-                    for (int z = 0; z < DEPTH; z++) {
-                        if (!isPerimeter(x, z)) {
-                            continue;
-                        }
-                        BlockPos pos = origin.offset(x, y, z);
-                        if (y < 2 && pos.x() == door.x() && pos.z() == door.z()) {
-                            continue; // otvor dveří (y=0,1)
-                        }
-                        if (y == 1 && isWindow(x, z)) {
-                            continue; // okenní štěrbina uprostřed stěny
-                        }
-                        result.add(new PlacementCell(pos, BlockSpec.GENERIC));
-                    }
-                }
-            }
-            for (int x = 0; x < WIDTH; x++) {
-                for (int z = 0; z < DEPTH; z++) {
-                    result.add(new PlacementCell(origin.offset(x, WALL_HEIGHT, z), BlockSpec.GENERIC));
-                }
-            }
-            return result;
-        }
-
-        @Override
-        public List<BlockPos> clearVolume(BlockPos origin, Cardinal facing) {
-            List<BlockPos> result = new ArrayList<>();
-            for (int x = 0; x < WIDTH; x++) {
-                for (int y = 0; y <= WALL_HEIGHT; y++) {
-                    for (int z = 0; z < DEPTH; z++) {
-                        result.add(origin.offset(x, y, z));
-                    }
-                }
-            }
-            return result;
-        }
-
-        @Override
-        public List<BlockPos> groundColumns(BlockPos origin, Cardinal facing) {
-            List<BlockPos> result = new ArrayList<>();
-            for (int x = 0; x < WIDTH; x++) {
-                for (int z = 0; z < DEPTH; z++) {
-                    result.add(origin.offset(x, -1, z));
-                }
-            }
-            return result;
-        }
-
-        @Override
-        public List<FurnishCell> furnishing(BlockPos origin, Cardinal facing) {
-            // Dveře k návsi + jedna pochodeň uvnitř (u zdi, při každé orientaci).
-            return List.of(
-                    new FurnishCell(FurnishKind.DOOR, doorBottom(origin, facing)),
-                    new FurnishCell(FurnishKind.TORCH, origin.offset(1, 1, 1)));
-        }
-
-        @Override
-        public BlockPos standPoint(BlockPos origin, Cardinal facing) {
-            return origin.offset(WIDTH / 2, 0, DEPTH / 2);
-        }
-
-        @Override
-        public Optional<BlockPos> doorCell(BlockPos origin, Cardinal facing) {
-            return Optional.of(doorBottom(origin, facing));
-        }
-
-        @Override
-        public int blocksNeeded() {
-            // −2 dveře (2 buňky) − 3 okna (3 stěny mimo dveřní).
-            return (2 * WIDTH + 2 * DEPTH - 4) * WALL_HEIGHT - 5 + WIDTH * DEPTH;
-        }
-
-        @Override
-        public boolean standExact() {
-            return false; // velká loď – staví se z více vnitřních stanovišť
+            int perimeter = 2 * width + 2 * depth - 4;
+            int windows = 3 * (wallHeight - 2); // 3 stěny mimo dveřní, od očí nahoru
+            return perimeter * wallHeight - 2 /* dveře */ - windows + width * depth;
         }
     }
 
