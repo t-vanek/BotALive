@@ -208,8 +208,17 @@ class SettlementServiceTest {
                 service.neededProject(founder).orElseThrow().kind());
         service.claimProject(village.id(), SettlementService.ProjectKind.WAREHOUSE, founder);
         service.projectFinished(village.id(), SettlementService.ProjectKind.WAREHOUSE);
+        // Až po skladu se městu nabídne prestižní radnice.
+        assertEquals(SettlementService.ProjectKind.TOWN_HALL,
+                service.neededProject(founder).orElseThrow().kind());
+        service.claimProject(village.id(), SettlementService.ProjectKind.TOWN_HALL, founder);
+        service.projectFinished(village.id(), SettlementService.ProjectKind.TOWN_HALL);
+        // Radnice je prestižní – stupeň zůstává město, neposouvá ho.
+        assertEquals(SettlementTier.MESTO,
+                service.settlementOf(founder).orElseThrow().tier(),
+                "radnice neposouvá stupeň");
         assertTrue(service.neededProject(founder).isEmpty(),
-                "se skladem už město nic dalšího nepotřebuje");
+                "s radnicí už město nic dalšího nepotřebuje");
     }
 
     /** Postaví město s 8 dostavěnými domy (zakladatel + 7 osadníků). */

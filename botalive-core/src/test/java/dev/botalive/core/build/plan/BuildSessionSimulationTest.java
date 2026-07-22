@@ -118,6 +118,23 @@ class BuildSessionSimulationTest {
     }
 
     @Test
+    void townHallBuildsWalledHallWithDoor() {
+        FakeWorldView world = new FakeWorldView(FLOOR_Y);
+        BuildPlan plan = BuildPlan.of(Blueprints.townHall(), ORIGIN, Cardinal.NORTH);
+        BuildSchedule schedule = BuildPlanner.schedule(plan, world);
+        FakeBotContext ctx = botAt(world, plan.stand())
+                .give(Material.COBBLESTONE, 100)
+                .give(Material.OAK_DOOR, 1)
+                .give(Material.TORCH, 1);
+
+        assertEquals(BuildSession.State.DONE, run(ctx, new BuildSession(schedule), 4000));
+        assertTrue(allSolid(world, plan), "zdi i střecha radnice stojí");
+        for (FurnishCell f : plan.furnishing()) {
+            assertTrue(world.traitsAt(f.pos()).solid(), "vybavení radnice osazeno: " + f.kind());
+        }
+    }
+
+    @Test
     void granaryBuildsWithDoubleChest() {
         FakeWorldView world = new FakeWorldView(FLOOR_Y);
         BuildPlan plan = BuildPlan.of(Blueprints.granary(), ORIGIN, Cardinal.NORTH);

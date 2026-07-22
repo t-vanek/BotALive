@@ -295,6 +295,16 @@ phrases:
     - "done, {name} has a warehouse. bring what you can spare, store it together"
     - "the common store is finished, neighbours"
 
+  settlement-townhall-start:
+    - "{name} is a town now – it deserves a town hall. hauling stone, building it"
+    - "a town without a hall? off to build a town hall for {name}"
+    - "starting the town hall, so {name} gets a proper meeting hall"
+
+  settlement-townhall-done:
+    - "the town hall is up! {name} finally has its hall"
+    - "done, {name} has a town hall. the whole town will gather here"
+    - "town hall finished, neighbours – the square has a real building now"
+
   # Účelné dílny: český název stanice se do angličtiny nepředává (jediný
   # argument nese 1. pád českého názvu), proto jsou fráze záměrně obecné.
   settlement-workshop-start:

@@ -210,6 +210,8 @@ public final class SettlementService {
         MARKET_STALL(null),
         /** Sklad – společná zásobárna materiálu (od vesnice). */
         WAREHOUSE(null),
+        /** Radnice – prestižní stavba města (neposouvá stupeň). */
+        TOWN_HALL(null),
         /** Kovárna – dílna kováře (pec + kovářský stůl). */
         FORGE(BotRole.BLACKSMITH),
         /** Kuchyně – dílna kuchaře (udírna). */
@@ -878,6 +880,11 @@ public final class SettlementService {
         // přednost, ale zásobárnu si vesnice nakonec postaví taky).
         if (wellDone && !projectDone(settlement, ProjectKind.WAREHOUSE)) {
             return ProjectKind.WAREHOUSE;
+        }
+        // Radnice: prestižní stavba, až když je sídlo už město (neposouvá stupeň).
+        if (tierOf(settlement) == SettlementTier.MESTO
+                && !projectDone(settlement, ProjectKind.TOWN_HALL)) {
+            return ProjectKind.TOWN_HALL;
         }
         return null;
     }
