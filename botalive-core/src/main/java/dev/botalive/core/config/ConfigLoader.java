@@ -193,6 +193,7 @@ public final class ConfigLoader {
                 c.getBoolean("settlement.protect-structures", true),
                 Math.max(0, c.getInt("settlement.protect-depth", 8)),
                 Math.max(0, c.getInt("settlement.mine-distance", 24)),
+                Math.max(0, c.getInt("settlement.spawn-keepout", 48)),
                 war
         );
 

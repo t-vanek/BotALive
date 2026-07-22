@@ -446,7 +446,7 @@ public record BotAliveConfig(
                              boolean paths, boolean walls, boolean fences,
                              int wallHeight, int ghostDays, int grudgeWindowHours,
                              boolean protectStructures, int protectDepth,
-                             int mineDistance, War war) {
+                             int mineDistance, int spawnKeepout, War war) {
     }
 
     /**

@@ -758,6 +758,11 @@ public final class SettlementService {
         if (nearest(view.world(), center, config.minVillageDistance(), null).isPresent()) {
             return Optional.empty();
         }
+        // U spawnu serveru vesnice nevzniká – je to společný prostor hráčů
+        // a náves by ho zastavěla i s prstenci parcel.
+        if (isTooCloseToSpawn(view.world(), center)) {
+            return Optional.empty();
+        }
         long now = clock.getAsLong();
         // Náhodné id místo čítače: dvě serverové instance nad sdílenou
         // PostgreSQL by si čítačem přidělily stejná id (write-behind kolizi
@@ -959,6 +964,66 @@ public final class SettlementService {
         persistProject(settlement, project);
     }
 
+    /**
+     * Domy STOJÍCÍ MIMO parcely sídel (samotáři, domy postavené před vstupem
+     * do vesnice) – svět → originy. Bez nich by ochrana kryla jen menšinu
+     * zástavby: naměřeno 74 domovů proti 30 parcelám, tedy přes 40 nechráněných
+     * domů, a přesně pod ně se boti prokopali.
+     */
+    private final Map<String, Map<BlockPos, UUID>> standaloneHouses = new HashMap<>();
+
+    /** Bod spawnu serveru na svět – kolem něj se nestaví. */
+    private final Map<String, BlockPos> worldSpawns = new HashMap<>();
+
+    /**
+     * Zaeviduje dům, který nestojí na parcele sídla, aby ho krylo totéž
+     * chráněné pásmo. Volá se po dostavbě i při načtení paměti HOME po startu.
+     *
+     * @param world  název světa
+     * @param origin roh domu
+     * @param owner  majitel (dostane na vlastní dům stejnou výjimku jako na
+     *               parcelu; {@code null} = neznámý)
+     */
+    public synchronized void registerHouse(String world, BlockPos origin, UUID owner) {
+        if (world == null || origin == null) {
+            return;
+        }
+        standaloneHouses.computeIfAbsent(world, key -> new HashMap<>()).put(origin, owner);
+    }
+
+    /**
+     * Zapamatuje si spawn světa (volá se z hlavního vlákna při startu) – cíle
+     * běží na jiných vláknech a Bukkit se jich ptát nemají.
+     *
+     * @param world název světa
+     * @param spawn bod spawnu
+     */
+    public synchronized void setWorldSpawn(String world, BlockPos spawn) {
+        if (world != null && spawn != null) {
+            worldSpawns.put(world, spawn);
+        }
+    }
+
+    /**
+     * Je pozice tak blízko spawnu serveru, že se tam nesmí stavět?
+     *
+     * <p>Spawn je společný prostor hráčů – domy botů (a celé vesnice) tam
+     * nemají co dělat. Poloměr drží {@code settlement.spawn-keepout};
+     * 0 = ochrana vypnutá.</p>
+     *
+     * @param world název světa
+     * @param pos   zamýšlené staveniště
+     * @return {@code true} když je staveniště v ochranném pásmu spawnu
+     */
+    public synchronized boolean isTooCloseToSpawn(String world, BlockPos pos) {
+        int keepout = config.spawnKeepout();
+        if (keepout <= 0 || world == null || pos == null) {
+            return false;
+        }
+        BlockPos spawn = worldSpawns.get(world);
+        return spawn != null && horizontalDistance(spawn, pos) < keepout;
+    }
+
     /** Vodorovný poloměr ochrany kolem originu parcely/stavby (bloky). */
     private static final int GUARD_RADIUS = 8;
     /** Kolik bloků NAD úrovní stavby se ještě chrání (patra, střecha). */
@@ -1002,6 +1067,13 @@ public final class SettlementService {
     public synchronized boolean isStructureProtected(String world, BlockPos pos, UUID exemptBot) {
         if (!config.protectStructures() || world == null || pos == null) {
             return false;
+        }
+        // Domy mimo sídla (samotáři) – ty žádné sídlo neeviduje.
+        for (var house : standaloneHouses.getOrDefault(world, Map.of()).entrySet()) {
+            if (!java.util.Objects.equals(house.getValue(), exemptBot)
+                    && guards(house.getKey(), pos)) {
+                return true;
+            }
         }
         for (Settlement settlement : settlements.values()) {
             if (!world.equals(settlement.world)
