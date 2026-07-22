@@ -203,6 +203,17 @@ public final class SettlementService {
      * ne dekretem – stejná DNA jako „vesnice si řemeslníky vychovává").
      */
     public enum ProjectKind {
+        /**
+         * Obecní pole – parcela vyhrazená farmaření.
+         *
+         * <p>Není to stavba pro {@code CommunalBuildGoal}: nemá blueprint a
+         * nikdo ji „nestaví" – zakládá ji {@code FarmGoal} oráním. Do evidence
+         * projektů patří kvůli tomu, co z ní plyne zadarmo: parcela se
+         * persistuje, blokuje se na ní stavba domu a spadá pod ochranu staveb.
+         * Proto se zakládá rovnou jako {@code done} – ať ji stavitelé neberou
+         * jako rozdělanou práci ({@code nextProjectKind} ji nikdy nevrací).</p>
+         */
+        FIELD(null),
         /** Studna na návsi – dělá z osady vesnici. */
         WELL(null),
         /** Sýpka – první část městské infrastruktury. */
@@ -1022,6 +1033,39 @@ public final class SettlementService {
         }
         BlockPos spawn = worldSpawns.get(world);
         return spawn != null && horizontalDistance(spawn, pos) < keepout;
+    }
+
+    /**
+     * Parcela obecního pole pro bota – existující, nebo nově vyhrazená.
+     *
+     * <p>Pole se tím stává řádnou součástí sídla: má vlastní parcelu v mřížce
+     * (takže na něm nikdo nepostaví dům), přežije restart a kryje ho ochrana
+     * staveb. Bez toho si farmář oral, kde zrovna stál – včetně podlahy
+     * vlastního domu, protože ta je uvnitř přírodní tráva.</p>
+     *
+     * @param botId farmář
+     * @param size  hrana pole (bloky)
+     * @return roh pole, nebo prázdné (bot není v sídle / v katastru je plno)
+     */
+    public synchronized Optional<BlockPos> fieldSite(UUID botId, int size) {
+        Long id = memberIndex.get(botId);
+        Settlement settlement = id == null ? null : settlements.get(id);
+        if (settlement == null) {
+            return Optional.empty();
+        }
+        Project existing = settlement.projects.get(ProjectKind.FIELD);
+        if (existing != null) {
+            return Optional.of(existing.origin);
+        }
+        return reserveSite(id, size, size).map(slot -> {
+            // done=true záměrně: parcela je rezervace, ne rozdělaná stavba –
+            // stavitelé ji tak neberou jako práci a SupplyGoal jako aktivní BOM.
+            Project field = new Project(ProjectKind.FIELD, slot.index(), slot.origin(),
+                    slot.facing(), true);
+            settlement.projects.put(ProjectKind.FIELD, field);
+            persistProject(settlement, field);
+            return slot.origin();
+        });
     }
 
     /** Vodorovný poloměr ochrany kolem originu parcely/stavby (bloky). */
