@@ -217,7 +217,15 @@ class SettlementServiceTest {
         assertEquals(SettlementTier.MESTO,
                 service.settlementOf(founder).orElseThrow().tier(),
                 "radnice neposouvá stupeň");
-        // Po radnici se nabídne druhá prestižní stavba – kostel.
+        // Po radnici se nabídne druhá prestižní stavba – zvonice.
+        assertEquals(SettlementService.ProjectKind.BELL_TOWER,
+                service.neededProject(founder).orElseThrow().kind());
+        service.claimProject(village.id(), SettlementService.ProjectKind.BELL_TOWER, founder);
+        service.projectFinished(village.id(), SettlementService.ProjectKind.BELL_TOWER);
+        assertEquals(SettlementTier.MESTO,
+                service.settlementOf(founder).orElseThrow().tier(),
+                "zvonice neposouvá stupeň");
+        // Po zvonici třetí prestižní stavba – kostel.
         assertEquals(SettlementService.ProjectKind.CHURCH,
                 service.neededProject(founder).orElseThrow().kind());
         service.claimProject(village.id(), SettlementService.ProjectKind.CHURCH, founder);
@@ -227,7 +235,7 @@ class SettlementServiceTest {
                 service.settlementOf(founder).orElseThrow().tier(),
                 "kostel neposouvá stupeň");
         assertTrue(service.neededProject(founder).isEmpty(),
-                "s radnicí i kostelem už město nic dalšího nepotřebuje");
+                "s radnicí, zvonicí i kostelem už město nic dalšího nepotřebuje");
     }
 
     // ------------------------------------------- rozestavěná stavba (pomocníci)

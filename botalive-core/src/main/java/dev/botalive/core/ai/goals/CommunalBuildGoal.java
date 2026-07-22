@@ -188,6 +188,7 @@ public final class CommunalBuildGoal extends AbstractGoal {
             case MARKET_STALL -> Blueprints.marketStall();
             case WAREHOUSE -> Blueprints.granary(); // sklad = zásobárna s dvojtruhlou
             case TOWN_HALL -> Blueprints.townHall();
+            case BELL_TOWER -> Blueprints.bellTower();
             case CHURCH -> Blueprints.church();
             default -> throw new IllegalStateException("není blueprint pro " + kind);
         };
@@ -240,6 +241,7 @@ public final class CommunalBuildGoal extends AbstractGoal {
             case MARKET_STALL -> PhraseCategory.SETTLEMENT_MARKET_START;
             case WAREHOUSE -> PhraseCategory.SETTLEMENT_WAREHOUSE_START;
             case TOWN_HALL -> PhraseCategory.SETTLEMENT_TOWNHALL_START;
+            case BELL_TOWER -> PhraseCategory.SETTLEMENT_BELLTOWER_START;
             case CHURCH -> PhraseCategory.SETTLEMENT_CHURCH_START;
             default -> throw new IllegalStateException("není hláška pro " + kind);
         };
@@ -255,6 +257,7 @@ public final class CommunalBuildGoal extends AbstractGoal {
             case MARKET_STALL -> PhraseCategory.SETTLEMENT_MARKET_DONE;
             case WAREHOUSE -> PhraseCategory.SETTLEMENT_WAREHOUSE_DONE;
             case TOWN_HALL -> PhraseCategory.SETTLEMENT_TOWNHALL_DONE;
+            case BELL_TOWER -> PhraseCategory.SETTLEMENT_BELLTOWER_DONE;
             case CHURCH -> PhraseCategory.SETTLEMENT_CHURCH_DONE;
             default -> throw new IllegalStateException("není hláška pro " + kind);
         };
@@ -723,6 +726,7 @@ public final class CommunalBuildGoal extends AbstractGoal {
             case MARKET_STALL -> "stavím tržiště pro sídlo";
             case WAREHOUSE -> "stavím sklad pro sídlo";
             case TOWN_HALL -> "stavím radnici pro sídlo";
+            case BELL_TOWER -> "stavím zvonici pro sídlo";
             case CHURCH -> "stavím kostel pro sídlo";
             default -> "stavím pro sídlo";
         };

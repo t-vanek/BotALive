@@ -14,6 +14,7 @@ import org.junit.jupiter.api.Test;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -42,6 +43,18 @@ class BuildSessionSimulationTest {
             }
         }
         return BuildSession.State.RUNNING; // timeout
+    }
+
+    /** Jako {@link #run}, ale bota drží na stanovišti, kam session míří (víc stanovišť). */
+    private static BuildSession.State runWalking(FakeBotContext ctx, BuildSession session,
+                                                 int maxTicks) {
+        BuildSession.State state = BuildSession.State.RUNNING;
+        for (int i = 0; i < maxTicks && state == BuildSession.State.RUNNING; i++) {
+            BlockPos s = session.currentStand();
+            ctx.update(new Vec3(s.x() + 0.5, s.y(), s.z() + 0.5), true);
+            state = session.tick(ctx);
+        }
+        return state;
     }
 
     private static boolean allSolid(FakeWorldView world, BuildPlan plan) {
@@ -118,16 +131,19 @@ class BuildSessionSimulationTest {
     }
 
     @Test
-    void townHallBuildsWalledHallWithDoor() {
+    void townHallBuildsTallWalledHall() {
         FakeWorldView world = new FakeWorldView(FLOOR_Y);
         BuildPlan plan = BuildPlan.of(Blueprints.townHall(), ORIGIN, Cardinal.NORTH);
         BuildSchedule schedule = BuildPlanner.schedule(plan, world);
-        FakeBotContext ctx = botAt(world, plan.stand())
-                .give(Material.COBBLESTONE, 100)
+        // Vyšší radnice (v5) už není na jedno stanoviště – staví se po podlaze.
+        assertTrue(schedule.units().size() > 1, "vyšší radnice se staví z víc stanovišť");
+
+        FakeBotContext ctx = new FakeBotContext(world, personality())
+                .give(Material.COBBLESTONE, 200)
                 .give(Material.OAK_DOOR, 1)
                 .give(Material.TORCH, 1);
 
-        assertEquals(BuildSession.State.DONE, run(ctx, new BuildSession(schedule), 4000));
+        assertEquals(BuildSession.State.DONE, runWalking(ctx, new BuildSession(schedule), 30000));
         assertTrue(allSolid(world, plan), "zdi i střecha radnice stojí");
         for (FurnishCell f : plan.furnishing()) {
             assertTrue(world.traitsAt(f.pos()).solid(), "vybavení radnice osazeno: " + f.kind());
@@ -159,6 +175,38 @@ class BuildSessionSimulationTest {
         for (FurnishCell f : plan.furnishing()) {
             assertTrue(world.traitsAt(f.pos()).solid(), "vybavení kostela osazeno: " + f.kind());
         }
+    }
+
+    @Test
+    void bellTowerBuildsTallBelfryWithBell() {
+        FakeWorldView world = new FakeWorldView(FLOOR_Y);
+        BuildPlan plan = BuildPlan.of(Blueprints.bellTower(), ORIGIN, Cardinal.NORTH);
+        BuildSchedule schedule = BuildPlanner.schedule(plan, world);
+        // Vyšší věž: baldachýn je nad dosah ze země → horní patro z pilíře (lešení).
+        assertTrue(schedule.units().stream().anyMatch(u -> u.stand().y() > ORIGIN.y()),
+                "horní patro věže se staví z vyvýšeného stanoviště");
+        assertFalse(schedule.scaffold().isEmpty(), "věž má lešení k úklidu");
+
+        FakeBotContext ctx = new FakeBotContext(world, personality())
+                .give(Material.COBBLESTONE, 200)
+                .give(Material.OAK_DOOR, 1)
+                .give(Material.BELL, 1);
+
+        BuildSession session = new BuildSession(schedule);
+        BuildSession.State state = BuildSession.State.RUNNING;
+        for (int i = 0; i < 30000 && state == BuildSession.State.RUNNING; i++) {
+            // Simulace navigace: bot je vždy na stanovišti, kam session míří (i pilíř).
+            BlockPos s = session.currentStand();
+            ctx.update(new Vec3(s.x() + 0.5, s.y(), s.z() + 0.5), true);
+            state = session.tick(ctx);
+        }
+        assertEquals(BuildSession.State.DONE, state, "věž se dostaví přes vyvýšená stanoviště");
+        assertTrue(allSolid(world, plan), "šachta, sloupky i baldachýn věže stojí");
+        for (FurnishCell f : plan.furnishing()) {
+            assertTrue(world.traitsAt(f.pos()).solid(), "vybavení věže osazeno: " + f.kind());
+        }
+        assertTrue(plan.furnishing().stream().anyMatch(f -> f.kind() == FurnishKind.BELL),
+                "věž má zvon");
     }
 
     @Test

@@ -62,12 +62,18 @@ public final class BuildSession {
         INCOMPLETE
     }
 
-    private enum Phase { TERRAFORM, UNIT_GOTO, UNIT_PLACE, FURNISH_GOTO, FURNISH, DONE }
+    private enum Phase { TERRAFORM, UNIT_GOTO, UNIT_PLACE, CLEANUP, FURNISH_GOTO, FURNISH, DONE }
 
     /** Tolerance dokročení u tolerantní stavby (dům): stačí okolí stanoviště. */
     private static final int STAND_TOLERANCE_SQ = 2;
-    /** Kolik ticků nejvýš zkoušet dojít na stanoviště, než to bot vzdá. */
+    /** Kolik ticků nejvýš zkoušet dojít na stanoviště po rovině, než to bot vzdá. */
     private static final int NAV_BUDGET = 300;
+    /**
+     * Přídavek k rozpočtu chůze na každý blok výstupu na vyvýšené stanoviště:
+     * pilířování je pomalé (skok, pokládka, dopad, ověření – {@code PillarUpTask}),
+     * takže vysoký pilíř by jinak vyčerpal rovinný rozpočet dřív, než bot vyleze.
+     */
+    private static final int NAV_PER_CLIMB_BLOCK = 30;
     /** Kolikrát projet chybějící bloky znovu, než se stavba prohlásí za torzo. */
     private static final int MAX_VERIFY_PASSES = 2;
 
@@ -79,6 +85,8 @@ public final class BuildSession {
     private final Deque<WorkUnit> units;
     private final Deque<PlacementCell> placements = new ArrayDeque<>();
     private final Deque<FurnishCell> furnish;
+    /** Dočasné lešení k úklidu po pokládce (shora dolů, ať bot bezpečně slézá). */
+    private final Deque<BlockPos> scaffold;
     /** Odbavené dávky – po vyprázdnění fronty se ověří proti světu. */
     private final List<WorkUnit> attempted = new ArrayList<>();
 
@@ -87,6 +95,7 @@ public final class BuildSession {
     private boolean navigating;
     private BlockPos target;
     private int navTicks;
+    private int navBudget = NAV_BUDGET;
     private int verifyPasses;
     private PaletteRole missing;
 
@@ -111,6 +120,11 @@ public final class BuildSession {
         this.fill = new ArrayDeque<>(schedule.fill());
         this.units = new ArrayDeque<>(schedule.units());
         this.furnish = new ArrayDeque<>(schedule.furnishing());
+        // Lešení se odklízí shora dolů: bot slézá po vytěžených blocích a
+        // neuvázne nad vzniklou dírou.
+        List<BlockPos> topDown = new ArrayList<>(schedule.scaffold());
+        topDown.sort((a, b) -> Integer.compare(b.y(), a.y()));
+        this.scaffold = new ArrayDeque<>(topDown);
         this.target = furnishStand;
     }
 
@@ -125,6 +139,7 @@ public final class BuildSession {
             case TERRAFORM -> tickTerraform(ctx);
             case UNIT_GOTO -> tickUnitGoto(ctx);
             case UNIT_PLACE -> tickPlace(ctx);
+            case CLEANUP -> tickCleanup(ctx);
             case FURNISH_GOTO -> tickFurnishGoto(ctx);
             case FURNISH -> tickFurnish(ctx);
             case DONE -> State.DONE;
@@ -191,8 +206,7 @@ public final class BuildSession {
             }
             placements.addAll(unit.placements());
             attempted.add(unit);
-            target = unit.stand();
-            navTicks = 0;
+            setTarget(unit.stand());
             // Nové stanoviště – příchod se ověří příští tick (po přesunu).
             return State.RUNNING;
         }
@@ -252,8 +266,35 @@ public final class BuildSession {
             units.addAll(missingUnits);
             return State.RUNNING;
         }
-        target = furnishStand;
-        phase = Phase.FURNISH_GOTO;
+        // Stavba stojí – odklidit lešení (dřív než vybavení: pilíř bývá ve
+        // sloupci vnitřního stanoviště, odkud se osazuje).
+        phase = Phase.CLEANUP;
+        return State.RUNNING;
+    }
+
+    /**
+     * Odklidí dočasné lešení (pilíře pod vyvýšenými stanovišti) – vytěží ho
+     * shora dolů, takže stavitel po blocích slézá zpět na podlahu a zůstane
+     * jen stavba. Co ve světě nestojí (nízká stavba bez lešení, nebo blok
+     * mezitím zmizel), přeskočí. Prázdné lešení projde rovnou na vybavení.
+     */
+    private State tickCleanup(BotContext ctx) {
+        if (current != null) {
+            if (current.tick(ctx)) {
+                current = null;
+            }
+            return State.RUNNING;
+        }
+        BlockPos block = scaffold.poll();
+        if (block == null) {
+            setTarget(furnishStand);
+            phase = Phase.FURNISH_GOTO;
+            return State.RUNNING;
+        }
+        if (ctx.worldView() != null && !ctx.worldView().traitsAt(block).solid()) {
+            return State.RUNNING; // není co těžit (nepostavené lešení / už pryč)
+        }
+        current = new MineBlockTask(block);
         return State.RUNNING;
     }
 
@@ -331,13 +372,24 @@ public final class BuildSession {
         return here;
     }
 
+    /**
+     * Nastaví nové stanoviště a rozpočet chůze k němu: rovinný základ plus
+     * přídavek za každý blok výstupu (vyvýšené stanoviště se leze pilířem,
+     * což je pomalé). Bez škálování by bot vysoký pilíř vzdal v půlce.
+     */
+    private void setTarget(BlockPos t) {
+        target = t;
+        navTicks = 0;
+        navBudget = NAV_BUDGET + Math.max(0, t.y() - furnishStand.y()) * NAV_PER_CLIMB_BLOCK;
+    }
+
     private State navigate(BotContext ctx, BlockPos t) {
         ctx.navigator().navigateTo(ctx.position(), t);
         navigating = true;
         // Nedosažitelné (backoff) nebo příliš dlouho bez příchodu → vzdát se;
         // cíl to ošetří cooldownem a případně stavbu dokončí jindy (resume).
         if ((!ctx.navigator().navigating() && !ctx.navigator().hasPath())
-                || ++navTicks > NAV_BUDGET) {
+                || ++navTicks > navBudget) {
             return State.UNREACHABLE;
         }
         return State.RUNNING;

@@ -305,9 +305,19 @@ nové testy K1–K4 zelené; `CommunalBuildGoal` bez per-druh větvení.
 > blokem. Dnes se všechny civilní stavby vejdou do parcely (≤ rozestup), tak
 > je to připravená schopnost pro budoucí velké stavby, ne změna chování.
 >
-> **Zbývá z V2c**: šablonový loader (bod 1), `BELL_TOWER` (bod 4 – potřebuje
-> lešení z V2d na pravou věž) a přesné materiálové palety – teprve až je
-> vynutí šablonové stavby.
+> **HOTOVO (bod 4 – `BELL_TOWER`, zvonice).** Prestižní trojice kompletní
+> (radnice → zvonice → kostel). `FurnishKind.BELL` + `itemFor`; blueprint
+> `Blueprints.bellTower()` – **pravá věž**: dutá šachta 3×3 (5 vysoká,
+> s dveřmi), nahoře otevřené zvonové patro s rohovými sloupky, baldachýn
+> v `y=6` a zvon visící v `y=5`. Horní patro je nad dosah ze země, takže se
+> staví **z vyvýšeného pilířového stanoviště** (lešení) – původní mez „nízká
+> zvonička" padla, jakmile přibylo lešení a zvedly se stropy výšky.
+> `ProjectKind.BELL_TOWER` mezi radnicí a kostelem (žádná neposouvá stupeň),
+> `CommunalBuildGoal` větve + fráze `settlement-belltower-*` (cs+en).
+> Simulační test staví celou věž vč. zvonu přes vyvýšená stanoviště.
+>
+> **Zbývá z V2c**: šablonový loader (bod 1 – datové blueprinty z YAML)
+> a přesné materiálové palety – teprve až je vynutí šablonové stavby.
 
 ## V2d – konsolidace
 
@@ -315,8 +325,18 @@ nové testy K1–K4 zelené; `CommunalBuildGoal` bez per-druh větvení.
   režim (`AcceptancePolicy.strict` – obsidian se ověřuje `materialAt`,
   lebka naposled jako poslední `WorkUnit`); jejich invariantní testy
   se stanou testy planneru.
-- `ScaffoldStep` (dočasný blok + úklidové `Op.Mine`), jen ukáže-li
-  V2c potřebu (zvonice/kostel); gate `ai.terraforming`.
+- ~~`ScaffoldStep` (dočasný blok + úklidové `Op.Mine`)~~ **HOTOVO
+  (lešení).** `BuildPlanner` generuje **vyvýšená pilířová stanoviště**
+  (nad volnými vnitřními sloupci, strop `PillarUpTask.MAX_HEIGHT`) pro
+  bloky mimo dosah ze země – ale jen jako **záloha**: když na každý blok
+  dosáhne nějaké přízemní stanoviště, staví se po podlaze bez pilířů
+  (sály beze změny). Pilíře pod použitými stanovišti jsou v
+  `BuildSchedule.scaffold`; `BuildSession` fáze `CLEANUP` je před
+  vybavením vytěží shora dolů (pilíř stojí ve sloupci vnitřního
+  stanoviště), takže zůstane jen stavba. Výstup nahoru řeší stávající
+  `PillarUpTask` přes navigaci, sestup/úklid je živě ověřovaný.
+  Sim test staví vysokou dutou věž přes vyvýšená stanoviště. Tím padá
+  i mez zvonice (teď smí být vyšší věž).
 - Volitelně `BuildShelterGoal` na mini-blueprint.
 
 ## Rizika a mitigace
