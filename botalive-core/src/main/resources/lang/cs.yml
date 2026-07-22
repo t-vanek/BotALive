@@ -332,6 +332,14 @@ phrases:
     - "plot stojí, dům je konečně obehnaný"
     - "hotovo, kolem domu mám ohradu i s brankou"
     - "tak, dvorek je oplocený. vejde se brankou"
+  settlement-walls-start:
+    - "beru kámen, {name} si zaslouží pořádné hradby"
+    - "jdu stavět hradby, ať je {name} v bezpečí"
+    - "obeženeme {name:4} zdí – nosím kameny"
+  settlement-walls-done:
+    - "hradby stojí! {name} je za zdí"
+    - "hotovo, {name} má hradby i s branami"
+    - "tak, kolem {name:2} je zeď. brány zůstávají otevřené"
 
   camp-setup:
     - "domů je to daleko, rozdělám si tady oheň a přečkám noc"

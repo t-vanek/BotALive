@@ -657,4 +657,36 @@ class SettlementServiceTest {
         assertEquals(1, service.suggestPlots(village.id(), 1).getFirst().index(),
                 "tombstone -1 nesmí ovlivnit návrhy");
     }
+
+    // -------------------------------------------------------------- hradby
+
+    @Test
+    void hradbyZamluviPrvniStavitel() {
+        long id = foundVillage().id();
+        assertTrue(service.wallsDue(id, 60_000L, founder), "volné hradby jsou k mání");
+        assertTrue(service.claimWalls(id, founder));
+        assertFalse(service.wallsDue(id, 60_000L, joiner), "zabral je někdo jiný");
+        assertTrue(service.wallsDue(id, 60_000L, founder), "vlastní zamluvení nepřekáží");
+        assertFalse(service.claimWalls(id, joiner), "první bere");
+        service.releaseWalls(id, founder);
+        assertTrue(service.claimWalls(id, joiner), "po uvolnění zase volné");
+    }
+
+    @Test
+    void hradbyMajiOdstupMeziSeancemi() {
+        long id = foundVillage().id();
+        service.wallsBuilt(id);
+        assertFalse(service.wallsDue(id, 60_000L, founder), "hned po seanci se nestaví");
+        now += 61_000L;
+        assertTrue(service.wallsDue(id, 60_000L, founder), "po odstupu zase ano");
+    }
+
+    @Test
+    void zamluveniHradebExpiruje() {
+        long id = foundVillage().id();
+        assertTrue(service.claimWalls(id, founder));
+        assertFalse(service.claimWalls(id, joiner), "founder je drží");
+        now += 11 * 60_000L; // po TTL zamluvení
+        assertTrue(service.claimWalls(id, joiner), "stavitel zmizel – hradby jsou zase volné");
+    }
 }

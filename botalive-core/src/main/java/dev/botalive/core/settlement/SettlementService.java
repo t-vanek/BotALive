@@ -167,6 +167,10 @@ public final class SettlementService {
         UUID roadBuilder;
         long roadClaimedAt;
         long roadsBuiltAt;
+        /** Hradby: kdo je zrovna staví (jeden naráz), a kdy naposled. */
+        UUID wallBuilder;
+        long wallClaimedAt;
+        long wallsBuiltAt;
         /**
          * Součet FRIEND vazeb člena k ostatním členům – plní se oportunisticky
          * ze sousedských úvah ({@code checkCohesion}); nejlépe zakotvený člen
@@ -304,6 +308,8 @@ public final class SettlementService {
     private static final long PROJECT_CLAIM_TTL_MS = 10 * 60_000L;
     /** Po jaké době bez dokončení expiruje zamluvení dusání cest (stavitel zmizel). */
     private static final long ROAD_CLAIM_TTL_MS = 10 * 60_000L;
+    /** Po jaké době bez dokončení expiruje zamluvení stavby hradeb (stavitel zmizel). */
+    private static final long WALL_CLAIM_TTL_MS = 10 * 60_000L;
 
     private final BotAliveConfig.Settlement config;
     private final BotRepository repository;
@@ -1120,6 +1126,75 @@ public final class SettlementService {
             settlement.roadBuilder = null; // stavitel zmizel – síť je zase volná
         }
         return settlement.roadBuilder;
+    }
+
+    // =============================================================== hradby
+
+    /**
+     * Smí bot právě teď stavět hradby sídla? Levná brána utility (vzor cest):
+     * nestavěly se nedávno a nikdo jiný je zrovna nezamluvil. Fyzická hradba je
+     * autorita, plán je idempotentní – stav se proto nepersistuje.
+     *
+     * @param settlementId  sídlo
+     * @param minIntervalMs minimální odstup od poslední seance (ms)
+     * @param botId         tazatel (jeho vlastní zamluvení nepřekáží)
+     * @return {@code true} když jsou hradby volné ke stavbě
+     */
+    public synchronized boolean wallsDue(long settlementId, long minIntervalMs, UUID botId) {
+        Settlement settlement = settlements.get(settlementId);
+        if (settlement == null) {
+            return false;
+        }
+        if (clock.getAsLong() - settlement.wallsBuiltAt < minIntervalMs) {
+            return false;
+        }
+        UUID builder = activeWallBuilder(settlement);
+        return builder == null || builder.equals(botId);
+    }
+
+    /**
+     * Zamluví stavbu hradeb staviteli – první bere (vzor cest/projektů).
+     *
+     * @return {@code false} když hradby mezitím zamluvil jiný bot nebo sídlo zaniklo
+     */
+    public synchronized boolean claimWalls(long settlementId, UUID botId) {
+        Settlement settlement = settlements.get(settlementId);
+        if (settlement == null) {
+            return false;
+        }
+        UUID builder = activeWallBuilder(settlement);
+        if (builder != null && !builder.equals(botId)) {
+            return false;
+        }
+        settlement.wallBuilder = botId;
+        settlement.wallClaimedAt = clock.getAsLong();
+        return true;
+    }
+
+    /** Stavitel to vzdal (přerušení cíle) – hradby se uvolní dalšímu. */
+    public synchronized void releaseWalls(long settlementId, UUID botId) {
+        Settlement settlement = settlements.get(settlementId);
+        if (settlement != null && botId.equals(settlement.wallBuilder)) {
+            settlement.wallBuilder = null;
+        }
+    }
+
+    /** Seance stavby hradeb doběhla – nastaví odstup a uvolní dalšímu. */
+    public synchronized void wallsBuilt(long settlementId) {
+        Settlement settlement = settlements.get(settlementId);
+        if (settlement != null) {
+            settlement.wallsBuiltAt = clock.getAsLong();
+            settlement.wallBuilder = null;
+        }
+    }
+
+    /** @return stavitel hradeb, nebo {@code null} po expiraci zamluvení */
+    private UUID activeWallBuilder(Settlement settlement) {
+        if (settlement.wallBuilder != null
+                && clock.getAsLong() - settlement.wallClaimedAt > WALL_CLAIM_TTL_MS) {
+            settlement.wallBuilder = null; // stavitel zmizel – hradby jsou zase volné
+        }
+        return settlement.wallBuilder;
     }
 
     /** Řemesla, bez kterých sídlo kulhá – v pořadí naléhavosti. */

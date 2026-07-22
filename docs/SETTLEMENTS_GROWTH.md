@@ -165,12 +165,29 @@ napříč seancemi (plán je idempotentní).
 - Váhy rolí: farmář/pastýř (drží zvířata) a stavitel k plotu tíhnou; hlášky
   `settlement-fence-start/done`.
 
-### Hradby kolem sídel a ohrady zvířat (základ / navazující krok)
+### Hradby kolem sídel (hotovo, za `settlement.walls`)
 
-Zbývá autonomní stavění: **hradby** kolem sídla (cíl `settlement-walls`
-roads-style nad `Enclosure`, z běžných stavebních bloků – ty boti mají) a
-**ohrady** kolem stád (výběr místa a velikosti, sehnání zvířat). Primitivy
-(`Enclosure`, `BarrierStyle`) i vypínač `settlement.walls` jsou připravené.
+Od stupně **VESNICE** obežene sídlo kamenné **hradby**: cíl `settlement-walls`
+(`SettlementWallGoal`) je sourozenec `settlement-roads` – hradby vlastní
+`SettlementService` (jeden stavitel naráz, claim s TTL jako cesty), stavbu vede
+`BarrierWorker` nad `Enclosure`. Obvod se počítá po **vnějším obsazeném prstenci**
+parcel (`wallBounds` – stejné odvození prstence jako `SettlementRoads`), takže
+hradba roste se sídlem; **brány** jsou na čtyřech osách, kudy vyjíždějí hlavní
+ulice – cíl je nechává jako otevřené průchody přes celou výšku.
+
+- **Materiál z běžných bloků**: hradby se staví z toho, co bot sbírá jako na domy
+  (`equipBuildingBlock` – `BarrierWorker` s `post = null`), takže se reálně
+  stavějí bez zvláštního zásobování; výška je `settlement.wall-height`.
+- Idempotentní jako cesty: hotové sloupce se přeskočí, velká hradba se dostaví
+  napříč seancemi (strop sloupců na seanci). Váhy rolí: kameník a stavitel;
+  hlášky `settlement-walls-start/done`.
+
+### Ohrady kolem zvířat (navazující krok)
+
+Zbývá autonomní **ohrada** kolem stád (výběr místa a velikosti kolem pohyblivého
+stáda, sehnání zvířat dovnitř). Primitivy (`Enclosure`, `BarrierStyle`,
+`BarrierWorker`, výroba plotu z prken) jsou připravené – chybí jen cíl, který
+vybere obdélník kolem shluku hospodářských zvířat.
 
 ## Fáze D – město a krajina
 
@@ -189,11 +206,12 @@ roads-style nad `Enclosure`, z běžných stavebních bloků – ty boti mají) 
 - Max 8 členů (`settlement.max-members`) drží sídla lidská; město je
   „plná vesnice s infrastrukturou", ne metropole. Zvětšování kapacity
   podle stupně je možné rozšíření (config), ne předpoklad.
-- **Ploty kolem domů**: hotové (cíl `settlement-fences`, za `settlement.fences`,
-  defaultně vypnuto). **Hradby** kolem sídel a **ohrady** kolem zvířat mají
-  hotový základ (`Enclosure`/`BarrierStyle` + vypínač `settlement.walls`), ale
-  autonomní stavění je navazující krok (viz „Ohradní bariéry"). Radnice a druhé
-  prstence budov zůstávají mimo plán, dokud se neukáže, že B–D substance
+- **Ploty kolem domů** (cíl `settlement-fences`, za `settlement.fences`) i
+  **hradby kolem sídel** (cíl `settlement-walls`, za `settlement.walls`) jsou
+  hotové, defaultně vypnuté. Zbývají **ohrady kolem zvířat** – základ
+  (`Enclosure`/`BarrierStyle`/`BarrierWorker`) je připravený, chybí cíl (viz
+  „Ohradní bariéry"). Radnice a druhé prstence budov zůstávají mimo plán, dokud
+  se neukáže, že B–D substance
   nestačí. (Účelné řemeslné dílny fáze E jsou výjimka odůvodněná specializací –
   nezvětšují sídlo, jen ho prohlubují.)
 - Žádná „městská práva" mechanika pro hráče – sídla botů zůstávají
