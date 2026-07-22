@@ -428,26 +428,25 @@ public final class Blueprints {
     // =================================================================== zvonice
 
     /**
-     * Zvonice – malá otevřená zvonička sídla (prestižní stavba města). Zděná
-     * základna 3×3 s dveřmi k návsi, nad ní čtyři rohové sloupky a plochý
-     * baldachýn; ve zvonovém patře visí pod baldachýnem zvon a korunu značí
-     * pochodeň. Bloky role {@code GENERIC} jako ostatní civilní stavby.
+     * Zvonice – vyšší věž sídla (prestižní stavba města). Zděná dutá šachta
+     * 3×3 s dveřmi k návsi, nahoře otevřené zvonové patro (čtyři rohové
+     * sloupky, mezi nimi je vidět dovnitř) a plochý baldachýn; pod baldachýnem
+     * visí zvon. Bloky role {@code GENERIC} jako ostatní civilní stavby.
      *
-     * <p>Výška je záměrně skromná (baldachýn v {@code y=4}): build engine staví
-     * z jednoho stanoviště na zemi (dosah {@code REACH_ASSIGN}=4,3 od očí ve
-     * výšce 1,62), takže vyšší věž by potřebovala lešení (V2d). I tahle
-     * zvonička ale vyčnívá nad sály (radnice v3, kostel v4) a zvon ji dělá
-     * nezaměnitelnou. Nejvzdálenější buňka (roh baldachýnu) je od stanoviště
-     * ~3,2 ≤ 4,3 → jedno stanoviště, {@code standExact}.</p>
+     * <p>Věž je vyšší než dosah ze země (baldachýn v {@code y=6}): horní patro
+     * postaví stavitel z <b>vyvýšeného pilířového stanoviště</b> ({@link
+     * BuildPlanner} lešení), které si vypilíruje ve volné šachtě a po dostavbě
+     * odklidí. Zvon visí v {@code y=5} – z podlahy dosažitelný ({@code
+     * ~3,9 ≤ 4,3}), takže se osadí jako každé vybavení. Věž tak výrazně
+     * převyšuje sály (radnice v3, kostel v4) a v siluetě sídla je nepřehlédnutelná.</p>
      */
     private record BellTower() implements Blueprint {
 
         private static final int SIZE = 3;
-        private static final int WALL_HEIGHT = 3; // základna y=0..2
-        private static final int POST_Y = 3;      // rohové sloupky (zvonové patro)
-        private static final int CANOPY_Y = 4;    // plochý baldachýn
-        private static final int BELL_Y = 3;      // zvon visí pod baldachýnem
-        private static final int TORCH_Y = 5;     // pochodeň na koruně
+        private static final int WALL_HEIGHT = 5; // šachta y=0..4 (dutá, s dveřmi)
+        private static final int POST_Y = 5;      // rohové sloupky zvonového patra
+        private static final int CANOPY_Y = 6;    // plochý baldachýn
+        private static final int BELL_Y = 5;      // zvon visí pod baldachýnem (z podlahy dosažitelný)
 
         private static boolean isPerimeter(int x, int z) {
             return x == 0 || x == SIZE - 1 || z == 0 || z == SIZE - 1;
@@ -525,11 +524,10 @@ public final class Blueprints {
 
         @Override
         public List<FurnishCell> furnishing(BlockPos origin, Cardinal facing) {
-            // Dveře k návsi, zvon visící ve středu pod baldachýnem, pochodeň na koruně.
+            // Dveře k návsi a zvon visící ve středu zvonového patra pod baldachýnem.
             return List.of(
                     new FurnishCell(FurnishKind.DOOR, doorBottom(origin, facing)),
-                    new FurnishCell(FurnishKind.BELL, origin.offset(SIZE / 2, BELL_Y, SIZE / 2)),
-                    new FurnishCell(FurnishKind.TORCH, origin.offset(SIZE / 2, TORCH_Y, SIZE / 2)));
+                    new FurnishCell(FurnishKind.BELL, origin.offset(SIZE / 2, BELL_Y, SIZE / 2)));
         }
 
         @Override
@@ -551,7 +549,7 @@ public final class Blueprints {
 
         @Override
         public boolean standExact() {
-            return true; // malá věž – staví se přesně ze středu základny
+            return true; // úzká šachta – staví se přesně ze středového sloupce (i z pilíře)
         }
     }
 
