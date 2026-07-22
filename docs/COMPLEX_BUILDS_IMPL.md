@@ -324,8 +324,18 @@ nové testy K1–K4 zelené; `CommunalBuildGoal` bez per-druh větvení.
   režim (`AcceptancePolicy.strict` – obsidian se ověřuje `materialAt`,
   lebka naposled jako poslední `WorkUnit`); jejich invariantní testy
   se stanou testy planneru.
-- `ScaffoldStep` (dočasný blok + úklidové `Op.Mine`), jen ukáže-li
-  V2c potřebu (zvonice/kostel); gate `ai.terraforming`.
+- ~~`ScaffoldStep` (dočasný blok + úklidové `Op.Mine`)~~ **HOTOVO
+  (lešení).** `BuildPlanner` generuje **vyvýšená pilířová stanoviště**
+  (nad volnými vnitřními sloupci, strop `PillarUpTask.MAX_HEIGHT`) pro
+  bloky mimo dosah ze země – ale jen jako **záloha**: když na každý blok
+  dosáhne nějaké přízemní stanoviště, staví se po podlaze bez pilířů
+  (sály beze změny). Pilíře pod použitými stanovišti jsou v
+  `BuildSchedule.scaffold`; `BuildSession` fáze `CLEANUP` je před
+  vybavením vytěží shora dolů (pilíř stojí ve sloupci vnitřního
+  stanoviště), takže zůstane jen stavba. Výstup nahoru řeší stávající
+  `PillarUpTask` přes navigaci, sestup/úklid je živě ověřovaný.
+  Sim test staví vysokou dutou věž přes vyvýšená stanoviště. Tím padá
+  i mez zvonice (teď smí být vyšší věž).
 - Volitelně `BuildShelterGoal` na mini-blueprint.
 
 ## Rizika a mitigace
