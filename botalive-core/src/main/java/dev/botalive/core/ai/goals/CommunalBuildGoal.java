@@ -294,7 +294,24 @@ public final class CommunalBuildGoal extends AbstractGoal {
             ctx.chat().sayFrom(startPhrase(project.kind()), phraseArg(project.kind(), name));
         }
         // Dílna, jejíž stanici bot nemá, ale umí ji vyrobit na míru → nejdřív craft.
-        phase = needsStationCraft(ctx) ? Phase.CRAFT : Phase.PROVISION;
+        if (needsStationCraft(ctx)) {
+            phase = Phase.CRAFT;
+        } else {
+            enterProvision(ctx);
+        }
+    }
+
+    /**
+     * Vstup do fáze shánění materiálu: zapíše sídlu rozpis (BOM) a přejde do
+     * stavu SUPPLY, aby sběrači ({@link SupplyGoal}) věděli, kolik bloků na
+     * stavbu ještě donést. Idempotentní na straně služby.
+     */
+    private void enterProvision(BotContext ctx) {
+        if (project != null && ctx.settlements() != null) {
+            ctx.settlements().beginSupply(project.settlementId(), project.kind(),
+                    blueprintFor(project.kind()).blocksNeeded() + BLOCK_RESERVE);
+        }
+        phase = Phase.PROVISION;
     }
 
     /** Chybí staviteli stanice dílny, ale má na ni suroviny (vyrobí na míru)? */
@@ -321,7 +338,7 @@ public final class CommunalBuildGoal extends AbstractGoal {
         boolean crafted = stationCraft.getNow(false);
         stationCraft = null;
         if (crafted) {
-            phase = Phase.PROVISION; // stanici má – dozásobí bloky a jde stavět
+            enterProvision(ctx); // stanici má – dozásobí bloky a jde stavět
         } else {
             giveUp(ctx, 2400); // suroviny mezitím ubyly – projekt uvolní dalšímu
         }
@@ -529,6 +546,9 @@ public final class CommunalBuildGoal extends AbstractGoal {
                     plan.cells().size())) {
                 giveUp(ctx, 2400);
                 return;
+            }
+            if (ctx.settlements() != null) {
+                ctx.settlements().beginBuild(project.settlementId(), project.kind());
             }
             phase = Phase.SESSION;
             return;

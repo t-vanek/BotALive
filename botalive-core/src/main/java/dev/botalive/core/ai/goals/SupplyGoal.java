@@ -14,6 +14,8 @@ import dev.botalive.core.world.WorldView;
 import org.bukkit.Material;
 import org.geysermc.mcprotocollib.protocol.data.game.entity.object.Direction;
 
+import java.util.OptionalInt;
+import java.util.OptionalLong;
 import java.util.concurrent.CompletableFuture;
 
 /**
@@ -70,6 +72,15 @@ public final class SupplyGoal extends AbstractGoal {
         }
         // Zásobuje se jen když se v sídle právě něco staví a je kam ukládat.
         boolean building = ctx.settlements().activeProject(bot.id()).isPresent();
+        // Rozpis (BOM): když je stavba dozásobená (needs 0), sběrač ji nechá
+        // být. Bez známého BOM (prázdno) padá na „nos, dokud máš přebytek".
+        OptionalLong sid = ctx.settlements().settlementIdOf(bot.id());
+        if (sid.isPresent()) {
+            OptionalInt needs = ctx.settlements().contributionNeeds(sid.getAsLong());
+            if (needs.isPresent() && needs.getAsInt() <= 0) {
+                return 0;
+            }
+        }
         BlockPos depot = depotChest(ctx, bot);
         ServerSideView.Snapshot snapshot = ctx.serverView().latest();
         int blocks = snapshot == null ? 0 : InventoryHelper.countBuildingBlocks(snapshot);
@@ -112,7 +123,7 @@ public final class SupplyGoal extends AbstractGoal {
         switch (phase) {
             case GO -> tickGo(ctx);
             case OPEN -> tickOpen(ctx);
-            case DEPOSIT -> tickDeposit(ctx);
+            case DEPOSIT -> tickDeposit(ctx, bot);
             case CLOSE -> tickClose(ctx);
             case DONE -> {
             }
@@ -142,7 +153,7 @@ public final class SupplyGoal extends AbstractGoal {
         phase = Phase.DEPOSIT;
     }
 
-    private void tickDeposit(BotContext ctx) {
+    private void tickDeposit(BotContext ctx, Bot bot) {
         if (--waitTicks > 0) {
             return;
         }
@@ -156,8 +167,14 @@ public final class SupplyGoal extends AbstractGoal {
         }
         int moved = deposit.getNow(0);
         deposit = null;
-        if (moved > 0 && ctx.rng().chance(0.5)) {
-            ctx.chat().say("nosím materiál na stavbu, ať to máme rychleji hotové");
+        if (moved > 0) {
+            // Připsat příspěvek do rozpisu (BOM) – ostatní sběrači pak vidí,
+            // že materiálu ubývá k dostavbě.
+            ctx.settlements().settlementIdOf(bot.id())
+                    .ifPresent(id -> ctx.settlements().contribute(id, moved));
+            if (ctx.rng().chance(0.5)) {
+                ctx.chat().say("nosím materiál na stavbu, ať to máme rychleji hotové");
+            }
         }
         waitTicks = ctx.rng().rangeInt(5, 12);
         phase = Phase.CLOSE;
