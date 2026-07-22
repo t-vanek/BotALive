@@ -24,7 +24,7 @@ public final class RoleProfiles {
                     "settlement-walls", 2.2)),
             Map.entry(BotRole.MINER, Map.of(
                     "mine", 2.5, "collect", 1.3, "craft", 1.2, "smelt", 1.3,
-                    "nether", 1.6, "smith", 1.4, "end-harvest", 1.4)),
+                    "nether", 1.6, "smith", 1.4, "end-harvest", 1.4, "supply", 1.6)),
             Map.entry(BotRole.LUMBERJACK, Map.of(
                     "mine", 2.2, "craft", 1.4, "shelter", 1.2, "house", 1.4)),
             Map.entry(BotRole.HUNTER, Map.of(
@@ -94,7 +94,7 @@ public final class RoleProfiles {
                     "explore", 2.5, "boat", 1.4, "craft", 1.3, "trade", 1.3, "collect", 1.2)),
             Map.entry(BotRole.MASON, Map.of(
                     "mine", 2.4, "craft", 1.5, "communal-build", 1.6, "house", 1.4,
-                    "shelter", 1.3, "settlement-walls", 2.4)),
+                    "shelter", 1.3, "settlement-walls", 2.4, "supply", 2.0)),
             Map.entry(BotRole.LEATHERWORKER, Map.of(
                     "hunt", 2.0, "breed", 1.8, "craft", 1.6, "trade", 1.3)),
             Map.entry(BotRole.SHEPHERD, Map.of(
