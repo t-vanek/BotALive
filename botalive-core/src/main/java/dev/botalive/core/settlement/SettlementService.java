@@ -842,6 +842,38 @@ public final class SettlementService {
     }
 
     /**
+     * Právě rozestavěná společná stavba v sídle bota – staveniště, kam
+     * sběrač nosí materiál a u kterého drží hlídač stráž. Vrací projekt
+     * s aktivním stavitelem, který ještě není hotový; při více rozestavěných
+     * bere naposled zamluvený (nejčerstvější staveniště). Na rozdíl od
+     * {@link #neededProject} nezakládá projekt ani nerezervuje parcelu – je
+     * to čistý pohled pro pomocníky (sběrač/hlídač), ne pro stavitele. Když
+     * staviteli vyprší zamluvení ({@link #PROJECT_CLAIM_TTL_MS}), staveniště
+     * z pohledu zmizí (nemá cenu nosit materiál na opuštěnou stavbu).
+     *
+     * @param botId člen sídla, který se ptá (sběrač/hlídač)
+     * @return rozestavěná stavba, nebo prázdné (nic se právě nestaví /
+     *         bot není členem sídla)
+     */
+    public synchronized Optional<ProjectInfo> activeProject(UUID botId) {
+        Long id = memberIndex.get(botId);
+        Settlement settlement = id == null ? null : settlements.get(id);
+        if (settlement == null) {
+            return Optional.empty();
+        }
+        Project active = null;
+        for (Project project : settlement.projects.values()) {
+            if (project.done || activeBuilder(project) == null) {
+                continue; // hotové nebo bez stavitele (i po expiraci claimu)
+            }
+            if (active == null || project.claimedAt > active.claimedAt) {
+                active = project; // nejčerstvější rozestavěné staveniště
+            }
+        }
+        return active == null ? Optional.empty() : Optional.of(projectInfo(settlement, active));
+    }
+
+    /**
      * @param settlement sídlo
      * @param roleOf     zdroj profese člena (pro poptávku po dílnách)
      * @return další společná stavba, kterou sídlo pro růst potřebuje.

@@ -230,6 +230,52 @@ class SettlementServiceTest {
                 "s radnicí i kostelem už město nic dalšího nepotřebuje");
     }
 
+    // ------------------------------------------- rozestavěná stavba (pomocníci)
+
+    @Test
+    void activeProjectVidiRozestavenouStavbuAZmiziPoDokonceni() {
+        var village = villageWithFourHouses();
+        // Nikdo nestaví → sběrač/hlídač nemá staveniště.
+        assertTrue(service.activeProject(joiner).isEmpty(),
+                "bez zamluvení se nic nestaví");
+
+        var well = service.neededProject(founder).orElseThrow();
+        assertEquals(SettlementService.ProjectKind.WELL, well.kind());
+        assertTrue(service.claimProject(village.id(), well.kind(), founder));
+
+        // Rozestavěnou studnu vidí i jiný člen – sběrač ví, kam nosit materiál.
+        var active = service.activeProject(joiner).orElseThrow();
+        assertEquals(SettlementService.ProjectKind.WELL, active.kind());
+        assertEquals(well.origin(), active.origin(), "staveniště = origin projektu");
+        assertFalse(active.done(), "rozestavěná stavba není hotová");
+
+        // Po dokončení staveniště z pohledu mizí – není co zásobovat ani hlídat.
+        service.projectFinished(village.id(), well.kind());
+        assertTrue(service.activeProject(joiner).isEmpty(),
+                "hotová stavba už není rozestavěná");
+    }
+
+    @Test
+    void activeProjectMiziPoExpiraciZamluveni() {
+        var village = villageWithFourHouses();
+        var well = service.neededProject(founder).orElseThrow();
+        assertTrue(service.claimProject(village.id(), well.kind(), founder));
+        assertTrue(service.activeProject(joiner).isPresent(), "čerstvě zamluvené staveniště je vidět");
+
+        // Stavitel se ztratil – po TTL se zamluvení uvolní a staveniště zmizí:
+        // nemá cenu nosit materiál na opuštěnou stavbu.
+        now += 11 * 60_000L;
+        assertTrue(service.activeProject(joiner).isEmpty(),
+                "expirované zamluvení = žádné aktivní staveniště");
+    }
+
+    @Test
+    void activeProjectPrazdnyProNeclena() {
+        foundVillage();
+        assertTrue(service.activeProject(new UUID(0, 99)).isEmpty(),
+                "nečlen nemá sídlo → žádné staveniště");
+    }
+
     /** Postaví město s 8 dostavěnými domy (zakladatel + 7 osadníků). */
     private long townWithEightHouses() {
         var village = foundVillage();
