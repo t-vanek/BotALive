@@ -179,6 +179,17 @@ class SiteFinderTest {
     }
 
     @Test
+    void footprintSpanIsLargestPlanDimension() {
+        // Radius posunu se z něj a z rozestupu parcel počítá footprint-aware.
+        assertEquals(3, SiteFinder.footprintSpan(Blueprints.well(), Cardinal.NORTH),
+                "studna 3×3");
+        assertEquals(5, SiteFinder.footprintSpan(Blueprints.townHall(), Cardinal.NORTH),
+                "radnice 5×5");
+        assertEquals(7, SiteFinder.footprintSpan(Blueprints.church(), Cardinal.NORTH),
+                "kostel 5×7 → větší rozměr 7");
+    }
+
+    @Test
     void searchSnapsToExactOriginForResume() {
         FakeWorldView world = new FakeWorldView(FLOOR_Y);
         BlockPos suggested = new BlockPos(10, GROUND, 10);

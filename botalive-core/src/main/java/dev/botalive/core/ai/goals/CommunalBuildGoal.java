@@ -45,11 +45,11 @@ public final class CommunalBuildGoal extends AbstractGoal {
     /** Vodorovná vzdálenost od staveniště, kde se doladí výška a začne stavět. */
     private static final int APPROACH_RADIUS = 3;
     /**
-     * Kolik bloků do stran smí {@link SiteFinder#search} posunout staveniště,
-     * když přesný roh parcely nejde (překážka, díra). Drženo malé, ať se stavba
-     * nevysune z parcely k sousedovi – u default rozestupu 12 je rezerva ~4.
+     * Strop posunu staveniště (v {@link SiteFinder#search}): i malá stavba se
+     * zdaleka nezatoulá z parcely. Skutečný radius se počítá z rozestupu parcel
+     * a půdorysu stavby (footprint-aware) – velký sál se smí posunout míň.
      */
-    private static final int SITE_SEARCH_RADIUS = 2;
+    private static final int MAX_SITE_SEARCH_RADIUS = 4;
     /**
      * Minimum stavebních bloků k zahájení – zbytek dodá PROVISION (dotěží
      * v okolí) nebo další seance. Velká stavba (radnice, kostel) se tak
@@ -432,9 +432,13 @@ public final class CommunalBuildGoal extends AbstractGoal {
      */
     private boolean adjustSite(BotContext ctx, WorldView world) {
         Blueprint blueprint = blueprintFor(project.kind());
+        // Kolik se smí staveniště posunout v parcele: rezerva k sousedovi
+        // (rozestup − půdorys) zpola, nejvýš MAX_SITE_SEARCH_RADIUS.
+        int radius = Math.max(1, Math.min(MAX_SITE_SEARCH_RADIUS,
+                (ctx.config().settlement().plotSpacing()
+                        - SiteFinder.footprintSpan(blueprint, project.facing())) / 2));
         BlockPos usable = SiteFinder.search(world, blueprint, project.origin(),
-                project.facing(), ctx.config().ai().terraforming(), SITE_SEARCH_RADIUS)
-                .orElse(null);
+                project.facing(), ctx.config().ai().terraforming(), radius).orElse(null);
         if (usable == null) {
             ctx.settlements().relocateProject(project.settlementId(), project.kind());
             giveUp(ctx, 2400);
