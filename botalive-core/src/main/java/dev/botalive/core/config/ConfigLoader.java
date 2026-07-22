@@ -190,6 +190,9 @@ public final class ConfigLoader {
                 Math.max(1, c.getInt("settlement.wall-height", 2)),
                 Math.max(0, c.getInt("settlement.ghost-days", 7)),
                 Math.max(1, c.getInt("settlement.grudge-window-hours", 2)),
+                c.getBoolean("settlement.protect-structures", true),
+                Math.max(0, c.getInt("settlement.protect-depth", 8)),
+                Math.max(0, c.getInt("settlement.mine-distance", 24)),
                 war
         );
 

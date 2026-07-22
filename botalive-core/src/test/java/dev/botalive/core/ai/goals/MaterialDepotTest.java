@@ -39,7 +39,7 @@ class MaterialDepotTest {
 
     private static BotAliveConfig.Settlement config() {
         return new BotAliveConfig.Settlement(true, 12, 8, 200, 150, 0.30, 0.60, 30,
-                true, true, false, false, 2, 0, 2, war());
+                true, true, false, false, 2, 0, 2, true, 8, 24, war());
     }
 
     private static BotAliveConfig.War war() {

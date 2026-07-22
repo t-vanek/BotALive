@@ -321,7 +321,7 @@ public final class MineGoal extends AbstractGoal {
         if (buried != null) {
             List<DigPlanner.Step> plan = DigPlanner.plan(
                     ctx.position().toBlockPos(), buried.down(), 24);
-            if (!plan.isEmpty()) {
+            if (!plan.isEmpty() && planClear(ctx, plan)) {
                 digSteps.addAll(plan);
                 mode = Mode.DIG_TO;
                 wishTarget = world.materialAt(buried);
@@ -346,16 +346,69 @@ public final class MineGoal extends AbstractGoal {
             }
         }
         // 6) Sestup schodištěm do hloubky hledané rudy (kopáčský instinkt).
+        // Ústí dolu patří MIMO sídlo: díra vykopaná tam, kde bot zrovna stojí,
+        // vede uprostřed návsi rovnou pod domy. Uvnitř ochranného okruhu se
+        // proto schodiště nezakládá – bot dřív odejde za humna.
         Material deepWish = wishlist.getFirst();
         Integer depth = ORE_DEPTHS.get(BotNeeds.oreFamily(deepWish));
         BlockPos feet = ctx.position().toBlockPos();
-        if (depth != null && feet.y() > depth + 4 && ctx.rng().chance(0.5)) {
-            digSteps.addAll(DigPlanner.staircase(feet, Math.max(depth, feet.y() - 24),
-                    ctx.rng().rangeInt(0, 4), 24));
-            mode = Mode.STAIRCASE;
-            wishTarget = deepWish;
-            reason = needs.miningReason(deepWish);
+        if (depth != null && feet.y() > depth + 4 && ctx.rng().chance(0.5)
+                && mineEntranceAllowed(ctx, feet)) {
+            List<DigPlanner.Step> stairs = DigPlanner.staircase(feet,
+                    Math.max(depth, feet.y() - 24), ctx.rng().rangeInt(0, 4), 24);
+            if (planClear(ctx, stairs)) {
+                digSteps.addAll(stairs);
+                mode = Mode.STAIRCASE;
+                wishTarget = deepWish;
+                reason = needs.miningReason(deepWish);
+            }
         }
+    }
+
+    /**
+     * Smí bot tenhle blok vytěžit? Zástavba sídla (dům, společná stavba) a
+     * podloží pod ní je chráněná – jinak si boti poddolují vlastní vesnici.
+     *
+     * @param ctx kontext bota
+     * @param pos zkoumaný blok
+     * @return {@code true} když těžba tohoto bloku nic nepodkopává
+     */
+    private static boolean mineable(BotContext ctx, BlockPos pos) {
+        WorldView world = ctx.worldView();
+        if (world == null || ctx.settlements() == null) {
+            return true;
+        }
+        return !ctx.settlements().isStructureProtected(world.worldName(), pos);
+    }
+
+    /** Neprochází žádný krok výkopu chráněnou zástavbou? */
+    private static boolean planClear(BotContext ctx, List<DigPlanner.Step> plan) {
+        for (DigPlanner.Step step : plan) {
+            for (BlockPos block : step.toBreak()) {
+                if (!mineable(ctx, block)) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
+    /**
+     * Je tady dost daleko od sídel na to, aby se dal založit důl?
+     * Vzdálenost bere {@code settlement.mine-distance}; 0 = kdekoliv.
+     *
+     * @param ctx  kontext bota
+     * @param feet pozice zamýšleného ústí
+     * @return {@code true} když se tu smí zahájit sestup
+     */
+    private static boolean mineEntranceAllowed(BotContext ctx, BlockPos feet) {
+        WorldView world = ctx.worldView();
+        int minDistance = ctx.config().settlement().mineDistance();
+        if (world == null || ctx.settlements() == null || minDistance <= 0) {
+            return true;
+        }
+        var nearest = ctx.settlements().distanceToNearestSettlement(world.worldName(), feet);
+        return nearest.isEmpty() || nearest.getAsInt() >= minDistance;
     }
 
     private void setTarget(BotContext ctx, BlockPos pos, BotNeeds needs) {
@@ -581,7 +634,7 @@ public final class MineGoal extends AbstractGoal {
                     if (material == null || !filter.test(material)) {
                         continue;
                     }
-                    if (!DigPlanner.isExposed(world, pos)) {
+                    if (!DigPlanner.isExposed(world, pos) || !mineable(ctx, pos)) {
                         continue;
                     }
                     found.add(pos);
@@ -632,6 +685,9 @@ public final class MineGoal extends AbstractGoal {
                     }
                     if (requireExposed && !DigPlanner.isExposed(world, pos)) {
                         continue;
+                    }
+                    if (!mineable(ctx, pos)) {
+                        continue; // zástavba sídla – nepodhrabávat
                     }
                     double dist = pos.distanceSquared(center);
                     if (dist < bestDist) {

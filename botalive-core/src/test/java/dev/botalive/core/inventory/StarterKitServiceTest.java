@@ -95,7 +95,20 @@ class StarterKitServiceTest {
 
     @Test
     void univerzalNemaProfesniPridavek() {
-        assertEquals(7, StarterKitService.contents(BotRole.NONE).size());
+        assertEquals(8, StarterKitService.contents(BotRole.NONE).size());
+    }
+
+    /**
+     * Sklo patří do ZÁKLADU, ne jen alchymistovi: okna staví každý, kdo staví
+     * dům, a bez skla v batohu sáhne stavba po náhradním bloku a barák zůstane
+     * slepý (paleta sklo chce, {@code BuildSession.equipFor} tiše nahradí).
+     */
+    @Test
+    void kazdyMaSkloNaOkna() {
+        for (BotRole role : BotRole.values()) {
+            assertTrue(StarterKitService.contents(role).getOrDefault(Material.GLASS, 0) >= 3,
+                    "sklo na tři okna chybí roli " + role);
+        }
     }
 
     @Test

@@ -74,7 +74,13 @@ final class BarrierGather {
         }
         if (target == null) {
             if (candidates.isEmpty()) {
-                candidates.addAll(scanSources(world, ctx.position().toBlockPos(), want, RADIUS));
+                // Zástavbu sídla nechat být – kámen na stavbu se shání v okolí,
+                // ne vyloupáním sousedova domu nebo základů pod ním.
+                scanSources(world, ctx.position().toBlockPos(), want, RADIUS).stream()
+                        .filter(pos -> ctx.settlements() == null
+                                || !ctx.settlements().isStructureProtected(
+                                        world.worldName(), pos))
+                        .forEach(candidates::add);
             }
             target = candidates.poll();
             if (target == null) {

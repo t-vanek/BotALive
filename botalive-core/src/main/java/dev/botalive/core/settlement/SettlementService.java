@@ -959,6 +959,106 @@ public final class SettlementService {
         persistProject(settlement, project);
     }
 
+    /** Vodorovný poloměr ochrany kolem originu parcely/stavby (bloky). */
+    private static final int GUARD_RADIUS = 8;
+    /** Kolik bloků NAD úrovní stavby se ještě chrání (patra, střecha). */
+    private static final int GUARD_HEIGHT = 20;
+    /** Hrubý filtr: sídla dál než tohle od pozice se neprocházejí. */
+    private static final int GUARD_SETTLEMENT_REACH = 256;
+
+    /**
+     * Je pozice uvnitř chráněného objemu nějaké stavby (parcela člena nebo
+     * společná stavba), a tedy zapovězená těžbě?
+     *
+     * <p>Chrání se hranol kolem originu stavby: vodorovně {@link #GUARD_RADIUS},
+     * nahoru {@link #GUARD_HEIGHT} (patra a střecha) a dolů
+     * {@code settlement.protect-depth} – právě ta spodní část je ochrana proti
+     * <b>poddolování</b>. Hlouběji pod sídlem se kopat smí; zakázané je
+     * podhrabat základy. Legitimní bourání (stavba, oprava vlastního domu,
+     * sklizeň) sem nechodí – guard se ptá jen těžba.</p>
+     *
+     * @param world název světa
+     * @param pos   zkoumaný blok
+     * @return {@code true} když se blok nesmí vytěžit
+     */
+    public synchronized boolean isStructureProtected(String world, BlockPos pos) {
+        return isStructureProtected(world, pos, null);
+    }
+
+    /**
+     * Totéž s výjimkou pro jednoho bota: <b>vlastní</b> parcela a stavba, kterou
+     * má zamluvenou, se mu nechrání.
+     *
+     * <p>Bez té výjimky si stavitel neprokope cestu na vlastní staveniště –
+     * ochrana ho uvězní před jeho vlastním domem (naměřeno živě: 8 watchdog
+     * resetů u jednoho bota s cílem {@code house}). Na těžbu se výjimka
+     * NEpoužívá: podhrabat si vlastní dům je pořád nesmysl.</p>
+     *
+     * @param world     název světa
+     * @param pos       zkoumaný blok
+     * @param exemptBot bot, jemuž se vlastní stavby nechrání ({@code null} = nikdo)
+     * @return {@code true} když se blok nesmí vytěžit
+     */
+    public synchronized boolean isStructureProtected(String world, BlockPos pos, UUID exemptBot) {
+        if (!config.protectStructures() || world == null || pos == null) {
+            return false;
+        }
+        for (Settlement settlement : settlements.values()) {
+            if (!world.equals(settlement.world)
+                    || horizontalDistance(settlement.center, pos) > GUARD_SETTLEMENT_REACH) {
+                continue; // jiný svět / daleko – celé sídlo přeskočit
+            }
+            for (Member member : settlement.members.values()) {
+                if (member.botId().equals(exemptBot)) {
+                    continue; // na vlastní parcelu si bot smí (staví tam)
+                }
+                if (member.plotOrigin() != null && guards(member.plotOrigin(), pos)) {
+                    return true;
+                }
+            }
+            for (Project project : settlement.projects.values()) {
+                if (project.builder != null && project.builder.equals(exemptBot)) {
+                    continue; // vlastní zamluvená společná stavba
+                }
+                if (guards(project.origin, pos)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    /** Leží {@code pos} v chráněném hranolu kolem {@code origin}? */
+    private boolean guards(BlockPos origin, BlockPos pos) {
+        return Math.abs(pos.x() - origin.x()) <= GUARD_RADIUS
+                && Math.abs(pos.z() - origin.z()) <= GUARD_RADIUS
+                && pos.y() >= origin.y() - config.protectDepth()
+                && pos.y() <= origin.y() + GUARD_HEIGHT;
+    }
+
+    /** Vodorovná (Chebyshevova) vzdálenost – hrubý filtr, levnější než odmocnina. */
+    private static int horizontalDistance(BlockPos a, BlockPos b) {
+        return Math.max(Math.abs(a.x() - b.x()), Math.abs(a.z() - b.z()));
+    }
+
+    /**
+     * Nejbližší sídlo, jehož zástavbě by se měl důl vyhnout.
+     *
+     * @param world název světa
+     * @param pos   zkoumaná pozice
+     * @return vodorovná vzdálenost k nejbližší návsi, nebo prázdné (žádné sídlo)
+     */
+    public synchronized OptionalInt distanceToNearestSettlement(String world, BlockPos pos) {
+        int best = Integer.MAX_VALUE;
+        for (Settlement settlement : settlements.values()) {
+            if (world == null || !world.equals(settlement.world)) {
+                continue;
+            }
+            best = Math.min(best, horizontalDistance(settlement.center, pos));
+        }
+        return best == Integer.MAX_VALUE ? OptionalInt.empty() : OptionalInt.of(best);
+    }
+
     /**
      * Sběrač přispěl {@code blocks} bloky na aktivní stavbu sídla; zvýší
      * evidenci nasbíraného a vrátí, kolik ještě chybí (BOM − nasbíráno, ≥0).

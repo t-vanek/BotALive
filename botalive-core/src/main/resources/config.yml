@@ -317,6 +317,20 @@ settlement:
   join-radius: 200
   # Minimální vzdálenost mezi vesnicemi – odštěpenci zakládají až za ní.
   min-village-distance: 150
+  # Ochrana zástavby před poddolováním: kolem každého domu i společné stavby
+  # (a pod nimi) vzniká chráněný objem, ve kterém boti NETĚŽÍ – ani rudu,
+  # ani kámen na stavbu, ani zkratku skrz zeď při hledání cesty. Bez toho si
+  # boti prokopou vlastní vesnici: schodiště do dolu začínalo tam, kde bot
+  # zrovna stál, tedy klidně uprostřed návsi pod domy.
+  # Stavění, opravy vlastního domu a sklizeň polí ochrana neomezuje.
+  protect-structures: true
+  # Kolik bloků POD úrovní stavby se ještě chrání (vlastní ochrana proti
+  # poddolování). Hlouběji pod vesnicí se kopat smí – zakázané je podhrabat
+  # základy. Nahoru se chrání 20 bloků (patra a střecha).
+  protect-depth: 8
+  # Jak daleko od návsi musí bot odejít, než založí důl (bloky). Ústí dolu
+  # tak vzniká za humny jako samostatná stavba, ne na návsi. 0 = kdekoliv.
+  mine-distance: 24
   # Pod tímto rysem SOCIABILITY je bot samotář a vesnice neřeší.
   loner-sociability: 0.30
   # Důležitost nepřátelské vzpomínky na souseda, která se počítá jako vážná

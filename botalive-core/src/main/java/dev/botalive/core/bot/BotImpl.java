@@ -1164,9 +1164,18 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
     /** Poslední pozice s pohybem a stáří nehybnosti (jen tick vlákno). */
     private Vec3 watchdogPos = Vec3.ZERO;
     private int watchdogStillTicks;
-    /** Opakované watchdog resety na témže bloku → nouzový přesun. */
+    /** Opakované watchdog resety na témže MÍSTĚ → nouzový přesun. */
     private BlockPos watchdogLastResetPos;
     private int watchdogRepeats;
+    /**
+     * Poloměr (bloky), do kterého se další reset počítá jako „pořád tamtéž".
+     * Shoda na přesný blok nestačí: zaseknutý bot se o kus šoupe (dav, couvání
+     * ze {@link dev.botalive.core.physics.StuckRecovery}, revert serveru), takže
+     * kotva se pořád přepisovala a eskalace nenastala nikdy – naměřeno živě,
+     * 6 resetů za 3,5 min v okruhu 2 bloků a z pasti bota nakonec dostala až
+     * smrt. Kotva zůstává na PRVNÍ pozici, aby ji pomalý drift nevynuloval.
+     */
+    private static final double WATCHDOG_SAME_SPOT_RADIUS = 3.0;
     /** Čas posledního nouzového přesunu – 2. přesun v okně jde na povrch. */
     private long watchdogLastRelocateAt;
     /** Okno, ve kterém druhý nouzový přesun eskaluje na povrch (ms). */
@@ -1326,7 +1335,16 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
                     buriedTicks = 0;
                 }
             }
-            if (alive && !paused.get() && !combat.engaged() && navigator.actionNeeded() != null) {
+            if (alive && !paused.get() && !combat.engaged() && navigator.actionNeeded() != null
+                    && hitsProtectedStructure(navigator.actionNeeded())) {
+                // Cesta si chce prokopat cizí dům (nebo podloží pod ním). Krok
+                // se NEsmí jen přeskočit – tím by cesta zůstala nesplnitelná a
+                // bot by se o ni dokola zasekával. Ohlásíme selhání zásahu, ať
+                // navigátor naplánuje obchůzku a marný cíl srazí backoff.
+                LOG.debug("[{}] [nav] zásah zamítnut – chráněná zástavba", name);
+                navigator.assistFailed(physics.position());
+            } else if (alive && !paused.get() && !combat.engaged()
+                    && navigator.actionNeeded() != null) {
                 // Zásah do terénu z plánu cesty: vykopat bloky a pokračovat
                 // po téže cestě (kopací hrany – náhrada assist eskalace).
                 obstacleTask = plannedActionSequence(navigator.actionNeeded());
@@ -1482,14 +1500,15 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
         } else if (++watchdogStillTicks >= WATCHDOG_STILL_TICKS) {
             watchdogStillTicks = 0;
             BlockPos here = physics.position().toBlockPos();
-            if (here.equals(watchdogLastResetPos)) {
-                watchdogRepeats++;
+            if (watchdogLastResetPos != null && here.distanceSquared(watchdogLastResetPos)
+                    <= WATCHDOG_SAME_SPOT_RADIUS * WATCHDOG_SAME_SPOT_RADIUS) {
+                watchdogRepeats++; // kotvu držíme, ať ji drift o blok nevynuluje
             } else {
                 watchdogLastResetPos = here;
                 watchdogRepeats = 0;
             }
             if (watchdogRepeats >= 2) {
-                // Třetí reset na témže bloku: navigační resety ani mikro-manévry
+                // Třetí reset na témže MÍSTĚ: navigační resety ani mikro-manévry
                 // nepomohly, bot je uvězněný v něčem, co klientský model nezná
                 // (stojí na entitě – loď; kolizní desync). Poslední instance:
                 // přesun na sousední pevnou buňku s plným resyncem klienta.
@@ -1507,26 +1526,34 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
                 if (secondInWindow && overworld && bukkitWorld != null) {
                     // 2. stupeň: sousední buňka nestačila (jeskynní geometrie
                     // poráží bota opakovaně) – přenést na povrch sloupce.
-                    // Lávová „hladina" jako cíl neplatí, bezpečnější je spawn.
-                    // Mimo overworld (střecha Netheru!) zůstává 1. stupeň.
                     LOG.warn("[{}] watchdog: 2. nouzový přesun během 5 min na {} "
                             + "– přenos na povrch", name, here);
-                    bridge.runAt(new Location(bukkitWorld, here.x(), here.y(), here.z()), () -> {
-                        int surfaceY = bukkitWorld.getHighestBlockYAt(here.x(), here.z());
-                        var surface = bukkitWorld.getBlockAt(here.x(), surfaceY, here.z())
-                                .getType();
-                        Location target = surface == org.bukkit.Material.LAVA
-                                ? bukkitWorld.getSpawnLocation()
-                                : new Location(bukkitWorld, here.x() + 0.5, surfaceY + 1.0,
-                                        here.z() + 0.5);
-                        teleport(target);
-                    });
+                    relocateToSurface(bukkitWorld, here);
                 } else if (bukkitWorld != null) {
-                    BlockPos refuge = findAdjacentGround(here);
-                    LOG.warn("[{}] watchdog: 3× reset na {} bez posunu – nouzový přesun na {}",
-                            name, here, refuge);
-                    teleport(new Location(bukkitWorld, refuge.x() + 0.5, refuge.y(),
-                            refuge.z() + 0.5));
+                    BlockPos refuge = dev.botalive.core.physics.Refuge.findNear(worldView, here);
+                    if (refuge != null) {
+                        LOG.warn("[{}] watchdog: 3× reset na {} bez posunu – nouzový přesun "
+                                + "na {}", name, here, refuge);
+                        teleport(new Location(bukkitWorld, refuge.x() + 0.5, refuge.y(),
+                                refuge.z() + 0.5));
+                    } else if (overworld) {
+                        // Kolem není kam uhnout (zazděný bot, úzká šachta). Dřív
+                        // se teleportovalo na `here`, tedy PŘESNĚ tam, kde bot už
+                        // stál – zaručený no-op, který navíc shodil eskalaci na
+                        // nulu a stál dalších 90 s (naměřeno živě: „nouzový přesun
+                        // na BlockPos[x=57, y=63, z=-129]" z téže pozice). Bez
+                        // volné buňky proto rovnou 2. stupeň.
+                        LOG.warn("[{}] watchdog: 3× reset na {} bez posunu a bez volné "
+                                + "sousední buňky – přenos na povrch", name, here);
+                        relocateToSurface(bukkitWorld, here);
+                    } else {
+                        // Mimo overworld je přenos na povrch past (strop Netheru),
+                        // takže zbývá jen resync na místě – ale řekneme to poctivě.
+                        LOG.warn("[{}] watchdog: 3× reset na {} bez posunu, mimo overworld "
+                                + "není kam uhnout – jen resync klienta", name, here);
+                        teleport(new Location(bukkitWorld, here.x() + 0.5, here.y(),
+                                here.z() + 0.5));
+                    }
                 }
             } else {
                 LOG.warn("[{}] watchdog: {} s bez pohybu na {} (goal {}, cíl {}) – reset "
@@ -1752,6 +1779,36 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
     private int ladderBudget() {
         return dev.botalive.core.inventory.InventoryHelper
                 .countItem(serverView.latest(), org.bukkit.Material.LADDER);
+    }
+
+    /**
+     * Je blok součástí chráněné zástavby sídla (dům, společná stavba, podloží
+     * pod nimi)? Platí pro kopání „z cesty" – stavba a oprava vlastního domu
+     * jdou jinudy a guardem neprocházejí.
+     *
+     * @param pos zkoumaný blok
+     * @return {@code true} když se blok nesmí prokopat
+     */
+    private boolean structureProtected(BlockPos pos) {
+        var settlements = services.settlements();
+        return settlements != null && worldView != null
+                && settlements.isStructureProtected(worldView.worldName(), pos, id);
+    }
+
+    /**
+     * Sáhl by zásah z plánu cesty na chráněnou zástavbu? Vlastní parcela ani
+     * vlastní zamluvená stavba se nepočítá – tam si bot cestu prokopat smí.
+     *
+     * @param action zásah z plánu
+     * @return {@code true} když by se kopalo do cizí stavby nebo pod ni
+     */
+    private boolean hitsProtectedStructure(dev.botalive.core.pathfinding.TerrainAction action) {
+        for (BlockPos dig : action.digs()) {
+            if (structureProtected(dig)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -2079,11 +2136,6 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
     }
 
     /**
-     * Najde sousední buňku s pevnou podlahou a místem pro tělo – útočiště
-     * nouzového přesunu watchdogu. Bez nálezu vrací výchozí pozici (samotný
-     * resync klienta často desync srovná).
-     */
-    /**
      * Směr, kterým se bot marně snaží jít (pro vyproštění): preferuje živý
      * pohybový vstup, jinak směr k cíli navigace, nakonec směr pohledu.
      */
@@ -2112,26 +2164,23 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
         return worldView.traitsAt(ahead).passable() && worldView.traitsAt(ahead.up()).passable();
     }
 
-    private BlockPos findAdjacentGround(BlockPos around) {
-        if (worldView == null) {
-            return around;
-        }
-        for (int r = 1; r <= 2; r++) {
-            for (int dx = -r; dx <= r; dx++) {
-                for (int dz = -r; dz <= r; dz++) {
-                    if (Math.max(Math.abs(dx), Math.abs(dz)) != r) {
-                        continue; // jen obvod prstence
-                    }
-                    BlockPos cell = new BlockPos(around.x() + dx, around.y(), around.z() + dz);
-                    if (worldView.traitsAt(cell).lowProfile()
-                            && worldView.traitsAt(cell.up()).lowProfile()
-                            && worldView.traitsAt(cell.down()).solid()) {
-                        return cell;
-                    }
-                }
-            }
-        }
-        return around;
+    /**
+     * Nouzový přenos na povrch sloupce (2. stupeň watchdogu). Lávová „hladina"
+     * jako cíl neplatí – bezpečnější je world spawn. Volat jen v overworldu;
+     * v Netheru by „nejvyšší blok" byl strop světa.
+     *
+     * @param world svět bota
+     * @param here  pozice, ze které se bot vyprošťuje
+     */
+    private void relocateToSurface(World world, BlockPos here) {
+        bridge.runAt(new Location(world, here.x(), here.y(), here.z()), () -> {
+            int surfaceY = world.getHighestBlockYAt(here.x(), here.z());
+            var surface = world.getBlockAt(here.x(), surfaceY, here.z()).getType();
+            Location target = surface == org.bukkit.Material.LAVA
+                    ? world.getSpawnLocation()
+                    : new Location(world, here.x() + 0.5, surfaceY + 1.0, here.z() + 0.5);
+            teleport(target);
+        });
     }
 
     /**
