@@ -352,6 +352,7 @@ public final class CompositionRoot {
         registry.register("buy", bot -> new dev.botalive.core.ai.goals.BuyGoal(market));
         registry.register("reconcile", bot -> new dev.botalive.core.ai.goals.ReconcileGoal(socialGraph));
         registry.register("guard", bot -> new dev.botalive.core.ai.goals.GuardGoal());
+        registry.register("build-guard", bot -> new dev.botalive.core.ai.goals.BuildGuardGoal());
         registry.register("nether", bot -> new dev.botalive.core.ai.goals.NetherGoal(containers));
         registry.register("drink", bot -> new dev.botalive.core.ai.goals.DrinkPotionGoal());
         registry.register("brew", bot -> new dev.botalive.core.ai.goals.BrewGoal(brewing));

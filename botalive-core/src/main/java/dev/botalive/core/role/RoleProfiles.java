@@ -56,7 +56,7 @@ public final class RoleProfiles {
             // socialize) zůstávají všem stejné.
             Map.entry(BotRole.GUARDIAN, Map.of(
                     "guard", 2.6, "bodyguard", 2.4, "combat", 1.6, "pvp", 1.4,
-                    "war-raid", 1.5, "home", 1.2)),
+                    "war-raid", 1.5, "home", 1.2, "build-guard", 2.4)),
             Map.entry(BotRole.SCOUT, Map.of(
                     "explore", 2.5, "boat", 1.6, "minecart", 1.6, "camp", 1.8,
                     "end-travel", 1.3)),
