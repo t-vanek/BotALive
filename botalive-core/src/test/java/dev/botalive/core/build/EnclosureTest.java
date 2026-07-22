@@ -158,6 +158,66 @@ class EnclosureTest {
         assertEquals(Enclosure.Cell.GATE, col.get(0).kind());
     }
 
+    /** Postaví plot (plaňky na Y+1) po celém obvodu 5×5. */
+    private static FakeWorldView fencedField() {
+        FakeWorldView world = new FakeWorldView(Y);
+        for (BlockPos col : Enclosure.perimeter(0, 0, 4, 4, Y)) {
+            world.set(col.x(), Y + 1, col.z(), Material.OAK_FENCE, FakeWorldView.FENCE);
+        }
+        return world;
+    }
+
+    @Test
+    void assessCelaBarieraStoji() {
+        Enclosure.Assessment a = Enclosure.assess(fencedField(),
+                new BlockPos(0, Y, 0), new BlockPos(4, Y, 4), Y, Set.of());
+        assertEquals(16, a.standing());
+        assertEquals(0, a.missing());
+        assertEquals(0.0, a.missingRatio());
+    }
+
+    @Test
+    void assessParDerJePoskozeni() {
+        FakeWorldView world = fencedField();
+        // Vytlučeme dva sloupky (0,0) a (1,0) – zbytek stojí.
+        world.set(0, Y + 1, 0, FakeWorldView.AIRLIKE);
+        world.set(1, Y + 1, 0, FakeWorldView.AIRLIKE);
+        Enclosure.Assessment a = Enclosure.assess(world,
+                new BlockPos(0, Y, 0), new BlockPos(4, Y, 4), Y, Set.of());
+        assertEquals(14, a.standing());
+        assertEquals(2, a.missing());
+    }
+
+    @Test
+    void assessNovaBarieraVsechnoChybi() {
+        Enclosure.Assessment a = Enclosure.assess(new FakeWorldView(Y),
+                new BlockPos(0, Y, 0), new BlockPos(4, Y, 4), Y, Set.of());
+        assertEquals(0, a.standing());
+        assertEquals(16, a.missing());
+    }
+
+    @Test
+    void assessPoznaStojiciBranku() {
+        FakeWorldView world = fencedField();
+        // Na severní bráně stojí fence gate – v realitě NEpevný (groundAt na něj
+        // nevyleze), posuzuje se přes blok nad zemí.
+        world.set(2, Y + 1, 0, Material.OAK_FENCE_GATE, FakeWorldView.DOOR_CLOSED);
+        Enclosure.Assessment a = Enclosure.assess(world,
+                new BlockPos(0, Y, 0), new BlockPos(4, Y, 4), Y, Set.of(Cardinal.NORTH));
+        assertEquals(16, a.standing(), "branka se počítá jako stojící");
+        assertEquals(0, a.missing());
+    }
+
+    @Test
+    void assessPoznaChybejiciBranku() {
+        FakeWorldView world = fencedField();
+        world.set(2, Y + 1, 0, Material.AIR, FakeWorldView.AIRLIKE); // branka vytlučená (i materiál pryč)
+        Enclosure.Assessment a = Enclosure.assess(world,
+                new BlockPos(0, Y, 0), new BlockPos(4, Y, 4), Y, Set.of(Cardinal.NORTH));
+        assertEquals(15, a.standing());
+        assertEquals(1, a.missing(), "chybějící branka = díra");
+    }
+
     /** Base sloupce na dané XZ (musí existovat). */
     private static BlockPos baseAt(List<Enclosure.Post> posts, int x, int z) {
         return posts.stream().filter(p -> p.base().x() == x && p.base().z() == z)

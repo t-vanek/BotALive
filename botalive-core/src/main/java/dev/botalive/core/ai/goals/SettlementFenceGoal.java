@@ -25,25 +25,24 @@ import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 
 /**
- * Oplocení vlastního domu – bot si kolem parcely postaví plot s brankou ke
- * dveřím. Uzavírá „obehnat domy plotem": funguje pro člena vesnice i samotáře
- * (parcelu zná z {@link SettlementService#claimedPlot} nebo z HOME dat, přesně
- * jako {@link MaintainHomeGoal}).
+ * Oplocení a <b>oprava plotu</b> vlastního domu – bot kolem parcely postaví
+ * (a udržuje) plot s brankou ke dveřím. Funguje pro člena vesnice i samotáře
+ * (parcelu zná z {@link SettlementService#claimedPlot} nebo z HOME dat).
  *
- * <p>Materiál si bot <b>vyrobí z prken</b>, která běžně má – plot v batohu skoro
- * nikdy nemá ({@link CraftingService#craftFencing}); pak plot postaví sdílený
- * {@link BarrierWorker} nad čistým plánem {@link Enclosure} (obvod parcely,
- * branka na straně dveří). Idempotentní: {@code Enclosure.plan} přeskočí, co už
- * stojí, takže se plot dodělá napříč seancemi a samoopravuje se; zapíná se
- * {@code settlement.fences} (default vypnuto).</p>
+ * <p><b>Oprava</b>: {@link Enclosure#assess} pozná pár děr v jinak stojícím
+ * plotu; poškození zvedne prioritu (nad běžnou stavbu, ale pod ohradou zvířat –
+ * {@link BarrierRepair}). Materiál si bot <b>vyrobí z prken</b>, a když nemá ani
+ * ta, <b>dojde nasekat dřevo</b> ({@link BarrierGather} → {@link
+ * CraftingService#craftPlanks} → {@code craftFencing}); pak plot postaví/dospraví
+ * sdílený {@link BarrierWorker} (idempotentně). Zapíná se {@code settlement.fences}.</p>
  */
 public final class SettlementFenceGoal extends AbstractGoal {
 
-    private enum Phase { CRAFT, WORK, DONE }
+    private enum Phase { PROVISION, WORK, DONE }
 
     /** Odsazení plotu od domu (dvorek) – domek 4×4 → plot 6×6. */
     private static final int MARGIN = 1;
-    /** Odhad plaňků na obvod plotu 6×6 (2·6 + 2·6 − 4 = 20) – kolik dorobit. */
+    /** Odhad plaňků na obvod plotu 6×6 (2·6 + 2·6 − 4 = 20). */
     private static final int FENCE_ESTIMATE = 20;
     /** Strop kroků plánu na jednu seanci (zbytek příště, plán je idempotentní). */
     private static final int MAX_STEPS = 40;
@@ -51,6 +50,7 @@ public final class SettlementFenceGoal extends AbstractGoal {
     private static final int NEAR_HOME = 48;
 
     private final CraftingStation crafting;
+    private final RepairAssessor assessor = new RepairAssessor();
 
     private Phase phase = Phase.DONE;
     private BlockPos origin;
@@ -59,11 +59,12 @@ public final class SettlementFenceGoal extends AbstractGoal {
     private Material post;
     private Material gate;
     private BarrierWorker worker;
+    private BarrierGather gather;
     private CompletableFuture<Boolean> craftFuture;
     private int cooldownTicks;
 
     /**
-     * @param crafting služba craftingu – plaňky a branku si bot vyrobí z prken
+     * @param crafting služba craftingu – plaňky/branku vyrobí z prken (a klády z lesa)
      */
     public SettlementFenceGoal(CraftingStation crafting) {
         super("settlement-fences");
@@ -84,9 +85,10 @@ public final class SettlementFenceGoal extends AbstractGoal {
         if (!resolvePlot(ctx, bot)) {
             return 0; // nemá dům/parcelu k oplocení
         }
-        boolean inProgress = worker != null || phase == Phase.CRAFT || phase == Phase.WORK;
+        boolean inProgress = worker != null || gather != null
+                || phase == Phase.PROVISION || phase == Phase.WORK;
         if (!inProgress) {
-            // Staví se za světla, jako domy, dům a společné stavby.
+            // Plot domu se řeší jen za světla (není urgentní jako hradby/ohrada).
             long time = ctx.worldTime();
             if (time >= 11500 && time <= 23000) {
                 return 0;
@@ -95,20 +97,32 @@ public final class SettlementFenceGoal extends AbstractGoal {
                     > (double) NEAR_HOME * NEAR_HOME) {
                 return 0;
             }
-            if (!canProvision(ctx)) {
-                return 0; // nemá prkna (ani hotové ploty) na materiál
+        }
+        FenceBounds b = fenceBounds(origin, facing);
+        Enclosure.Assessment a = assessor.assess(ctx, b.min(), b.max(), origin.y(),
+                Set.of(b.gate()));
+        boolean damaged = BarrierRepair.isDamaged(a);
+        if (!inProgress) {
+            if (a.total() > 0 && a.missing() == 0) {
+                return 0; // celý plot stojí – nic k dělání
+            }
+            if (!damaged && !canProvision(ctx)) {
+                return 0; // nová stavba čeká na materiál (oprava si ho dojde sehnat)
             }
         }
-        // Nízká priorita – řeší se, když je klid a chuť pomoci (po domě a údržbě).
+        if (damaged) {
+            return BarrierRepair.houseFenceUrgency(a); // oprava – nad běžnou práci
+        }
         double helpfulness = bot.personality().trait(Trait.HELPFULNESS);
-        return 4 + helpfulness * 4;
+        return 4 + helpfulness * 4; // nová stavba – nízká priorita
     }
 
     @Override
     public void start(Bot bot) {
         BotContext ctx = ctx(bot);
-        phase = Phase.CRAFT;
+        phase = Phase.PROVISION;
         worker = null;
+        gather = null;
         craftFuture = null;
         resolvePlot(ctx, bot);
         chooseMaterials(ctx);
@@ -121,46 +135,74 @@ public final class SettlementFenceGoal extends AbstractGoal {
     public void tick(Bot bot) {
         BotContext ctx = ctx(bot);
         switch (phase) {
-            case CRAFT -> tickCraft(ctx, bot);
+            case PROVISION -> tickProvision(ctx, bot);
             case WORK -> tickWork(ctx);
             case DONE -> {
             }
         }
     }
 
-    /** Doplní materiál (vyrobí plaňky/branku z prken), pak jde stavět. */
-    private void tickCraft(BotContext ctx, Bot bot) {
+    /**
+     * Zajistí materiál: dost plaňků (vyrobí z prken; klády nasekané v lese
+     * napřed zpracuje na prkna); když prkna ani klády nejsou, dojde nasekat
+     * dřevo ({@link BarrierGather}). Branka je bonus – neblokuje. Pak jde stavět.
+     */
+    private void tickProvision(BotContext ctx, Bot bot) {
+        if (craftFuture != null) {
+            if (!craftFuture.isDone()) {
+                return;
+            }
+            craftFuture.getNow(false);
+            craftFuture = null;
+            return; // přehodnotit příští tick (materiál se změnil)
+        }
         ServerSideView.Snapshot snapshot = ctx.serverView().latest();
-        if (snapshot == null || post == null) {
+        if (snapshot == null) {
             giveUp(1200);
             return;
         }
-        int needFences = FENCE_ESTIMATE - ctx.inventory().countItem(snapshot, post);
-        int needGates = 1 - ctx.inventory().countItem(snapshot, gate);
-        if (needFences <= 0 && needGates <= 0) {
-            phase = Phase.WORK; // materiál už má (dorobil dřív, nebo z lootu)
+        chooseMaterials(ctx); // druh dřeva podle aktuálního inventáře (i po sehnání)
+        int haveFences = ctx.inventory().countItem(snapshot, post);
+        boolean hasTable = snapshot.hasItem(m -> m == Material.CRAFTING_TABLE);
+
+        if (haveFences < FENCE_ESTIMATE) {
+            int need = FENCE_ESTIMATE - haveFences;
+            if (planks != null && hasTable
+                    && CraftingService.canCraftFencing(snapshot, planks, need, 0)) {
+                craftFuture = crafting.craftFencing(bot.id(), planks, post, gate, need, 0);
+                return;
+            }
+            if (snapshot.hasItem(m -> m.name().endsWith("_LOG"))) {
+                craftFuture = crafting.craftPlanks(bot.id(), 8); // klády → prkna
+                return;
+            }
+            if (!hasTable) {
+                giveUp(2400); // bez ponku plot nevyrobí
+                return;
+            }
+            if (gather == null) {
+                gather = new BarrierGather(m -> m.name().endsWith("_LOG"));
+            }
+            if (gather.tick(ctx) == BarrierGather.State.EXHAUSTED) {
+                gather = null;
+                giveUp(2400); // v okolí není dřevo
+            }
             return;
         }
-        if (craftFuture == null) {
-            craftFuture = crafting.craftFencing(bot.id(), planks, post, gate,
-                    Math.max(0, needFences), Math.max(0, needGates));
+        // Dost plaňků; branka je bonus – dorob ji, když jde, ale neblokuj na ní.
+        if (ctx.inventory().countItem(snapshot, gate) < 1 && planks != null && hasTable
+                && CraftingService.canCraftFencing(snapshot, planks, 0, 1)) {
+            craftFuture = crafting.craftFencing(bot.id(), planks, post, gate, 0, 1);
             return;
         }
-        if (!craftFuture.isDone()) {
-            return;
-        }
-        boolean crafted = craftFuture.getNow(false);
-        craftFuture = null;
-        if (crafted) {
-            phase = Phase.WORK;
-        } else {
-            giveUp(2400); // prkna mezitím ubyla / chybí ponk – zkusí se zas později
-        }
+        gather = null;
+        phase = Phase.WORK;
     }
 
-    /** Postaví plot sdíleným vykonavatelem; plán je idempotentní. */
+    /** Postaví/dospraví plot sdíleným vykonavatelem; plán je idempotentní. */
     private void tickWork(BotContext ctx) {
         if (worker == null) {
+            chooseMaterials(ctx); // z čeho bot nakonec staví
             List<Enclosure.Placement> cells = planFence(ctx.worldView());
             if (cells.isEmpty()) {
                 finish(ctx, 6000, false); // plot už stojí (nebo není kde) – tiše konec
@@ -218,12 +260,11 @@ public final class SettlementFenceGoal extends AbstractGoal {
         gate = mats.gate();
     }
 
-    /** Má bot čím plot pořídit – hotové plaňky, nebo prkna (+ ponk) na výrobu? */
+    /** Má bot čím plot pořídit hned – hotové plaňky, nebo prkna (+ ponk)? */
     private boolean canProvision(BotContext ctx) {
         ServerSideView.Snapshot snapshot = ctx.serverView().latest();
         Material dominant = CraftingService.dominantPlanks(snapshot);
         if (dominant == null) {
-            // Bez prken jen tehdy, když už ploty v batohu jsou (loot/obchod).
             return snapshot != null && snapshot.hasItem(m -> m.name().endsWith("_FENCE"));
         }
         Material fence = BarrierStyle.FENCE.materials(dominant).post();
@@ -274,12 +315,14 @@ public final class SettlementFenceGoal extends AbstractGoal {
             ctx.chat().sayFrom(PhraseCategory.SETTLEMENT_FENCE_DONE, null);
         }
         worker = null;
+        gather = null;
         cooldownTicks = cooldown;
         phase = Phase.DONE;
     }
 
     private void giveUp(int cooldown) {
         worker = null;
+        gather = null;
         craftFuture = null;
         cooldownTicks = cooldown;
         phase = Phase.DONE;
@@ -287,11 +330,16 @@ public final class SettlementFenceGoal extends AbstractGoal {
 
     @Override
     public void stop(Bot bot) {
+        BotContext ctx = ctx(bot);
         if (worker != null) {
-            worker.cancel(ctx(bot));
+            worker.cancel(ctx);
             worker = null;
         }
-        ctx(bot).navigator().stop();
+        if (gather != null) {
+            gather.cancel(ctx);
+            gather = null;
+        }
+        ctx.navigator().stop();
     }
 
     @Override

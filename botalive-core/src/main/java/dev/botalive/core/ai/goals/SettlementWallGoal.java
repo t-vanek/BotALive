@@ -24,22 +24,27 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
+import java.util.function.Predicate;
 
 /**
- * Hradby kolem sídla (vesnice/město) – kamenný obvod po vnějším obsazeném
- * prstenci parcel, s otevřenými <b>branami</b> tam, kudy vyjíždějí hlavní cesty.
+ * Hradby kolem sídla (vesnice/město) a jejich <b>oprava</b> – kamenný obvod po
+ * vnějším obsazeném prstenci parcel, s branami (průchody) tam, kudy vyjíždějí
+ * cesty.
  *
  * <p>Sourozenec {@link SettlementRoadsGoal}: hradby vlastní {@link
- * SettlementService} (jeden stavitel naráz – claim s TTL), samotnou stavbu vede
- * sdílený {@link BarrierWorker} nad čistým plánem {@link Enclosure}. Staví se
- * z <b>běžných stavebních bloků</b> (ty boti sbírají jako na domy – žádné
- * plaňky), takže se hradby reálně stavějí; brány cíl nechává jako otevřené
- * průchody (tudy vede cesta), plán je idempotentní a hradba roste se sídlem
- * napříč seancemi. Zapíná se {@code settlement.walls} (default vypnuto).</p>
+ * SettlementService} (jeden stavitel naráz – claim s TTL), stavbu vede sdílený
+ * {@link BarrierWorker}. Staví se z <b>běžných stavebních bloků</b>; když chybí,
+ * bot si je <b>dojde vytěžit</b> ({@link BarrierGather}).</p>
+ *
+ * <p><b>Oprava před soumrakem</b>: díra v hradbě = obrana pryč. {@link
+ * Enclosure#assess} pozná pár chybějících sloupců; poškození zvedne prioritu a
+ * <b>za soumraku/v noci</b> obejde denní bránu i 5min throttle, aby se hradba
+ * spravila dřív, než bot udělá cokoli jiného ({@link BarrierRepair}).
+ * Zapíná se {@code settlement.walls} (default vypnuto).</p>
  */
 public final class SettlementWallGoal extends AbstractGoal {
 
-    private enum Phase { CLAIM, WORK, DONE }
+    private enum Phase { CLAIM, PROVISION, WORK, DONE }
 
     /** Brány na všech čtyřech osách – tam, kudy vedou hlavní ulice z návsi. */
     private static final Set<Cardinal> GATES =
@@ -52,15 +57,21 @@ public final class SettlementWallGoal extends AbstractGoal {
     private static final int NEAR_HOME_RINGS = 8;
     /** Minimum stavebních bloků k zahájení seance (zbytek se dodělá později). */
     private static final int MIN_BLOCKS = 24;
-    /** Kolik branek má hradba (jedna na každou osu, kudy vede cesta). */
-    private static final int GATE_COUNT = 4;
+
+    /** Kámen/hlína, jejichž vytěžení dá stavební blok (na hradbu). */
+    private static final Predicate<Material> STONE = m ->
+            m == Material.STONE || m == Material.COBBLESTONE || m == Material.DEEPSLATE
+                    || m == Material.COBBLED_DEEPSLATE || m == Material.DIRT;
 
     private final CraftingStation crafting;
+    private final RepairAssessor assessor = new RepairAssessor();
 
     private Phase phase = Phase.DONE;
     private long settlementId;
     private BlockPos center;
+    private WallBounds bounds;
     private BarrierWorker worker;
+    private BarrierGather gather;
     private int cooldownTicks;
     private UUID selfId;
 
@@ -94,39 +105,59 @@ public final class SettlementWallGoal extends AbstractGoal {
             return 0;
         }
         SettlementService.SettlementInfo settlement = info.get();
-        // Hradby jsou znak vesnice+ (osada je moc malá, aby ji stálo za to obehnat).
         if (settlement.tier().ordinal() < SettlementTier.VESNICE.ordinal()
                 || !settlement.world().equals(world.worldName())) {
             return 0;
         }
-        boolean inProgress = worker != null || phase == Phase.CLAIM;
+        WallBounds b = wallBounds(settlement.center(), plotOrigins(settlement), cfg.plotSpacing());
+        if (b == null) {
+            return 0; // není co obehnat (žádné parcely na prstenci)
+        }
+        boolean inProgress = worker != null || gather != null
+                || phase == Phase.CLAIM || phase == Phase.PROVISION || phase == Phase.WORK;
         if (!inProgress) {
-            // Staví se za světla, jako domy, cesty a společné stavby.
-            long time = ctx.worldTime();
-            if (time >= 11500 && time <= 23000) {
-                return 0;
-            }
+            // Levná brána nejdřív: kvůli hradbě se nechodí přes svět (a neskenuje zdálky).
             int reach = cfg.plotSpacing() * NEAR_HOME_RINGS;
             if (ctx.position().toBlockPos().distanceSquared(settlement.center())
                     > (double) reach * reach) {
                 return 0;
             }
-            if (BotNeeds.assess(ctx.serverView().latest()).buildingBlocks() < MIN_BLOCKS) {
+        }
+        Enclosure.Assessment a = assessor.assess(ctx, b.min(), b.max(), settlement.center().y(), GATES);
+        boolean damaged = BarrierRepair.isDamaged(a);
+        long time = ctx.worldTime();
+        boolean night = time >= 11500 && time <= 23000;
+        if (!inProgress) {
+            // Nová hradba jen ve dne; poškozenou (obrana pryč) i za soumraku/v noci.
+            if (night && !damaged) {
                 return 0;
             }
-            if (!ctx.settlements().wallsDue(settlement.id(), RECHECK_INTERVAL_MS, bot.id())) {
-                return 0;
+            if (a.total() > 0 && a.missing() == 0) {
+                return 0; // hradba celá stojí
+            }
+            if (!damaged) {
+                // Nová stavba: potřebuje bloky a drží 5min odstup (oprava obojí obejde).
+                if (BotNeeds.assess(ctx.serverView().latest()).buildingBlocks() < MIN_BLOCKS) {
+                    return 0;
+                }
+                if (!ctx.settlements().wallsDue(settlement.id(), RECHECK_INTERVAL_MS, bot.id())) {
+                    return 0;
+                }
             }
         }
-        // Nižší priorita než dům/studna – dělá se, když je klid a chuť pomáhat.
+        if (damaged) {
+            return BarrierRepair.wallUrgency(a, night); // oprava – za soumraku nejnaléhavější
+        }
         double helpfulness = bot.personality().trait(Trait.HELPFULNESS);
-        return 5 + helpfulness * 5;
+        return 5 + helpfulness * 5; // nová hradba – nízká priorita
     }
 
     @Override
     public void start(Bot bot) {
         phase = Phase.CLAIM;
         worker = null;
+        gather = null;
+        bounds = null;
         selfId = bot.id();
         settlementId = 0;
     }
@@ -136,7 +167,8 @@ public final class SettlementWallGoal extends AbstractGoal {
         BotContext ctx = ctx(bot);
         switch (phase) {
             case CLAIM -> tickClaim(ctx, bot);
-            case WORK -> tickWork(ctx);
+            case PROVISION -> tickProvision(ctx);
+            case WORK -> tickWork(ctx, bot);
             case DONE -> {
             }
         }
@@ -157,37 +189,60 @@ public final class SettlementWallGoal extends AbstractGoal {
             phase = Phase.DONE;
             return;
         }
-        List<BlockPos> plotOrigins = new ArrayList<>();
-        for (SettlementService.MemberInfo member : settlement.members()) {
-            if (member.plotOrigin() != null) {
-                plotOrigins.add(member.plotOrigin());
-            }
-        }
-        WallBounds bounds = wallBounds(center, plotOrigins, ctx.config().settlement().plotSpacing());
+        bounds = wallBounds(center, plotOrigins(settlement), ctx.config().settlement().plotSpacing());
         if (bounds == null) {
-            finish(ctx, false); // není co obehnat (žádné parcely) – odstup a konec
+            finish(ctx, false); // není co obehnat – odstup a konec
             return;
         }
-        List<Enclosure.Placement> cells = planWall(ctx.worldView(), bounds,
-                ctx.config().settlement().wallHeight());
-        if (cells.isEmpty()) {
-            finish(ctx, false); // hradba už drží (nebo není kde stavět)
-            return;
-        }
-        Material gate = provisionGates(ctx, bot, cells);
-        worker = new BarrierWorker(cells, center, null, gate); // sloupky z běžných bloků
         if (ctx.rng().chance(0.6)) {
             ctx.chat().sayFrom(PhraseCategory.SETTLEMENT_WALLS_START, settlement.name());
         }
-        phase = Phase.WORK;
+        phase = Phase.PROVISION;
+    }
+
+    /** Zajistí stavební bloky; když chybí, dojde vytěžit kámen/hlínu v okolí. */
+    private void tickProvision(BotContext ctx) {
+        int blocks = BotNeeds.assess(ctx.serverView().latest()).buildingBlocks();
+        if (blocks >= MIN_BLOCKS) {
+            gather = null;
+            phase = Phase.WORK;
+            return;
+        }
+        if (gather == null) {
+            gather = new BarrierGather(STONE);
+        }
+        if (gather.tick(ctx) == BarrierGather.State.EXHAUSTED) {
+            gather = null;
+            if (blocks >= 1) {
+                phase = Phase.WORK; // postaví aspoň s tím, co má (zbytek příště)
+            } else {
+                giveUp(ctx, 2400); // v okolí není kámen ani hlína
+            }
+        }
+    }
+
+    private void tickWork(BotContext ctx, Bot bot) {
+        if (worker == null) {
+            List<Enclosure.Placement> cells = planWall(ctx.worldView(),
+                    ctx.config().settlement().wallHeight());
+            if (cells.isEmpty()) {
+                finish(ctx, false); // hradba už drží (nebo není kde stavět)
+                return;
+            }
+            Material gate = provisionGates(ctx, bot, cells);
+            worker = new BarrierWorker(cells, center, null, gate); // sloupky z běžných bloků
+        }
+        if (worker.tick(ctx)) {
+            ctx.gainExperience(dev.botalive.core.personality.PersonalityEvolution
+                    .BotExperience.HOUSE_BUILT);
+            finish(ctx, true);
+        }
     }
 
     /**
      * Materiál branky (dřevo okolí, jinak dub) a best-effort dorobení branek
      * z prken pro <b>ještě nepostavené</b> průchody. Branka je bonus: bez prken
-     * nebo ponku se nevyrobí a průchod zůstane otevřeným obloukem (viz
-     * {@link BarrierWorker}). Craft je fire-and-forget – než k bráně stavitel
-     * dojde (po obvodu), je hotová; jinak ji osadí příští seance (idempotence).
+     * nebo ponku se nevyrobí a průchod zůstane otevřeným obloukem.
      *
      * @return materiál branky pro {@link BarrierWorker}
      */
@@ -214,27 +269,28 @@ public final class SettlementWallGoal extends AbstractGoal {
         return gate;
     }
 
-    private void tickWork(BotContext ctx) {
-        if (worker == null || worker.tick(ctx)) {
-            ctx.gainExperience(dev.botalive.core.personality.PersonalityEvolution
-                    .BotExperience.HOUSE_BUILT);
-            finish(ctx, true);
-        }
-    }
-
     /**
-     * Naplánuje hradbu po obvodu daného obdélníku do výšky {@code height}. Brány
-     * (sloupce označené {@code gate}) dostanou <b>průchod</b> ({@link
-     * Enclosure#gateway}): branka dole, volné nadpraží a překlad nahoře – tudy
-     * vede cesta z návsi a dá se projít i vysokou hradbou.
+     * Naplánuje hradbu po obvodu {@link #bounds} do výšky {@code height}. Brány
+     * dostanou <b>průchod</b> ({@link Enclosure#gateway}); ostatní plný sloupec.
      */
-    private List<Enclosure.Placement> planWall(WorldView world, WallBounds bounds, int height) {
+    private List<Enclosure.Placement> planWall(WorldView world, int height) {
         List<Enclosure.Placement> cells = new ArrayList<>();
         for (Enclosure.Post p : Enclosure.plan(world, bounds.min(), bounds.max(), center.y(),
                 GATES, MAX_COLUMNS)) {
             cells.addAll(p.gate() ? Enclosure.gateway(p, height) : Enclosure.column(p, height));
         }
         return cells;
+    }
+
+    /** Origins obsazených parcel sídla (pro obvod hradby). */
+    private static List<BlockPos> plotOrigins(SettlementService.SettlementInfo settlement) {
+        List<BlockPos> origins = new ArrayList<>();
+        for (SettlementService.MemberInfo member : settlement.members()) {
+            if (member.plotOrigin() != null) {
+                origins.add(member.plotOrigin());
+            }
+        }
+        return origins;
     }
 
     /** Seance doběhla: nastaví sídlu odstup, uvolní hradby a ukončí cíl. */
@@ -247,7 +303,19 @@ public final class SettlementWallGoal extends AbstractGoal {
                     ctx.chat().sayFrom(PhraseCategory.SETTLEMENT_WALLS_DONE, s.name()));
         }
         worker = null;
+        gather = null;
         cooldownTicks = 6000;
+        phase = Phase.DONE;
+    }
+
+    private void giveUp(BotContext ctx, int cooldown) {
+        // Nedokončeno – uvolni hradby dalšímu (bez throttlu přes wallsBuilt).
+        if (settlementId != 0) {
+            ctx.settlements().releaseWalls(settlementId, selfId);
+        }
+        worker = null;
+        gather = null;
+        cooldownTicks = cooldown;
         phase = Phase.DONE;
     }
 
@@ -257,12 +325,10 @@ public final class SettlementWallGoal extends AbstractGoal {
 
     /**
      * Obvod hradby z obsazených parcel: čtverec kolem návsi po <b>vnějším
-     * obsazeném prstenci</b> plus rezerva {@link HouseBlueprint#SIZE}, aby hradba
-     * obešla i krajní domy. Odvození prstence je stejné jako v
-     * {@code SettlementRoads} (dělení je přesné – parcela sedí na násobku spacing).
+     * obsazeném prstenci</b> plus rezerva {@link HouseBlueprint#SIZE}.
      *
      * @param center      náves
-     * @param plotOrigins originy obsazených parcel (prázdné / jen náves = null)
+     * @param plotOrigins originy obsazených parcel
      * @param spacing     rozestup parcel (bloky)
      * @return obdélník hradby, nebo {@code null} když není co obehnat
      */
@@ -295,6 +361,10 @@ public final class SettlementWallGoal extends AbstractGoal {
         if (worker != null) {
             worker.cancel(ctx);
             worker = null;
+        }
+        if (gather != null) {
+            gather.cancel(ctx);
+            gather = null;
         }
         if (settlementId != 0) {
             ctx.settlements().releaseWalls(settlementId, selfId);

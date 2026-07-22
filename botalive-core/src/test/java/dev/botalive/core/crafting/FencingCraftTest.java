@@ -95,4 +95,12 @@ class FencingCraftTest {
         assertNull(CraftingService.dominantPlanks(inv(Material.COBBLESTONE, 64)));
         assertNull(CraftingService.dominantPlanks(null));
     }
+
+    @Test
+    void kladySePrevedouNaSpravnaPrkna() {
+        assertEquals(Material.OAK_PLANKS, CraftingService.planksFromLog(Material.OAK_LOG));
+        assertEquals(Material.SPRUCE_PLANKS, CraftingService.planksFromLog(Material.SPRUCE_LOG));
+        assertEquals(Material.BIRCH_PLANKS, CraftingService.planksFromLog(Material.STRIPPED_BIRCH_LOG));
+        assertEquals(Material.OAK_PLANKS, CraftingService.planksFromLog(Material.OAK_WOOD));
+    }
 }

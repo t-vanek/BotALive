@@ -205,6 +205,35 @@ Tím je „obehnat zvířata i domy plotem, sídla hradbami" kompletní – plot
 i ohrady stojí na jednom primitivu (`Enclosure`) a jednom vykonavateli
 (`BarrierWorker`).
 
+### Oprava bariér s prioritizací (hotovo)
+
+Bariéry se nejen staví, ale i **opravují** – a to **podle naléhavosti**. Díru
+(po creeperovi apod.) pozná `Enclosure.assess` (kolik sloupců po obvodu stojí a
+kolik chybí); „pár děr v jinak stojící bariéře" je oprava (`BarrierRepair.isDamaged`,
+strop `MAX_GAPS` odliší opravu od nové/rozbořené stavby). Ohodnocení je
+throttlované (`RepairAssessor`, přepočet ~5 s), aby utility zůstala levná.
+
+**Priorita = raw utility** (Brain vybírá max; jako `SurviveGoal` škáluje podle
+nouze). Uspořádání (`BarrierRepair`, ověřené `BarrierRepairTest`):
+
+| Situace | raw utility |
+|---|---|
+| **hradby, díra, za soumraku/v noci** | 34–42 (obrana – nejnaléhavější) |
+| **ohrada zvířat, díra** | 24–34 (ať neutečou – nad plotem domu) |
+| hradby, díra, ve dne ≈ plot domu, díra | 10–18 |
+| nová stavba (bez díry) | 4–10 |
+
+Tedy „opravit ohradu dřív než plot domu" a „blíží se noc → nejdřív hradby".
+Urgentní oprava (poškozené hradby v noci, poškozená ohrada) **obejde denní bránu**
+(jinak se nestaví po 11500) i 5min throttle hradeb; drží se ale pod „opravdovým
+přežitím" (jídlo při hladu, útěk před creeperem), i po zesílení rolí.
+
+**Chybí materiál → bot si ho dojde sehnat** (`BarrierGather`): najde v okolí
+nejbližší odkrytý zdroj a vytěží ho – **kámen/hlínu na hradby**, **dřevo na
+ploty** (klády → prkna přes `CraftingService.craftPlanks`, pak plaňky). Bez
+zdroje v dosahu opravu odloží. Fázový automat cílů: `PROVISION` (sehnat/vyrobit
+materiál) → `WORK` (idempotentní stavba/oprava přes `BarrierWorker`).
+
 ## Fáze D – město a krajina
 
 - **Tržiště** (třetí společná stavba): zastřešený pult u návsi; nabídky
