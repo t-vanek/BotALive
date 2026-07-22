@@ -111,9 +111,8 @@ public final class CommunalBuildGoal extends AbstractGoal {
             // a dostaví se po částech; u malých staveb je práh jejich plná
             // spotřeba, takže se chování studny/sýpky/tržiště nemění.
             BotNeeds needs = BotNeeds.assess(ctx.serverView().latest());
-            int startBlocks = Math.min(MIN_BLOCKS,
-                    blueprintFor(needed.get().kind()).blocksNeeded() + BLOCK_RESERVE);
-            if (needs.buildingBlocks() < startBlocks) {
+            if (needs.buildingBlocks()
+                    < startThreshold(blueprintFor(needed.get().kind()).blocksNeeded())) {
                 return 0;
             }
             if (!hasRequiredItems(ctx, needed.get().kind())) {
@@ -314,22 +313,56 @@ public final class CommunalBuildGoal extends AbstractGoal {
     private void tickProvision(BotContext ctx) {
         int have = BotNeeds.assess(ctx.serverView().latest()).buildingBlocks();
         int want = blueprintFor(project.kind()).blocksNeeded() + BLOCK_RESERVE;
-        if (have >= want) {
+        if (provisionStep(have, want, false) == ProvisionStep.BUILD) {
             gather = null;
-            phase = Phase.GOTO;
+            phase = Phase.GOTO; // materiálu dost – rovnou stavět
             return;
         }
         if (gather == null) {
             gather = new BarrierGather(STONE);
         }
-        if (gather.tick(ctx) == BarrierGather.State.EXHAUSTED) {
-            gather = null;
-            if (have >= Math.min(MIN_BLOCKS, want)) {
-                phase = Phase.GOTO; // postaví aspoň s tím, co má (zbytek příště)
-            } else {
-                giveUp(ctx, 2400); // v okolí není kámen ani hlína
-            }
+        if (gather.tick(ctx) != BarrierGather.State.EXHAUSTED) {
+            return; // shání dál
         }
+        gather = null;
+        if (provisionStep(have, want, true) == ProvisionStep.BUILD) {
+            phase = Phase.GOTO; // postaví aspoň s tím, co má (zbytek příště)
+        } else {
+            giveUp(ctx, 2400); // v okolí není kámen ani hlína
+        }
+    }
+
+    /** Rozhodnutí fáze PROVISION. */
+    enum ProvisionStep { GATHER, BUILD, GIVE_UP }
+
+    /**
+     * Co dělat v PROVISION (čistá funkce – testovatelné bez živého kontextu).
+     *
+     * @param have             stavební bloky v batohu
+     * @param want             plná spotřeba stavby + rezerva
+     * @param sourcesExhausted v okolí už není co těžit
+     * @return {@code BUILD} stavět, {@code GATHER} shánět dál, {@code GIVE_UP} vzdát
+     */
+    static ProvisionStep provisionStep(int have, int want, boolean sourcesExhausted) {
+        if (have >= want) {
+            return ProvisionStep.BUILD;
+        }
+        if (!sourcesExhausted) {
+            return ProvisionStep.GATHER;
+        }
+        return have >= Math.min(MIN_BLOCKS, want)
+                ? ProvisionStep.BUILD    // aspoň minimum → postav část, zbytek příště
+                : ProvisionStep.GIVE_UP; // ani minimum a okolí prázdné
+    }
+
+    /** Práh bloků k zahájení projektu (malá stavba = plná spotřeba). */
+    static int startThreshold(int blocksNeeded) {
+        return Math.min(MIN_BLOCKS, blocksNeeded + BLOCK_RESERVE);
+    }
+
+    /** Smí seance začít s {@code have} bloky pro stavbu o {@code cells} buňkách? */
+    static boolean canStartSession(int have, int cells) {
+        return have >= Math.min(MIN_BLOCKS, cells);
     }
 
     private void tickGoto(BotContext ctx) {
@@ -354,8 +387,8 @@ public final class CommunalBuildGoal extends AbstractGoal {
             session = new BuildSession(BuildPlanner.schedule(plan, world));
             // Stačí část bloků – zbytek se dostaví po částech (BLOCKED_MATERIAL
             // uvolní claim, world-diff drží pokrok, další seance naváže).
-            if (BotNeeds.assess(ctx.serverView().latest()).buildingBlocks()
-                    < Math.min(MIN_BLOCKS, plan.cells().size())) {
+            if (!canStartSession(BotNeeds.assess(ctx.serverView().latest()).buildingBlocks(),
+                    plan.cells().size())) {
                 giveUp(ctx, 2400);
                 return;
             }
