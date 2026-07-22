@@ -127,6 +127,33 @@ seanci a nikdy se nepřepíše podlaha domu, políčko ani voda. Síť vlastní
 `SettlementService` (jeden stavitel naráz – claim s TTL jako u společných
 projektů); stav se nepersistuje, protože fyzická cesta ve světě je autorita.
 
+## Ohradní bariéry: ploty a hradby (základ)
+
+Uzavřené obvodové stavby – **plot** kolem parcel domů a stád, **hradby** kolem
+sídel – patří ke stejnému modelu jako cesty: čistý plán nad `WorldView` po
+terénu, idempotentní, se stropem kroků na seanci. Základ tvoří dva primitivy:
+
+- `Enclosure` (čistá geometrie) naplánuje obvod obdélníku po terénu: sloupce
+  bariéry po prstenci (jako `SettlementRoads` obvodový okruh města), branky ve
+  středu zvolených hran a rozvinutí sloupce do výšky (`column` – branka dole,
+  sloupky nad ní). Idempotence je jako u cest: sloupec, kde už bariéra stojí,
+  se pozná podle materiálu a přeskočí, takže plán roste se sídlem a samoopravuje
+  se; terén se sleduje přes `VillageDecor.groundAt`, bariéra kopíruje svah.
+- `BarrierStyle` oddělí „co bariéra je" od „z čeho" (stejně jako `SettlementRoads`
+  nechává materiál na vykonavateli): **plot** se staví z **místního dřeva**
+  (`*_FENCE`/`*_FENCE_GATE`, jako domy), **hradba** je kamenná (`COBBLESTONE_WALL`)
+  s dřevěnou brankou.
+
+Fyzicky ploty už fungují (kolize `TALL_BOXES` v `BlockTraits`, otevírání branek
+přes `DoorOpener`), takže postavená bariéra zvířata udrží a boti brankou projdou.
+
+**Zatím bez chování**: primitiv nikdo z cílů nevolá – je to připravený základ,
+ne zapojená smyčka. Autonomní stavění (cíl `settlement-walls` s `DecorWorker`-stylem
+exekuce nad `Enclosure`+`BarrierStyle`, plot kolem parcel domů a stád) se zapne za
+`settlement.walls`/`settlement.fences` a je navazující krok. DNA zůstane stejná:
+staví se ve dne, poblíž domova, jeden stavitel naráz (claim s TTL jako u cest),
+a rozdělaná bariéra se dodělá napříč seancemi.
+
 ## Fáze D – město a krajina
 
 - **Tržiště** (třetí společná stavba): zastřešený pult u návsi; nabídky
@@ -144,8 +171,12 @@ projektů); stav se nepersistuje, protože fyzická cesta ve světě je autorita
 - Max 8 členů (`settlement.max-members`) drží sídla lidská; město je
   „plná vesnice s infrastrukturou", ne metropole. Zvětšování kapacity
   podle stupně je možné rozšíření (config), ne předpoklad.
-- Hradby, radnice a druhé prstence budov jsou mimo plán, dokud se
-  neukáže, že B–D substance nestačí. (Účelné řemeslné dílny fáze E jsou
-  výjimka odůvodněná specializací – nezvětšují sídlo, jen ho prohlubují.)
+- **Hradby a ploty**: stavební *základ* (primitiv `Enclosure` + materiály
+  `BarrierStyle` + config vypínače `settlement.walls`/`settlement.fences`) je
+  **hotový**, ale autonomní stavění je za konfigurací a defaultně vypnuté –
+  zapnutí je navazující krok (viz „Ohradní bariéry (základ)"). Radnice a druhé
+  prstence budov zůstávají mimo plán, dokud se neukáže, že B–D substance
+  nestačí. (Účelné řemeslné dílny fáze E jsou výjimka odůvodněná specializací –
+  nezvětšují sídlo, jen ho prohlubují.)
 - Žádná „městská práva" mechanika pro hráče – sídla botů zůstávají
   jejich, hráč je host (vítání, trh).
