@@ -14,6 +14,7 @@ import dev.botalive.core.build.plan.Workshops;
 import dev.botalive.core.pathfinding.PathGoal;
 import dev.botalive.core.chat.PhraseCategory;
 import dev.botalive.core.crafting.CraftingService;
+import dev.botalive.core.station.ChestStation;
 import dev.botalive.core.station.CraftingStation;
 import dev.botalive.core.settlement.PlotLayout;
 import dev.botalive.core.settlement.SettlementService;
@@ -24,6 +25,7 @@ import dev.botalive.core.world.WorldDimension;
 import dev.botalive.core.world.WorldView;
 
 import org.bukkit.Material;
+import org.geysermc.mcprotocollib.protocol.data.game.entity.object.Direction;
 
 /**
  * Společná stavba pro sídlo (studna, sýpka; růstová roadmapa fáze B).
@@ -40,7 +42,13 @@ import org.bukkit.Material;
  */
 public final class CommunalBuildGoal extends AbstractGoal {
 
-    private enum Phase { CLAIM, CRAFT, PROVISION, GOTO, SESSION, FINISH, DONE }
+    private enum Phase { CLAIM, CRAFT, PROVISION, DRAW, GOTO, SESSION, FINISH, DONE }
+
+    /** Vnitřní kroky odběru materiálu ze skladu (fáze DRAW). */
+    private enum DrawStep { GO, OPEN, TAKE, CLOSE }
+
+    /** Za tímto poloměrem (v blocích) už není sklad ke staveništi „po ruce". */
+    private static final int DEPOT_REACH = 128;
 
     /** Rezerva bloků nad čistou spotřebu stavby (zásypy podlahy). */
     private static final int BLOCK_RESERVE = 8;
@@ -60,6 +68,7 @@ public final class CommunalBuildGoal extends AbstractGoal {
                     || m == Material.COBBLED_DEEPSLATE || m == Material.DIRT;
 
     private final CraftingStation crafting;
+    private final ChestStation containers;
 
     private Phase phase = Phase.DONE;
     private SettlementService.ProjectInfo project;
@@ -70,17 +79,26 @@ public final class CommunalBuildGoal extends AbstractGoal {
     private int cooldownTicks;
     private boolean claimed;
     private java.util.UUID selfId;
+    /** Odběr ze skladu se zkusí jednou za pokus o stavbu (pak se dolování). */
+    private boolean drewFromDepot;
+    private BlockPos depotChest;
+    private DrawStep drawStep;
+    private int drawWait;
+    private java.util.concurrent.CompletableFuture<Integer> draw;
 
     /** Klíč posledního ohlášeného projektu – hláška jen pro nový, ne re-claim. */
     private long lastAnnouncedProject = -1;
 
     /**
-     * @param crafting služba craftingu – stavitel dílny si stanici (řezák,
-     *                 šípařská deska…) vyrobí na míru, když ji nemá
+     * @param crafting   služba craftingu – stavitel dílny si stanici (řezák,
+     *                   šípařská deska…) vyrobí na míru, když ji nemá
+     * @param containers stanice truhel – odběr materiálu ze společného skladu
+     *                   ({@link MaterialDepot}) při dozásobení velkých staveb
      */
-    public CommunalBuildGoal(CraftingStation crafting) {
+    public CommunalBuildGoal(CraftingStation crafting, ChestStation containers) {
         super("communal-build");
         this.crafting = crafting;
+        this.containers = containers;
     }
 
     @Override
@@ -139,6 +157,9 @@ public final class CommunalBuildGoal extends AbstractGoal {
         stationCraft = null;
         claimed = false;
         selfId = bot.id();
+        drewFromDepot = false;
+        depotChest = null;
+        draw = null;
     }
 
     @Override
@@ -148,6 +169,7 @@ public final class CommunalBuildGoal extends AbstractGoal {
             case CLAIM -> tickClaim(ctx, bot);
             case CRAFT -> tickCraft(ctx, bot);
             case PROVISION -> tickProvision(ctx);
+            case DRAW -> tickDraw(ctx);
             case GOTO -> tickGoto(ctx);
             case SESSION -> tickSession(ctx, bot);
             case FINISH -> finishProject(ctx, bot);
@@ -320,6 +342,22 @@ public final class CommunalBuildGoal extends AbstractGoal {
             phase = Phase.GOTO; // materiálu dost – rovnou stavět
             return;
         }
+        // Chybí materiál: nejdřív zkusit společný sklad (levnější než dolování),
+        // jednou za pokus o stavbu. Sklad má jen město po dostavbě WAREHOUSE,
+        // takže studna/sýpka/tržiště i sám sklad se chovají jako dřív (depot
+        // null → rovnou dolování). Velkou stavbu (radnice, kostel) tím ale
+        // zásobí sběrači místo samotného stavitele – dělba práce V2c.
+        if (!drewFromDepot) {
+            BlockPos depot = reachableDepot(ctx);
+            if (depot != null) {
+                depotChest = depot;
+                drawStep = DrawStep.GO;
+                draw = null;
+                phase = Phase.DRAW;
+                return;
+            }
+            drewFromDepot = true; // není sklad – rovnou dolovat, nezkoušet znovu
+        }
         if (gather == null) {
             gather = new BarrierGather(STONE);
         }
@@ -360,6 +398,104 @@ public final class CommunalBuildGoal extends AbstractGoal {
     /** Práh bloků k zahájení projektu (malá stavba = plná spotřeba). */
     static int startThreshold(int blocksNeeded) {
         return Math.min(MIN_BLOCKS, blocksNeeded + BLOCK_RESERVE);
+    }
+
+    /**
+     * Odběr stavebních bloků ze společného skladu ({@link MaterialDepot}) –
+     * stavitel si dojde k zásobovací truhle a naplní batoh tím, co tam
+     * sběrači nanosili. Po odběru (ať úspěšném, či ne) se vrací do PROVISION,
+     * kde se přepočítá, zda už má dost, nebo zbytek dotěží dolováním. Sklad
+     * se zkusí jen jednou za pokus o stavbu (příznak {@code drewFromDepot}),
+     * aby se stavitel nezacyklil u prázdné truhly.
+     */
+    private void tickDraw(BotContext ctx) {
+        WorldView world = ctx.worldView();
+        if (world == null || depotChest == null) {
+            drewFromDepot = true;
+            phase = Phase.PROVISION;
+            return;
+        }
+        switch (drawStep) {
+            case GO -> {
+                if (depotChest.center().distanceSquared(ctx.position()) > 3.0 * 3.0) {
+                    ctx.navigator().navigateTo(ctx.position(), PathGoal.near(depotChest, 2));
+                    if (!ctx.navigator().navigating()) {
+                        drewFromDepot = true; // sklad nedosažitelný – dotěžím sám
+                        phase = Phase.PROVISION;
+                    }
+                    return;
+                }
+                ctx.navigator().stop();
+                ctx.humanizer().lookAt(ctx.position().add(0, 1.62, 0),
+                        depotChest.center().add(0, 0.5, 0));
+                drawWait = ctx.rng().rangeInt(4, 10);
+                drawStep = DrawStep.OPEN;
+            }
+            case OPEN -> {
+                if (--drawWait > 0) {
+                    return;
+                }
+                ctx.actions().useItemOn(depotChest, Direction.UP);
+                drawWait = ctx.rng().rangeInt(12, 28);
+                drawStep = DrawStep.TAKE;
+            }
+            case TAKE -> {
+                if (--drawWait > 0) {
+                    return;
+                }
+                if (draw == null) {
+                    int have = BotNeeds.assess(ctx.serverView().latest()).buildingBlocks();
+                    int want = blueprintFor(project.kind()).blocksNeeded() + BLOCK_RESERVE;
+                    draw = containers.withdrawBuildingBlocks(ctx, world.worldName(),
+                            depotChest, Math.max(0, want - have));
+                    return;
+                }
+                if (!draw.isDone()) {
+                    return;
+                }
+                int moved = draw.getNow(0);
+                draw = null;
+                if (moved > 0 && ctx.rng().chance(0.5)) {
+                    ctx.chat().say("beru materiál ze společného skladu na stavbu");
+                }
+                drawWait = ctx.rng().rangeInt(5, 12);
+                drawStep = DrawStep.CLOSE;
+            }
+            case CLOSE -> {
+                if (--drawWait > 0) {
+                    return;
+                }
+                ctx.actions().closeContainer();
+                drewFromDepot = true;
+                phase = Phase.PROVISION; // přepočítat: možná teď stačí, jinak dolovat
+            }
+        }
+    }
+
+    /**
+     * Zásobovací truhla skladu, je-li ke staveništi rozumně blízko a ve světě
+     * opravdu stojí; jinak {@code null} (žádný sklad, jiný svět, moc daleko,
+     * nebo bez stanice truhel). Sklad existuje až po dostavbě WAREHOUSE, takže
+     * u dřívějších staveb i u samotného skladu se vrací {@code null}.
+     */
+    private BlockPos reachableDepot(BotContext ctx) {
+        WorldView world = ctx.worldView();
+        if (world == null || containers == null || ctx.settlements() == null) {
+            return null;
+        }
+        BlockPos depot = MaterialDepot.chest(ctx.settlements(), selfId).orElse(null);
+        if (depot == null) {
+            return null;
+        }
+        if (depot.distanceSquared(ctx.position().toBlockPos()) > DEPOT_REACH * DEPOT_REACH) {
+            return null; // sklad přes půl světa – dotěžím radši u staveniště
+        }
+        Material material = world.materialAt(depot);
+        if (material != null && material != Material.CHEST
+                && material != Material.TRAPPED_CHEST) {
+            return null; // sklad zbořený / jiný svět – truhla tam není
+        }
+        return depot;
     }
 
     /** Smí seance začít s {@code have} bloky pro stavbu o {@code cells} buňkách? */
@@ -530,6 +666,11 @@ public final class CommunalBuildGoal extends AbstractGoal {
         if (gather != null) {
             gather.cancel(ctx(bot));
             gather = null;
+        }
+        // Kdyby přepnutí přišlo uprostřed odběru ze skladu, zavřít okno truhly.
+        if (phase == Phase.DRAW) {
+            ctx(bot).actions().closeContainer();
+            draw = null;
         }
         ctx(bot).navigator().stop();
     }
