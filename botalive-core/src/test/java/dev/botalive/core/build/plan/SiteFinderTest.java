@@ -190,6 +190,22 @@ class SiteFinderTest {
     }
 
     @Test
+    void budgetLadiPrisnostTerraformu() {
+        FakeWorldView world = new FakeWorldView(FLOOR_Y);
+        world.set(1, GROUND, 1, FakeWorldView.SOLID); // balvan v objemu radnice (1 výkop)
+        BlockPos origin = new BlockPos(0, GROUND, 0);
+
+        // Default rozpočet balvan vytěží (výkopy povolené).
+        assertTrue(SiteFinder.cost(world, Blueprints.townHall(), origin, Cardinal.NORTH,
+                Set.of(), true) >= 0, "default balvan srovná");
+        // Přísný rozpočet: žádné výkopy (floor 0, obří divisor → škálovaný 0).
+        SiteFinder.Budget strict = new SiteFinder.Budget(24, 4, 0, 4, 10_000);
+        assertEquals(SiteFinder.COST_INVALID, SiteFinder.cost(world, Blueprints.townHall(),
+                origin, Cardinal.NORTH, Set.of(), true, strict),
+                "přísný rozpočet balvan odmítne");
+    }
+
+    @Test
     void footprintDimsAreWidthAndDepth() {
         int[] church = SiteFinder.footprintDims(Blueprints.church(), Cardinal.NORTH);
         assertEquals(5, church[0], "kostel šířka X = 5");

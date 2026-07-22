@@ -268,7 +268,14 @@ public final class ConfigLoader {
         var build = new BotAliveConfig.Build(
                 c.getBoolean("build.complex", true),
                 buildWidth,
-                Math.max(2, c.getInt("build.wall-height", 3))
+                Math.max(2, c.getInt("build.wall-height", 3)),
+                new BotAliveConfig.Build.Site(
+                        Math.max(4, c.getInt("build.site.surface-scan", 24)),
+                        Math.max(0, c.getInt("build.site.max-fills", 4)),
+                        Math.max(0, c.getInt("build.site.max-digs", 8)),
+                        Math.max(1, c.getInt("build.site.fill-divisor", 4)),
+                        Math.max(1, c.getInt("build.site.dig-divisor", 2)),
+                        Math.max(0, c.getInt("build.site.search-radius", 4)))
         );
 
         return new BotAliveConfig(network, gateway, bots, ai, chat, combat, economy, memory,

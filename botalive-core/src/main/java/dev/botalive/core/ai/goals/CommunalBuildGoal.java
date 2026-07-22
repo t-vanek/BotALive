@@ -47,12 +47,6 @@ public final class CommunalBuildGoal extends AbstractGoal {
     /** Vodorovná vzdálenost od staveniště, kde se doladí výška a začne stavět. */
     private static final int APPROACH_RADIUS = 3;
     /**
-     * Strop posunu staveniště (v {@link SiteFinder#search}): i malá stavba se
-     * zdaleka nezatoulá z parcely. Skutečný radius se počítá z rozestupu parcel
-     * a půdorysu stavby (footprint-aware) – velký sál se smí posunout míň.
-     */
-    private static final int MAX_SITE_SEARCH_RADIUS = 4;
-    /**
      * Minimum stavebních bloků k zahájení – zbytek dodá PROVISION (dotěží
      * v okolí) nebo další seance. Velká stavba (radnice, kostel) se tak
      * dostaví po částech: BLOCKED_MATERIAL uvolní claim, world-diff drží
@@ -434,17 +428,20 @@ public final class CommunalBuildGoal extends AbstractGoal {
      */
     private boolean adjustSite(BotContext ctx, WorldView world) {
         Blueprint blueprint = blueprintFor(project.kind());
+        var site = ctx.config().build().site();
         // Vycentrovat půdorys na parcelu: plotOrigin počítá roh z rozměru domu
         // (4×4), takže studna/tržiště/kostel s jiným rozměrem sedí mimo střed.
         // Idempotentní snap na mřížku – rozestavěná stavba se trefí zpět.
         BlockPos suggested = centerOnPlot(ctx, blueprint, project.origin(), project.facing());
         // Kolik se smí staveniště posunout v parcele: rezerva k sousedovi
-        // (rozestup − půdorys) zpola, nejvýš MAX_SITE_SEARCH_RADIUS.
-        int radius = Math.max(1, Math.min(MAX_SITE_SEARCH_RADIUS,
+        // (rozestup − půdorys) zpola, nejvýš config build.site.search-radius.
+        int radius = Math.max(1, Math.min(site.searchRadius(),
                 (ctx.config().settlement().plotSpacing()
                         - SiteFinder.footprintSpan(blueprint, project.facing())) / 2));
-        BlockPos usable = SiteFinder.search(world, blueprint, suggested,
-                project.facing(), ctx.config().ai().terraforming(), radius).orElse(null);
+        SiteFinder.Budget budget = new SiteFinder.Budget(site.surfaceScan(),
+                site.maxFills(), site.maxDigs(), site.fillDivisor(), site.digDivisor());
+        BlockPos usable = SiteFinder.search(world, blueprint, suggested, project.facing(),
+                ctx.config().ai().terraforming(), radius, budget).orElse(null);
         if (usable == null) {
             ctx.settlements().relocateProject(project.settlementId(), project.kind());
             giveUp(ctx, 2400);
