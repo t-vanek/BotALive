@@ -34,8 +34,10 @@ ale nad nimi je pět stropů:
    Funguje jen díky jedinému designu a zaměnitelnému materiálu; u více
    designů se po restartu neví, *co* se stavělo.
 
-Vedlejší důsledek: tier **MĚSTO je fakticky nedosažitelný**
-(`townInfra` se předává natvrdo `false`, `MARKET_STALL` je TODO).
+Vedlejší důsledek starého enginu: tier **MĚSTO byl fakticky nedosažitelný**
+(`townInfra` se předával natvrdo `false`, `MARKET_STALL` chyběl). **Vyřešeno
+ve V2c**: `SettlementService.tierOf` počítá `townInfra = sýpka && tržiště`
+a tržiště se staví (`Blueprints.marketStall`) – MĚSTO je dosažitelné.
 
 ## Cíl
 
