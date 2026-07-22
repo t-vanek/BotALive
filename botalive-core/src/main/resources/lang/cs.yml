@@ -309,6 +309,26 @@ phrases:
     - "hotovo, {name} má sklad. noste, co přebývá, ať to leží společně"
     - "společná zásobárna je hotová, sousedi"
 
+  settlement-townhall-start:
+    - "{name} je město – zaslouží radnici. beru kámen a stavím"
+    - "město bez radnice? jdu postavit radnici pro {name:4}"
+    - "pouštím se do radnice, ať má {name} důstojný sál"
+
+  settlement-townhall-done:
+    - "radnice stojí! {name} má konečně svůj sál"
+    - "hotovo, {name} má radnici. tady se sejde celé město"
+    - "radnice dostavěná, sousedi – náves teď zdobí pořádná stavba"
+
+  settlement-church-start:
+    - "{name} je hrdé město – zaslouží kostel. beru kámen a stavím loď"
+    - "pouštím se do kostela pro {name:4}, ať má sídlo svatostánek"
+    - "město bez kostela? jdu vztyčit zdi lodi pro {name}"
+
+  settlement-church-done:
+    - "kostel stojí! {name} má svůj svatostánek"
+    - "hotovo, {name} má kostel. tady se sejdeme"
+    - "kostel dostavěný, sousedi – loď se tyčí nad návsí"
+
   settlement-workshop-start:
     - "sídlu chybí {name} – beru nářadí a jdu na to"
     - "nová stavba pro sídlo: {name}, nosím materiál"

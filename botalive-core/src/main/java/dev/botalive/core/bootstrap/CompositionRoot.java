@@ -305,7 +305,7 @@ public final class CompositionRoot {
         registry.register("home", bot -> new ReturnHomeGoal());
         registry.register("escape", bot -> new dev.botalive.core.ai.goals.EscapeGoal());
         registry.register("communal-build",
-                bot -> new dev.botalive.core.ai.goals.CommunalBuildGoal(crafting));
+                bot -> new dev.botalive.core.ai.goals.CommunalBuildGoal(crafting, containers));
         registry.register("settlement-roads",
                 bot -> new dev.botalive.core.ai.goals.SettlementRoadsGoal());
         registry.register("settlement-fences",
@@ -322,6 +322,7 @@ public final class CompositionRoot {
         registry.register("sleep", bot -> new SleepGoal());
         registry.register("stash", bot -> new StashGoal(containers, diplomacy));
         registry.register("granary", bot -> new dev.botalive.core.ai.goals.GranaryGoal(containers));
+        registry.register("supply", bot -> new dev.botalive.core.ai.goals.SupplyGoal(containers));
         registry.register("steal", bot -> new dev.botalive.core.ai.goals.StealGoal(containers));
         registry.register("rob", bot -> new dev.botalive.core.ai.goals.RobGoal(pvp));
         registry.register("repair",
@@ -351,6 +352,7 @@ public final class CompositionRoot {
         registry.register("buy", bot -> new dev.botalive.core.ai.goals.BuyGoal(market));
         registry.register("reconcile", bot -> new dev.botalive.core.ai.goals.ReconcileGoal(socialGraph));
         registry.register("guard", bot -> new dev.botalive.core.ai.goals.GuardGoal());
+        registry.register("build-guard", bot -> new dev.botalive.core.ai.goals.BuildGuardGoal());
         registry.register("nether", bot -> new dev.botalive.core.ai.goals.NetherGoal(containers));
         registry.register("drink", bot -> new dev.botalive.core.ai.goals.DrinkPotionGoal());
         registry.register("brew", bot -> new dev.botalive.core.ai.goals.BrewGoal(brewing));

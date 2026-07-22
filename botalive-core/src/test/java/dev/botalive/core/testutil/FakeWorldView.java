@@ -27,6 +27,12 @@ public final class FakeWorldView implements WorldView {
     /** Voda (zdrojový blok – bez proudu). */
     public static final BlockTraits WATER = BlockTraits.simple(false, false, true, false, false, false, false, false, false);
 
+    /** Magma – pevný blok, ale hazard (podlaha na něm se nesmí stavět). */
+    public static final BlockTraits MAGMA = BlockTraits.simple(false, true, false, false, false, true, false, false, false);
+
+    /** Oheň – průchozí hazard (v objemu stavby se netrpí, i když nic neblokuje). */
+    public static final BlockTraits FIRE = BlockTraits.simple(true, false, false, false, false, true, false, false, false);
+
     /**
      * Tekoucí voda dané hladiny (1–7, vyšší = tenčí = dál od zdroje;
      * 8 = padající sloupec). Proud vzniká z gradientu hladin sousedů.

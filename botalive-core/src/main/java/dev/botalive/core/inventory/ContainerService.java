@@ -248,6 +248,112 @@ public final class ContainerService implements dev.botalive.core.station.ChestSt
     }
 
     @Override
+    public CompletableFuture<Integer> depositBuildingBlocks(dev.botalive.core.ai.BotContext ctx,
+                                                            String worldName, BlockPos chestPos,
+                                                            int keepBlocks) {
+        UUID botId = ctx.bot().id();
+        World world = Bukkit.getWorld(worldName);
+        Player player = Bukkit.getPlayer(botId);
+        if (world == null || player == null) {
+            return CompletableFuture.completedFuture(0);
+        }
+        Location location = new Location(world, chestPos.x(), chestPos.y(), chestPos.z());
+        return bridge.callAt(location, () -> {
+            if (player.getLocation().distanceSquared(location) > 6 * 6) {
+                return 0; // bot mezitím odešel – nesahat na cizí region
+            }
+            if (!(world.getBlockAt(chestPos.x(), chestPos.y(), chestPos.z())
+                    .getState() instanceof Container container)) {
+                return 0;
+            }
+            Inventory chest = container.getInventory();
+            var playerInventory = player.getInventory();
+            int moved = 0;
+            int kept = 0;
+            for (int slot = 0; slot < 36; slot++) {
+                ItemStack stack = playerInventory.getItem(slot);
+                if (stack == null || !InventoryHelper.isBuildingBlock(stack.getType())) {
+                    continue;
+                }
+                int amount = stack.getAmount();
+                // Nechat si zásobu bloků na cestu (keepBlocks kusů celkem).
+                int keepHere = Math.min(amount, Math.max(0, keepBlocks - kept));
+                kept += keepHere;
+                if (keepHere >= amount) {
+                    continue; // celý stack si nechávám
+                }
+                ItemStack toStore = stack.clone();
+                toStore.setAmount(amount - keepHere);
+                var leftover = chest.addItem(toStore);
+                if (leftover.isEmpty()) {
+                    if (keepHere == 0) {
+                        playerInventory.setItem(slot, null);
+                    } else {
+                        stack.setAmount(keepHere);
+                        playerInventory.setItem(slot, stack);
+                    }
+                    moved += amount - keepHere;
+                } else {
+                    int back = leftover.values().iterator().next().getAmount();
+                    stack.setAmount(keepHere + back);
+                    playerInventory.setItem(slot, stack);
+                    moved += (amount - keepHere) - back;
+                    break; // truhla je plná
+                }
+            }
+            return moved;
+        }).exceptionally(t -> 0);
+    }
+
+    @Override
+    public CompletableFuture<Integer> withdrawBuildingBlocks(dev.botalive.core.ai.BotContext ctx,
+                                                             String worldName, BlockPos chestPos,
+                                                             int maxBlocks) {
+        UUID botId = ctx.bot().id();
+        World world = Bukkit.getWorld(worldName);
+        Player player = Bukkit.getPlayer(botId);
+        if (world == null || player == null) {
+            return CompletableFuture.completedFuture(0);
+        }
+        Location location = new Location(world, chestPos.x(), chestPos.y(), chestPos.z());
+        return bridge.callAt(location, () -> {
+            if (player.getLocation().distanceSquared(location) > 6 * 6) {
+                return 0; // bot mezitím odešel – nesahat na cizí region
+            }
+            if (!(world.getBlockAt(chestPos.x(), chestPos.y(), chestPos.z())
+                    .getState() instanceof Container container)) {
+                return 0;
+            }
+            Inventory chest = container.getInventory();
+            var playerInventory = player.getInventory();
+            int taken = 0;
+            for (int slot = 0; slot < chest.getSize() && taken < maxBlocks; slot++) {
+                ItemStack stack = chest.getItem(slot);
+                if (stack == null || !InventoryHelper.isBuildingBlock(stack.getType())) {
+                    continue;
+                }
+                int wantCount = Math.min(stack.getAmount(), maxBlocks - taken);
+                ItemStack take = stack.clone();
+                take.setAmount(wantCount);
+                var leftover = playerInventory.addItem(take);
+                int moved = wantCount - leftover.values().stream()
+                        .mapToInt(ItemStack::getAmount).sum();
+                if (moved <= 0) {
+                    break; // plný inventář bota
+                }
+                if (moved >= stack.getAmount()) {
+                    chest.setItem(slot, null);
+                } else {
+                    stack.setAmount(stack.getAmount() - moved);
+                    chest.setItem(slot, stack);
+                }
+                taken += moved;
+            }
+            return taken;
+        }).exceptionally(t -> 0);
+    }
+
+    @Override
     public CompletableFuture<Integer> withdrawSupplies(dev.botalive.core.ai.BotContext ctx,
                                                        String worldName, BlockPos chestPos,
                                                        boolean includeGear) {

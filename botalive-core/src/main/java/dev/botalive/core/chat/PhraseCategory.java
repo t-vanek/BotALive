@@ -96,6 +96,18 @@ public enum PhraseCategory {
     /** Společný sklad dokončen ({@code {name}} = jméno sídla). */
     SETTLEMENT_WAREHOUSE_DONE,
 
+    /** Bot začíná stavět radnici sídla ({@code {name}} = jméno sídla). */
+    SETTLEMENT_TOWNHALL_START,
+
+    /** Radnice sídla dokončena ({@code {name}} = jméno sídla). */
+    SETTLEMENT_TOWNHALL_DONE,
+
+    /** Bot začíná stavět kostel sídla ({@code {name}} = jméno sídla). */
+    SETTLEMENT_CHURCH_START,
+
+    /** Kostel sídla dokončen ({@code {name}} = jméno sídla). */
+    SETTLEMENT_CHURCH_DONE,
+
     /** Bot začíná stavět účelnou dílnu ({@code {name}} = název dílny, 1. pád). */
     SETTLEMENT_WORKSHOP_START,
 

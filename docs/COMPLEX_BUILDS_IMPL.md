@@ -262,6 +262,53 @@ nové testy K1–K4 zelené; `CommunalBuildGoal` bez per-druh větvení.
 6. **Trh**: ukotvení `SellGoal` nabídek k tržišti (fáze D růstové
    roadmapy) + fráze `SETTLEMENT_MARKET_*`, `SETTLEMENT_TOWNHALL_*`…
 
+> **HOTOVO (dělba práce u velkých staveb) – lehčí cestou než bod 3.**
+> Zásobovací řetězec „sběrač → truhla → stavitel" i stráž staveniště jsou
+> hotové, ale **bez migrace a bez per-staveništní truhly**. Materiálovým
+> skladem je **dvojtruhla `WAREHOUSE`** (sídlo si ho staví jako „společný
+> sklad na materiál") – je perzistentní, postavený a jeho truhla se
+> dopočítá z geometrie (`HouseBlueprint.bedSpot`, parita s `GranaryGoal`),
+> takže odpadá `chest_x/y/z` i pokládka truhly. Řetězec je **bonus, ne
+> podmínka**: naskočí až po dostavbě skladu (tj. právě u velkých
+> prestižních staveb – radnice, kostel), jinak se stavitel zásobuje sám
+> jako dřív. Hotové kusy:
+> - `ChestStation.deposit/withdrawBuildingBlocks` (obě v `ContainerService`,
+>   `bridge.callAt` + limit 6 bloků) – materiálové primitivum místo
+>   `deposit/withdrawMaterials(Map)`; kategorie stavební blok stačí, protože
+>   civilní stavby jedou na `GENERIC` (blok se počítá kusově, ne paletou).
+> - `SettlementService.activeProject(botId)` – rozestavěná stavba pro
+>   sběrače i stráž (nejčerstvější zamluvení, mizí po dostavbě/expiraci).
+> - `MaterialDepot.chest(settlements, botId)` – sdílený lokátor truhly skladu.
+> - `SupplyGoal` (nový cíl `supply`, HELPFULNESS, boost MASON/MINER) – nosí
+>   přebytek bloků do skladu, když se staví.
+> - `CommunalBuildGoal` fáze `DRAW` – stavitel si v PROVISION dobere ze
+>   skladu, než začne dolovat (jednou za pokus, guard `drewFromDepot`).
+> - `BuildGuardGoal` (nový cíl `build-guard`, GUARDIAN) – drží stráž
+>   u staveniště; boj přebírá `CombatGoal`/`PvpGoal`.
+>
+> **HOTOVO (bod 2 – stavy projektu + BOM).** Migrace **v10** přidala
+> `state`/`needed`/`contributed` do `ba_settlement_projects` (round-trip test
+> nad SQLite). `SettlementService`: enum `ProjectState`, API `projectState`,
+> `beginSupply` (SITE→SUPPLY + zápis BOM), `beginBuild` (→BUILD), `contribute`
+> a `contributionNeeds` (BOM − nasbíráno; prázdné bez BOM → fallback). `done`
+> zůstává autoritou dokončení (`DONE ⟺ done`). Zapojeno: `CommunalBuildGoal`
+> hlásí `beginSupply`/`beginBuild`, `SupplyGoal` přestane nosit při dost
+> materiálu a připisuje `contribute`. **Odchylka od plánu**: `design`/
+> `params_json`/`chest_x/y/z` sloupce netřeba (truhla = sklad, palety zatím
+> netřeba – `GENERIC`); „minus obsah truhly" je aproximováno `contributed`
+> (monotonní), ne živým čtením truhly.
+>
+> **HOTOVO (bod 5 – vícparcelová rezervace).** `PlotLayout.indexFor` (inverze
+> `cellFor`, round-trip přes katastr) + `plotSpan`; `SettlementService
+> .reserveSite(id, w, d)` zabere souvislý blok přiléhajících parcel
+> (`unusablePlots.put(index, Long.MAX_VALUE)`), origin vycentrovaný nad
+> blokem. Dnes se všechny civilní stavby vejdou do parcely (≤ rozestup), tak
+> je to připravená schopnost pro budoucí velké stavby, ne změna chování.
+>
+> **Zbývá z V2c**: šablonový loader (bod 1), `BELL_TOWER` (bod 4 – potřebuje
+> lešení z V2d na pravou věž) a přesné materiálové palety – teprve až je
+> vynutí šablonové stavby.
+
 ## V2d – konsolidace
 
 - Portál a wither oltář na engine: planner dostane material-exact

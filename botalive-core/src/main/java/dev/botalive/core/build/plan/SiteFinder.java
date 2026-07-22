@@ -41,22 +41,36 @@ public final class SiteFinder {
     /** Cena staveniště: nenačtené chunky – nelze posoudit, nikdy netombstonovat. */
     public static final int COST_UNKNOWN = -2;
 
-    /** Kolik sloupců podlahy smí chybět (zásyp), aby se staveniště srovnalo. */
-    private static final int MAX_FILLS = 4;
-    /** Kolik bloků smí v objemu stavby přebývat (výkop). */
-    private static final int MAX_DIGS = 8;
     /** Pořadí zkoušených výškových posunů (resume musí zkusit 0 první). */
     private static final int[] DY_ORDER = {0, -1, 1, -2, 2};
+
     /**
-     * Svislý rozsah hledání povrchu kolem navržené výšky (bloky).
+     * Laditelné meze výběru staveniště (config {@code build.site}). Defaulty
+     * drží dnešní chování; server smí zvednout rozpočet úprav na členitém
+     * terénu nebo zúžit dosah srázu.
      *
-     * <p>Není to jen rozpočet skenu, ale i <b>rozumná mez</b>: parcela, jejíž
-     * terén je od úrovně sídla dál než tohle, není staveniště k srovnání –
-     * je to sráz. Studna vesnice nepatří třicet bloků nad náves, takže se
-     * taková parcela úmyslně nenajde a volající ji přesune jinam (živě
-     * pozorováno na vesnici pod horou, 2026-07-21).</p>
+     * @param surfaceScan svislý dosah hledání povrchu (bloky) – zároveň mez
+     *                    srázu: terén dál než tohle není staveniště k srovnání
+     *                    a volající parcelu přesune jinam
+     * @param maxFills    spodní strop zásypů podlahy (škáluje s velikostí)
+     * @param maxDigs     spodní strop výkopů v objemu (škáluje s velikostí)
+     * @param fillDivisor {@code sloupce/N} = footprint-škálovaný strop zásypů
+     * @param digDivisor  {@code sloupce/N} = footprint-škálovaný strop výkopů
      */
-    private static final int SURFACE_SCAN = 24;
+    public record Budget(int surfaceScan, int maxFills, int maxDigs,
+                         int fillDivisor, int digDivisor) {
+
+        /** Výchozí meze (dnešní chování). */
+        public static final Budget DEFAULT = new Budget(24, 4, 8, 4, 2);
+
+        int fillsAllowed(int columns) {
+            return Math.max(maxFills, columns / Math.max(1, fillDivisor));
+        }
+
+        int digsAllowed(int columns) {
+            return Math.max(maxDigs, columns / Math.max(1, digDivisor));
+        }
+    }
 
     private SiteFinder() {
     }
@@ -78,19 +92,35 @@ public final class SiteFinder {
      */
     public static int cost(WorldView world, Blueprint blueprint, BlockPos origin,
                            Cardinal facing, Set<BlockPos> skip, boolean terraforming) {
+        return cost(world, blueprint, origin, facing, skip, terraforming, Budget.DEFAULT);
+    }
+
+    /** Jako {@link #cost(WorldView, Blueprint, BlockPos, Cardinal, Set, boolean)}
+     *  s laditelnými mezemi {@link Budget}. */
+    public static int cost(WorldView world, Blueprint blueprint, BlockPos origin,
+                           Cardinal facing, Set<BlockPos> skip, boolean terraforming,
+                           Budget budget) {
+        List<BlockPos> ground = blueprint.groundColumns(origin, facing);
+        // Rozpočet úprav roste s velikostí půdorysu: velký sál na stejném svahu
+        // jako studna smí srovnat úměrně víc. Malé stavby zůstávají na dolní mezi.
+        int maxFills = budget.fillsAllowed(ground.size());
+        int maxDigs = budget.digsAllowed(ground.size());
         int fills = 0;
         // Podlaha: pod celým půdorysem musí být pevno (díry se zasypou).
-        for (BlockPos ground : blueprint.groundColumns(origin, facing)) {
-            BlockTraits traits = world.traitsAt(ground);
+        for (BlockPos column : ground) {
+            BlockTraits traits = world.traitsAt(column);
             if (traits == BlockTraits.UNKNOWN) {
                 return COST_UNKNOWN;
+            }
+            if (traits.hazard()) {
+                return COST_INVALID; // podlaha na lávě/magmatu – nikdy (i když je pevná)
             }
             if (traits.liquid()) {
                 return COST_INVALID;
             }
             if (!traits.solid()) {
                 fills++;
-                if (fills > MAX_FILLS || !terraforming) {
+                if (fills > maxFills || !terraforming) {
                     return COST_INVALID;
                 }
             }
@@ -105,12 +135,15 @@ public final class SiteFinder {
             if (traits == BlockTraits.UNKNOWN) {
                 return COST_UNKNOWN;
             }
+            if (traits.hazard()) {
+                return COST_INVALID; // oheň/magma v objemu (i průchozí) – nestavět kolem
+            }
             if (traits.liquid()) {
                 return COST_INVALID;
             }
             if (traits.solid()) {
                 digs++;
-                if (digs > MAX_DIGS || !terraforming) {
+                if (digs > maxDigs || !terraforming) {
                     return COST_INVALID;
                 }
             }
@@ -132,9 +165,15 @@ public final class SiteFinder {
      */
     public static int bestCost(WorldView world, Blueprint blueprint, BlockPos suggested,
                                Cardinal facing, boolean terraforming) {
+        return bestCost(world, blueprint, suggested, facing, terraforming, Budget.DEFAULT);
+    }
+
+    /** Varianta {@code bestCost} s laditelnými mezemi {@link Budget}. */
+    public static int bestCost(WorldView world, Blueprint blueprint, BlockPos suggested,
+                               Cardinal facing, boolean terraforming, Budget budget) {
         int best = COST_INVALID;
-        for (BlockPos candidate : candidates(world, blueprint, suggested, facing)) {
-            int cost = cost(world, blueprint, candidate, facing, Set.of(), terraforming);
+        for (BlockPos candidate : candidates(world, blueprint, suggested, facing, budget)) {
+            int cost = cost(world, blueprint, candidate, facing, Set.of(), terraforming, budget);
             if (cost == COST_UNKNOWN) {
                 return COST_UNKNOWN;
             }
@@ -165,13 +204,111 @@ public final class SiteFinder {
     public static Optional<BlockPos> usableOrigin(WorldView world, Blueprint blueprint,
                                                   BlockPos suggested, Cardinal facing,
                                                   boolean terraforming) {
-        for (BlockPos candidate : candidates(world, blueprint, suggested, facing)) {
+        return usableOrigin(world, blueprint, suggested, facing, terraforming, Budget.DEFAULT);
+    }
+
+    /** Varianta {@code usableOrigin} s laditelnými mezemi {@link Budget}. */
+    public static Optional<BlockPos> usableOrigin(WorldView world, Blueprint blueprint,
+                                                  BlockPos suggested, Cardinal facing,
+                                                  boolean terraforming, Budget budget) {
+        for (BlockPos candidate : candidates(world, blueprint, suggested, facing, budget)) {
             Set<BlockPos> own = structureOf(blueprint, candidate, facing);
-            if (cost(world, blueprint, candidate, facing, own, terraforming) >= 0) {
+            if (cost(world, blueprint, candidate, facing, own, terraforming, budget) >= 0) {
                 return Optional.of(candidate);
             }
         }
         return Optional.empty();
+    }
+
+    /**
+     * Robustní výběr rohu: nejdřív <b>přesně navržené místo</b> (parita a resume –
+     * rozestavěná stavba se trefí do svého originu a naváže world-diffem, protože
+     * vlastní bloky se nepočítají); když je nepoužitelné, <b>posune se v okně</b>
+     * {@code ±radius} kolem návrhu (než sídlo sáhne po úplně jiné parcele) a vybere
+     * nejrovnější (nejlevnější, při shodě nejbližší) použitelný roh. Radius drží
+     * volající malý, ať posun nevyleze z parcely do sousedovy.
+     *
+     * @param world        pohled na svět (načtené okolí staveniště)
+     * @param blueprint    geometrie stavby
+     * @param suggested    navržený roh půdorysu
+     * @param facing       orientace stavby
+     * @param terraforming smí bot upravovat terén?
+     * @param radius       kolik bloků do stran se smí posunout (v rámci parcely)
+     * @return roh ke stavbě, nebo prázdné (ani v okně není místo)
+     */
+    public static Optional<BlockPos> search(WorldView world, Blueprint blueprint,
+                                            BlockPos suggested, Cardinal facing,
+                                            boolean terraforming, int radius) {
+        return search(world, blueprint, suggested, facing, terraforming, radius, Budget.DEFAULT);
+    }
+
+    /** Varianta {@code search} s laditelnými mezemi {@link Budget}. */
+    public static Optional<BlockPos> search(WorldView world, Blueprint blueprint,
+                                            BlockPos suggested, Cardinal facing,
+                                            boolean terraforming, int radius, Budget budget) {
+        Optional<BlockPos> exact =
+                usableOrigin(world, blueprint, suggested, facing, terraforming, budget);
+        if (exact.isPresent()) {
+            return exact; // přesné místo sedí (nebo je tam rozestavěná stavba) – neposouvat
+        }
+        BlockPos best = null;
+        int bestCost = Integer.MAX_VALUE;
+        long bestDist = Long.MAX_VALUE;
+        for (int dz = -radius; dz <= radius; dz++) {
+            for (int dx = -radius; dx <= radius; dx++) {
+                if (dx == 0 && dz == 0) {
+                    continue; // přesný roh už zkoušen výše
+                }
+                BlockPos base = new BlockPos(suggested.x() + dx, suggested.y(),
+                        suggested.z() + dz);
+                long dist = (long) dx * dx + (long) dz * dz;
+                for (BlockPos candidate : candidates(world, blueprint, base, facing, budget)) {
+                    int c = cost(world, blueprint, candidate, facing, Set.of(), terraforming, budget);
+                    if (c < 0) {
+                        continue; // INVALID i UNKNOWN přeskoč (na místě jsou chunky načtené)
+                    }
+                    if (c < bestCost || (c == bestCost && dist < bestDist)) {
+                        best = candidate;
+                        bestCost = c;
+                        bestDist = dist;
+                    }
+                }
+            }
+        }
+        return Optional.ofNullable(best);
+    }
+
+    /**
+     * Rozměry půdorysu {@code {šířka X, hloubka Z}} odvozené z {@code
+     * groundColumns} – kolik místa stavba v rovině zabere. Z nich a z rozestupu
+     * parcel se počítá jak vycentrování stavby na parcelu, tak dosah posunu
+     * ({@link #search}).
+     *
+     * @param blueprint geometrie stavby
+     * @param facing    orientace (obdélníkový půdorys se s ní může otočit)
+     * @return {@code {šířka, hloubka}} v blocích, {@code {0, 0}} pro prázdný půdorys
+     */
+    public static int[] footprintDims(Blueprint blueprint, Cardinal facing) {
+        int minX = Integer.MAX_VALUE;
+        int maxX = Integer.MIN_VALUE;
+        int minZ = Integer.MAX_VALUE;
+        int maxZ = Integer.MIN_VALUE;
+        for (BlockPos column : blueprint.groundColumns(new BlockPos(0, 0, 0), facing)) {
+            minX = Math.min(minX, column.x());
+            maxX = Math.max(maxX, column.x());
+            minZ = Math.min(minZ, column.z());
+            maxZ = Math.max(maxZ, column.z());
+        }
+        if (minX > maxX) {
+            return new int[]{0, 0}; // prázdný půdorys (teoreticky)
+        }
+        return new int[]{maxX - minX + 1, maxZ - minZ + 1};
+    }
+
+    /** @return větší z rozměrů půdorysu (viz {@link #footprintDims}). */
+    public static int footprintSpan(Blueprint blueprint, Cardinal facing) {
+        int[] dims = footprintDims(blueprint, facing);
+        return Math.max(dims[0], dims[1]);
     }
 
     // ---------------------------------------------------------------- pomocné
@@ -182,12 +319,12 @@ public final class SiteFinder {
      * ±2 (to je, co srovná víceblokovou mezeru na svahu). Duplicity vypadnou.
      */
     private static List<BlockPos> candidates(WorldView world, Blueprint blueprint,
-                                             BlockPos suggested, Cardinal facing) {
+                                             BlockPos suggested, Cardinal facing, Budget budget) {
         Set<Integer> levels = new LinkedHashSet<>();
         for (int dy : DY_ORDER) {
             levels.add(suggested.y() + dy);
         }
-        Integer terrain = terrainLevel(world, blueprint, suggested, facing);
+        Integer terrain = terrainLevel(world, blueprint, suggested, facing, budget);
         if (terrain != null) {
             for (int dy : DY_ORDER) {
                 levels.add(terrain + dy);
@@ -209,11 +346,12 @@ public final class SiteFinder {
      * @return úroveň podlahy, nebo {@code null} když terén nejde odečíst
      */
     private static Integer terrainLevel(WorldView world, Blueprint blueprint,
-                                        BlockPos suggested, Cardinal facing) {
+                                        BlockPos suggested, Cardinal facing, Budget budget) {
         List<Integer> levels = new ArrayList<>();
         // groundColumns leží blok POD podlahou – povrch hledáme v jejich sloupcích.
         for (BlockPos ground : blueprint.groundColumns(suggested, facing)) {
-            Integer surface = surfaceLevel(world, ground.x(), ground.z(), suggested.y());
+            Integer surface = surfaceLevel(world, ground.x(), ground.z(), suggested.y(),
+                    budget.surfaceScan());
             if (surface != null) {
                 levels.add(surface);
             }
@@ -232,8 +370,8 @@ public final class SiteFinder {
      *
      * @return úroveň podlahy, nebo {@code null} (nenačteno / voda / nic pevného)
      */
-    private static Integer surfaceLevel(WorldView world, int x, int z, int refY) {
-        for (int y = refY + SURFACE_SCAN; y >= refY - SURFACE_SCAN; y--) {
+    private static Integer surfaceLevel(WorldView world, int x, int z, int refY, int surfaceScan) {
+        for (int y = refY + surfaceScan; y >= refY - surfaceScan; y--) {
             BlockTraits below = world.traitsAt(new BlockPos(x, y - 1, z));
             if (below == BlockTraits.UNKNOWN) {
                 return null; // studená cache – terén se odsud posoudit nedá

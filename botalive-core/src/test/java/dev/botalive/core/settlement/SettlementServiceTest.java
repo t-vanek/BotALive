@@ -196,6 +196,9 @@ class SettlementServiceTest {
                 service.neededProject(founder).orElseThrow().kind());
         service.claimProject(village.id(), SettlementService.ProjectKind.MARKET_STALL, founder);
         service.projectFinished(village.id(), SettlementService.ProjectKind.MARKET_STALL);
+        assertTrue(service.doneProject(village.id(),
+                        SettlementService.ProjectKind.MARKET_STALL).isPresent(),
+                "hotové tržiště je dohledatelné jako kotva prodejních nabídek (SellGoal)");
         // Sýpka + tržiště + 8 domů + studna = město (víc pro stupeň netřeba).
         assertEquals(SettlementTier.MESTO,
                 service.settlementOf(founder).orElseThrow().tier(),
@@ -205,8 +208,166 @@ class SettlementServiceTest {
                 service.neededProject(founder).orElseThrow().kind());
         service.claimProject(village.id(), SettlementService.ProjectKind.WAREHOUSE, founder);
         service.projectFinished(village.id(), SettlementService.ProjectKind.WAREHOUSE);
+        // Až po skladu se městu nabídne prestižní radnice.
+        assertEquals(SettlementService.ProjectKind.TOWN_HALL,
+                service.neededProject(founder).orElseThrow().kind());
+        service.claimProject(village.id(), SettlementService.ProjectKind.TOWN_HALL, founder);
+        service.projectFinished(village.id(), SettlementService.ProjectKind.TOWN_HALL);
+        // Radnice je prestižní – stupeň zůstává město, neposouvá ho.
+        assertEquals(SettlementTier.MESTO,
+                service.settlementOf(founder).orElseThrow().tier(),
+                "radnice neposouvá stupeň");
+        // Po radnici se nabídne druhá prestižní stavba – kostel.
+        assertEquals(SettlementService.ProjectKind.CHURCH,
+                service.neededProject(founder).orElseThrow().kind());
+        service.claimProject(village.id(), SettlementService.ProjectKind.CHURCH, founder);
+        service.projectFinished(village.id(), SettlementService.ProjectKind.CHURCH);
+        // Ani kostel neposouvá stupeň – pořád město.
+        assertEquals(SettlementTier.MESTO,
+                service.settlementOf(founder).orElseThrow().tier(),
+                "kostel neposouvá stupeň");
         assertTrue(service.neededProject(founder).isEmpty(),
-                "se skladem už město nic dalšího nepotřebuje");
+                "s radnicí i kostelem už město nic dalšího nepotřebuje");
+    }
+
+    // ------------------------------------------- rozestavěná stavba (pomocníci)
+
+    @Test
+    void activeProjectVidiRozestavenouStavbuAZmiziPoDokonceni() {
+        var village = villageWithFourHouses();
+        // Nikdo nestaví → sběrač/hlídač nemá staveniště.
+        assertTrue(service.activeProject(joiner).isEmpty(),
+                "bez zamluvení se nic nestaví");
+
+        var well = service.neededProject(founder).orElseThrow();
+        assertEquals(SettlementService.ProjectKind.WELL, well.kind());
+        assertTrue(service.claimProject(village.id(), well.kind(), founder));
+
+        // Rozestavěnou studnu vidí i jiný člen – sběrač ví, kam nosit materiál.
+        var active = service.activeProject(joiner).orElseThrow();
+        assertEquals(SettlementService.ProjectKind.WELL, active.kind());
+        assertEquals(well.origin(), active.origin(), "staveniště = origin projektu");
+        assertFalse(active.done(), "rozestavěná stavba není hotová");
+
+        // Po dokončení staveniště z pohledu mizí – není co zásobovat ani hlídat.
+        service.projectFinished(village.id(), well.kind());
+        assertTrue(service.activeProject(joiner).isEmpty(),
+                "hotová stavba už není rozestavěná");
+    }
+
+    @Test
+    void activeProjectMiziPoExpiraciZamluveni() {
+        var village = villageWithFourHouses();
+        var well = service.neededProject(founder).orElseThrow();
+        assertTrue(service.claimProject(village.id(), well.kind(), founder));
+        assertTrue(service.activeProject(joiner).isPresent(), "čerstvě zamluvené staveniště je vidět");
+
+        // Stavitel se ztratil – po TTL se zamluvení uvolní a staveniště zmizí:
+        // nemá cenu nosit materiál na opuštěnou stavbu.
+        now += 11 * 60_000L;
+        assertTrue(service.activeProject(joiner).isEmpty(),
+                "expirované zamluvení = žádné aktivní staveniště");
+    }
+
+    @Test
+    void activeProjectPrazdnyProNeclena() {
+        foundVillage();
+        assertTrue(service.activeProject(new UUID(0, 99)).isEmpty(),
+                "nečlen nemá sídlo → žádné staveniště");
+    }
+
+    // ------------------------------------------- stavy projektu + rozpis (BOM)
+
+    @Test
+    void stavProjektuProchaziZivotnimCyklem() {
+        var village = villageWithFourHouses();
+        var kind = service.neededProject(founder).orElseThrow().kind();
+        assertEquals(SettlementService.ProjectState.SITE,
+                service.projectState(village.id(), kind).orElseThrow(), "nový projekt je SITE");
+
+        assertTrue(service.claimProject(village.id(), kind, founder));
+        service.beginSupply(village.id(), kind, 40);
+        assertEquals(SettlementService.ProjectState.SUPPLY,
+                service.projectState(village.id(), kind).orElseThrow(), "beginSupply → SUPPLY");
+
+        service.beginBuild(village.id(), kind);
+        assertEquals(SettlementService.ProjectState.BUILD,
+                service.projectState(village.id(), kind).orElseThrow(), "beginBuild → BUILD");
+
+        service.projectFinished(village.id(), kind);
+        assertEquals(SettlementService.ProjectState.DONE,
+                service.projectState(village.id(), kind).orElseThrow(), "dokončení → DONE");
+    }
+
+    @Test
+    void contributionNeedsOdectaNasbirane() {
+        var village = villageWithFourHouses();
+        var kind = service.neededProject(founder).orElseThrow().kind();
+        assertTrue(service.claimProject(village.id(), kind, founder));
+        // Bez rozpisu (BOM 0) sběrač potřebu nezná – nosí, dokud má přebytek.
+        assertTrue(service.contributionNeeds(village.id()).isEmpty(), "bez BOM prázdno");
+
+        service.beginSupply(village.id(), kind, 40);
+        assertEquals(40, service.contributionNeeds(village.id()).orElseThrow(), "BOM = 40");
+
+        assertEquals(15, service.contribute(village.id(), 25), "40 − 25 = 15 zbývá");
+        assertEquals(15, service.contributionNeeds(village.id()).orElseThrow());
+
+        assertEquals(0, service.contribute(village.id(), 100), "přeplněno → 0 zbývá");
+        assertEquals(0, service.contributionNeeds(village.id()).orElseThrow());
+    }
+
+    @Test
+    void contributionNeedsPrazdneBezAktivniStavby() {
+        var village = villageWithFourHouses();
+        service.neededProject(founder); // založí projekt, ale nikdo ho nezamluvil
+        assertTrue(service.contributionNeeds(village.id()).isEmpty(),
+                "bez aktivního stavitele není co zásobovat");
+        assertEquals(0, service.contribute(village.id(), 10), "příspěvek bez stavby propadne");
+    }
+
+    @Test
+    void beginSupplyNevraciHotovyProjektZpet() {
+        var village = villageWithFourHouses();
+        var kind = service.neededProject(founder).orElseThrow().kind();
+        service.claimProject(village.id(), kind, founder);
+        service.projectFinished(village.id(), kind);
+        service.beginSupply(village.id(), kind, 40); // hotový → no-op
+        assertEquals(SettlementService.ProjectState.DONE,
+                service.projectState(village.id(), kind).orElseThrow(), "hotový zůstává DONE");
+    }
+
+    // ------------------------------------------------ vícparcelová rezervace
+
+    @Test
+    void reserveSiteMalaStavbaZaberaJednuParcelu() {
+        var village = foundVillage();
+        long id = village.id();
+        int before = service.suggestPlots(id, 300).size();
+        // Kostel 5×7 se vejde do jedné parcely (≤ spacing 12).
+        var slot = service.reserveSite(id, 5, 7).orElseThrow();
+        assertEquals(before - 1, service.suggestPlots(id, 300).size(),
+                "malá stavba zabere právě jednu parcelu");
+        assertTrue(service.suggestPlots(id, 300).stream()
+                        .noneMatch(s -> s.index() == slot.index()),
+                "rezervovaná parcela se už nenabízí");
+    }
+
+    @Test
+    void reserveSiteVelkaStavbaZaberaVicParcel() {
+        var village = foundVillage();
+        long id = village.id();
+        int before = service.suggestPlots(id, 300).size();
+        // Půdorys 20×12: 20 > spacing 12 → 2 buňky v X, 12 → 1 v Z = 2 parcely.
+        service.reserveSite(id, 20, 12).orElseThrow();
+        assertEquals(before - 2, service.suggestPlots(id, 300).size(),
+                "stavba přes parcelu zabere dvě přiléhající");
+    }
+
+    @Test
+    void reserveSiteNeznameSidloVratiPrazdno() {
+        assertTrue(service.reserveSite(999L, 5, 5).isEmpty(),
+                "neexistující sídlo nemá kde rezervovat");
     }
 
     /** Postaví město s 8 dostavěnými domy (zakladatel + 7 osadníků). */

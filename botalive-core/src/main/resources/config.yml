@@ -554,3 +554,23 @@ build:
   width: 9
   # Výška zdí.
   wall-height: 3
+  # Ladění výběru staveniště SPOLEČNÝCH staveb (studna, sýpka, tržiště,
+  # radnice, kostel). Čistá geometrie – bezpečné měnit za běhu. Defaulty drží
+  # dnešní chování.
+  site:
+    # Svislý dosah hledání povrchu pod parcelou (bloky). Zároveň mez srázu:
+    # terén dál než tohle od úrovně sídla se nepovažuje za staveniště a
+    # projekt se přesune jinam.
+    surface-scan: 24
+    # Spodní strop zásypů podlahy / výkopů v objemu. Skutečný strop roste
+    # s velikostí půdorysu (viz divisory), tohle je minimum pro malé stavby.
+    max-fills: 4
+    max-digs: 8
+    # Footprint-škálovaný strop = počet sloupců půdorysu / divisor. Menší
+    # divisor = velkorysejší úpravy terénu u velkých staveb.
+    fill-divisor: 4
+    dig-divisor: 2
+    # Max posun staveniště v parcele, když přesný roh nejde (překážka/díra),
+    # než sídlo sáhne po jiné parcele. Skutečný posun se ještě zkrátí podle
+    # rozestupu a velikosti stavby, ať nevyleze k sousedovi.
+    search-radius: 4

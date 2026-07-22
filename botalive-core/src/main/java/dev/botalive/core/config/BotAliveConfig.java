@@ -61,7 +61,24 @@ public record BotAliveConfig(
      *                   bot podle stupně sídla a povahy
      * @param wallHeight výška zdí
      */
-    public record Build(boolean complex, int width, int wallHeight) {
+    public record Build(boolean complex, int width, int wallHeight, Site site) {
+
+        /**
+         * Ladění výběru staveniště společných staveb (studna, sýpka, tržiště,
+         * radnice, kostel) – čistá geometrie {@code SiteFinder}. Defaulty drží
+         * dnešní chování; server může zvednout rozpočet úprav na členitém
+         * terénu, zúžit mez srázu nebo dosah posunu v parcele.
+         *
+         * @param surfaceScan  svislý dosah hledání povrchu (zároveň mez srázu)
+         * @param maxFills     spodní strop zásypů podlahy (škáluje s velikostí)
+         * @param maxDigs      spodní strop výkopů v objemu (škáluje s velikostí)
+         * @param fillDivisor  {@code sloupce/N} = footprint-škálovaný strop zásypů
+         * @param digDivisor   {@code sloupce/N} = footprint-škálovaný strop výkopů
+         * @param searchRadius max posun staveniště v parcele za rovným místem
+         */
+        public record Site(int surfaceScan, int maxFills, int maxDigs,
+                           int fillDivisor, int digDivisor, int searchRadius) {
+        }
     }
 
     /**
