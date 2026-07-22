@@ -73,4 +73,32 @@ public interface ChestStation {
      */
     CompletableFuture<Integer> depositFood(BotContext ctx, String worldName, BlockPos chestPos,
                                            int keepFood);
+
+    /**
+     * Uloží do kontejneru stavební bloky (zásobovací truhla staveniště) –
+     * sběrač nosí materiál na společnou stavbu. Nechá si {@code keepBlocks}
+     * v inventáři. Bot musí stát u otevřeného kontejneru.
+     *
+     * @param ctx        kontext bota (stojí u otevřené truhly)
+     * @param worldName  svět kontejneru
+     * @param chestPos   pozice kontejneru
+     * @param keepBlocks kolik stavebních bloků si nechat v inventáři
+     * @return future s počtem uložených bloků (0 = nic/chyba)
+     */
+    CompletableFuture<Integer> depositBuildingBlocks(BotContext ctx, String worldName,
+                                                     BlockPos chestPos, int keepBlocks);
+
+    /**
+     * Vybere z kontejneru stavební bloky (opak {@link #depositBuildingBlocks}) –
+     * stavitel čerpá materiál ze zásobovací truhly staveniště. Vezme nejvýš
+     * {@code maxBlocks}. Bot musí stát u otevřeného kontejneru.
+     *
+     * @param ctx       kontext bota (stojí u otevřené truhly)
+     * @param worldName svět kontejneru
+     * @param chestPos  pozice kontejneru
+     * @param maxBlocks strop odebraných bloků (kolik se vejde/potřebuje)
+     * @return future s počtem odebraných bloků (0 = nic/chyba)
+     */
+    CompletableFuture<Integer> withdrawBuildingBlocks(BotContext ctx, String worldName,
+                                                      BlockPos chestPos, int maxBlocks);
 }
