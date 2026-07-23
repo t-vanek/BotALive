@@ -1113,7 +1113,7 @@ public final class SettlementService {
         });
     }
 
-    /** Vodorovný poloměr ochrany kolem originu parcely/stavby (bloky). */
+    /** Spodní mez vodorovného poloměru ochrany (legacy domek 4×4). */
     private static final int GUARD_RADIUS = 8;
     /** Kolik bloků NAD úrovní stavby se ještě chrání (patra, střecha). */
     private static final int GUARD_HEIGHT = 20;
@@ -1189,12 +1189,28 @@ public final class SettlementService {
         return false;
     }
 
-    /** Leží {@code pos} v chráněném hranolu kolem {@code origin}? */
+    /**
+     * Leží {@code pos} v chráněném hranolu kolem {@code origin}? Poloměr roste
+     * s rozestupem parcel, aby pokryl i nejširší dům/sál, který se v sídle staví
+     * (origin je roh, stavba se rozpíná do kladného směru).
+     */
     private boolean guards(BlockPos origin, BlockPos pos) {
-        return Math.abs(pos.x() - origin.x()) <= GUARD_RADIUS
-                && Math.abs(pos.z() - origin.z()) <= GUARD_RADIUS
+        int radius = guardRadius();
+        return Math.abs(pos.x() - origin.x()) <= radius
+                && Math.abs(pos.z() - origin.z()) <= radius
                 && pos.y() >= origin.y() - config.protectDepth()
                 && pos.y() <= origin.y() + GUARD_HEIGHT;
+    }
+
+    /**
+     * Vodorovný poloměr ochrany: aspoň {@link #GUARD_RADIUS} (legacy 4×4), ale
+     * nejméně tak velký, aby pokryl nejširší stavbu, která se vejde do parcely.
+     * Dům i sál mají půdorys menší než rozestup parcel (jinak by lezly k sousedovi),
+     * takže {@code plotSpacing − 3} je pokryje i s malou rezervou; odvození
+     * z konfigurace drží ochranu korektní, i když se strop velikosti zvedne.
+     */
+    private int guardRadius() {
+        return Math.max(GUARD_RADIUS, config.plotSpacing() - 3);
     }
 
     /** Vodorovná (Chebyshevova) vzdálenost – hrubý filtr, levnější než odmocnina. */
