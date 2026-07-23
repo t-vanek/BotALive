@@ -194,15 +194,25 @@ public final class BuyGoal extends AbstractGoal {
         int food = InventoryHelper.countEstimate(snapshot, InventoryHelper::isFood);
         BotNeeds needs = BotNeeds.assess(snapshot);
         boolean wantsIron = needs.pickaxeTier() == 3 && !needs.hasIronMaterial();
+        int fuel = InventoryHelper.countEstimate(snapshot,
+                dev.botalive.core.inventory.FurnaceService::isFuel);
+        // Poptávka: jídlo je univerzální (každý jí – hlavní likvidita trhu),
+        // železo pro krumpáč a palivo do zásoby, když dochází. Dřív se kupovalo
+        // jen jídlo pod 4 a železo → nabídky (většinou chleba) nikdo nebral a
+        // nástěnka jen expirovala.
         return market.findNearby(ctx.worldView().worldName(),
                 ctx.position().toBlockPos(), 48, bot.id(), o -> {
                     if (o.price() > balance) {
                         return false;
                     }
                     if (InventoryHelper.isFood(o.material())) {
-                        return food < 4;
+                        return food < 8;
                     }
-                    return wantsIron && o.material() == org.bukkit.Material.IRON_INGOT;
+                    if (o.material() == org.bukkit.Material.IRON_INGOT) {
+                        return wantsIron;
+                    }
+                    return fuel < 4
+                            && dev.botalive.core.inventory.FurnaceService.isFuel(o.material());
                 });
     }
 }

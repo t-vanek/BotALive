@@ -249,11 +249,27 @@ public final class BuildPlanner {
      * ho po dostavbě vytěží. Stanoviště na úrovni podlahy pilíř nepotřebují.
      */
     private static List<BlockPos> scaffoldFor(List<WorkUnit> units, int floorY) {
+        // Cely stavby: pilíř lešení nesmí sdílet pozici se stavbou, jinak by ho
+        // úklid ({@code BuildSession.tickCleanup}) vytěžil a udělal do domu díru.
+        // Dnes se stanoviště generují ve volných sloupcích (pilíř strukturu
+        // nekříží), ale guard drží invariant i kdyby se generace stanovišť
+        // změnila – jinak by se vzácná díra projevila až jako „hotový" dům
+        // s chybějícím blokem.
+        Set<Long> structure = new HashSet<>();
+        for (WorkUnit unit : units) {
+            for (PlacementCell cell : unit.placements()) {
+                structure.add(cell.pos().asLong());
+            }
+        }
         Set<BlockPos> scaffold = new LinkedHashSet<>();
         for (WorkUnit unit : units) {
             BlockPos stand = unit.stand();
             for (int y = floorY; y < stand.y(); y++) {
-                scaffold.add(new BlockPos(stand.x(), y, stand.z()));
+                BlockPos column = new BlockPos(stand.x(), y, stand.z());
+                if (structure.contains(column.asLong())) {
+                    continue; // sdílená pozice se stavbou – lešení tu nestavět
+                }
+                scaffold.add(column);
             }
         }
         return new ArrayList<>(scaffold);

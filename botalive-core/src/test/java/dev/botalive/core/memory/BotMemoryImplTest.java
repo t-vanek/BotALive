@@ -61,6 +61,33 @@ class BotMemoryImplTest {
     }
 
     @Test
+    void visitedPlaceMaStropAVyrazujeNejslabsi() {
+        BotMemoryImpl memory = memory(RelationDecay.OFF);
+        // 100 průzkumových bodů daleko od sebe (nad slučovací práh 8 bloků),
+        // s rostoucí důležitostí – po capu (64) přežije 64 nejsilnějších.
+        for (int i = 0; i < 100; i++) {
+            memory.remember(MemoryKind.VISITED_PLACE, "world", i * 100, 64, 0,
+                    null, Map.of(), 0.1 + i * 0.005);
+        }
+        List<MemoryRecord> kept = memory.recall(MemoryKind.VISITED_PLACE);
+        assertEquals(64, kept.size(), "VISITED_PLACE se drží na capu");
+        double minKept = kept.stream().mapToDouble(MemoryRecord::importance).min().orElseThrow();
+        assertTrue(minKept >= 0.1 + 36 * 0.005 - 1e-9,
+                "vyřadily se nejslabší (nejstarší+nejméně důležité): " + minKept);
+    }
+
+    @Test
+    void jineKategorieCapNesrazi() {
+        BotMemoryImpl memory = memory(RelationDecay.OFF);
+        // Domovy (kritická kategorie) štědrý cap nikdy netkne.
+        for (int i = 0; i < 100; i++) {
+            memory.remember(MemoryKind.HOME, "world", i * 100, 64, 0, null, Map.of(), 0.9);
+        }
+        assertEquals(100, memory.recall(MemoryKind.HOME).size(),
+                "běžný počet kritických pamětí se nevyřazuje");
+    }
+
+    @Test
     void rozpadNikdyNeklesnePodPodlahu() {
         BotMemoryImpl memory = memory(DECAY);
         memory.remember(MemoryKind.ENEMY, "world", 0, 64, 0, ENEMY, Map.of(), 0.9);

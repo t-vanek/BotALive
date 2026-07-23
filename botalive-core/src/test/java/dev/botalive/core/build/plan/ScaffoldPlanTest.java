@@ -147,6 +147,20 @@ class ScaffoldPlanTest {
     }
 
     @Test
+    void scaffoldNeverOverlapsStructure() {
+        FakeWorldView world = new FakeWorldView(FLOOR_Y);
+        BuildPlan plan = BuildPlan.of(tower(10), ORIGIN, Cardinal.NORTH);
+        BuildSchedule schedule = BuildPlanner.schedule(plan, world);
+
+        Set<Long> structure = new HashSet<>();
+        plan.cells().forEach(c -> structure.add(c.pos().asLong()));
+        for (BlockPos s : schedule.scaffold()) {
+            assertFalse(structure.contains(s.asLong()),
+                    "lešení nesmí stát na cele stavby (úklid by ji vytěžil): " + s);
+        }
+    }
+
+    @Test
     void lowStructureUsesNoScaffold() {
         FakeWorldView world = new FakeWorldView(FLOOR_Y);
         // Nízká věž na dosah ze země – žádné vyvýšené stanoviště, žádné lešení.

@@ -282,6 +282,13 @@ public final class SchemaMigrator {
                                 + "ADD COLUMN depth INTEGER NOT NULL DEFAULT 0",
                         "ALTER TABLE ba_settlement_projects "
                                 + "ADD COLUMN wall_height INTEGER NOT NULL DEFAULT 0"
+                ),
+                // v12 – index nad účetní knihou: purgeBot() a výpisy statistik
+                // filtrují podle bot_id; bez indexu to byl full scan tabulky,
+                // která u dlouhoběžících světů roste do desetitisíců řádků.
+                List.of(
+                        "CREATE INDEX IF NOT EXISTS idx_ba_transactions_bot "
+                                + "ON ba_transactions(bot_id)"
                 )
         );
     }
