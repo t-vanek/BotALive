@@ -1,5 +1,6 @@
 package dev.botalive.core.vehicle;
 
+import dev.botalive.core.inventory.Items;
 import dev.botalive.core.util.BlockPos;
 import dev.botalive.core.world.BlockTraits;
 import dev.botalive.core.world.WorldView;
@@ -35,11 +36,7 @@ public final class Boats {
      * @return {@code true} pro lodní item (loď i loď s truhlou, prám)
      */
     public static boolean isBoatItem(Material material) {
-        if (material == null) {
-            return false;
-        }
-        String name = material.name();
-        return name.endsWith("_BOAT") || name.endsWith("_RAFT");
+        return Items.isBoat(material);
     }
 
     /**

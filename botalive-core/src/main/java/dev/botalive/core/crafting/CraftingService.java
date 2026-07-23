@@ -143,7 +143,7 @@ public final class CraftingService implements dev.botalive.core.station.Crafting
     // ---------------------------------------------- výroba stanice dílny na míru
 
     private static final java.util.function.Predicate<Material> PLANKS =
-            m -> m.name().endsWith("_PLANKS");
+            dev.botalive.core.inventory.Materials::isPlanks;
     private static final java.util.function.Predicate<Material> WOOD_SLAB =
             m -> m.name().endsWith("_SLAB") && !m.name().contains("STONE")
                     && !m.name().contains("BRICK") && !m.name().contains("COBBLE")
@@ -605,8 +605,7 @@ public final class CraftingService implements dev.botalive.core.station.Crafting
 
     private static boolean containsAxe(PlayerInventory inventory) {
         for (ItemStack item : inventory.getStorageContents()) {
-            if (item != null && item.getType().name().endsWith("_AXE")
-                    && !item.getType().name().endsWith("_PICKAXE")) {
+            if (item != null && dev.botalive.core.inventory.Items.isAxe(item.getType())) {
                 return true;
             }
         }

@@ -199,13 +199,12 @@ public final class CraftPlanner {
             return new Plan("dřevěný krumpáč", matrix(
                     plank, 0, plank, 1, plank, 2, Material.STICK, 4, Material.STICK, 7), true);
         }
-        boolean anySword = s.hasMatching(m -> m.name().endsWith("_SWORD"));
+        boolean anySword = s.hasMatching(dev.botalive.core.inventory.Items::isSword);
         if (s.hasTable() && plank != null && s.sticks() >= 1 && s.planks() >= 2 && !anySword) {
             return new Plan("dřevěný meč", matrix(
                     plank, 1, plank, 4, Material.STICK, 7), true);
         }
-        boolean anyAxe = s.hasMatching(m -> m.name().endsWith("_AXE")
-                && !m.name().endsWith("_PICKAXE"));
+        boolean anyAxe = s.hasMatching(dev.botalive.core.inventory.Items::isAxe);
         if (s.hasTable() && plank != null && s.sticks() >= 2 && s.planks() >= 3 && !anyAxe) {
             return new Plan("dřevěná sekera", matrix(
                     plank, 0, plank, 1, plank, 3, Material.STICK, 4, Material.STICK, 7), true);
@@ -686,7 +685,7 @@ public final class CraftPlanner {
 
     /** Má sekeru v tieru {@code tier} nebo lepší (bez krumpáčů). */
     private static boolean hasAxeAtLeast(State s, int tier) {
-        return s.hasMatching(m -> m.name().endsWith("_AXE") && !m.name().endsWith("_PICKAXE")
+        return s.hasMatching(m -> dev.botalive.core.inventory.Items.isAxe(m)
                 && dev.botalive.core.inventory.InventoryHelper.toolTier(m) >= tier);
     }
 

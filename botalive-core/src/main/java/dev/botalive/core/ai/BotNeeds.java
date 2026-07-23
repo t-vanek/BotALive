@@ -64,10 +64,7 @@ public record BotNeeds(int pickaxeTier, boolean hasAxe, boolean hasSword,
         return new BotNeeds(
                 pickTier, axe, sword,
                 snapshot.hasItem(m -> m == Material.TORCH),
-                snapshot.hasItem(m -> {
-                    String n = m.name();
-                    return n.endsWith("_LOG") || n.endsWith("_PLANKS");
-                }),
+                snapshot.hasItem(Materials::isWood),
                 snapshot.hasItem(m -> m == Material.COBBLESTONE
                         || m == Material.COBBLED_DEEPSLATE),
                 snapshot.hasItem(m -> m == Material.RAW_IRON || m == Material.IRON_INGOT

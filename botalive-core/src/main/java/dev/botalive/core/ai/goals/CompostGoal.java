@@ -38,9 +38,10 @@ public final class CompostGoal extends AbstractGoal {
 
     /** Kompostovatelný přebytek (semínka, sazenice, listí…). */
     private static boolean compostable(Material material) {
-        String name = material.name();
-        return name.endsWith("_SEEDS") || name.endsWith("_SAPLING")
-                || name.endsWith("_LEAVES") || material == Material.WHEAT
+        return material.name().endsWith("_SEEDS")
+                || dev.botalive.core.inventory.Items.isSapling(material)
+                || dev.botalive.core.inventory.Materials.isLeaves(material)
+                || material == Material.WHEAT
                 || material == Material.KELP || material == Material.SUGAR_CANE;
     }
 

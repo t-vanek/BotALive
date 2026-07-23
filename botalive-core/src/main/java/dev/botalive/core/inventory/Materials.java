@@ -245,8 +245,7 @@ public final class Materials {
             return false; // sklo (i tabule) a redstone prach nejsou kvádr
         }
         // Dřevo: prkna, klády, kmeny, kůra (i oloupané varianty).
-        if (name.endsWith("_PLANKS") || name.endsWith("_LOG") || name.endsWith("_WOOD")
-                || name.endsWith("_STEM") || name.endsWith("_HYPHAE")) {
+        if (isWood(material)) {
             return true;
         }
         // Cihlové kvádry (kamenné, netherové, endové, bahenní, prismarine…).
@@ -267,5 +266,179 @@ public final class Materials {
         }
         String name = material.name();
         return (name.endsWith("_LOG") || name.endsWith("_STEM")) && !name.startsWith("STRIPPED_");
+    }
+
+    /** @param material materiál @return {@code true} pro prkna (libovolné dřevo) */
+    public static boolean isPlanks(Material material) {
+        return material != null && material.name().endsWith("_PLANKS");
+    }
+
+    /** @param material materiál @return {@code true} pro listí (libovolného stromu) */
+    public static boolean isLeaves(Material material) {
+        return material != null && material.name().endsWith("_LEAVES");
+    }
+
+    /** Přírodní kámen overworldu (z čeho je svět udělaný). */
+    private static final Set<Material> BASE_STONE = Set.of(
+            Material.STONE, Material.GRANITE, Material.DIORITE, Material.ANDESITE,
+            Material.DEEPSLATE, Material.TUFF, Material.CALCITE);
+
+    /**
+     * Přírodní kámen overworldu (kámen, žula, diorit, andezit, deepslate, tuff,
+     * kalcit) – co bot při kopání běžně potká jako „jen kámen".
+     *
+     * @param material materiál ({@code null} = ne)
+     * @return {@code true} pro přírodní kámen
+     */
+    public static boolean isStone(Material material) {
+        return material != null && BASE_STONE.contains(material);
+    }
+
+    /**
+     * Je materiál <b>dřevo</b> – prkna, klády, kmeny, dřevo nebo kůra (i
+     * oloupané varianty, napříč celou vanillou vč. crimson/warped)? Tj. „mám
+     * z čeho craftit / stavět dřevem". Širší než {@link #isLog} (ten je jen
+     * těžební cíl, bez prken a oloupaných).
+     *
+     * @param material materiál ({@code null} = ne)
+     * @return {@code true} pro dřevěný materiál
+     */
+    public static boolean isWood(Material material) {
+        if (material == null) {
+            return false;
+        }
+        String name = material.name();
+        return name.endsWith("_PLANKS") || name.endsWith("_LOG") || name.endsWith("_WOOD")
+                || name.endsWith("_STEM") || name.endsWith("_HYPHAE");
+    }
+
+    // ==================================================================
+    // Tvary bloků (dělené a průchozí – doplněk k plným kvádrům)
+    // ==================================================================
+
+    /** @param material materiál @return {@code true} pro plotnu (půlblok) */
+    public static boolean isSlab(Material material) {
+        return material != null && material.name().endsWith("_SLAB");
+    }
+
+    /** @param material materiál @return {@code true} pro schody */
+    public static boolean isStairs(Material material) {
+        return material != null && material.name().endsWith("_STAIRS");
+    }
+
+    /** @param material materiál @return {@code true} pro zídku */
+    public static boolean isWall(Material material) {
+        return material != null && material.name().endsWith("_WALL");
+    }
+
+    /** @param material materiál @return {@code true} pro plot (ne branku) */
+    public static boolean isFence(Material material) {
+        return material != null && material.name().endsWith("_FENCE");
+    }
+
+    /** @param material materiál @return {@code true} pro branku plotu */
+    public static boolean isFenceGate(Material material) {
+        return material != null && material.name().endsWith("_FENCE_GATE");
+    }
+
+    /** @param material materiál @return {@code true} pro dveře (ne padací) */
+    public static boolean isDoor(Material material) {
+        return material != null && material.name().endsWith("_DOOR");
+    }
+
+    /** @param material materiál @return {@code true} pro padací dveře */
+    public static boolean isTrapdoor(Material material) {
+        return material != null && material.name().endsWith("_TRAPDOOR");
+    }
+
+    // ==================================================================
+    // Materiálové rodiny (dekor, sypké, led, minerální bloky)
+    // ==================================================================
+
+    /** @param material materiál @return {@code true} pro sklo (tabule i plné, ne láhev) */
+    public static boolean isGlass(Material material) {
+        if (material == null) {
+            return false;
+        }
+        String name = material.name();
+        return name.endsWith("GLASS") || name.endsWith("GLASS_PANE");
+    }
+
+    /** @param material materiál @return {@code true} pro vlnu */
+    public static boolean isWool(Material material) {
+        return material != null && material.name().endsWith("_WOOL");
+    }
+
+    /** @param material materiál @return {@code true} pro koberec */
+    public static boolean isCarpet(Material material) {
+        return material != null && material.name().endsWith("_CARPET");
+    }
+
+    /** @param material materiál @return {@code true} pro beton (plný, ne prášek) */
+    public static boolean isConcrete(Material material) {
+        return material != null && material.name().endsWith("_CONCRETE");
+    }
+
+    /** @param material materiál @return {@code true} pro betonový prášek (gravitační) */
+    public static boolean isConcretePowder(Material material) {
+        return material != null && material.name().endsWith("_CONCRETE_POWDER");
+    }
+
+    /** @param material materiál @return {@code true} pro terakotu (i glazovanou/barevnou) */
+    public static boolean isTerracotta(Material material) {
+        return material != null && material.name().endsWith("TERRACOTTA");
+    }
+
+    /** @param material materiál @return {@code true} pro deepslate v jakékoli podobě */
+    public static boolean isDeepslate(Material material) {
+        return material != null && material.name().contains("DEEPSLATE");
+    }
+
+    /** @param material materiál @return {@code true} pro písek (obyčejný i červený) */
+    public static boolean isSand(Material material) {
+        return material == Material.SAND || material == Material.RED_SAND;
+    }
+
+    private static final Set<Material> ICE = Set.of(
+            Material.ICE, Material.PACKED_ICE, Material.BLUE_ICE, Material.FROSTED_ICE);
+
+    /** @param material materiál @return {@code true} pro led (jakýkoli) */
+    public static boolean isIce(Material material) {
+        return material != null && ICE.contains(material);
+    }
+
+    /**
+     * Gravitační blok (padá dolů) – písek, štěrk, betonový prášek, kovadlina.
+     *
+     * @param material materiál ({@code null} = ne)
+     * @return {@code true} pro gravitační blok
+     */
+    public static boolean isGravityBlock(Material material) {
+        if (material == null) {
+            return false;
+        }
+        if (isSand(material) || material == Material.GRAVEL || isConcretePowder(material)) {
+            return true;
+        }
+        return material == Material.ANVIL || material == Material.CHIPPED_ANVIL
+                || material == Material.DAMAGED_ANVIL;
+    }
+
+    private static final Set<Material> MINERAL_BLOCKS = Set.of(
+            Material.IRON_BLOCK, Material.GOLD_BLOCK, Material.DIAMOND_BLOCK,
+            Material.EMERALD_BLOCK, Material.COAL_BLOCK, Material.REDSTONE_BLOCK,
+            Material.LAPIS_BLOCK, Material.NETHERITE_BLOCK, Material.COPPER_BLOCK,
+            Material.RAW_IRON_BLOCK, Material.RAW_GOLD_BLOCK, Material.RAW_COPPER_BLOCK,
+            Material.AMETHYST_BLOCK);
+
+    /**
+     * Minerální/skladovací blok (nakomprimovaná surovina – železný blok, zlatý
+     * blok, blok surové mědi…). Cennost, ne stavební materiál.
+     *
+     * @param material materiál ({@code null} = ne)
+     * @return {@code true} pro minerální blok
+     */
+    public static boolean isMineralBlock(Material material) {
+        return material != null && MINERAL_BLOCKS.contains(material);
     }
 }

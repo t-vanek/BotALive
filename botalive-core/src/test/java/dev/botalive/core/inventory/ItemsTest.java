@@ -29,6 +29,35 @@ class ItemsTest {
     }
 
     @Test
+    void podtypyNastroju() {
+        assertTrue(Items.isPickaxe(Material.IRON_PICKAXE));
+        assertFalse(Items.isPickaxe(Material.IRON_AXE));
+        assertTrue(Items.isAxe(Material.IRON_AXE));
+        assertFalse(Items.isAxe(Material.IRON_PICKAXE), "krumpáč není sekera");
+        assertTrue(Items.isShovel(Material.IRON_SHOVEL));
+        assertTrue(Items.isHoe(Material.IRON_HOE));
+        assertTrue(Items.isSword(Material.DIAMOND_SWORD));
+        assertFalse(Items.isSword(Material.DIAMOND_PICKAXE));
+        assertTrue(Items.isMeleeWeapon(Material.DIAMOND_SWORD));
+        assertTrue(Items.isMeleeWeapon(Material.TRIDENT));
+        assertFalse(Items.isMeleeWeapon(Material.BOW));
+    }
+
+    @Test
+    void podtypyDopravyADalsi() {
+        assertTrue(Items.isMinecart(Material.MINECART));
+        assertTrue(Items.isMinecart(Material.CHEST_MINECART));
+        assertFalse(Items.isMinecart(Material.OAK_BOAT));
+        assertTrue(Items.isRail(Material.RAIL));
+        assertTrue(Items.isRail(Material.POWERED_RAIL));
+        assertFalse(Items.isRail(Material.MINECART));
+        assertTrue(Items.isSmithingTemplate(Material.NETHERITE_UPGRADE_SMITHING_TEMPLATE));
+        assertTrue(Items.isSpawnEgg(Material.ZOMBIE_SPAWN_EGG));
+        assertFalse(Items.isSpawnEgg(Material.EGG));
+        assertTrue(Items.isHorseArmor(Material.IRON_HORSE_ARMOR));
+    }
+
+    @Test
     void zbraneAStrelivo() {
         assertTrue(Items.isWeapon(Material.DIAMOND_SWORD));
         assertTrue(Items.isWeapon(Material.BOW));
@@ -88,6 +117,12 @@ class ItemsTest {
     void dopravaUtilityBarviva() {
         assertTrue(Items.isTransport(Material.OAK_BOAT));
         assertTrue(Items.isTransport(Material.OAK_CHEST_BOAT));
+        assertTrue(Items.isTransport(Material.BAMBOO_RAFT), "bambusový prám je doprava");
+        assertTrue(Items.isBoat(Material.OAK_BOAT));
+        assertTrue(Items.isBoat(Material.BAMBOO_RAFT), "prám je loďka");
+        assertTrue(Items.isBoat(Material.BAMBOO_CHEST_RAFT));
+        assertFalse(Items.isBoat(Material.MINECART));
+        assertFalse(Items.isBoat(null));
         assertTrue(Items.isTransport(Material.MINECART));
         assertTrue(Items.isTransport(Material.CHEST_MINECART));
         assertTrue(Items.isTransport(Material.RAIL));
@@ -139,6 +174,41 @@ class ItemsTest {
         assertTrue(Items.isMobDrop(Material.BONE));
         assertTrue(Items.isMobDrop(Material.ENDER_PEARL));
         assertFalse(Items.isMobDrop(Material.DIAMOND));
+    }
+
+    @Test
+    void kovyDrahokamy() {
+        assertTrue(Items.isIngot(Material.IRON_INGOT));
+        assertTrue(Items.isIngot(Material.NETHERITE_INGOT));
+        assertFalse(Items.isIngot(Material.IRON_NUGGET));
+        assertTrue(Items.isNugget(Material.GOLD_NUGGET));
+        assertTrue(Items.isRawMetal(Material.RAW_IRON));
+        assertFalse(Items.isRawMetal(Material.RAW_IRON_BLOCK), "blok surové rudy není surový kov");
+        assertTrue(Items.isGem(Material.DIAMOND));
+        assertTrue(Items.isGem(Material.LAPIS_LAZULI));
+        assertFalse(Items.isGem(Material.COAL));
+    }
+
+    @Test
+    void jidloKnihyMisc() {
+        assertTrue(Items.isRawFood(Material.BEEF));
+        assertTrue(Items.isRawFood(Material.COD));
+        assertFalse(Items.isRawFood(Material.COOKED_BEEF));
+        assertTrue(Items.isCookedFood(Material.COOKED_BEEF));
+        assertTrue(Items.isCookedFood(Material.COOKED_SALMON));
+        assertFalse(Items.isCookedFood(Material.BEEF));
+        assertTrue(Items.isBook(Material.BOOK));
+        assertTrue(Items.isBook(Material.ENCHANTED_BOOK));
+        assertFalse(Items.isBook(Material.PAPER));
+        assertTrue(Items.isBanner(Material.WHITE_BANNER));
+        assertTrue(Items.isBed(Material.RED_BED));
+        assertTrue(Items.isHead(Material.SKELETON_SKULL));
+        assertTrue(Items.isHead(Material.PLAYER_HEAD));
+        assertFalse(Items.isHead(Material.STONE));
+        assertTrue(Items.isMap(Material.FILLED_MAP));
+        assertTrue(Items.isThrowable(Material.SNOWBALL));
+        assertTrue(Items.isThrowable(Material.SPLASH_POTION));
+        assertFalse(Items.isThrowable(Material.ARROW));
     }
 
     @Test

@@ -176,6 +176,83 @@ class MaterialsTest {
     }
 
     @Test
+    void woodPokryvaCelouVanilluDreva() {
+        assertTrue(Materials.isWood(Material.OAK_PLANKS));
+        assertTrue(Materials.isWood(Material.OAK_LOG));
+        assertTrue(Materials.isWood(Material.STRIPPED_OAK_LOG));
+        assertTrue(Materials.isWood(Material.OAK_WOOD));
+        assertTrue(Materials.isWood(Material.CRIMSON_STEM), "nether dřevo se počítá");
+        assertTrue(Materials.isWood(Material.CRIMSON_HYPHAE));
+        assertFalse(Materials.isWood(Material.STONE));
+        assertFalse(Materials.isWood(Material.STICK), "klacek není dřevo (polotovar)");
+        assertFalse(Materials.isWood(null));
+        assertTrue(Materials.isPlanks(Material.SPRUCE_PLANKS));
+        assertFalse(Materials.isPlanks(Material.OAK_LOG));
+    }
+
+    @Test
+    void listiAKamenNaturalni() {
+        assertTrue(Materials.isLeaves(Material.OAK_LEAVES));
+        assertTrue(Materials.isLeaves(Material.AZALEA_LEAVES));
+        assertFalse(Materials.isLeaves(Material.OAK_LOG));
+        assertFalse(Materials.isLeaves(null));
+        assertTrue(Materials.isStone(Material.STONE));
+        assertTrue(Materials.isStone(Material.GRANITE));
+        assertTrue(Materials.isStone(Material.DEEPSLATE));
+        assertTrue(Materials.isStone(Material.TUFF));
+        assertFalse(Materials.isStone(Material.COBBLESTONE), "dlažba není přírodní kámen");
+        assertFalse(Materials.isStone(Material.OAK_PLANKS));
+    }
+
+    @Test
+    void tvaryBloku() {
+        assertTrue(Materials.isSlab(Material.OAK_SLAB));
+        assertTrue(Materials.isStairs(Material.STONE_BRICK_STAIRS));
+        assertTrue(Materials.isWall(Material.COBBLESTONE_WALL));
+        assertTrue(Materials.isFence(Material.OAK_FENCE));
+        assertFalse(Materials.isFence(Material.OAK_FENCE_GATE), "branka není plot");
+        assertTrue(Materials.isFenceGate(Material.OAK_FENCE_GATE));
+        assertTrue(Materials.isDoor(Material.OAK_DOOR));
+        assertFalse(Materials.isDoor(Material.OAK_TRAPDOOR), "padací dveře nejsou dveře");
+        assertTrue(Materials.isTrapdoor(Material.OAK_TRAPDOOR));
+    }
+
+    @Test
+    void materialoveRodiny() {
+        assertTrue(Materials.isGlass(Material.GLASS));
+        assertTrue(Materials.isGlass(Material.WHITE_STAINED_GLASS));
+        assertTrue(Materials.isGlass(Material.GLASS_PANE));
+        assertFalse(Materials.isGlass(Material.GLASS_BOTTLE), "láhev není sklo-blok");
+        assertTrue(Materials.isWool(Material.WHITE_WOOL));
+        assertTrue(Materials.isCarpet(Material.RED_CARPET));
+        assertTrue(Materials.isConcrete(Material.WHITE_CONCRETE));
+        assertFalse(Materials.isConcrete(Material.WHITE_CONCRETE_POWDER));
+        assertTrue(Materials.isConcretePowder(Material.WHITE_CONCRETE_POWDER));
+        assertTrue(Materials.isTerracotta(Material.TERRACOTTA));
+        assertTrue(Materials.isTerracotta(Material.WHITE_GLAZED_TERRACOTTA));
+        assertTrue(Materials.isDeepslate(Material.COBBLED_DEEPSLATE));
+        assertTrue(Materials.isDeepslate(Material.DEEPSLATE_IRON_ORE));
+        assertFalse(Materials.isDeepslate(Material.STONE));
+    }
+
+    @Test
+    void sypkeLedMineralni() {
+        assertTrue(Materials.isSand(Material.SAND));
+        assertTrue(Materials.isSand(Material.RED_SAND));
+        assertTrue(Materials.isIce(Material.PACKED_ICE));
+        assertTrue(Materials.isGravityBlock(Material.GRAVEL));
+        assertTrue(Materials.isGravityBlock(Material.SAND));
+        assertTrue(Materials.isGravityBlock(Material.WHITE_CONCRETE_POWDER));
+        assertTrue(Materials.isGravityBlock(Material.ANVIL));
+        assertFalse(Materials.isGravityBlock(Material.STONE));
+        assertTrue(Materials.isMineralBlock(Material.IRON_BLOCK));
+        assertTrue(Materials.isMineralBlock(Material.RAW_IRON_BLOCK));
+        assertTrue(Materials.isMineralBlock(Material.DIAMOND_BLOCK));
+        assertFalse(Materials.isMineralBlock(Material.QUARTZ_BLOCK), "křemenný blok je stavební");
+        assertFalse(Materials.isMineralBlock(Material.STONE));
+    }
+
+    @Test
     void isLogNestripovanaKladaNeboKmen() {
         assertTrue(Materials.isLog(Material.OAK_LOG));
         assertTrue(Materials.isLog(Material.CRIMSON_STEM));

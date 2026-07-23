@@ -91,16 +91,45 @@ public final class Items {
         return SPECIAL_TOOLS.contains(material);
     }
 
+    /** @param material materiál @return {@code true} pro krumpáč (libovolný tier) */
+    public static boolean isPickaxe(Material material) {
+        return InventoryHelper.isTool(material, InventoryHelper.ToolType.PICKAXE);
+    }
+
+    /** @param material materiál @return {@code true} pro sekeru (ne krumpáč) */
+    public static boolean isAxe(Material material) {
+        return InventoryHelper.isTool(material, InventoryHelper.ToolType.AXE);
+    }
+
+    /** @param material materiál @return {@code true} pro lopatu */
+    public static boolean isShovel(Material material) {
+        return InventoryHelper.isTool(material, InventoryHelper.ToolType.SHOVEL);
+    }
+
+    /** @param material materiál @return {@code true} pro motyku */
+    public static boolean isHoe(Material material) {
+        return InventoryHelper.isTool(material, InventoryHelper.ToolType.HOE);
+    }
+
+    /** @param material materiál @return {@code true} pro meč */
+    public static boolean isSword(Material material) {
+        return InventoryHelper.isTool(material, InventoryHelper.ToolType.SWORD);
+    }
+
     /** @param material materiál @return {@code true} pro dálkovou zbraň (luk, kuše, trojzubec) */
     public static boolean isRangedWeapon(Material material) {
         return material == Material.BOW || material == Material.CROSSBOW
                 || material == Material.TRIDENT;
     }
 
+    /** @param material materiál @return {@code true} pro zbraň nablízko (meč, trojzubec) */
+    public static boolean isMeleeWeapon(Material material) {
+        return isSword(material) || material == Material.TRIDENT;
+    }
+
     /** @param material materiál @return {@code true} pro zbraň (meč nablízko i dálková) */
     public static boolean isWeapon(Material material) {
-        return material != null
-                && (material.name().endsWith("_SWORD") || isRangedWeapon(material));
+        return isSword(material) || isRangedWeapon(material);
     }
 
     /** @param material materiál @return {@code true} pro střelivo (šípy, ohňostroj do kuše) */
@@ -189,19 +218,48 @@ public final class Items {
             Material.WARPED_FUNGUS_ON_A_STICK);
 
     /**
-     * Dopravní prostředek (loďka, vozík, kolej, sedlo, elytra, prut na striderа)?
+     * Loďka nebo prám (i varianta s truhlou, napříč dřevy vč. bambusového
+     * prámu {@code _RAFT}).
+     *
+     * @param material materiál ({@code null} = ne)
+     * @return {@code true} pro lodní item
+     */
+    public static boolean isBoat(Material material) {
+        if (material == null) {
+            return false;
+        }
+        String name = material.name();
+        return name.endsWith("_BOAT") || name.endsWith("_RAFT");
+    }
+
+    /** @param material materiál @return {@code true} pro vozík (i s truhlou/pecí/násypkou/TNT) */
+    public static boolean isMinecart(Material material) {
+        if (material == null) {
+            return false;
+        }
+        String name = material.name();
+        return name.equals("MINECART") || name.endsWith("_MINECART");
+    }
+
+    /** @param material materiál @return {@code true} pro kolej (i powered/detector/activator) */
+    public static boolean isRail(Material material) {
+        if (material == null) {
+            return false;
+        }
+        String name = material.name();
+        return name.equals("RAIL") || name.endsWith("_RAIL");
+    }
+
+    /**
+     * Dopravní prostředek (loďka/prám, vozík, kolej, sedlo, elytra, prut na
+     * striderа)?
      *
      * @param material materiál
      * @return {@code true} pro dopravu
      */
     public static boolean isTransport(Material material) {
-        if (material == null) {
-            return false;
-        }
-        String name = material.name();
-        return name.endsWith("_BOAT") || name.equals("MINECART") || name.endsWith("_MINECART")
-                || name.equals("RAIL") || name.endsWith("_RAIL")
-                || TRANSPORT_EXTRA.contains(material);
+        return isBoat(material) || isMinecart(material) || isRail(material)
+                || (material != null && TRANSPORT_EXTRA.contains(material));
     }
 
     /** @param material materiál @return {@code true} pro kýbl (prázdný i plný) */
@@ -274,16 +332,32 @@ public final class Items {
      * @param material materiál
      * @return {@code true} pro cennost
      */
+    /** @param material materiál @return {@code true} pro kovářskou šablonu (netherite/ozdoby) */
+    public static boolean isSmithingTemplate(Material material) {
+        return material != null && material.name().endsWith("_SMITHING_TEMPLATE");
+    }
+
+    /** @param material materiál @return {@code true} pro hudební disk */
+    public static boolean isMusicDisc(Material material) {
+        return material != null && material.name().startsWith("MUSIC_DISC");
+    }
+
+    /** @param material materiál @return {@code true} pro spawn vajíčko moba */
+    public static boolean isSpawnEgg(Material material) {
+        return material != null && material.name().endsWith("_SPAWN_EGG");
+    }
+
+    /** @param material materiál @return {@code true} pro koňské brnění */
+    public static boolean isHorseArmor(Material material) {
+        return material != null && material.name().endsWith("_HORSE_ARMOR");
+    }
+
     public static boolean isValuable(Material material) {
         if (material == null) {
             return false;
         }
-        if (Materials.isBankable(material)) {
-            return true;
-        }
-        String name = material.name();
-        return name.endsWith("_SMITHING_TEMPLATE") || name.startsWith("MUSIC_DISC")
-                || VALUABLE_ITEMS.contains(material);
+        return Materials.isBankable(material) || isSmithingTemplate(material)
+                || isMusicDisc(material) || VALUABLE_ITEMS.contains(material);
     }
 
     private static final Set<Material> MOB_DROPS = Set.of(
@@ -299,6 +373,95 @@ public final class Items {
     /** @param material materiál @return {@code true} pro drop moba (surovina craftu) */
     public static boolean isMobDrop(Material material) {
         return material != null && MOB_DROPS.contains(material);
+    }
+
+    // ==================================================================
+    // Kovy, drahokamy, jídlo, knihy a další podkategorie
+    // ==================================================================
+
+    /** @param material materiál @return {@code true} pro ingot (železný/zlatý/měděný/netheritový) */
+    public static boolean isIngot(Material material) {
+        return material != null && material.name().endsWith("_INGOT");
+    }
+
+    /** @param material materiál @return {@code true} pro nuget (železný/zlatý) */
+    public static boolean isNugget(Material material) {
+        return material != null && material.name().endsWith("_NUGGET");
+    }
+
+    /** @param material materiál @return {@code true} pro surový kov (ruda-drop, ne blok) */
+    public static boolean isRawMetal(Material material) {
+        if (material == null) {
+            return false;
+        }
+        String name = material.name();
+        return name.startsWith("RAW_") && !name.endsWith("_BLOCK");
+    }
+
+    private static final Set<Material> GEMS = Set.of(
+            Material.DIAMOND, Material.EMERALD, Material.LAPIS_LAZULI,
+            Material.AMETHYST_SHARD, Material.QUARTZ);
+
+    /** @param material materiál @return {@code true} pro drahý kámen (diamant, smaragd…) */
+    public static boolean isGem(Material material) {
+        return material != null && GEMS.contains(material);
+    }
+
+    private static final Set<Material> RAW_FOOD = Set.of(
+            Material.BEEF, Material.PORKCHOP, Material.CHICKEN, Material.MUTTON,
+            Material.RABBIT, Material.COD, Material.SALMON);
+
+    /** @param material materiál @return {@code true} pro syrové maso/rybu (k upečení) */
+    public static boolean isRawFood(Material material) {
+        return material != null && RAW_FOOD.contains(material);
+    }
+
+    /** @param material materiál @return {@code true} pro pečené jídlo (COOKED_*) */
+    public static boolean isCookedFood(Material material) {
+        return material != null && material.name().startsWith("COOKED_");
+    }
+
+    private static final Set<Material> BOOKS = Set.of(
+            Material.BOOK, Material.WRITABLE_BOOK, Material.WRITTEN_BOOK,
+            Material.ENCHANTED_BOOK, Material.KNOWLEDGE_BOOK);
+
+    /** @param material materiál @return {@code true} pro knihu (i psací/enchantovanou) */
+    public static boolean isBook(Material material) {
+        return material != null && BOOKS.contains(material);
+    }
+
+    /** @param material materiál @return {@code true} pro vlajku */
+    public static boolean isBanner(Material material) {
+        return material != null && material.name().endsWith("_BANNER");
+    }
+
+    /** @param material materiál @return {@code true} pro postel */
+    public static boolean isBed(Material material) {
+        return material != null && material.name().endsWith("_BED");
+    }
+
+    /** @param material materiál @return {@code true} pro hlavu/lebku moba */
+    public static boolean isHead(Material material) {
+        if (material == null) {
+            return false;
+        }
+        String name = material.name();
+        return name.endsWith("_HEAD") || name.endsWith("_SKULL");
+    }
+
+    /** @param material materiál @return {@code true} pro mapu (prázdnou i vyplněnou) */
+    public static boolean isMap(Material material) {
+        return material == Material.MAP || material == Material.FILLED_MAP;
+    }
+
+    private static final Set<Material> THROWABLES = Set.of(
+            Material.SNOWBALL, Material.EGG, Material.ENDER_PEARL,
+            Material.EXPERIENCE_BOTTLE, Material.SPLASH_POTION, Material.LINGERING_POTION,
+            Material.FIRE_CHARGE);
+
+    /** @param material materiál @return {@code true} pro vrhací item (koule, vejce, splash…) */
+    public static boolean isThrowable(Material material) {
+        return material != null && THROWABLES.contains(material);
     }
 
     // ==================================================================
