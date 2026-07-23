@@ -189,10 +189,17 @@ public final class HouseGenerator implements Blueprint {
 
     @Override
     public List<FurnishCell> furnishing(BlockPos origin, Cardinal facing) {
-        return List.of(
-                new FurnishCell(FurnishKind.DOOR, local(origin, center(), 0, 0, facing)),
-                new FurnishCell(FurnishKind.BED, local(origin, 1, 0, 1, facing)),
-                new FurnishCell(FurnishKind.TORCH, local(origin, width - 2, 0, 1, facing)));
+        List<FurnishCell> result = new ArrayList<>();
+        result.add(new FurnishCell(FurnishKind.DOOR, local(origin, center(), 0, 0, facing)));
+        result.add(new FurnishCell(FurnishKind.BED, local(origin, 1, 0, 1, facing)));
+        // Reprezentativní dům svítí lucernami (místo pochodně, a jednou navíc).
+        FurnishKind light = tier == BuildTier.REFINED ? FurnishKind.LANTERN : FurnishKind.TORCH;
+        result.add(new FurnishCell(light, local(origin, width - 2, 0, 1, facing)));
+        if (tier == BuildTier.REFINED) {
+            result.add(new FurnishCell(FurnishKind.LANTERN,
+                    local(origin, 1, 0, width - 2, facing)));
+        }
+        return result;
     }
 
     @Override

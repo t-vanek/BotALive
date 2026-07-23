@@ -106,6 +106,13 @@ palety), takže REFINED dům dostane **komín** – sloupec u nároží nad stř
 projde) a vyšší bloky stavitel dosáhne z pilířového stanoviště. Nižší stupně
 mají prostou geometrii beze změny.
 
+**Dekorace a osvětlení:** REFINED dům svítí **lucernami** místo pochodně (a
+jednou navíc) – `HouseGenerator.furnishing` je teď tier-aware (`FurnishKind.LANTERN`).
+Lucerny bot vyrobí sám z přebytku železa: `CraftPlanner` má masonry-gated řetěz
+*ingot → 9 nugetů* a *8 nugetů + pochodeň → lucerna*, s rezervou ingotů (nástroje
+a brnění mají přednost). Další dekorace (truhlíky s květinami, plot s brankou)
+jsou možné rozšíření – každá chce vlastní autonomní sběr/craft.
+
 - `PaletteResolver.resolve(woodHint, seed, tier)` – nová dimenze `tier`;
   2-arg varianta zůstává a míří na `SOLID` (dnešní vzhled beze změny).
   U `PROVISIONAL` je role `WINDOW` prázdná → `intended` je prázdné →

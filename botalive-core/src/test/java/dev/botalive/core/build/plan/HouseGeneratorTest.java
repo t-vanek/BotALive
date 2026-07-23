@@ -106,6 +106,23 @@ class HouseGeneratorTest {
     }
 
     @Test
+    void refinedHouseIsLitByLanterns() {
+        List<FurnishCell> solid = new HouseGenerator(5, 3, true, BuildTier.SOLID)
+                .furnishing(ORIGIN, Cardinal.NORTH);
+        List<FurnishCell> refined = new HouseGenerator(5, 3, true, BuildTier.REFINED)
+                .furnishing(ORIGIN, Cardinal.NORTH);
+        // Solidní dům svítí pochodní, reprezentativní lucernami.
+        assertTrue(solid.stream().anyMatch(f -> f.kind() == FurnishKind.TORCH),
+                "solidní má pochodeň");
+        assertTrue(solid.stream().noneMatch(f -> f.kind() == FurnishKind.LANTERN),
+                "solidní bez lucerny");
+        long lanterns = refined.stream().filter(f -> f.kind() == FurnishKind.LANTERN).count();
+        assertEquals(2, lanterns, "reprezentativní dům má dvě lucerny");
+        assertTrue(refined.stream().noneMatch(f -> f.kind() == FurnishKind.TORCH),
+                "reprezentativní bez pochodně");
+    }
+
+    @Test
     void refinedHouseHasSupportedChimneyAboveRoof() {
         HouseGenerator solid = new HouseGenerator(5, 3, true, BuildTier.SOLID);
         HouseGenerator refined = new HouseGenerator(5, 3, true, BuildTier.REFINED);

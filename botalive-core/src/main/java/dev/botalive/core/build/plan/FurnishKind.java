@@ -13,6 +13,8 @@ public enum FurnishKind {
     DOOR,
     /** Pochodeň (světlo). */
     TORCH,
+    /** Lucerna – reprezentativní osvětlení (REFINED dům místo pochodně). */
+    LANTERN,
     /** Postel. */
     BED,
     /** Truhla (sýpka – dvojtruhla dvěma buňkami). */

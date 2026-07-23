@@ -53,6 +53,12 @@ public final class CraftPlanner {
     /** Strop zásoby skleněných tabulí do oken reprezentativního domu. */
     private static final int GLASS_PANE_STOCK = 16;
 
+    /** Strop zásoby luceren (osvětlení reprezentativního domu). */
+    private static final int LANTERN_STOCK = 4;
+
+    /** Ingoty železa ponechané na nástroje/brnění – nugety až z přebytku. */
+    private static final int IRON_RESERVE = 3;
+
     /**
      * Jeden plán receptu: co vyrobit a z čeho (3×3 matice, row-major).
      *
@@ -621,6 +627,22 @@ public final class CraftPlanner {
             return new Plan("skleněné tabule", matrix(
                     Material.GLASS, 0, Material.GLASS, 1, Material.GLASS, 2,
                     Material.GLASS, 3, Material.GLASS, 4, Material.GLASS, 5), true);
+        }
+        // ---- lucerny do REFINED domu: z přebytku železa nugety, z nich lucerna
+        // (8 nugetů + pochodeň). Úplně nejnižší priorita a rezerva ingotů –
+        // nástroje a brnění mají vždy přednost před osvětlením.
+        if (s.masonry() && s.count(Material.LANTERN) < LANTERN_STOCK
+                && s.count(Material.IRON_NUGGET) < 8
+                && s.count(Material.IRON_INGOT) > IRON_RESERVE) {
+            return new Plan("železné nugety", matrix(Material.IRON_INGOT, 0), false);
+        }
+        if (s.masonry() && s.hasTable() && s.count(Material.IRON_NUGGET) >= 8
+                && s.count(Material.TORCH) >= 1 && s.count(Material.LANTERN) < LANTERN_STOCK) {
+            return new Plan("lucerna", matrix(
+                    Material.IRON_NUGGET, 0, Material.IRON_NUGGET, 1, Material.IRON_NUGGET, 2,
+                    Material.IRON_NUGGET, 3, Material.TORCH, 4, Material.IRON_NUGGET, 5,
+                    Material.IRON_NUGGET, 6, Material.IRON_NUGGET, 7, Material.IRON_NUGGET, 8),
+                    true);
         }
         return null;
     }

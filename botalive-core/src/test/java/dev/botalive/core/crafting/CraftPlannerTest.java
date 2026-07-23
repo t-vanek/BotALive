@@ -79,6 +79,20 @@ class CraftPlannerTest {
     }
 
     @Test
+    void lucernyJenProRefined() {
+        // Z přebytku železa se udělají nugety (1×1, bez ponku).
+        assertEquals("železné nugety",
+                CraftPlanner.next(stateMasonry(Material.IRON_INGOT, 4)).id());
+        // 8 nugetů + pochodeň + ponk → lucerna.
+        assertEquals("lucerna", CraftPlanner.next(stateMasonry(
+                Material.CRAFTING_TABLE, 1, Material.IRON_NUGGET, 8, Material.TORCH, 1)).id());
+        // Bez masonry se lucerny nedělají – nestavitel železo neplýtvá.
+        assertNull(CraftPlanner.next(state(Material.IRON_INGOT, 4)));
+        // Rezerva železa: na mezi ingotů se nugety nemelou.
+        assertNull(CraftPlanner.next(stateMasonry(Material.IRON_INGOT, 3)));
+    }
+
+    @Test
     void skleneneTabuleJenProRefined() {
         // Stavitel REFINED (masonry) ze 6 skel složí tabule do oken.
         assertEquals("skleněné tabule", CraftPlanner.next(stateMasonry(Material.GLASS, 6)).id());
