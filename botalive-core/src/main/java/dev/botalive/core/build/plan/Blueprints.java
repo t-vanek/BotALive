@@ -24,8 +24,8 @@ public final class Blueprints {
     private static final Blueprint GRANARY = new HouseLegacy(true);
     private static final Blueprint WELL = new WellLegacy();
     private static final Blueprint MARKET_STALL = new MarketStallLegacy();
-    private static final Blueprint TOWN_HALL = new CivicHall(5, 5, 5, false);
-    private static final Blueprint CHURCH = new CivicHall(5, 7, 6, false);
+    private static final Blueprint TOWN_HALL = new Hall(5, 5, 5, false);
+    private static final Blueprint CHURCH = new Hall(5, 7, 6, false);
     private static final Blueprint BELL_TOWER = new BellTower();
 
     private Blueprints() {
@@ -78,6 +78,71 @@ public final class Blueprints {
      */
     public static Blueprint workshop(Material station, Material secondary) {
         return new WorkshopLegacy(station, secondary);
+    }
+
+    /**
+     * Půdorys menší nebo rovný legacy velikosti (nebo prázdný {@code size})
+     * znamená „drž dnešní pevnou stavbu" – parametrizace se projeví, až prosperita
+     * zvětší půdorys nad legacy. Chrání to bitovou paritu (a už postavené stavby).
+     */
+    private static boolean legacySize(StructureSize size) {
+        return size == null || size.width() < 5 || size.depth() < 5;
+    }
+
+    /**
+     * Radnice velikosti {@code size} (prosperita → větší sál); pod legacy velikostí
+     * vrací dnešní pevný sál 5×5×5.
+     */
+    public static Blueprint townHall(StructureSize size) {
+        return legacySize(size) ? TOWN_HALL
+                : new Hall(size.width(), size.depth(), size.wallHeight(), false);
+    }
+
+    /** Kostel velikosti {@code size}; pod legacy velikostí dnešní loď 5×7×6. */
+    public static Blueprint church(StructureSize size) {
+        return legacySize(size) ? CHURCH
+                : new Hall(size.width(), size.depth(), size.wallHeight(), false);
+    }
+
+    /**
+     * Sýpka/zásobárna velikosti {@code size} – zděný sklad s dvojtruhlou a plochou
+     * střechou; pod legacy velikostí dnešní domek 4×4 s dvojtruhlou (parita,
+     * a už postavené sýpky se opravují proti svému tvaru).
+     */
+    public static Blueprint granary(StructureSize size) {
+        return legacySize(size) ? GRANARY
+                : new Hall(size.width(), size.depth(), size.wallHeight(), false,
+                        HallUse.STORAGE, null, null);
+    }
+
+    /**
+     * Řemeslná dílna velikosti {@code size} – zděný sál s pracovní stanicí (a
+     * volitelně vedlejší); pod legacy velikostí dnešní bouda 4×4.
+     */
+    public static Blueprint workshop(Material station, Material secondary, StructureSize size) {
+        return legacySize(size) ? new WorkshopLegacy(station, secondary)
+                : new Hall(size.width(), size.depth(), size.wallHeight(), false,
+                        HallUse.WORKSHOP, station, secondary);
+    }
+
+    /**
+     * Pozice (dvoj)truhly skladového sálu ({@link #granary(StructureSize)}) i legacy
+     * sýpky – jedno místo pravdy pro cíle, které do skladu ukládají/berou
+     * ({@code GranaryGoal}, {@code StashGoal}). Dopočítá se z {@code furnishing()}
+     * daného blueprintu (buňka {@link FurnishKind#CHEST}), takže sedí i na širší
+     * sýpku.
+     *
+     * @param storage blueprint skladu (legacy sýpka nebo sizovaný sál)
+     * @param origin  roh půdorysu skladu
+     * @param facing  orientace
+     * @return pozice první truhly, nebo prázdné (blueprint truhlu nemá)
+     */
+    public static Optional<BlockPos> storageChest(Blueprint storage, BlockPos origin,
+                                                  Cardinal facing) {
+        return storage.furnishing(origin, facing).stream()
+                .filter(cell -> cell.kind() == FurnishKind.CHEST)
+                .map(FurnishCell::pos)
+                .findFirst();
     }
 
     // ================================================================= dům/sýpka
@@ -304,24 +369,38 @@ public final class Blueprints {
         }
     }
 
-    // ============================================================== civilní sály
+    // ================================================================= zděné sály
+
+    /** Vnitřní využití sálu – určuje jen vybavení, geometrie je stejná. */
+    enum HallUse { CIVIC, STORAGE, WORKSHOP }
 
     /**
-     * Civilní sál sídla (radnice, kostel) – parametrická obdélníková zděná
-     * stavba {@code width×depth} s plochou střechou, dveřmi orientovanými
-     * k návsi a okenními štěrbinami uprostřed ostatních stěn (od výšky očí po
-     * předposlední řadu, takže vyšší zdi mají vyšší okna). Bloky role
-     * {@code GENERIC} jako sýpka/tržiště. Prestižní stavby města – neposouvají
-     * stupeň. Parametry drží vrstvu laditelnou: malý sál ({@code standExact})
-     * se postaví z jednoho stanoviště, větší přes multi-standpoint planneru.
+     * Parametrický obdélníkový zděný sál {@code width×depth} s plochou střechou,
+     * dveřmi orientovanými k návsi a okenními štěrbinami uprostřed ostatních
+     * stěn (od výšky očí po předposlední řadu, takže vyšší zdi mají vyšší okna).
+     * Bloky role {@code GENERIC}. Sdílí ho <b>civilní stavby</b> (radnice,
+     * kostel – jen pochodeň), <b>sklady</b> (sýpka, zásobárna – dvojtruhla) a
+     * <b>velké dílny</b> (pracovní stanice) – liší se jen vybavením. Parametry
+     * drží vrstvu laditelnou: malý sál ({@code standExact}) se postaví z jednoho
+     * stanoviště, větší přes multi-standpoint planneru; tak roste stavba se
+     * stupněm sídla (prosperita → větší sál).
      *
      * @param width      šířka (X); okno je ve středu stěn kolmých na X
      * @param depth      hloubka (Z)
      * @param wallHeight výška zdí (≥ 3)
      * @param standExact staví se přesně ze středu (malý sál), nebo z více míst
+     * @param use        vnitřní využití (vybavení)
+     * @param station    hlavní pracovní stanice ({@link HallUse#WORKSHOP}), jinak {@code null}
+     * @param secondary  vedlejší stanice ({@link HallUse#WORKSHOP}), nebo {@code null}
      */
-    private record CivicHall(int width, int depth, int wallHeight, boolean standExact)
+    private record Hall(int width, int depth, int wallHeight, boolean standExact,
+                        HallUse use, Material station, Material secondary)
             implements Blueprint {
+
+        /** Civilní sál (radnice, kostel) – bez stanic, jen pochodeň. */
+        Hall(int width, int depth, int wallHeight, boolean standExact) {
+            this(width, depth, wallHeight, standExact, HallUse.CIVIC, null, null);
+        }
 
         private boolean isPerimeter(int x, int z) {
             return x == 0 || x == width - 1 || z == 0 || z == depth - 1;
@@ -401,10 +480,29 @@ public final class Blueprints {
 
         @Override
         public List<FurnishCell> furnishing(BlockPos origin, Cardinal facing) {
-            // Dveře k návsi + jedna pochodeň uvnitř (u zdi, při každé orientaci).
-            return List.of(
-                    new FurnishCell(FurnishKind.DOOR, doorBottom(origin, facing)),
-                    new FurnishCell(FurnishKind.TORCH, origin.offset(1, 1, 1)));
+            List<FurnishCell> result = new ArrayList<>();
+            result.add(new FurnishCell(FurnishKind.DOOR, doorBottom(origin, facing)));
+            switch (use) {
+                case CIVIC ->
+                    // Jedna pochodeň uvnitř (u zdi, při každé orientaci).
+                    result.add(new FurnishCell(FurnishKind.TORCH, origin.offset(1, 1, 1)));
+                case STORAGE -> {
+                    // Dvojtruhla ve vnitřním rohu + pochodeň (parita se sýpkou).
+                    result.add(new FurnishCell(FurnishKind.CHEST, origin.offset(1, 0, 1)));
+                    result.add(new FurnishCell(FurnishKind.CHEST, origin.offset(2, 0, 1)));
+                    result.add(new FurnishCell(FurnishKind.TORCH, origin.offset(width - 2, 1, 1)));
+                }
+                case WORKSHOP -> {
+                    // Hlavní (a volitelně vedlejší) stanice + pochodeň.
+                    result.add(new FurnishCell(FurnishKind.STATION, origin.offset(1, 0, 1), station));
+                    if (secondary != null) {
+                        result.add(new FurnishCell(FurnishKind.STATION,
+                                origin.offset(1, 0, depth - 2), secondary));
+                    }
+                    result.add(new FurnishCell(FurnishKind.TORCH, origin.offset(width - 2, 1, 1)));
+                }
+            }
+            return result;
         }
 
         @Override
