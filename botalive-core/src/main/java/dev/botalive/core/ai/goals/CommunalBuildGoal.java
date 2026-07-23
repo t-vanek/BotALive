@@ -132,7 +132,7 @@ public final class CommunalBuildGoal extends AbstractGoal {
             // spotřeba, takže se chování studny/sýpky/tržiště nemění.
             BotNeeds needs = BotNeeds.assess(ctx.serverView().latest());
             if (needs.buildingBlocks()
-                    < startThreshold(blueprintFor(needed.get().kind()).blocksNeeded())) {
+                    < startThreshold(blueprintFor(needed.get()).blocksNeeded())) {
                 return 0;
             }
             if (!hasRequiredItems(ctx, needed.get().kind())) {
@@ -178,18 +178,26 @@ public final class CommunalBuildGoal extends AbstractGoal {
         }
     }
 
-    private Blueprint blueprintFor(ProjectKind kind) {
+    /**
+     * Blueprint projektu ze SKUTEČNÉ (persistované) velikosti – tak se stavba po
+     * restartu zrekonstruuje na týž tvar (idempotentní resume + centrování).
+     * Sizované druhy (radnice, kostel, městská sýpka/sklad) rostou s prosperitou;
+     * {@code size} = legacy (0) drží dnešní pevnou stavbu.
+     */
+    private Blueprint blueprintFor(SettlementService.ProjectInfo info) {
+        ProjectKind kind = info.kind();
+        var size = info.size();
         if (kind.isWorkshop()) {
             return Workshops.blueprint(kind.workshopRole().orElseThrow());
         }
         return switch (kind) {
             case WELL -> Blueprints.well();
-            case GRANARY -> Blueprints.granary();
+            case GRANARY -> Blueprints.granary(size);
             case MARKET_STALL -> Blueprints.marketStall();
-            case WAREHOUSE -> Blueprints.granary(); // sklad = zásobárna s dvojtruhlou
-            case TOWN_HALL -> Blueprints.townHall();
+            case WAREHOUSE -> Blueprints.granary(size); // sklad = zásobárna s dvojtruhlou
+            case TOWN_HALL -> Blueprints.townHall(size);
             case BELL_TOWER -> Blueprints.bellTower();
-            case CHURCH -> Blueprints.church();
+            case CHURCH -> Blueprints.church(size);
             default -> throw new IllegalStateException("není blueprint pro " + kind);
         };
     }
@@ -287,7 +295,7 @@ public final class CommunalBuildGoal extends AbstractGoal {
             return;
         }
         claimed = true;
-        plan = BuildPlan.of(blueprintFor(project.kind()), project.origin(), project.facing());
+        plan = BuildPlan.of(blueprintFor(project), project.origin(), project.facing());
         String name = settlementName(ctx, bot);
         long announceKey = project.settlementId() * 31 + project.kind().ordinal();
         if (name != null && announceKey != lastAnnouncedProject && ctx.rng().chance(0.6)) {
@@ -312,7 +320,7 @@ public final class CommunalBuildGoal extends AbstractGoal {
     private void enterProvision(BotContext ctx) {
         if (project != null && ctx.settlements() != null) {
             ctx.settlements().beginSupply(project.settlementId(), project.kind(),
-                    blueprintFor(project.kind()).blocksNeeded() + BLOCK_RESERVE);
+                    blueprintFor(project).blocksNeeded() + BLOCK_RESERVE);
         }
         phase = Phase.PROVISION;
     }
@@ -356,7 +364,7 @@ public final class CommunalBuildGoal extends AbstractGoal {
      */
     private void tickProvision(BotContext ctx) {
         int have = BotNeeds.assess(ctx.serverView().latest()).buildingBlocks();
-        int want = blueprintFor(project.kind()).blocksNeeded() + BLOCK_RESERVE;
+        int want = blueprintFor(project).blocksNeeded() + BLOCK_RESERVE;
         if (provisionStep(have, want, false) == ProvisionStep.BUILD) {
             gather = null;
             phase = Phase.GOTO; // materiálu dost – rovnou stavět
@@ -465,7 +473,7 @@ public final class CommunalBuildGoal extends AbstractGoal {
                 }
                 if (draw == null) {
                     int have = BotNeeds.assess(ctx.serverView().latest()).buildingBlocks();
-                    int want = blueprintFor(project.kind()).blocksNeeded() + BLOCK_RESERVE;
+                    int want = blueprintFor(project).blocksNeeded() + BLOCK_RESERVE;
                     draw = containers.withdrawBuildingBlocks(ctx, world.worldName(),
                             depotChest, Math.max(0, want - have));
                     return;
@@ -586,7 +594,7 @@ public final class CommunalBuildGoal extends AbstractGoal {
      * @return {@code true} když se může stavět
      */
     private boolean adjustSite(BotContext ctx, WorldView world) {
-        Blueprint blueprint = blueprintFor(project.kind());
+        Blueprint blueprint = blueprintFor(project);
         var site = ctx.config().build().site();
         // Vycentrovat půdorys na parcelu: plotOrigin počítá roh z rozměru domu
         // (4×4), takže studna/tržiště/kostel s jiným rozměrem sedí mimo střed.
@@ -610,7 +618,8 @@ public final class CommunalBuildGoal extends AbstractGoal {
             ctx.settlements().updateProjectOrigin(project.settlementId(),
                     project.kind(), usable);
             project = new SettlementService.ProjectInfo(project.settlementId(),
-                    project.kind(), usable, project.facing(), project.done());
+                    project.kind(), usable, project.facing(), project.done(),
+                    project.width(), project.depth(), project.wallHeight());
             plan = BuildPlan.of(blueprint, usable, project.facing());
         }
         return true;

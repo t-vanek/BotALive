@@ -114,4 +114,32 @@ public final class StructureSizer {
         int height = houseWallHeight(tier, laziness, minHeight, maxHeight);
         return new StructureSize(width, width, height);
     }
+
+    // -------------------------------------------------------- společné stavby
+
+    /**
+     * Vyškáluje základní (legacy) rozměr zděného sálu podle stupně sídla: město
+     * staví o krok větší a vyšší než vesnice. Monotónní (nikdy nezmenší); span
+     * se přichytí pod {@code spanCap} (typicky rozestup parcel − rezerva na
+     * cestu), aby stavba zůstala na jedné parcele. Rozhoduje volající, kterým
+     * druhům sál škáluje (landmarky drží pevnou velikost).
+     *
+     * @param baseW   základní šířka (legacy)
+     * @param baseD   základní hloubka (legacy)
+     * @param baseH   základní výška zdí (legacy)
+     * @param tier    stupeň sídla ({@code null} = osada)
+     * @param spanCap horní mez půdorysného rozměru
+     * @return vyškálovaný rozměr sálu
+     */
+    public static StructureSize scaledHall(int baseW, int baseD, int baseH,
+                                           SettlementTier tier, int spanCap) {
+        int step = switch (tier == null ? SettlementTier.OSADA : tier) {
+            case OSADA, VESNICE -> 0;
+            case MESTO -> 1;
+        };
+        int w = Math.min(spanCap, baseW + 2 * step);
+        int d = Math.min(spanCap, baseD + 2 * step);
+        int h = baseH + step;
+        return new StructureSize(w, d, h);
+    }
 }

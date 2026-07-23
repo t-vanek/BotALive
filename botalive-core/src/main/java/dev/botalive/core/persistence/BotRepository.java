@@ -523,10 +523,14 @@ public final class BotRepository {
      * @param state        stav životního cyklu (název {@code ProjectState})
      * @param needed       rozpis materiálu (BOM) – kolik bloků stavba chce
      * @param contributed  kolik bloků už sběrači nanosili
+     * @param width        šířka stavby (0 = legacy pevná velikost druhu)
+     * @param depth        hloubka stavby (0 = legacy)
+     * @param wallHeight   výška zdí (0 = legacy)
      */
     public record SettlementProjectRow(long settlementId, String kind, int plotIndex,
                                        int x, int y, int z, String facing, boolean done,
-                                       String state, int needed, int contributed) {
+                                       String state, int needed, int contributed,
+                                       int width, int depth, int wallHeight) {
     }
 
     /**
@@ -537,13 +541,15 @@ public final class BotRepository {
             List<SettlementProjectRow> result = new ArrayList<>();
             try (PreparedStatement ps = connection.prepareStatement(
                     "SELECT settlement_id, kind, plot_index, x, y, z, facing, done, "
-                            + "state, needed, contributed FROM ba_settlement_projects");
+                            + "state, needed, contributed, width, depth, wall_height "
+                            + "FROM ba_settlement_projects");
                  ResultSet rs = ps.executeQuery()) {
                 while (rs.next()) {
                     result.add(new SettlementProjectRow(rs.getLong(1), rs.getString(2),
                             rs.getInt(3), rs.getInt(4), rs.getInt(5), rs.getInt(6),
                             rs.getString(7), rs.getInt(8) != 0,
-                            rs.getString(9), rs.getInt(10), rs.getInt(11)));
+                            rs.getString(9), rs.getInt(10), rs.getInt(11),
+                            rs.getInt(12), rs.getInt(13), rs.getInt(14)));
                 }
                 return result;
             } catch (SQLException e) {
@@ -559,15 +565,17 @@ public final class BotRepository {
                                                            int plotIndex, int x, int y, int z,
                                                            String facing, boolean done,
                                                            String state, int needed,
-                                                           int contributed) {
+                                                           int contributed, int width, int depth,
+                                                           int wallHeight) {
         String sql = "INSERT INTO ba_settlement_projects(settlement_id, kind, plot_index, "
-                + "x, y, z, facing, done, state, needed, contributed) "
-                + "VALUES (?,?,?,?,?,?,?,?,?,?,?)"
+                + "x, y, z, facing, done, state, needed, contributed, width, depth, wall_height) "
+                + "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
                 + db.dialect().upsertSuffix("settlement_id, kind",
                 "plot_index=excluded.plot_index, x=excluded.x, y=excluded.y, "
                         + "z=excluded.z, facing=excluded.facing, done=excluded.done, "
                         + "state=excluded.state, needed=excluded.needed, "
-                        + "contributed=excluded.contributed");
+                        + "contributed=excluded.contributed, width=excluded.width, "
+                        + "depth=excluded.depth, wall_height=excluded.wall_height");
         return db.async(connection -> {
             try (PreparedStatement ps = connection.prepareStatement(sql)) {
                 ps.setLong(1, settlementId);
@@ -581,6 +589,9 @@ public final class BotRepository {
                 ps.setString(9, state);
                 ps.setInt(10, needed);
                 ps.setInt(11, contributed);
+                ps.setInt(12, width);
+                ps.setInt(13, depth);
+                ps.setInt(14, wallHeight);
                 ps.executeUpdate();
                 return null;
             } catch (SQLException e) {

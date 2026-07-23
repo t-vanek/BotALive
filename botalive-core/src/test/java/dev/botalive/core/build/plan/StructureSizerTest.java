@@ -83,6 +83,19 @@ class StructureSizerTest {
     }
 
     @Test
+    void scaledHallGrowsWithCityAndClampsToSpan() {
+        // Vesnice: základní velikost; město: o krok větší (monotónní).
+        StructureSize village = StructureSizer.scaledHall(5, 5, 5, SettlementTier.VESNICE, 9);
+        StructureSize town = StructureSizer.scaledHall(5, 5, 5, SettlementTier.MESTO, 9);
+        assertEquals(new StructureSize(5, 5, 5), village, "vesnice = základ");
+        assertEquals(new StructureSize(7, 7, 6), town, "město o krok větší");
+        // Span se přichytí pod strop (kostel 5×7 ve městě → hloubka nejvýš 9).
+        StructureSize church = StructureSizer.scaledHall(5, 7, 6, SettlementTier.MESTO, 9);
+        assertTrue(church.footprintSpan() <= 9, "span pod stropem");
+        assertEquals(9, church.depth(), "hloubka přichycená na strop");
+    }
+
+    @Test
     void tierDelegationMatchesLegacy() {
         // HouseDesigner.tierFor deleguje sem – kontrakt zůstává.
         assertEquals(BuildTier.PROVISIONAL, StructureSizer.houseTier(SettlementTier.OSADA, 0.5));

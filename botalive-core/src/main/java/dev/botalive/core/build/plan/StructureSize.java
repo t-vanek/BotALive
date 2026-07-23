@@ -11,6 +11,14 @@ package dev.botalive.core.build.plan;
  */
 public record StructureSize(int width, int depth, int wallHeight) {
 
+    /** Sentinel „drž legacy pevnou velikost druhu" (nic se neškáluje). */
+    public static final StructureSize LEGACY = new StructureSize(0, 0, 0);
+
+    /** @return je to sentinel legacy velikosti (stavba drží dnešní pevný tvar)? */
+    public boolean isLegacy() {
+        return width < 5 || depth < 5;
+    }
+
     /** @return větší z půdorysných rozměrů (pro rezervaci parcel a odsazení). */
     public int footprintSpan() {
         return Math.max(width, depth);

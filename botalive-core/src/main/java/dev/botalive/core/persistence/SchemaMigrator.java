@@ -269,6 +269,19 @@ public final class SchemaMigrator {
                                 + "ADD COLUMN contributed INTEGER NOT NULL DEFAULT 0",
                         // Hotové stavby dostanou stav DONE, ať evidence sedí.
                         "UPDATE ba_settlement_projects SET state = 'DONE' WHERE done = 1"
+                ),
+                // v11 – dynamická velikost společných staveb: rozměr se volí
+                // z prosperity sídla při vzniku projektu a persistuje se, aby
+                // se stavba po restartu zrekonstruovala na TÝŽ tvar (idempotentní
+                // resume i pozdější růst). 0 = legacy pevná velikost druhu; už
+                // postavené stavby tak drží svůj tvar (fyzická stavba je autorita).
+                List.of(
+                        "ALTER TABLE ba_settlement_projects "
+                                + "ADD COLUMN width INTEGER NOT NULL DEFAULT 0",
+                        "ALTER TABLE ba_settlement_projects "
+                                + "ADD COLUMN depth INTEGER NOT NULL DEFAULT 0",
+                        "ALTER TABLE ba_settlement_projects "
+                                + "ADD COLUMN wall_height INTEGER NOT NULL DEFAULT 0"
                 )
         );
     }

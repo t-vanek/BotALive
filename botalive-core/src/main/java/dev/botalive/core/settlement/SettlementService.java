@@ -3,6 +3,8 @@ package dev.botalive.core.settlement;
 import dev.botalive.api.bot.Bot;
 import dev.botalive.api.role.BotRole;
 import dev.botalive.core.bot.BotManagerImpl;
+import dev.botalive.core.build.plan.StructureSize;
+import dev.botalive.core.build.plan.StructureSizer;
 import dev.botalive.core.util.Cardinal;
 import dev.botalive.core.config.BotAliveConfig;
 import dev.botalive.core.persistence.BotRepository;
@@ -302,9 +304,18 @@ public final class SettlementService {
      * @param origin       origin stavby (roh půdorysu)
      * @param facing       orientace
      * @param done         dokončeno
+     * @param width        šířka stavby (0 = legacy pevná velikost druhu)
+     * @param depth        hloubka stavby (0 = legacy)
+     * @param wallHeight   výška zdí (0 = legacy)
      */
     public record ProjectInfo(long settlementId, ProjectKind kind, BlockPos origin,
-                              Cardinal facing, boolean done) {
+                              Cardinal facing, boolean done,
+                              int width, int depth, int wallHeight) {
+
+        /** Persistovaná velikost stavby jako {@link StructureSize} (0 = legacy). */
+        public StructureSize size() {
+            return new StructureSize(width, depth, wallHeight);
+        }
     }
 
     /** Vnitřní stav projektu; {@code builder} je transientní (restart uvolní). */
@@ -325,6 +336,11 @@ public final class SettlementService {
         int needed;
         /** Kolik bloků už sběrači nanosili na tuto stavbu. */
         int contributed;
+        /** Velikost stavby (0 = legacy pevná velikost druhu). Zvolena z prosperity
+         *  při vzniku, persistovaná – idempotentní resume i monotónní růst. */
+        int width;
+        int depth;
+        int wallHeight;
 
         Project(ProjectKind kind, int plotIndex, BlockPos origin, Cardinal facing,
                 boolean done) {
@@ -334,6 +350,12 @@ public final class SettlementService {
 
         Project(ProjectKind kind, int plotIndex, BlockPos origin, Cardinal facing,
                 boolean done, ProjectState state, int needed, int contributed) {
+            this(kind, plotIndex, origin, facing, done, state, needed, contributed, 0, 0, 0);
+        }
+
+        Project(ProjectKind kind, int plotIndex, BlockPos origin, Cardinal facing,
+                boolean done, ProjectState state, int needed, int contributed,
+                int width, int depth, int wallHeight) {
             this.kind = kind;
             this.plotIndex = plotIndex;
             this.origin = origin;
@@ -342,6 +364,9 @@ public final class SettlementService {
             this.state = state;
             this.needed = needed;
             this.contributed = contributed;
+            this.width = width;
+            this.depth = depth;
+            this.wallHeight = wallHeight;
         }
     }
 
@@ -444,7 +469,8 @@ public final class SettlementService {
                 settlement.projects.put(kind, new Project(kind, row.plotIndex(),
                         new BlockPos(row.x(), row.y(), row.z()),
                         Cardinal.valueOf(row.facing()), row.done(),
-                        parseState(row.state(), row.done()), row.needed(), row.contributed()));
+                        parseState(row.state(), row.done()), row.needed(), row.contributed(),
+                        row.width(), row.depth(), row.wallHeight()));
                 // Parcela projektu není pro domy – trvale.
                 settlement.unusablePlots.put(row.plotIndex(), Long.MAX_VALUE);
             }
@@ -887,6 +913,12 @@ public final class SettlementService {
                     config.plotSpacing());
             project = new Project(needed, index, origin,
                     PlotLayout.facingToward(origin, settlement.center), false);
+            // Velikost z prosperity sídla, zvolená JEDNOU při vzniku a persistovaná
+            // (idempotentní resume i pozdější růst). 0 = legacy pevná velikost druhu.
+            StructureSize sz = communalSize(needed, tierOf(settlement));
+            project.width = sz.width();
+            project.depth = sz.depth();
+            project.wallHeight = sz.wallHeight();
             settlement.projects.put(needed, project);
             settlement.unusablePlots.put(index, Long.MAX_VALUE);
             persistProject(settlement, project);
@@ -1786,7 +1818,8 @@ public final class SettlementService {
             repository.upsertSettlementProject(settlement.id, project.kind.name(),
                     project.plotIndex, project.origin.x(), project.origin.y(),
                     project.origin.z(), project.facing.name(), project.done,
-                    project.state.name(), project.needed, project.contributed);
+                    project.state.name(), project.needed, project.contributed,
+                    project.width, project.depth, project.wallHeight);
         }
     }
 
@@ -1807,7 +1840,27 @@ public final class SettlementService {
 
     private ProjectInfo projectInfo(Settlement settlement, Project project) {
         return new ProjectInfo(settlement.id, project.kind, project.origin,
-                project.facing, project.done);
+                project.facing, project.done, project.width, project.depth, project.wallHeight);
+    }
+
+    /**
+     * Velikost společné stavby z prosperity sídla. Prestižní sály (radnice,
+     * kostel) a městské sklady (sýpka, zásobárna) rostou s městem; landmarky
+     * (studna, tržiště, zvonice) i účelné dílny drží pevnou legacy velikost –
+     * jsou to malé stavby, jejichž tvar je součástí identity. Span je přichycen
+     * pod rozestup parcel (rezerva na cestu), takže stavba zůstane na jedné
+     * parcele. {@link StructureSize#LEGACY} = drž dnešní pevnou stavbu.
+     */
+    private StructureSize communalSize(ProjectKind kind, SettlementTier tier) {
+        int spanCap = Math.max(5, config.plotSpacing() - 3);
+        return switch (kind) {
+            case TOWN_HALL -> StructureSizer.scaledHall(5, 5, 5, tier, spanCap);
+            case CHURCH -> StructureSizer.scaledHall(5, 7, 6, tier, spanCap);
+            case GRANARY, WAREHOUSE -> tier == SettlementTier.MESTO
+                    ? StructureSizer.scaledHall(5, 5, 3, tier, spanCap)
+                    : StructureSize.LEGACY;
+            default -> StructureSize.LEGACY; // landmarky a dílny: pevná velikost
+        };
     }
 
     /**

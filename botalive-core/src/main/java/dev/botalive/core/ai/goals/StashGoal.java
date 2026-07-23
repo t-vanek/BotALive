@@ -314,8 +314,15 @@ public final class StashGoal extends AbstractGoal {
         if (store.isEmpty()) {
             return null;
         }
-        BlockPos chest = dev.botalive.core.build.HouseBlueprint.bedSpot(
-                store.get().origin(), store.get().facing());
+        // Truhla se dopočítá z geometrie skladu jeho persistované velikosti
+        // (sklad = zásobárna s dvojtruhlou, tj. blueprint sýpky) – sedí i na
+        // širší městský sklad, ne jen na legacy 4×4.
+        BlockPos chest = dev.botalive.core.build.plan.Blueprints.storageChest(
+                dev.botalive.core.build.plan.Blueprints.granary(store.get().size()),
+                store.get().origin(), store.get().facing()).orElse(null);
+        if (chest == null) {
+            return null;
+        }
         if (chest.distanceSquared(ctx.position().toBlockPos()) > 96 * 96) {
             return null; // moc daleko – ulož radši do bližší truhly
         }

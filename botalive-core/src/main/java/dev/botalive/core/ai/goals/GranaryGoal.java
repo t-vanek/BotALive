@@ -4,7 +4,6 @@ import dev.botalive.api.bot.Bot;
 import dev.botalive.api.personality.Trait;
 import dev.botalive.core.ai.BotContext;
 import dev.botalive.core.bot.ServerSideView;
-import dev.botalive.core.build.HouseBlueprint;
 import dev.botalive.core.inventory.InventoryHelper;
 import dev.botalive.core.pathfinding.PathGoal;
 import dev.botalive.core.settlement.SettlementService;
@@ -32,8 +31,9 @@ import java.util.concurrent.CompletableFuture;
  *       společné špajzky dřív než do cizí truhly.</li>
  * </ul>
  *
- * <p>Pozici truhly si cíl dopočítá z geometrie sýpky ({@link HouseBlueprint#bedSpot}
- * – kde blueprint sýpky klade dvojtruhlu). Přesun řeší {@link ChestStation}.</p>
+ * <p>Pozici truhly si cíl dopočítá z geometrie sýpky ({@code Blueprints.storageChest}
+ * nad blueprintem sýpky její persistované velikosti – sedí i na širší městskou
+ * sýpku, ne jen na legacy 4×4). Přesun řeší {@link ChestStation}.</p>
  */
 public final class GranaryGoal extends AbstractGoal {
 
@@ -201,7 +201,9 @@ public final class GranaryGoal extends AbstractGoal {
         }
         return settlements.doneProject(id.getAsLong(), SettlementService.ProjectKind.GRANARY)
                 .filter(p -> ctx.worldView() != null)
-                .map(p -> HouseBlueprint.bedSpot(p.origin(), p.facing()));
+                .flatMap(p -> dev.botalive.core.build.plan.Blueprints.storageChest(
+                        dev.botalive.core.build.plan.Blueprints.granary(p.size()),
+                        p.origin(), p.facing()));
     }
 
     /** Součet kusů jídla v batohu (hotbar + hlavní inventář). */
