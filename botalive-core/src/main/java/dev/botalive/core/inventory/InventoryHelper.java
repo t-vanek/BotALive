@@ -90,6 +90,31 @@ public class InventoryHelper {
     }
 
     /**
+     * Index nejvýše otierovaného itemu vyhovujícího predikátu (netherit &gt;
+     * diamant &gt; …). Pro výběr nejlepší zbraně/nástroje z pole slotů: chytit
+     * první výskyt (jako prostý sken) by v boji sáhlo po dřevěném meči vedle
+     * diamantového.
+     *
+     * @param items     pole slotů (může být {@code null})
+     * @param predicate podmínka na materiál
+     * @return index nejlepšího vyhovujícího slotu, nebo -1
+     */
+    static int bestTierSlot(Material[] items, java.util.function.Predicate<Material> predicate) {
+        if (items == null) {
+            return -1;
+        }
+        int bestSlot = -1;
+        int bestTier = -1;
+        for (int i = 0; i < items.length; i++) {
+            if (items[i] != null && predicate.test(items[i]) && toolTier(items[i]) > bestTier) {
+                bestTier = toolTier(items[i]);
+                bestSlot = i;
+            }
+        }
+        return bestSlot;
+    }
+
+    /**
      * Vybere hotbar slot, kam lze bezpečně odložit přitažený item:
      * prázdný → obyčejný materiál (bloky) → nejpočetnější stack. Nikdy nástroj,
      * zbraň, brnění ani jídlo, pokud existuje jiná možnost – tyhle se používají
@@ -435,30 +460,9 @@ public class InventoryHelper {
         if (type == ToolType.NONE || snapshot == null) {
             return false;
         }
-        int bestSlot = -1;
-        int bestTier = -1;
-        Material[] hotbar = snapshot.hotbar();
-        for (int i = 0; i < hotbar.length; i++) {
-            if (hotbar[i] != null && isTool(hotbar[i], type) && toolTier(hotbar[i]) > bestTier) {
-                bestTier = toolTier(hotbar[i]);
-                bestSlot = i;
-            }
-        }
-        // Lepší nástroj v hlavním inventáři? Přitáhnout (kliky vlastního okna).
-        int mainBest = findBestInMain(snapshot, m -> isTool(m, type));
-        if (puller != null && mainBest >= 0
-                && toolTier(snapshot.mainInventory()[mainBest]) > bestTier) {
-            int pulled = puller.pullToHotbar(m -> isTool(m, type));
-            if (pulled >= 0) {
-                actions.selectHotbar(pulled);
-                return true;
-            }
-        }
-        if (bestSlot >= 0) {
-            actions.selectHotbar(bestSlot);
-            return true;
-        }
-        return false;
+        // Stejný výběr podle tieru jako zbraň – nejlepší z hotbaru, případně
+        // přitáhnout lepší z batohu.
+        return equipBestByTier(snapshot, m -> isTool(m, type));
     }
 
     /**
@@ -471,12 +475,37 @@ public class InventoryHelper {
         if (snapshot == null) {
             return false;
         }
-        int slot = slotOrPull(snapshot, m -> isTool(m, ToolType.SWORD));
-        if (slot < 0) {
-            slot = slotOrPull(snapshot, m -> isTool(m, ToolType.AXE));
+        // Meč přednostně a vždy ten NEJLEPŠÍ (tier), ne první v hotbaru –
+        // dřevěným mečem vedle diamantového by se bot v boji zbytečně dřel.
+        // Sekera až když meč není (stejný vzor jako equipBestTool při těžbě).
+        return equipBestByTier(snapshot, m -> isTool(m, ToolType.SWORD))
+                || equipBestByTier(snapshot, m -> isTool(m, ToolType.AXE));
+    }
+
+    /**
+     * Vybere nejvýše otierovaný item vyhovující predikátu: nejlepší z hotbaru,
+     * a je-li v hlavním inventáři lepší, přitáhne ho (stejný postup jako {@link
+     * #equipBestTool}).
+     *
+     * @param snapshot  server-side snapshot
+     * @param predicate podmínka na materiál
+     * @return {@code true} pokud byl item nalezen a vybrán
+     */
+    private boolean equipBestByTier(ServerSideView.Snapshot snapshot,
+                                    java.util.function.Predicate<Material> predicate) {
+        int bestSlot = bestTierSlot(snapshot.hotbar(), predicate);
+        int bestTier = bestSlot >= 0 ? toolTier(snapshot.hotbar()[bestSlot]) : -1;
+        int mainBest = findBestInMain(snapshot, predicate);
+        if (puller != null && mainBest >= 0
+                && toolTier(snapshot.mainInventory()[mainBest]) > bestTier) {
+            int pulled = puller.pullToHotbar(predicate);
+            if (pulled >= 0) {
+                actions.selectHotbar(pulled);
+                return true;
+            }
         }
-        if (slot >= 0) {
-            actions.selectHotbar(slot);
+        if (bestSlot >= 0) {
+            actions.selectHotbar(bestSlot);
             return true;
         }
         return false;

@@ -100,6 +100,22 @@ class InventoryHelperTest {
     }
 
     @Test
+    void nejlepsiZbranPodleTieru() {
+        // Meč se vybírá podle tieru, ne podle pořadí v hotbaru: dřevěný je dřív,
+        // diamantový později → vyhrává diamantový (index 4, tier 5 > železo 4).
+        Material[] hotbar = {Material.WOODEN_SWORD, Material.BREAD, Material.STONE_SWORD,
+                Material.COBBLESTONE, Material.DIAMOND_SWORD, Material.IRON_SWORD,
+                null, null, null};
+        int slot = InventoryHelper.bestTierSlot(hotbar,
+                m -> InventoryHelper.isTool(m, InventoryHelper.ToolType.SWORD));
+        assertEquals(4, slot, "diamantový meč (nejvyšší tier), ne první dřevěný");
+        assertEquals(-1, InventoryHelper.bestTierSlot(new Material[]{Material.BREAD},
+                m -> InventoryHelper.isTool(m, InventoryHelper.ToolType.SWORD)),
+                "žádný meč → -1");
+        assertEquals(-1, InventoryHelper.bestTierSlot(null, m -> true), "null pole → -1");
+    }
+
+    @Test
     void prazdnyHlavniInventarVraciMinusJedna() {
         assertEquals(-1, InventoryHelper.findBestInMain(
                 snapshot(new Material[9], new int[9], new Material[27]),
