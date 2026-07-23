@@ -47,7 +47,7 @@ a jsou hotové; 2–5 čekají na dopracování.
 | **0** | Gate zásypu | terraform bez zásypového bloku vrátí `BLOCKED_MATERIAL`, ne díru | **hotovo** |
 | **1** | Okna jako otvor | `SubstitutionPolicy` po rolích; `WINDOW`=`LEAVE_EMPTY`; oprava pasti ve verifikaci a údržbě | **hotovo** |
 | **2** | Tiery palety | `PaletteResolver.resolve(wood, seed, tier)`; Tier 0 = dřevo + otvory; `tier` do HOME dat | **hotovo** |
-| **3** | Upgrade smyčka | údržba diffuje proti *vyššímu* tieru a nahrazuje po rolích, atomicky | návrh |
+| **3** | Upgrade smyčka | údržba diffuje proti *vyššímu* tieru a nahrazuje po rolích, atomicky | **hotovo** |
 | **4** | BOM wishlist | zapojit `BillOfMaterials` → cílené shánění/craft (sklo, cihly) | návrh |
 | **5** | Zarovnání okolí | apron + sokl/terasa kolem půdorysu | návrh |
 
@@ -109,22 +109,34 @@ Dům dostane **stavební stupeň**
 - `TIER0_MATERIAL` politika (chybí cihla → polož prkno + dluh) je zavedená
   jako enum, ale sešlape se až s upgrade smyčkou (fáze 3).
 
-### Fáze 3 – Upgrade smyčka
+### Fáze 3 – Upgrade smyčka (hotovo)
 
-Rozšíření údržby (nebo nový `UpgradeHomeGoal`): bot občas projde dům, najde
-bloky nižšího tieru a **nahradí je** za vyšší (vytěžit starý → hned položit
-nový). `AcceptancePolicy` se rozšíří z „co je přijatelné" na „co je přijatelné,
-ale existuje lepší tier".
+Rozšíření [`MaintainHomeGoal`](../botalive-core/src/main/java/dev/botalive/core/ai/goals/MaintainHomeGoal.java)
+(rozhodnutí: rozšířit údržbu, ne nový cíl): `resolveDesign` spočítá **cílový
+tier** z aktuální prosperity a osobnosti (`targetTier`). Když stoupl nad
+uložený, dům se povyšuje – jinak čistá oprava na uloženém stupni. `max()`
+nikdy nesnižuje: dům povýšený za rozkvětu se nebourá, když sídlo splaskne.
 
-- **Trigger:** stupeň sídla (hlavní), osobnost (modulace), přebytek materiálu.
-  Utilita nízká, pod přežitím.
-- **Bezpečnost (rozhodnutí 4):** náhrada v ruce před těžbou; po celých rolích;
-  dojde-li materiál, zbytek příště.
-- **Vizuál:** upgrade po rolích, ať dům nevypadá půl-na-půl.
+- **Výběr (čistá funkce
+  [`HomeUpgrade.next`](../botalive-core/src/main/java/dev/botalive/core/build/plan/HomeUpgrade.java)):**
+  najde nejnižší roli (základ → zeď → …), jejíž stojící bloky nejsou z cílového
+  materiálu, a vrátí je (nejvýš `MAX_UPGRADES = 6` za seanci). Dům dozrává po
+  rolích, konzistentně, ne půl na půl.
+- **Bezpečnost (rozhodnutí 4):** `tickUpgrade` vytěží starý blok **jen s cílovým
+  materiálem v ruce** (`hasItem` před `MineBlockTask`), pak na totéž místo
+  položí nový. Došel-li materiál, zbytek povýšení příště – žádná otevřená díra,
+  žádné vracení.
+- **Okna (otvor → sklo):** neřeší upgrade cesta, ale **oprava proti vyšší
+  paletě** – prázdné okno je „díra", kterou `planRepairs`/`leaveEmpty` zasklí,
+  jakmile má bot sklo a cílový tier okno očekává.
+- **Střídmost & přežití:** utilita `MaintainHomeGoal` je nízká a běží jen
+  v klidném ranním okně u domova – upgrade tak nikdy nepřebije jídlo, obranu
+  ani spánek. Prosperita je hlavní hnací síla, osobnost moduluje (`tierFor`).
 
-Hranice: **materiálový** upgrade (stejná geometrie – levné, bezpečné) vs.
-**strukturální** (větší dům, patro – drahé, bourá střechu). Začínáme
-materiálovým; strukturální je samostatná, pozdější kapitola.
+Hranice: implementován **materiálový** upgrade (stejná geometrie – levné,
+bezpečné). **Strukturální** (větší dům, patro – bourá střechu) je samostatná,
+pozdější kapitola. Uložený `btier` se dnes při konvergenci nepřepisuje (dům se
+levně re-diffuje každé ráno) – volitelná optimalizace do budoucna.
 
 ### Fáze 4 – BOM wishlist
 

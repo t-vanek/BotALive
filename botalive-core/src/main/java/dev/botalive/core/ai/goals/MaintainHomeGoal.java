@@ -8,6 +8,7 @@ import dev.botalive.core.ai.BotContext;
 import dev.botalive.core.build.plan.Blueprint;
 import dev.botalive.core.build.plan.Blueprints;
 import dev.botalive.core.build.plan.FurnishCell;
+import dev.botalive.core.build.plan.HomeUpgrade;
 import dev.botalive.core.build.plan.HouseDesigner;
 import dev.botalive.core.bot.ServerSideView;
 import dev.botalive.core.build.plan.BuildTier;
@@ -18,6 +19,7 @@ import dev.botalive.core.build.plan.SubstitutionPolicy;
 import dev.botalive.core.util.Cardinal;
 import dev.botalive.core.chat.PhraseCategory;
 import dev.botalive.core.settlement.SettlementService;
+import dev.botalive.core.settlement.SettlementTier;
 import dev.botalive.core.tasks.BotTask;
 import dev.botalive.core.tasks.MineBlockTask;
 import dev.botalive.core.tasks.PlaceBlockTask;
@@ -51,6 +53,11 @@ public final class MaintainHomeGoal extends AbstractGoal {
 
     /** Kolik bloků nejvýš opravit za jednu seanci (zbytek příště). */
     private static final int MAX_REPAIRS = 16;
+    /**
+     * Kolik bloků nejvýš povýšit za jednu seanci (střídmě – dům dozrává pomalu,
+     * ne přes noc). Míň než oprav: údržba je prioritní, zvelebení bonus.
+     */
+    private static final int MAX_UPGRADES = 6;
     /** Pauza mezi kontrolami, když bylo všechno v pořádku. */
     private static final int CALM_COOLDOWN = 12000;
     /** Pauza po opravě (a mezi neúspěchy). */
@@ -73,6 +80,13 @@ public final class MaintainHomeGoal extends AbstractGoal {
     private final Deque<BlockPos> clears = new ArrayDeque<>();
     /** Chybějící bloky stavby k doplnění (nesou roli pro správný materiál). */
     private final Deque<PlacementCell> refills = new ArrayDeque<>();
+    /**
+     * Bloky k povýšení na cílový tier: stojí, ale z nižšího materiálu – vytěží
+     * se a nahradí cílovým (po celých rolích, s materiálem v ruce před těžbou).
+     */
+    private final Deque<PlacementCell> upgrades = new ArrayDeque<>();
+    /** Míří dům na vyšší tier, než na jakém stojí? (prosperita/osobnost stouply) */
+    private boolean upgrading;
     private final Deque<FurnishStep> furnish = new ArrayDeque<>();
     private DecorWorker decor;
     private BotTask current;
@@ -120,6 +134,8 @@ public final class MaintainHomeGoal extends AbstractGoal {
         phase = Phase.GOTO;
         clears.clear();
         refills.clear();
+        upgrades.clear();
+        upgrading = false;
         furnish.clear();
         decor = null;
         current = null;
@@ -143,9 +159,16 @@ public final class MaintainHomeGoal extends AbstractGoal {
         try {
             // Bez uloženého stupně = SOLID (starý dům se opraví jako solidní).
             String tierStr = home.data().get("btier");
-            BuildTier tier = tierStr == null
+            BuildTier storedTier = tierStr == null
                     ? BuildTier.SOLID
                     : BuildTier.fromOrdinal(Integer.parseInt(tierStr));
+            // Cílový tier z aktuální prosperity a osobnosti; když stoupl nad
+            // uložený, dům se povyšuje (jinak čistá oprava na uloženém stupni).
+            // max() nikdy nesnižuje – dům povýšený za rozkvětu se nebourá, když
+            // sídlo pak splaskne.
+            BuildTier target = targetTier(bot);
+            upgrading = target.ordinal() > storedTier.ordinal();
+            BuildTier tier = upgrading ? target : storedTier;
             var design = new HouseDesigner.HouseDesign(
                     Integer.parseInt(home.data().get("bw")),
                     Integer.parseInt(home.data().get("bh")),
@@ -157,6 +180,24 @@ public final class MaintainHomeGoal extends AbstractGoal {
         } catch (RuntimeException e) {
             origin = null; // neúplný design – neopravovat (bezpečné)
         }
+    }
+
+    /**
+     * Cílový stavební stupeň domu z prosperity sídla a osobnosti – stejné
+     * pravidlo jako při stavbě ({@link HouseDesigner#tierFor}). Bez sídla /
+     * bez služby = osada (srub). Hlavní hnací síla je prosperita, osobnost
+     * moduluje; přežití hlídá utilita cíle (upgrade běží jen v klidném ranním
+     * okně u domova, nikdy nepřebije jídlo/obranu/spánek).
+     */
+    private BuildTier targetTier(Bot bot) {
+        BotContext ctx = ctx(bot);
+        SettlementTier settlementTier = SettlementTier.OSADA;
+        SettlementService settlements = ctx.settlements();
+        if (settlements != null) {
+            settlementTier = settlements.settlementOf(bot.id())
+                    .map(SettlementService.SettlementInfo::tier).orElse(SettlementTier.OSADA);
+        }
+        return HouseDesigner.tierFor(settlementTier, bot.personality().trait(Trait.LAZINESS));
     }
 
     @Override
@@ -189,6 +230,7 @@ public final class MaintainHomeGoal extends AbstractGoal {
         }
         clears.clear();
         refills.clear();
+        upgrades.clear();
         furnish.clear();
         super.stop(bot);
     }
@@ -202,8 +244,11 @@ public final class MaintainHomeGoal extends AbstractGoal {
     public String explain(Bot bot) {
         return switch (phase) {
             case GOTO -> "jdu zkontrolovat dům";
-            case REPAIR -> "opravuju dům (zbývá " + (clears.size() + refills.size()
-                    + (current != null ? 1 : 0)) + " bloků)";
+            case REPAIR -> upgrading && clears.isEmpty() && refills.isEmpty()
+                    ? "vylepšuju barák (zbývá " + (upgrades.size()
+                            + (current != null ? 1 : 0)) + " bloků)"
+                    : "opravuju dům (zbývá " + (clears.size() + refills.size()
+                            + upgrades.size() + (current != null ? 1 : 0)) + " bloků)";
             case FURNISH -> "doplňuju vybavení – dveře, postel, světlo";
             case DECOR -> "obnovuju cestičku a pochodně před domem";
             case DONE -> null;
@@ -312,10 +357,16 @@ public final class MaintainHomeGoal extends AbstractGoal {
                 furnish.add(new FurnishStep(predicate, step.pos()));
             }
         }
+        // Povýšení na vyšší tier (jen když dům míří výš): nahradit bloky nižšího
+        // materiálu cílovými, po celých rolích. Až po opravách – údržba je
+        // prioritní, zvelebení bonus.
+        if (upgrading) {
+            planUpgrades(world, snapshot);
+        }
         // Cestička a veřejné osvětlení (jen členové vesnice, plán je idempotentní).
         planDecor(ctx, bot);
 
-        if (clears.isEmpty() && refills.isEmpty() && furnish.isEmpty()
+        if (clears.isEmpty() && refills.isEmpty() && upgrades.isEmpty() && furnish.isEmpty()
                 && (decor == null || !decor.hasWork())) {
             cooldownTicks = CALM_COOLDOWN; // všechno drží pohromadě
             phase = Phase.DONE;
@@ -323,8 +374,32 @@ public final class MaintainHomeGoal extends AbstractGoal {
         }
         if (!refills.isEmpty() && ctx.rng().chance(0.5)) {
             ctx.chat().sayFrom(PhraseCategory.HOME_REPAIR, null);
+        } else if (refills.isEmpty() && clears.isEmpty() && !upgrades.isEmpty()
+                && ctx.rng().chance(0.3)) {
+            ctx.chat().say("vylepsuju si barak, at je hezci");
         }
         phase = Phase.REPAIR;
+    }
+
+    /**
+     * Naplánuje povýšení na cílový tier: najde nejnižší roli, jejíž bloky ještě
+     * nejsou z cílového materiálu, a zařadí je (po celých rolích, ne náhodně –
+     * dům nevypadá půl na půl). Začne jen když má cílový materiál v ruce
+     * (rozhodnutí „náhrada v ruce" – nikdy neubourat bez čeho hned nahradit).
+     * Cap na seanci drží tempo střídmé; okna (otvor → sklo) řeší oprava proti
+     * vyšší paletě, ne tahle cesta.
+     */
+    private void planUpgrades(WorldView world, ServerSideView.Snapshot snapshot) {
+        var plan = HomeUpgrade.next(blueprint.cells(origin, facing), palette,
+                world::materialAt, MAX_UPGRADES);
+        if (plan.isEmpty()) {
+            return; // dům už je celý z cílového materiálu
+        }
+        Material intended = palette.intended(plan.get().role()).orElse(null);
+        if (intended == null || snapshot == null || !snapshot.hasItem(m -> m == intended)) {
+            return; // cílový materiál nemáme – povyšovat začneme, až bude
+        }
+        upgrades.addAll(plan.get().cells());
     }
 
     /** U členů vesnice naplánuje obnovu cestičky a pochodní k návsi. */
@@ -365,7 +440,8 @@ public final class MaintainHomeGoal extends AbstractGoal {
         }
         PlacementCell cell = refills.poll();
         if (cell == null) {
-            phase = Phase.FURNISH;
+            // Opravy hotové – teď případné povýšení na vyšší tier.
+            tickUpgrade(ctx);
             return;
         }
         if (!equipFor(ctx, cell.spec().role())) {
@@ -375,6 +451,38 @@ public final class MaintainHomeGoal extends AbstractGoal {
             return;
         }
         current = new PlaceBlockTask(cell.pos());
+    }
+
+    /**
+     * Povyšuje jeden blok: nejdřív vytěží starý (jen s cílovým materiálem
+     * v ruce – „náhrada v ruce", nikdy díra), příští tick na totéž místo položí
+     * cílový materiál. Prázdná fronta → dál na vybavení.
+     */
+    private void tickUpgrade(BotContext ctx) {
+        PlacementCell cell = upgrades.peek();
+        if (cell == null) {
+            phase = Phase.FURNISH;
+            return;
+        }
+        WorldView world = ctx.worldView();
+        if (world != null && world.traitsAt(cell.pos()).solid()) {
+            // Ještě stojí starý blok. Vytěžit smíme jen když cílový materiál
+            // držíme – jinak zbytek povýšení příště (žádná otevřená díra).
+            Material intended = palette.intended(cell.spec().role()).orElse(null);
+            var snapshot = ctx.serverView().latest();
+            if (intended == null || snapshot == null || !snapshot.hasItem(m -> m == intended)) {
+                upgrades.clear();
+                phase = Phase.FURNISH;
+                return;
+            }
+            current = new MineBlockTask(cell.pos());
+            return;
+        }
+        // Vytěženo (vzduch) → položit cílový materiál na totéž místo.
+        upgrades.poll();
+        if (equipFor(ctx, cell.spec().role())) {
+            current = new PlaceBlockTask(cell.pos());
+        }
     }
 
     /** Vezme materiál role z palety (náhrada zaměnitelným blokem, jako engine). */
