@@ -584,16 +584,48 @@ public final class BuildHouseGoal extends AbstractGoal {
             design = HouseDesigner.design(bot, ctx.serverView().latest(), buildCfg,
                     settlementTier(ctx, bot));
             BuildPlan buildPlan = BuildPlan.of(design.blueprint(), origin, facing);
+            List<BlockPos> reserve = reservedGround(ctx, origin, facing, design.width());
             session = new BuildSession(
-                    BuildPlanner.schedule(buildPlan, ctx.worldView(), gradeApron),
+                    BuildPlanner.schedule(buildPlan, ctx.worldView(), gradeApron, reserve),
                     design.palette());
         } else {
             design = null;
             BuildPlan buildPlan = BuildPlan.of(Blueprints.house(), origin, facing);
+            List<BlockPos> reserve = reservedGround(ctx, origin, facing, HouseBlueprint.SIZE);
             session = new BuildSession(
-                    BuildPlanner.schedule(buildPlan, ctx.worldView(), gradeApron));
+                    BuildPlanner.schedule(buildPlan, ctx.worldView(), gradeApron, reserve));
         }
         return true;
+    }
+
+    /**
+     * Sloupce rezervované platformy: půdorys MAXIMÁLNÍHO dorostlého domu
+     * ({@code build.width}) + okraj {@code build.reserve}, vycentrovaný na střed
+     * stavěného domu, na úrovni podlahy − 1. {@link BuildPlanner} je srovná
+     * (výkopově), takže pozdější růst má rovnou zem a stavby si nechají odstup.
+     * Rezerva se přichytí pod rozestup parcel, ať nepřeleze k sousedovi.
+     *
+     * @param currentWidth šířka právě stavěného domu (kolem něj se rezerva centruje)
+     * @return sloupce rezervy (prázdné, když je rezerva vypnutá nebo není větší)
+     */
+    private List<BlockPos> reservedGround(BotContext ctx, BlockPos houseOrigin,
+                                          Cardinal facing, int currentWidth) {
+        var cfg = ctx.config().build();
+        if (cfg.reserve() <= 0) {
+            return List.of();
+        }
+        int spacing = ctx.config().settlement().plotSpacing();
+        int reservedW = Math.min(cfg.width() + 2 * cfg.reserve(), spacing - 1);
+        if (reservedW % 2 == 0) {
+            reservedW--; // lichý půdorys (čistý střed) pro HouseGenerator
+        }
+        if (reservedW <= currentWidth || reservedW < 5) {
+            return List.of(); // rezerva není větší než dům – nemá co srovnávat navíc
+        }
+        int reservedH = cfg.maxWallHeight() + cfg.reserve();
+        int delta = (reservedW - currentWidth) / 2;
+        BlockPos reservedOrigin = houseOrigin.offset(-delta, 0, -delta);
+        return new HouseGenerator(reservedW, reservedH).groundColumns(reservedOrigin, facing);
     }
 
     /** Stupeň sídla bota pro volbu velikosti domu (osada / bez sídla = OSADA). */

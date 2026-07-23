@@ -66,9 +66,12 @@ public record BotAliveConfig(
      *                      prosperity sídla postupně zvětšuje (aditivně, pak se
      *                      odklidí starý vnitřek). Default vyp. – opt-in, protože
      *                      přestavba dočasně otevírá dům jako každá rozestavěná stavba
+     * @param reserve       okraj staveniště (bloky) nad rámec dorostlé velikosti:
+     *                      staveniště se srovná pro MAX dorostlý dům + tento okraj,
+     *                      takže růst má rovnou zem a stavby si nechají odstup
      */
     public record Build(boolean complex, int width, int wallHeight, int maxWallHeight,
-                        boolean grow, Site site) {
+                        boolean grow, int reserve, Site site) {
 
         /**
          * Ladění výběru staveniště společných staveb (studna, sýpka, tržiště,

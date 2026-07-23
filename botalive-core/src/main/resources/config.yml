@@ -585,6 +585,13 @@ build:
   # po restartu) a nikdy neklesá. Default vyp. – opt-in, protože i aditivní růst
   # může dům přechodně otevřít jako každá rozestavěná stavba.
   grow: false
+  # Okraj staveniště (bloky) nad rámec dorostlé velikosti. Staveniště se vybere
+  # a srovná rovnou pro MAXIMÁLNÍ dorostlý dům (podle stropu width) + tento okraj
+  # – ve všech osách: rovná plocha v X/Z i výškové srovnání. Díky tomu má pozdější
+  # růst (grow) zaručeně rovnou zem a nemusí terén dorovnávat, a stavby si mezi
+  # sebou nechají odstup. Okraj se přichytí tak, aby rezerva nepřelezla rozestup
+  # parcel. 0 = jen dnešní 1-blokový apron kolem aktuální velikosti.
+  reserve: 2
   # Ladění výběru staveniště SPOLEČNÝCH staveb (studna, sýpka, tržiště,
   # radnice, kostel). Čistá geometrie – bezpečné měnit za běhu. Defaulty drží
   # dnešní chování.
