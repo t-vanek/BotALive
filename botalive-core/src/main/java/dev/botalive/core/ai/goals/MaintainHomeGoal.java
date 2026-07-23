@@ -294,8 +294,19 @@ public final class MaintainHomeGoal extends AbstractGoal {
                 origin = null; // poškozená metadata – spadnout na rekonstrukci
             }
         }
-        // Starý dům bez metadat: HOME je stand point, stavělo se na sever.
-        origin = new BlockPos(home.x(), home.y(), home.z()).offset(-2, 0, -2);
+        // Starý dům bez metadat: HOME je stand point (střed), stavělo se na sever.
+        // Origin = střed − půl šířky: legacy domek 4×4 dá −2, širší generovaný
+        // dům (má-li uloženou šířku) se zrekonstruuje kolem svého skutečného středu.
+        int half = 2;
+        String bw = home.data().get("bw");
+        if (bw != null) {
+            try {
+                half = Integer.parseInt(bw) / 2;
+            } catch (NumberFormatException ignored) {
+                half = 2; // poškozená šířka – spadnout na legacy 4×4
+            }
+        }
+        origin = new BlockPos(home.x(), home.y(), home.z()).offset(-half, 0, -half);
     }
 
     /** Dojít k domu a sepsat, co chybí. */

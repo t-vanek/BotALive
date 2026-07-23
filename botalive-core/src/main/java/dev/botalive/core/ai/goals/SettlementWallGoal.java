@@ -7,7 +7,6 @@ import dev.botalive.core.ai.BotNeeds;
 import dev.botalive.core.bot.ServerSideView;
 import dev.botalive.core.build.BarrierStyle;
 import dev.botalive.core.build.Enclosure;
-import dev.botalive.core.build.HouseBlueprint;
 import dev.botalive.core.chat.PhraseCategory;
 import dev.botalive.core.crafting.CraftingService;
 import dev.botalive.core.settlement.SettlementService;
@@ -325,7 +324,8 @@ public final class SettlementWallGoal extends AbstractGoal {
 
     /**
      * Obvod hradby z obsazených parcel: čtverec kolem návsi po <b>vnějším
-     * obsazeném prstenci</b> plus rezerva {@link HouseBlueprint#SIZE}.
+     * obsazeném prstenci</b> plus rezerva půl rozestupu (mine i nejširší dům
+     * v parcele).
      *
      * @param center      náves
      * @param plotOrigins originy obsazených parcel
@@ -336,20 +336,23 @@ public final class SettlementWallGoal extends AbstractGoal {
         if (center == null || spacing <= 0) {
             return null;
         }
-        int half = HouseBlueprint.SIZE / 2;
         int maxRing = 0;
         for (BlockPos origin : plotOrigins) {
             if (origin == null) {
                 continue;
             }
-            int dx = Math.round((float) (origin.x() + half - center.x()) / spacing);
-            int dz = Math.round((float) (origin.z() + half - center.z()) / spacing);
+            // Roh parcely přichytit na nejbližší uzel mřížky (footprint-nezávislé:
+            // roh leží blíž než půl rozestupu k uzlu, ať je dům 4×4 nebo širší).
+            int dx = Math.round((float) (origin.x() - center.x()) / spacing);
+            int dz = Math.round((float) (origin.z() - center.z()) / spacing);
             maxRing = Math.max(maxRing, Math.max(Math.abs(dx), Math.abs(dz)));
         }
         if (maxRing == 0) {
             return null; // jen náves (nebo prázdno) – hradbu kolem jednoho domu nestavíme
         }
-        int ext = maxRing * spacing + HouseBlueprint.SIZE;
+        // Rezerva za vnějším prstencem: půl rozestupu odstupu, ať hradba mine
+        // i nejširší dům, který se do parcely vejde (půdorys < rozestup).
+        int ext = maxRing * spacing + spacing / 2;
         return new WallBounds(
                 new BlockPos(center.x() - ext, center.y(), center.z() - ext),
                 new BlockPos(center.x() + ext, center.y(), center.z() + ext));

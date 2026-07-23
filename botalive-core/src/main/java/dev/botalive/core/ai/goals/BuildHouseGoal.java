@@ -8,6 +8,7 @@ import dev.botalive.core.ai.BotContext;
 import dev.botalive.core.ai.BotNeeds;
 import dev.botalive.core.build.HouseBlueprint;
 import dev.botalive.core.build.VillageDecor;
+import dev.botalive.core.build.plan.Blueprint;
 import dev.botalive.core.build.plan.Blueprints;
 import dev.botalive.core.build.plan.BuildPlan;
 import dev.botalive.core.build.plan.BuildPlanner;
@@ -15,6 +16,7 @@ import dev.botalive.core.build.plan.BuildSession;
 import dev.botalive.core.build.plan.HouseDesigner;
 import dev.botalive.core.build.plan.HouseGenerator;
 import dev.botalive.core.build.plan.SiteFinder;
+import dev.botalive.core.build.plan.StructureSizer;
 import dev.botalive.core.util.Cardinal;
 import dev.botalive.core.chat.PhraseCategory;
 import dev.botalive.core.settlement.SettlementService;
@@ -291,12 +293,13 @@ public final class BuildHouseGoal extends AbstractGoal {
         WorldView world = ctx.worldView();
         boolean terraforming = ctx.config().ai().terraforming();
 
+        Blueprint geometry = plannedGeometry(ctx, bot);
         // Už přidělenou parcelu zkusit první – přesně tam, kde stavba začala.
         var claimed = settlements.claimedPlot(bot.id());
         if (claimed.isPresent()) {
             var slot = claimed.get();
-            int cost = SiteFinder.cost(world, Blueprints.house(), slot.origin(),
-                    slot.facing(), structureOf(slot.origin(), slot.facing()), terraforming);
+            int cost = SiteFinder.cost(world, geometry, slot.origin(),
+                    slot.facing(), structureOf(geometry, slot.origin(), slot.facing()), terraforming);
             if (cost != SiteFinder.COST_INVALID) {
                 // Použitelná, nebo z dálky neposouditelná → dojít a rozhodnout tam.
                 target(slot.origin(), slot.facing(), slot.index());
@@ -309,7 +312,7 @@ public final class BuildHouseGoal extends AbstractGoal {
         // a posoudit až na místě (vzdálené chunky nejsou načtené).
         for (SettlementService.PlotSlot slot
                 : settlements.suggestPlots(settlementId, PLOT_ATTEMPTS)) {
-            int cost = SiteFinder.bestCost(world, Blueprints.house(), slot.origin(),
+            int cost = SiteFinder.bestCost(world, geometry, slot.origin(),
                     slot.facing(), terraforming);
             if (cost == SiteFinder.COST_INVALID) {
                 settlements.markPlotUnusable(settlementId, slot.index());
@@ -330,7 +333,7 @@ public final class BuildHouseGoal extends AbstractGoal {
     private void findOpenSite(BotContext ctx, Bot bot, SettlementService settlements,
                               boolean founding) {
         WorldView world = ctx.worldView();
-        BlockPos best = localScan(ctx, founding);
+        BlockPos best = localScan(ctx, plannedGeometry(ctx, bot), founding);
         if (best == null) {
             cooldownTicks = 1200; // tady se stavět nedá – zkusit jinde/jindy
             phase = Phase.DONE;
@@ -369,7 +372,7 @@ public final class BuildHouseGoal extends AbstractGoal {
      * vesnice navíc hodnotí bohatost okolí – voda a stromy na dosah dělají
      * z místa vesnici, ne tábor v poušti.
      */
-    private BlockPos localScan(BotContext ctx, boolean founding) {
+    private BlockPos localScan(BotContext ctx, Blueprint geometry, boolean founding) {
         WorldView world = ctx.worldView();
         BlockPos feet = ctx.position().toBlockPos();
         boolean terraformingAllowed = ctx.config().ai().terraforming();
@@ -388,7 +391,7 @@ public final class BuildHouseGoal extends AbstractGoal {
                     }
                     // Půdorys domku je na orientaci nezávislý – dveře se natočí až
                     // podle vesnice, na cenu staveniště vliv nemají.
-                    int cost = SiteFinder.cost(world, Blueprints.house(), candidate,
+                    int cost = SiteFinder.cost(world, geometry, candidate,
                             Cardinal.NORTH, Set.of(), terraformingAllowed);
                     if (cost < 0) {
                         continue;
@@ -489,13 +492,33 @@ public final class BuildHouseGoal extends AbstractGoal {
     }
 
     /** Bloky domu samotného (zdi + střecha) – při kontrolách se přeskakují. */
-    private static Set<BlockPos> structureOf(BlockPos origin, Cardinal facing) {
-        return new HashSet<>(HouseBlueprint.placements(origin, facing));
+    private static Set<BlockPos> structureOf(Blueprint geometry, BlockPos origin, Cardinal facing) {
+        Set<BlockPos> result = new HashSet<>();
+        geometry.cells(origin, facing).forEach(cell -> result.add(cell.pos()));
+        return result;
+    }
+
+    /**
+     * Geometrie domu, který bot na tomto místě postaví – generovaný podle stupně
+     * sídla a povahy (complex), nebo legacy domek 4×4. Bez materiálu: slouží jen
+     * výběru staveniště (cena, dosah, katastr), aby se místo hodnotilo pro
+     * <b>skutečnou</b> velikost, ne napevno pro 4×4. Rozměr sedí s tím, co pak
+     * postaví {@link HouseDesigner#design} (stejný {@link StructureSizer}).
+     */
+    private Blueprint plannedGeometry(BotContext ctx, Bot bot) {
+        var buildCfg = ctx.config().build();
+        if (!buildCfg.complex()) {
+            return Blueprints.house();
+        }
+        var size = StructureSizer.house(settlementTier(ctx, bot),
+                bot.personality().trait(Trait.LAZINESS), buildCfg.width(),
+                buildCfg.wallHeight(), buildCfg.maxWallHeight());
+        return new HouseGenerator(size.width(), size.wallHeight());
     }
 
     /** Dojít doprostřed staveniště; na místě finální kontrola a plán úprav. */
     private void gotoSite(BotContext ctx, Bot bot) {
-        BlockPos stand = HouseBlueprint.standPoint(origin, facing);
+        BlockPos stand = plannedGeometry(ctx, bot).standPoint(origin, facing);
         Vec3 pos = ctx.position();
         if (pos.toBlockPos().distanceSquared(stand) <= 2) {
             ctx.navigator().stop();
@@ -521,7 +544,7 @@ public final class BuildHouseGoal extends AbstractGoal {
     private boolean prepareSite(BotContext ctx, Bot bot) {
         WorldView world = ctx.worldView();
         boolean terraforming = ctx.config().ai().terraforming();
-        BlockPos usable = SiteFinder.usableOrigin(world, Blueprints.house(), origin,
+        BlockPos usable = SiteFinder.usableOrigin(world, plannedGeometry(ctx, bot), origin,
                 facing, terraforming).orElse(null);
         if (usable == null) {
             SettlementService settlements = villages(ctx);
@@ -589,7 +612,7 @@ public final class BuildHouseGoal extends AbstractGoal {
         if (!buildCfg.complex()) {
             return HouseBlueprint.blocksNeeded();
         }
-        var size = dev.botalive.core.build.plan.StructureSizer.house(settlementTier(ctx, bot),
+        var size = StructureSizer.house(settlementTier(ctx, bot),
                 bot.personality().trait(Trait.LAZINESS), buildCfg.width(),
                 buildCfg.wallHeight(), buildCfg.maxWallHeight());
         return new HouseGenerator(size.width(), size.wallHeight()).blocksNeeded();
@@ -660,11 +683,15 @@ public final class BuildHouseGoal extends AbstractGoal {
     /** Hotovo: případné založení vesnice, paměť, oznámení, konec cíle. */
     private void finishHouse(BotContext ctx, Bot bot) {
         SettlementService settlements = villages(ctx);
+        // Střed domu (stanoviště stavitele) je zároveň náves zakladatele i klíč
+        // HOME paměti – u generovaného domu je to skutečný střed (origin+šířka/2),
+        // ne napevno origin+2 (jinak by větší dům měl náves i paměť mimo střed).
+        BlockPos stand = design != null
+                ? design.blueprint().standPoint(origin, facing)
+                : HouseBlueprint.standPoint(origin, facing);
         // Zakladatel: vesnice vzniká až teď, s hotovým domem jako návsí.
         if (pendingFound && settlements != null) {
-            BlockPos center = origin.offset(HouseBlueprint.SIZE / 2, 0,
-                    HouseBlueprint.SIZE / 2);
-            var founded = settlements.foundSettlement(ctx.settlementView(), center,
+            var founded = settlements.foundSettlement(ctx.settlementView(), stand,
                     origin, facing, bot.personality().seed());
             if (founded.isPresent()) {
                 settlementName = founded.get().name();
@@ -674,9 +701,6 @@ public final class BuildHouseGoal extends AbstractGoal {
             // Když založení nevyšlo (vesnice mezitím vyrostla vedle),
             // dům stojí a bot prostě bydlí po svém.
         }
-        BlockPos stand = design != null
-                ? design.blueprint().standPoint(origin, facing)
-                : HouseBlueprint.standPoint(origin, facing);
         if (ctx.worldView() != null) {
             Map<String, String> data = new HashMap<>();
             data.put("type", "house");

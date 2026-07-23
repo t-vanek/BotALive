@@ -706,12 +706,17 @@ public final class SettlementService {
         long sumY = 0;
         long sumZ = 0;
         int plots = 0;
-        int half = dev.botalive.core.build.HouseBlueprint.SIZE / 2;
+        int spacing = config.plotSpacing();
         for (Member other : settlement.members.values()) {
-            if (other.plotOrigin() != null) {
-                sumX += other.plotOrigin().x() + half;
-                sumY += other.plotOrigin().y();
-                sumZ += other.plotOrigin().z() + half;
+            BlockPos o = other.plotOrigin();
+            if (o != null) {
+                // Střed parcely = roh přichycený na nejbližší uzel mřížky.
+                // Footprint-nezávislé: pro domek 4×4 je to roh+2, pro širší
+                // generovaný dům jeho skutečný střed (roh leží < půl rozestupu
+                // od uzlu).
+                sumX += snapToGrid(o.x(), settlement.center.x(), spacing);
+                sumY += o.y();
+                sumZ += snapToGrid(o.z(), settlement.center.z(), spacing);
                 plots++;
             }
         }
@@ -726,6 +731,14 @@ public final class SettlementService {
             repository.updateSettlementCenter(settlement.id, settlement.center.x(),
                     settlement.center.y(), settlement.center.z());
         }
+    }
+
+    /** Nejbližší uzel mřížky {@code origin + k×spacing} k dané souřadnici. */
+    private static int snapToGrid(int coord, int origin, int spacing) {
+        if (spacing <= 0) {
+            return coord;
+        }
+        return origin + Math.round((float) (coord - origin) / spacing) * spacing;
     }
 
     /**
