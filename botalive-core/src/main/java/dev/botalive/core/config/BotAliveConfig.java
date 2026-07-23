@@ -62,9 +62,13 @@ public record BotAliveConfig(
      * @param wallHeight    spodní mez výšky zdí (osada); skutečnou výšku volí bot
      *                      podle stupně sídla a povahy (vesnice/město staví výš)
      * @param maxWallHeight horní mez výšky zdí (strop pro reprezentativní domy měst)
+     * @param grow          povolit STRUKTURÁLNÍ růst: existující dům se s růstem
+     *                      prosperity sídla postupně zvětšuje (aditivně, pak se
+     *                      odklidí starý vnitřek). Default vyp. – opt-in, protože
+     *                      přestavba dočasně otevírá dům jako každá rozestavěná stavba
      */
     public record Build(boolean complex, int width, int wallHeight, int maxWallHeight,
-                        Site site) {
+                        boolean grow, Site site) {
 
         /**
          * Ladění výběru staveniště společných staveb (studna, sýpka, tržiště,

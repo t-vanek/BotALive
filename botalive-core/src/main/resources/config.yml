@@ -577,6 +577,15 @@ build:
   wall-height: 3
   # Horní mez výšky zdí (strop pro reprezentativní domy měst).
   max-wall-height: 5
+  # Strukturální růst: povolit, aby existující dům s růstem prosperity sídla
+  # postupně DOROSTL na větší (osada 5×5 → vesnice 7×7 → město 9×9, i vyšší zdi).
+  # Přestavba je aditivní (nejdřív se dostaví větší plášť kolem/nad starým, teprve
+  # pak se odklidí zbylý starý vnitřek), roste jen na vhodném rovném terénu, po
+  # částech napříč seancemi, v klidném ranním okně u domova a s nízkou prioritou
+  # (nikdy nepřebije jídlo/obranu/spánek). Zvolená velikost se persistuje (týž tvar
+  # po restartu) a nikdy neklesá. Default vyp. – opt-in, protože i aditivní růst
+  # může dům přechodně otevřít jako každá rozestavěná stavba.
+  grow: false
   # Ladění výběru staveniště SPOLEČNÝCH staveb (studna, sýpka, tržiště,
   # radnice, kostel). Čistá geometrie – bezpečné měnit za běhu. Defaulty drží
   # dnešní chování.

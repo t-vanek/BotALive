@@ -275,6 +275,7 @@ public final class ConfigLoader {
                 buildWidth,
                 buildWallHeight,
                 Math.max(buildWallHeight, c.getInt("build.max-wall-height", 5)),
+                c.getBoolean("build.grow", false),
                 new BotAliveConfig.Build.Site(
                         Math.max(4, c.getInt("build.site.surface-scan", 24)),
                         Math.max(0, c.getInt("build.site.max-fills", 4)),

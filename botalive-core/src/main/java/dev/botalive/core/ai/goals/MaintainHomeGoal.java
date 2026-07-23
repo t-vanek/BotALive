@@ -15,6 +15,9 @@ import dev.botalive.core.build.plan.BuildTier;
 import dev.botalive.core.build.plan.Palette;
 import dev.botalive.core.build.plan.PaletteRole;
 import dev.botalive.core.build.plan.PlacementCell;
+import dev.botalive.core.build.plan.StructureGrowth;
+import dev.botalive.core.build.plan.StructureSize;
+import dev.botalive.core.build.plan.StructureSizer;
 import dev.botalive.core.build.plan.SubstitutionPolicy;
 import dev.botalive.core.util.Cardinal;
 import dev.botalive.core.chat.PhraseCategory;
@@ -60,6 +63,11 @@ public final class MaintainHomeGoal extends AbstractGoal {
      * ne přes noc). Míň než oprav: údržba je prioritní, zvelebení bonus.
      */
     private static final int MAX_UPGRADES = 6;
+    /**
+     * Kolik starých vnitřních bloků nejvýš odklidit za seanci při růstu (aditivní
+     * napřed – demolice běží až po dostavbě pláště, tak střídmě jako upgrade).
+     */
+    private static final int MAX_DEMOLITIONS = 8;
     /** Pauza mezi kontrolami, když bylo všechno v pořádku. */
     private static final int CALM_COOLDOWN = 12000;
     /** Pauza po opravě (a mezi neúspěchy). */
@@ -91,6 +99,20 @@ public final class MaintainHomeGoal extends AbstractGoal {
     private boolean upgrading;
     /** Efektivní stavební stupeň domu této seance (max z uloženého a cílového). */
     private BuildTier tier = BuildTier.SOLID;
+    /**
+     * Roste dům strukturálně (prosperita zvětšila cílovou velikost nad uloženou)?
+     * Když ano, {@code blueprint} je už větší cíl na přepočítaném center-fixed
+     * originu; nejdřív se dostaví plášť (refills), pak se odklidí starý vnitřek.
+     */
+    private boolean growing;
+    /** Starý (menší) blueprint a jeho origin – k odklizení vnitřku po dostavbě. */
+    private Blueprint growOldGeometry;
+    private BlockPos growOldOrigin;
+    /** Cílová velikost růstu k zapsání po dokončení (monotónně). */
+    private int growTargetW;
+    private int growTargetH;
+    /** Staré strukturální bloky uvnitř nového pláště k odklizení (až plášť stojí). */
+    private final Deque<BlockPos> demolitions = new ArrayDeque<>();
     private final Deque<FurnishStep> furnish = new ArrayDeque<>();
     private DecorWorker decor;
     private BotTask current;
@@ -140,6 +162,9 @@ public final class MaintainHomeGoal extends AbstractGoal {
         refills.clear();
         upgrades.clear();
         upgrading = false;
+        demolitions.clear();
+        growing = false;
+        growOldGeometry = null;
         furnish.clear();
         decor = null;
         current = null;
@@ -173,17 +198,80 @@ public final class MaintainHomeGoal extends AbstractGoal {
             BuildTier target = targetTier(bot);
             upgrading = target.ordinal() > storedTier.ordinal();
             tier = upgrading ? target : storedTier;
-            var design = new HouseDesigner.HouseDesign(
-                    Integer.parseInt(home.data().get("bw")),
-                    Integer.parseInt(home.data().get("bh")),
-                    Material.valueOf(home.data().get("bwood")),
-                    Long.parseLong(home.data().get("bseed")),
-                    tier);
+            int storedW = Integer.parseInt(home.data().get("bw"));
+            int storedH = Integer.parseInt(home.data().get("bh"));
+            Material wood = Material.valueOf(home.data().get("bwood"));
+            long seed = Long.parseLong(home.data().get("bseed"));
+            var design = new HouseDesigner.HouseDesign(storedW, storedH, wood, seed, tier);
             blueprint = design.blueprint();
             palette = design.palette();
+            maybeGrow(bot, storedW, storedH, wood, seed);
         } catch (RuntimeException e) {
             origin = null; // neúplný design – neopravovat (bezpečné)
         }
+    }
+
+    /**
+     * Rozhodne o STRUKTURÁLNÍM růstu domu: když je zapnutý ({@code build.grow})
+     * a prosperita zvětšila cílovou velikost nad uloženou, přepne na režim růstu
+     * – {@code blueprint} se nahradí <b>větším</b> cílem na přepočítaném
+     * <b>center-fixed</b> originu (střed parcely, a tím i stanoviště a klíč HOME
+     * paměti, zůstává na místě) a zapamatuje se starý blueprint k pozdějšímu
+     * odklizení vnitřku. Roste jen na <b>vhodném rovném terénu</b> (nová podlaha
+     * je celá pevná → plášť má oporu); jinak růst počká. Monotónní: nikdy
+     * nezmenší (cíl se porovnává s uloženou velikostí).
+     */
+    private void maybeGrow(Bot bot, int storedW, int storedH, Material wood, long seed) {
+        BotContext ctx = ctx(bot);
+        var cfg = ctx.config().build();
+        if (!cfg.grow() || origin == null || ctx.worldView() == null) {
+            return;
+        }
+        StructureSize targetSize = StructureSizer.house(settlementTierOf(bot),
+                bot.personality().trait(Trait.LAZINESS), cfg.width(), cfg.wallHeight(),
+                cfg.maxWallHeight());
+        if (targetSize.width() <= storedW && targetSize.wallHeight() <= storedH) {
+            return; // nic většího – čistá oprava/upgrade na uložené velikosti
+        }
+        // Nový roh drží střed na místě (dům je čtvercový): střed = starý roh +
+        // půl staré šířky; nový roh = střed − půl nové šířky.
+        BlockPos oldOrigin = origin;
+        int centerX = oldOrigin.x() + storedW / 2;
+        int centerZ = oldOrigin.z() + storedW / 2;
+        int newHalf = targetSize.width() / 2;
+        BlockPos newOrigin = new BlockPos(centerX - newHalf, oldOrigin.y(), centerZ - newHalf);
+        var newDesign = new HouseDesigner.HouseDesign(targetSize.width(),
+                targetSize.wallHeight(), wood, seed, tier);
+        Blueprint newBp = newDesign.blueprint();
+        // Viabilita: nová podlaha (sloupce pod celým novým půdorysem) musí být
+        // celá pevná, aby nový plášť (obvod na y=0) měl oporu. Jinak růst počká
+        // (opt-in luxus – radši nechat dům malý než postavit torzo na svahu).
+        WorldView world = ctx.worldView();
+        for (BlockPos ground : newBp.groundColumns(newOrigin, facing)) {
+            BlockTraits t = world.traitsAt(ground);
+            if (t == BlockTraits.UNKNOWN || !t.solid()) {
+                return;
+            }
+        }
+        growing = true;
+        upgrading = false; // při růstu se materiál nepovyšuje – nejdřív velikost
+        growOldGeometry = blueprint; // stará (uložená) geometrie na starém originu
+        growOldOrigin = oldOrigin;
+        origin = newOrigin;
+        blueprint = newBp;
+        palette = newDesign.palette();
+        growTargetW = targetSize.width();
+        growTargetH = targetSize.wallHeight();
+    }
+
+    /** Stupeň sídla bota (osada / bez sídla = OSADA) pro volbu velikosti. */
+    private SettlementTier settlementTierOf(Bot bot) {
+        SettlementService settlements = ctx(bot).settlements();
+        if (settlements == null) {
+            return SettlementTier.OSADA;
+        }
+        return settlements.settlementOf(bot.id())
+                .map(SettlementService.SettlementInfo::tier).orElse(SettlementTier.OSADA);
     }
 
     /**
@@ -194,14 +282,8 @@ public final class MaintainHomeGoal extends AbstractGoal {
      * okně u domova, nikdy nepřebije jídlo/obranu/spánek).
      */
     private BuildTier targetTier(Bot bot) {
-        BotContext ctx = ctx(bot);
-        SettlementTier settlementTier = SettlementTier.OSADA;
-        SettlementService settlements = ctx.settlements();
-        if (settlements != null) {
-            settlementTier = settlements.settlementOf(bot.id())
-                    .map(SettlementService.SettlementInfo::tier).orElse(SettlementTier.OSADA);
-        }
-        return HouseDesigner.tierFor(settlementTier, bot.personality().trait(Trait.LAZINESS));
+        return HouseDesigner.tierFor(settlementTierOf(bot),
+                bot.personality().trait(Trait.LAZINESS));
     }
 
     @Override
@@ -235,6 +317,7 @@ public final class MaintainHomeGoal extends AbstractGoal {
         clears.clear();
         refills.clear();
         upgrades.clear();
+        demolitions.clear();
         furnish.clear();
         super.stop(bot);
     }
@@ -248,7 +331,10 @@ public final class MaintainHomeGoal extends AbstractGoal {
     public String explain(Bot bot) {
         return switch (phase) {
             case GOTO -> "jdu zkontrolovat dům";
-            case REPAIR -> upgrading && clears.isEmpty() && refills.isEmpty()
+            case REPAIR -> growing
+                    ? "přistavuju barák do větších rozměrů (zbývá " + (refills.size()
+                            + demolitions.size() + (current != null ? 1 : 0)) + " bloků)"
+                    : upgrading && clears.isEmpty() && refills.isEmpty()
                     ? "vylepšuju barák (zbývá " + (upgrades.size()
                             + (current != null ? 1 : 0)) + " bloků)"
                     : "opravuju dům (zbývá " + (clears.size() + refills.size()
@@ -372,6 +458,19 @@ public final class MaintainHomeGoal extends AbstractGoal {
                 furnish.add(new FurnishStep(predicate, step.pos()));
             }
         }
+        // Strukturální růst: až nový plášť stojí (nezbývají díry ve zdech ani
+        // ucpaný vchod), odklidit staré strukturální bloky, které se staly
+        // vnitřními (aditivní napřed, demolice vnitřku naposled – dům je celou
+        // dobu zakrytý). Když je odklizeno, zapsat dosaženou velikost (monotónně).
+        if (growing && refills.isEmpty() && clears.isEmpty()) {
+            var gplan = StructureGrowth.plan(growOldGeometry, growOldOrigin, blueprint,
+                    origin, facing, p -> world.traitsAt(p).solid(), 1, MAX_DEMOLITIONS);
+            demolitions.addAll(gplan.demolitions());
+            if (gplan.done()) {
+                persistGrownSize(bot);
+                growing = false;
+            }
+        }
         // Povýšení na vyšší tier (jen když dům míří výš): nahradit bloky nižšího
         // materiálu cílovými, po celých rolích. Až po opravách – údržba je
         // prioritní, zvelebení bonus.
@@ -381,8 +480,8 @@ public final class MaintainHomeGoal extends AbstractGoal {
         // Cestička a veřejné osvětlení (jen členové vesnice, plán je idempotentní).
         planDecor(ctx, bot);
 
-        if (clears.isEmpty() && refills.isEmpty() && upgrades.isEmpty() && furnish.isEmpty()
-                && (decor == null || !decor.hasWork())) {
+        if (clears.isEmpty() && refills.isEmpty() && upgrades.isEmpty() && demolitions.isEmpty()
+                && furnish.isEmpty() && (decor == null || !decor.hasWork())) {
             cooldownTicks = CALM_COOLDOWN; // všechno drží pohromadě
             phase = Phase.DONE;
             return;
@@ -448,6 +547,39 @@ public final class MaintainHomeGoal extends AbstractGoal {
                 null, data, 0.9);
     }
 
+    /**
+     * Zapíše dosaženou VELIKOST domu (a nový roh) do HOME dat, když dům plně
+     * dorostl (nový plášť stojí, starý vnitřek odklizen). Jen zvětšení – po
+     * commitu je uložená velikost autoritou (idempotentní resume, monotónnost).
+     * Klíč paměti (stanoviště = střed) se růstem nehýbe, takže se přepíše týž
+     * záznam; parcela v evidenci sídla se posune na nový roh, aby k domu vedla
+     * navigace i po restartu (roh drží týž uzel mřížky, jen jinak odsazený).
+     */
+    private void persistGrownSize(Bot bot) {
+        MemoryRecord home = houseRecord(bot);
+        if (home == null) {
+            return;
+        }
+        Map<String, String> data = new HashMap<>(home.data());
+        data.put("bw", String.valueOf(growTargetW));
+        data.put("bh", String.valueOf(growTargetH));
+        data.put("ox", String.valueOf(origin.x()));
+        data.put("oy", String.valueOf(origin.y()));
+        data.put("oz", String.valueOf(origin.z()));
+        data.put("design", "house" + growTargetW + "x" + growTargetH);
+        bot.memory().remember(MemoryKind.HOME, home.world(), home.x(), home.y(), home.z(),
+                null, data, 0.9);
+        // Člen vesnice: posunout parcelu na nový roh (týž index/uzel, jiné odsazení),
+        // ať resolveOriginAndFacing i navigace míří na skutečný roh dorostlého domu.
+        SettlementService settlements = ctx(bot).settlements();
+        if (settlements != null) {
+            var plot = settlements.claimedPlot(bot.id());
+            settlements.settlementIdOf(bot.id()).ifPresent(sid -> plot.ifPresent(slot ->
+                    settlements.claimPlot(sid, bot.id(),
+                            new SettlementService.PlotSlot(slot.index(), origin, facing))));
+        }
+    }
+
     /** U členů vesnice naplánuje obnovu cestičky a pochodní k návsi. */
     private void planDecor(BotContext ctx, Bot bot) {
         var cfg = ctx.config().settlement();
@@ -486,7 +618,15 @@ public final class MaintainHomeGoal extends AbstractGoal {
         }
         PlacementCell cell = refills.poll();
         if (cell == null) {
-            // Opravy hotové – teď případné povýšení na vyšší tier.
+            // Plášť stojí → odklidit starý vnitřek (bezpečné, obálka je hotová),
+            // pak případné povýšení na vyšší tier.
+            BlockPos demo = demolitions.poll();
+            if (demo != null) {
+                if (ctx.worldView() != null && ctx.worldView().traitsAt(demo).solid()) {
+                    current = new MineBlockTask(demo);
+                }
+                return;
+            }
             tickUpgrade(ctx);
             return;
         }
