@@ -305,7 +305,8 @@ public final class CombatController {
             }
             return MoveInput.of(toTarget.mul(-0.4), false, false); // pomalé couvání s krytem
         }
-        if (config.shieldUse() && snapshot != null && snapshot.offhand() == Material.SHIELD
+        if (config.shieldUse() && snapshot != null
+                && dev.botalive.core.inventory.Items.isShield(snapshot.offhand())
                 && distance < 4.0 && attackCooldown > 4
                 && rng.chance(0.04 + personality.trait(Trait.CAUTION) * 0.06)) {
             actions.useOffhand(humanizer.yaw(), humanizer.pitch());

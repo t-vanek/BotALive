@@ -308,7 +308,8 @@ public final class PenGoal extends AbstractGoal {
         ServerSideView.Snapshot snapshot = ctx.serverView().latest();
         Material dominant = CraftingService.dominantPlanks(snapshot);
         if (dominant == null) {
-            return snapshot != null && snapshot.hasItem(m -> m.name().endsWith("_FENCE"));
+            return snapshot != null
+                    && snapshot.hasItem(dev.botalive.core.inventory.Materials::isFence);
         }
         Material fence = BarrierStyle.FENCE.materials(dominant).post();
         if (ctx.inventory().countItem(snapshot, fence) >= FENCE_ESTIMATE) {

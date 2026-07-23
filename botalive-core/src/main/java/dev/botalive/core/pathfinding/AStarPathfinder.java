@@ -265,19 +265,14 @@ public final class AStarPathfinder {
                  FURNACE, BLAST_FURNACE, SMOKER, BEACON, ENCHANTING_TABLE,
                  ANVIL, CHIPPED_ANVIL, DAMAGED_ANVIL, CRAFTING_TABLE, LODESTONE,
                  RESPAWN_ANCHOR -> true;
-            default -> material.name().endsWith("_BED")
+            default -> dev.botalive.core.inventory.Items.isBed(material)
                     || material.name().endsWith("SHULKER_BOX");
         };
     }
 
     /** Padavé materiály – bez podpory se sesypou (do vykopnuté štoly). */
     private static boolean gravityMaterial(org.bukkit.Material material) {
-        return switch (material) {
-            case SAND, RED_SAND, SUSPICIOUS_SAND, GRAVEL, SUSPICIOUS_GRAVEL,
-                 ANVIL, CHIPPED_ANVIL, DAMAGED_ANVIL, POINTED_DRIPSTONE,
-                 DRAGON_EGG -> true;
-            default -> material.name().endsWith("_CONCRETE_POWDER");
-        };
+        return dev.botalive.core.inventory.Materials.isGravityBlock(material);
     }
 
     /**

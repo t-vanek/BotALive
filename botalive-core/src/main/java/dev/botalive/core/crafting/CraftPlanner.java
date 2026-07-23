@@ -138,7 +138,7 @@ public final class CraftPlanner {
 
         /** @return počet prken */
         public int planks() {
-            return countMatching(m -> m.name().endsWith("_PLANKS"));
+            return countMatching(dev.botalive.core.inventory.Materials::isPlanks);
         }
 
         /** @return počet tyček */
@@ -153,7 +153,7 @@ public final class CraftPlanner {
 
         /** @return počet vlny (libovolná barva) */
         public int wool() {
-            return countMatching(m -> m.name().endsWith("_WOOL"));
+            return countMatching(dev.botalive.core.inventory.Materials::isWool);
         }
 
         /** @return má ponk */
@@ -227,7 +227,7 @@ public final class CraftPlanner {
                     stone, 0, stone, 1, stone, 3, Material.STICK, 4, Material.STICK, 7), true);
         }
         if (s.hasTable() && s.cobble() >= 1 && s.sticks() >= 2
-                && !s.hasMatching(m -> m.name().endsWith("_SHOVEL"))) {
+                && !s.hasMatching(dev.botalive.core.inventory.Items::isShovel)) {
             return new Plan("kamenná lopata", matrix(
                     stone, 1, Material.STICK, 4, Material.STICK, 7), true);
         }
@@ -236,7 +236,7 @@ public final class CraftPlanner {
         // a nahradí rozbitou motyku.
         if (s.hasTable() && s.cobble() >= 2 && s.sticks() >= 2
                 && s.count(Material.WHEAT_SEEDS) >= 1
-                && !s.hasMatching(m -> m.name().endsWith("_HOE"))) {
+                && !s.hasMatching(dev.botalive.core.inventory.Items::isHoe)) {
             return new Plan("motyka", matrix(
                     stone, 0, stone, 1, Material.STICK, 4, Material.STICK, 7), true);
         }
@@ -559,12 +559,12 @@ public final class CraftPlanner {
 
         // ---- composter (hnojivo ze semínek; farmářský okruh)
         if (s.hasTable() && plank != null && !s.has(Material.COMPOSTER)
-                && s.countMatching(m -> m.name().endsWith("_SLAB")) < 7 && s.planks() >= 11) {
+                && s.countMatching(dev.botalive.core.inventory.Materials::isSlab) < 7 && s.planks() >= 11) {
             return new Plan("dřevěné půlky", matrix(
                     plank, 0, plank, 1, plank, 2), true);
         }
         if (s.hasTable() && !s.has(Material.COMPOSTER)
-                && s.countMatching(m -> m.name().endsWith("_SLAB")) >= 7) {
+                && s.countMatching(dev.botalive.core.inventory.Materials::isSlab) >= 7) {
             Material slab = firstSlab(s);
             return new Plan("composter", matrix(
                     slab, 0, slab, 2, slab, 3, slab, 5,
@@ -575,19 +575,19 @@ public final class CraftPlanner {
         // (2 železa), aby mohl ostříhat ovce – dřív vlna byla jen ze zabíjení
         // ovcí, takže postel v biomu bez lovu nikdy nevznikla.
         if (s.hasTable() && iron >= 2 && !s.has(Material.SHEARS)
-                && s.wool() < 3 && !s.hasMatching(m -> m.name().endsWith("_BED"))) {
+                && s.wool() < 3 && !s.hasMatching(dev.botalive.core.inventory.Items::isBed)) {
             return new Plan("nůžky", matrix(Material.IRON_INGOT, 1, Material.IRON_INGOT, 3), true);
         }
 
         // ---- vybavení domova
         if (s.hasTable() && s.planks() >= 6 && plank != null
-                && !s.hasMatching(m -> m.name().endsWith("_DOOR"))) {
+                && !s.hasMatching(dev.botalive.core.inventory.Materials::isDoor)) {
             return new Plan("dveře", matrix(
                     plank, 0, plank, 1, plank, 3, plank, 4, plank, 6, plank, 7), true);
         }
         if (s.hasTable() && s.wool() >= 3 && s.woolType() != null
                 && s.planks() >= 3 && plank != null
-                && !s.hasMatching(m -> m.name().endsWith("_BED"))) {
+                && !s.hasMatching(dev.botalive.core.inventory.Items::isBed)) {
             return new Plan("postel", matrix(
                     s.woolType(), 0, s.woolType(), 1, s.woolType(), 2,
                     plank, 3, plank, 4, plank, 5), true);
@@ -660,12 +660,12 @@ public final class CraftPlanner {
     /** První druh dřevěné půlky v inventáři. */
     private static Material firstSlab(State s) {
         for (Material material : s.items().keySet()) {
-            if (material.name().endsWith("_SLAB") && s.count(material) >= 7) {
+            if (dev.botalive.core.inventory.Materials.isSlab(material) && s.count(material) >= 7) {
                 return material;
             }
         }
         for (Material material : s.items().keySet()) {
-            if (material.name().endsWith("_SLAB")) {
+            if (dev.botalive.core.inventory.Materials.isSlab(material)) {
                 return material;
             }
         }

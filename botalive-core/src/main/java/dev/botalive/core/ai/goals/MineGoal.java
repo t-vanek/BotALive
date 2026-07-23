@@ -317,10 +317,8 @@ public final class MineGoal extends AbstractGoal {
         // má přednost. Cílový tier řídí, co má smysl shánět.
         var snapshot = ctx.serverView().latest();
         List<Material> build = BuildMaterials.gatherWishlist(buildTarget(ctx, bot),
-                snapshot != null && snapshot.hasItem(m -> m == Material.GLASS
-                        || m == Material.GLASS_PANE),
-                snapshot != null && snapshot.hasItem(m -> m == Material.SAND
-                        || m == Material.RED_SAND),
+                snapshot != null && snapshot.hasItem(Materials::isGlass),
+                snapshot != null && snapshot.hasItem(Materials::isSand),
                 snapshot != null && snapshot.hasItem(m -> m == Material.CLAY
                         || m == Material.CLAY_BALL),
                 snapshot != null && snapshot.hasItem(m -> m == Material.BRICKS));

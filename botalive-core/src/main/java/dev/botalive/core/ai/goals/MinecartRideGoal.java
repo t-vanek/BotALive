@@ -245,7 +245,7 @@ public final class MinecartRideGoal extends AbstractGoal {
     }
 
     private static boolean isRail(Material material) {
-        return material != null && material.name().endsWith("RAIL");
+        return dev.botalive.core.inventory.Items.isRail(material);
     }
 
     private boolean hasCartItem(BotContext ctx) {

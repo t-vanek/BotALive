@@ -66,7 +66,7 @@ final class DecorWorker {
         var snapshot = ctx.serverView().latest();
         if (step.path()) {
             if (!ctx.inventory().equipMatching(snapshot,
-                    m -> m.name().endsWith("_SHOVEL"))) {
+                    dev.botalive.core.inventory.Items::isShovel)) {
                 steps.removeIf(VillageDecor.Step::path); // bez lopaty už jen pochodně
                 return false;
             }

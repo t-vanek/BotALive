@@ -543,7 +543,7 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
         boolean hasHouse = memory.recall(MemoryKind.HOME).stream()
                 .anyMatch(r -> "house".equals(r.data().get("type")));
         boolean hasBed = snapshot != null
-                && snapshot.hasItem(m -> m.name().endsWith("_BED"));
+                && snapshot.hasItem(dev.botalive.core.inventory.Items::isBed);
         var readiness = dev.botalive.core.ai.EndReadiness.assess(snapshot);
         return new dev.botalive.core.ai.Ambition.State(needs, hasHouse, hasBed,
                 wallet.balance(),

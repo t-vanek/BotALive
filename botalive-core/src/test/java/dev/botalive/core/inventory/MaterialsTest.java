@@ -244,12 +244,33 @@ class MaterialsTest {
         assertTrue(Materials.isGravityBlock(Material.SAND));
         assertTrue(Materials.isGravityBlock(Material.WHITE_CONCRETE_POWDER));
         assertTrue(Materials.isGravityBlock(Material.ANVIL));
+        assertTrue(Materials.isGravityBlock(Material.POINTED_DRIPSTONE));
+        assertTrue(Materials.isGravityBlock(Material.DRAGON_EGG));
+        assertTrue(Materials.isGravityBlock(Material.SUSPICIOUS_GRAVEL));
         assertFalse(Materials.isGravityBlock(Material.STONE));
         assertTrue(Materials.isMineralBlock(Material.IRON_BLOCK));
         assertTrue(Materials.isMineralBlock(Material.RAW_IRON_BLOCK));
         assertTrue(Materials.isMineralBlock(Material.DIAMOND_BLOCK));
         assertFalse(Materials.isMineralBlock(Material.QUARTZ_BLOCK), "křemenný blok je stavební");
         assertFalse(Materials.isMineralBlock(Material.STONE));
+    }
+
+    @Test
+    void priroda() {
+        assertTrue(Materials.isFlower(Material.POPPY));
+        assertTrue(Materials.isFlower(Material.SUNFLOWER));
+        assertFalse(Materials.isFlower(Material.STONE));
+        assertTrue(Materials.isCoral(Material.TUBE_CORAL));
+        assertTrue(Materials.isCoral(Material.DEAD_BRAIN_CORAL_BLOCK));
+        assertFalse(Materials.isCoral(Material.STONE));
+        assertTrue(Materials.isMushroom(Material.RED_MUSHROOM));
+        assertTrue(Materials.isMushroom(Material.CRIMSON_FUNGUS));
+        assertTrue(Materials.isNether(Material.NETHERRACK));
+        assertTrue(Materials.isNether(Material.CRIMSON_STEM));
+        assertTrue(Materials.isNether(Material.SOUL_SAND));
+        assertTrue(Materials.isNether(Material.BLACKSTONE));
+        assertTrue(Materials.isNether(Material.ANCIENT_DEBRIS));
+        assertFalse(Materials.isNether(Material.STONE));
     }
 
     @Test

@@ -67,7 +67,7 @@ public final class ContainerService implements dev.botalive.core.station.ChestSt
      * @return {@code true} pokud jde o kořist hodnou vyloupení
      */
     public static boolean isValuableLoot(Material material) {
-        if (material.name().endsWith("_SMITHING_TEMPLATE")) {
+        if (Items.isSmithingTemplate(material)) {
             return true;
         }
         return switch (material) {

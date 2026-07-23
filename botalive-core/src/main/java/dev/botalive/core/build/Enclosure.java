@@ -280,9 +280,9 @@ public final class Enclosure {
         if (m == null) {
             return false;
         }
-        String name = m.name();
-        return name.endsWith("_FENCE") || name.endsWith("_FENCE_GATE")
-                || name.endsWith("_WALL");
+        return dev.botalive.core.inventory.Materials.isFence(m)
+                || dev.botalive.core.inventory.Materials.isFenceGate(m)
+                || dev.botalive.core.inventory.Materials.isWall(m);
     }
 
     /** Množina XZ klíčů (y=0) sloupců, kde má být branka. */

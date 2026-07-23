@@ -212,6 +212,21 @@ class ItemsTest {
     }
 
     @Test
+    void osivoProdukceAPodtypyBrneni() {
+        assertTrue(Items.isCrop(Material.WHEAT));
+        assertTrue(Items.isCrop(Material.CARROT));
+        assertTrue(Items.isCrop(Material.NETHER_WART));
+        assertFalse(Items.isCrop(Material.DIAMOND));
+        assertTrue(Items.isHelmet(Material.IRON_HELMET));
+        assertTrue(Items.isHelmet(Material.TURTLE_HELMET));
+        assertTrue(Items.isChestplate(Material.DIAMOND_CHESTPLATE));
+        assertTrue(Items.isLeggings(Material.NETHERITE_LEGGINGS));
+        assertTrue(Items.isBoots(Material.LEATHER_BOOTS));
+        assertFalse(Items.isHelmet(Material.IRON_CHESTPLATE));
+        assertFalse(Items.isBoots(null));
+    }
+
+    @Test
     void hlavniKategoriePrioritizuje() {
         assertEquals(ItemCategory.ARMOR, Items.primaryCategory(Material.DIAMOND_HELMET));
         assertEquals(ItemCategory.ARMOR, Items.primaryCategory(Material.ELYTRA));

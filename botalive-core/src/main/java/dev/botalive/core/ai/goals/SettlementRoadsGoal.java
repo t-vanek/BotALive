@@ -92,7 +92,8 @@ public final class SettlementRoadsGoal extends AbstractGoal {
                 return 0;
             }
             var snapshot = ctx.serverView().latest();
-            if (snapshot == null || !snapshot.hasItem(m -> m.name().endsWith("_SHOVEL"))) {
+            if (snapshot == null
+                    || !snapshot.hasItem(dev.botalive.core.inventory.Items::isShovel)) {
                 return 0;
             }
             if (!ctx.settlements().roadsDue(settlement.id(), RECHECK_INTERVAL_MS, bot.id())) {

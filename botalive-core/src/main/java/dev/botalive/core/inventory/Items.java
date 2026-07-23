@@ -464,6 +464,37 @@ public final class Items {
         return material != null && THROWABLES.contains(material);
     }
 
+    private static final Set<Material> CROPS = Set.of(
+            Material.WHEAT, Material.CARROT, Material.POTATO, Material.BEETROOT,
+            Material.PUMPKIN, Material.MELON, Material.MELON_SLICE, Material.NETHER_WART,
+            Material.SUGAR_CANE, Material.SWEET_BERRIES, Material.GLOW_BERRIES,
+            Material.COCOA_BEANS, Material.BAMBOO);
+
+    /** @param material materiál @return {@code true} pro sklizenou zemědělskou produkci */
+    public static boolean isCrop(Material material) {
+        return material != null && CROPS.contains(material);
+    }
+
+    /** @param material materiál @return {@code true} pro helmu (i želví krunýř) */
+    public static boolean isHelmet(Material material) {
+        return InventoryHelper.armorSlot(material) == 3;
+    }
+
+    /** @param material materiál @return {@code true} pro prsní plát */
+    public static boolean isChestplate(Material material) {
+        return InventoryHelper.armorSlot(material) == 2;
+    }
+
+    /** @param material materiál @return {@code true} pro kalhoty (nohavice) */
+    public static boolean isLeggings(Material material) {
+        return InventoryHelper.armorSlot(material) == 1;
+    }
+
+    /** @param material materiál @return {@code true} pro boty */
+    public static boolean isBoots(Material material) {
+        return InventoryHelper.armorSlot(material) == 0;
+    }
+
     // ==================================================================
     // Souhrnná kategorie
     // ==================================================================

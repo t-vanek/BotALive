@@ -420,8 +420,11 @@ public final class Materials {
         if (isSand(material) || material == Material.GRAVEL || isConcretePowder(material)) {
             return true;
         }
-        return material == Material.ANVIL || material == Material.CHIPPED_ANVIL
-                || material == Material.DAMAGED_ANVIL;
+        return switch (material) {
+            case ANVIL, CHIPPED_ANVIL, DAMAGED_ANVIL, SUSPICIOUS_SAND, SUSPICIOUS_GRAVEL,
+                 POINTED_DRIPSTONE, DRAGON_EGG -> true;
+            default -> false;
+        };
     }
 
     private static final Set<Material> MINERAL_BLOCKS = Set.of(
@@ -440,5 +443,59 @@ public final class Materials {
      */
     public static boolean isMineralBlock(Material material) {
         return material != null && MINERAL_BLOCKS.contains(material);
+    }
+
+    // ==================================================================
+    // Příroda (květiny, korály, houby, netherské bloky)
+    // ==================================================================
+
+    private static final Set<Material> FLOWERS = Set.of(
+            Material.DANDELION, Material.POPPY, Material.BLUE_ORCHID, Material.ALLIUM,
+            Material.AZURE_BLUET, Material.RED_TULIP, Material.ORANGE_TULIP,
+            Material.WHITE_TULIP, Material.PINK_TULIP, Material.OXEYE_DAISY,
+            Material.CORNFLOWER, Material.LILY_OF_THE_VALLEY, Material.WITHER_ROSE,
+            Material.TORCHFLOWER, Material.SUNFLOWER, Material.LILAC, Material.ROSE_BUSH,
+            Material.PEONY, Material.PITCHER_PLANT);
+
+    /** @param material materiál @return {@code true} pro květinu (malou i vysokou) */
+    public static boolean isFlower(Material material) {
+        return material != null && FLOWERS.contains(material);
+    }
+
+    /** @param material materiál @return {@code true} pro korál (živý i mrtvý, blok/vějíř) */
+    public static boolean isCoral(Material material) {
+        return material != null && material.name().contains("CORAL");
+    }
+
+    private static final Set<Material> MUSHROOMS = Set.of(
+            Material.BROWN_MUSHROOM, Material.RED_MUSHROOM,
+            Material.CRIMSON_FUNGUS, Material.WARPED_FUNGUS);
+
+    /** @param material materiál @return {@code true} pro houbu/hřib (i netherský fungus) */
+    public static boolean isMushroom(Material material) {
+        return material != null && MUSHROOMS.contains(material);
+    }
+
+    private static final Set<Material> NETHER_EXTRA = Set.of(
+            Material.GLOWSTONE, Material.MAGMA_BLOCK, Material.ANCIENT_DEBRIS,
+            Material.SHROOMLIGHT, Material.CRYING_OBSIDIAN, Material.WEEPING_VINES,
+            Material.TWISTING_VINES);
+
+    /**
+     * Netherský blok/materiál (netherrack, blackstone, basalt, crimson/warped,
+     * soul-*, glowstone, magma…) – domácí prostředí Netheru.
+     *
+     * @param material materiál ({@code null} = ne)
+     * @return {@code true} pro netherský materiál
+     */
+    public static boolean isNether(Material material) {
+        if (material == null) {
+            return false;
+        }
+        String name = material.name();
+        return name.contains("NETHER") || name.contains("BLACKSTONE")
+                || name.contains("BASALT") || name.startsWith("CRIMSON_")
+                || name.startsWith("WARPED_") || name.startsWith("SOUL_")
+                || NETHER_EXTRA.contains(material);
     }
 }
