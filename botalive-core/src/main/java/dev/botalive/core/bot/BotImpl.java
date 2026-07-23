@@ -673,6 +673,25 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
         return employment == null ? 1.0 : employment.weight(id, goalId);
     }
 
+    /** Naučená hybnost cílů (zpětná vazba z úspěšných dokončení). */
+    private final dev.botalive.core.ai.GoalMomentum goalMomentum =
+            new dev.botalive.core.ai.GoalMomentum();
+
+    /** Násobič utility z naučené hybnosti cíle. */
+    public double momentumWeight(String goalId) {
+        return goalMomentum.weight(goalId);
+    }
+
+    /** Rozhodovací krok mozku – hybnost cílů o kus slábne. */
+    public void decayMomentum() {
+        goalMomentum.decay();
+    }
+
+    /** Cíl úspěšně dokončen – posílí jeho hybnost (jen produktivní práce). */
+    public void reinforceGoal(String goalId) {
+        goalMomentum.reinforce(goalId);
+    }
+
     /** @return řádka „životní cíl" pro příkazy, nebo {@code null} */
     public String ambitionLine() {
         var current = ambition;
