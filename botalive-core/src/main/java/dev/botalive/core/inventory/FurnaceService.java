@@ -33,12 +33,12 @@ public final class FurnaceService implements dev.botalive.core.station.FurnaceSt
     // Hliněná kulička → cihla: reprezentativní dům (REFINED) se staví z cihel.
     // Přirozeně gate-ované sběrem hlíny – hlínu sbírá jen stavitel mířící na
     // REFINED (BuildMaterials), takže cizí boti pec cihlami nezaplevelí.
+    // Syrové maso/ryby (BEEF, PORKCHOP, COD…) řeší katalog Items.isRawFood –
+    // tady zůstávají jen suroviny mimo tuto kategorii (rudy, písek, brambora…).
     private static final Set<Material> SMELTABLE = Set.of(
             Material.RAW_IRON, Material.RAW_GOLD, Material.RAW_COPPER,
             Material.IRON_ORE, Material.GOLD_ORE, Material.COPPER_ORE,
             Material.ANCIENT_DEBRIS,
-            Material.BEEF, Material.PORKCHOP, Material.CHICKEN,
-            Material.MUTTON, Material.RABBIT, Material.COD, Material.SALMON,
             Material.POTATO, Material.KELP,
             Material.SAND, Material.RED_SAND,
             Material.CLAY_BALL
@@ -68,7 +68,7 @@ public final class FurnaceService implements dev.botalive.core.station.FurnaceSt
      * @return {@code true} pokud jde o tavitelnou surovinu
      */
     public static boolean isSmeltable(Material material) {
-        return SMELTABLE.contains(material);
+        return SMELTABLE.contains(material) || Items.isRawFood(material);
     }
 
     /**

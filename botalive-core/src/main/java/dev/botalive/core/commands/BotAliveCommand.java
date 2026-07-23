@@ -52,7 +52,7 @@ public final class BotAliveCommand implements TabExecutor {
     private static final List<String> SUBCOMMANDS = List.of(
             "create", "remove", "tp", "list", "pause", "resume", "personality",
             "memory", "goal", "stats", "role", "settlements", "diplomacy", "end",
-            "path", "overview", "hire", "dismiss");
+            "path", "overview", "hire", "dismiss", "codex");
 
     /**
      * @return jména všech vestavěných podpříkazů – vyhrazená pro registr
@@ -143,6 +143,7 @@ public final class BotAliveCommand implements TabExecutor {
             case "end" -> endPortal(sender, args);
             case "path" -> path(sender, args);
             case "overview" -> overview(sender);
+            case "codex" -> codex(sender, args);
             default -> dispatchCustom(sender, sub, args);
         }
         return true;
@@ -1016,7 +1017,7 @@ public final class BotAliveCommand implements TabExecutor {
         for (String sub : SUBCOMMANDS) {
             boolean visible = switch (sub) {
                 case "tp", "list" -> canTeleport;
-                case "hire", "dismiss" -> true;
+                case "hire", "dismiss", "codex" -> true;
                 default -> admin;
             };
             if (visible) {
@@ -1041,6 +1042,41 @@ public final class BotAliveCommand implements TabExecutor {
             sender.sendMessage(Component.text(" (žádná dostupná akce – chybí oprávnění)",
                     NamedTextColor.DARK_GRAY));
         }
+    }
+
+    /**
+     * {@code /botalive codex [materiál]} – nahlédnutí do botní databáze materiálů
+     * ({@link dev.botalive.core.inventory.Codex}). Bez argumentu vypíše histogram
+     * kategorií celé vanilly, s materiálem jeho „kartu" (kategorie a fakta).
+     */
+    private void codex(CommandSender sender, String[] args) {
+        if (args.length < 2) {
+            var histogram = dev.botalive.core.inventory.Codex.histogram();
+            int total = histogram.values().stream().mapToInt(Integer::intValue).sum();
+            info(sender, "Codex – databáze materiálů (" + total + " celkem):");
+            histogram.entrySet().stream()
+                    .filter(e -> e.getValue() > 0)
+                    .sorted(java.util.Map.Entry.<dev.botalive.core.inventory.Items.ItemCategory,
+                            Integer>comparingByValue().reversed())
+                    .forEach(e -> sender.sendMessage(Component.text(
+                            " " + e.getKey().name().toLowerCase(Locale.ROOT) + ": " + e.getValue(),
+                            NamedTextColor.GRAY)));
+            return;
+        }
+        org.bukkit.Material material = org.bukkit.Material.matchMaterial(args[1]);
+        if (material == null) {
+            info(sender, "Neznámý materiál: " + args[1]);
+            return;
+        }
+        info(sender, dev.botalive.core.inventory.Codex.describe(material));
+    }
+
+    /** Názvy (moderních) materiálů malými písmeny – pro tab-complete /botalive codex. */
+    private static List<String> materialNames() {
+        return Stream.of(org.bukkit.Material.values())
+                .filter(m -> !m.name().startsWith("LEGACY_"))
+                .map(m -> m.name().toLowerCase(Locale.ROOT))
+                .toList();
     }
 
     private void info(CommandSender sender, String message) {
@@ -1078,7 +1114,7 @@ public final class BotAliveCommand implements TabExecutor {
             List<String> visible = new ArrayList<>(SUBCOMMANDS.stream()
                     .filter(sub -> switch (sub) {
                         case "tp", "list" -> canTeleport;
-                        case "hire", "dismiss" -> true;
+                        case "hire", "dismiss", "codex" -> true;
                         default -> admin;
                     })
                     .toList());
@@ -1105,6 +1141,9 @@ public final class BotAliveCommand implements TabExecutor {
             } catch (Exception e) {
                 return List.of();
             }
+        }
+        if (args.length == 2 && args[0].equalsIgnoreCase("codex")) {
+            return filter(materialNames(), args[1]);
         }
         boolean playerFacing = args[0].equalsIgnoreCase("hire")
                 || args[0].equalsIgnoreCase("dismiss");
