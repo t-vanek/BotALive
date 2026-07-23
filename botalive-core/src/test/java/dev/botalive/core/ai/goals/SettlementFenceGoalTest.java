@@ -14,34 +14,48 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Testy geometrie plotu kolem domu – obdélník s odsazením (dvorek) a branka na
- * straně dveří. Samotné stavění (chůze, equip) vede {@link BarrierWorker} a
- * testuje se v provozu (jako {@link DecorWorker}); tady jde o čistý plán.
+ * straně dveří, škálovaný podle skutečné šířky domu (generovaný dům je širší
+ * než legacy 4×4). Samotné stavění (chůze, equip) vede {@link BarrierWorker}
+ * a testuje se v provozu (jako {@link DecorWorker}); tady jde o čistý plán.
  */
 class SettlementFenceGoalTest {
 
     private static final int Y = 64;
     private static final BlockPos ORIGIN = new BlockPos(0, Y, 0);
+    /** Legacy domek 4×4. */
+    private static final int LEGACY = 4;
 
     @Test
     void plotObkrouziDumSDvorkem() {
         // Domek 4×4 (origin 0..3) → plot 6×6 s odsazením 1 (min −1, max 4).
-        SettlementFenceGoal.FenceBounds b = SettlementFenceGoal.fenceBounds(ORIGIN, Cardinal.NORTH);
+        var b = SettlementFenceGoal.fenceBounds(ORIGIN, Cardinal.NORTH, LEGACY);
         assertEquals(new BlockPos(-1, Y, -1), b.min());
         assertEquals(new BlockPos(4, Y, 4), b.max());
         assertEquals(Cardinal.NORTH, b.gate());
     }
 
     @Test
+    void plotSkaluIStavboSirsihoDomu() {
+        // Generovaný dům 7×7 (origin 0..6) → plot 9×9 (min −1, max 7).
+        var b = SettlementFenceGoal.fenceBounds(ORIGIN, Cardinal.NORTH, 7);
+        assertEquals(new BlockPos(-1, Y, -1), b.min());
+        assertEquals(new BlockPos(7, Y, 7), b.max());
+        // Odhad plaňků roste s obvodem: 4·(w+2) − 4.
+        assertEquals(20, SettlementFenceGoal.fenceEstimate(LEGACY), "obvod 6×6");
+        assertEquals(32, SettlementFenceGoal.fenceEstimate(7), "obvod 9×9");
+    }
+
+    @Test
     void brankaJeVzdyNaStraneDveri() {
         for (Cardinal facing : Cardinal.values()) {
-            assertEquals(facing, SettlementFenceGoal.fenceBounds(ORIGIN, facing).gate(),
+            assertEquals(facing, SettlementFenceGoal.fenceBounds(ORIGIN, facing, LEGACY).gate(),
                     "branka na straně dveří: " + facing);
         }
     }
 
     @Test
     void planDaObvod6x6SBrankouNaSever() {
-        SettlementFenceGoal.FenceBounds b = SettlementFenceGoal.fenceBounds(ORIGIN, Cardinal.NORTH);
+        var b = SettlementFenceGoal.fenceBounds(ORIGIN, Cardinal.NORTH, LEGACY);
         List<Enclosure.Post> posts = Enclosure.plan(new FakeWorldView(Y), b.min(), b.max(), Y,
                 Set.of(b.gate()), 100);
         assertEquals(20, posts.size(), "obvod 6×6 = 2·6 + 2·6 − 4");
@@ -53,7 +67,7 @@ class SettlementFenceGoalTest {
 
     @Test
     void plotStojiNaZemiPoObvodu() {
-        SettlementFenceGoal.FenceBounds b = SettlementFenceGoal.fenceBounds(ORIGIN, Cardinal.EAST);
+        var b = SettlementFenceGoal.fenceBounds(ORIGIN, Cardinal.EAST, LEGACY);
         List<Enclosure.Post> posts = Enclosure.plan(new FakeWorldView(Y), b.min(), b.max(), Y,
                 Set.of(b.gate()), 100);
         for (Enclosure.Post p : posts) {

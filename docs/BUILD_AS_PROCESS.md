@@ -115,10 +115,15 @@ květináč z přebytku cihel (*3 cihly → květináč*, až když má zásobu 
 zdi – dekorace neujídá zdivo). Vybavení je bonus: co bot nemá, `BuildSession`
 i údržba přeskočí.
 
-**Plot s brankou** kolem parcely je samostatné větší rozšíření: `VillageDecor.Step`
-je sdílený se `SettlementRoads`, takže by chtěl refaktor kroku, a kód už má
-plotovou infrastrukturu (`craftFencing`, `BarrierWorker`, `Enclosure`,
-`SettlementFenceGoal`) k znovupoužití.
+**Plot s brankou:** existující [`SettlementFenceGoal`](../botalive-core/src/main/java/dev/botalive/core/ai/goals/SettlementFenceGoal.java)
+kolem domu plot **už staví** (plaňky z prken přes `craftFencing`, klade
+`BarrierWorker` po obvodu `Enclosure`, branka u dveří, idempotentně, i s
+opravou) – jen měl napevno legacy velikost 4×4, takže pro širší generovaný dům
+byl plot uvnitř zdí. Nově cíl **čte skutečnou šířku domu** z HOME dat (`bw`),
+takže plot správně obkrouží i REFINED dům (a odhad plaňků `fenceEstimate(width)`
+škáluje s obvodem). Zapíná se configem `settlement.fences` (default vyp.);
+funguje pro člena vesnice i samotáře. Materiál plotu se ladí na dřevo domu
+(`BarrierStyle`).
 
 - `PaletteResolver.resolve(woodHint, seed, tier)` – nová dimenze `tier`;
   2-arg varianta zůstává a míří na `SOLID` (dnešní vzhled beze změny).
