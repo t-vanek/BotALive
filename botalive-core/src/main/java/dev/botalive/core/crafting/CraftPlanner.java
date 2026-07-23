@@ -42,6 +42,27 @@ public final class CraftPlanner {
     private static final int EYES_TARGET = 12;
 
     /**
+     * Strop zásoby cihlových bloků, které bot vyrobí do zásoby na reprezentativní
+     * dům – dost na zdi/základ/střechu jednoho domu, ať nemele cihly donekonečna.
+     */
+    private static final int BRICK_BLOCK_STOCK = 16;
+
+    /** Strop zásoby tesaných cihel (jako {@link #BRICK_BLOCK_STOCK}). */
+    private static final int STONE_BRICK_STOCK = 16;
+
+    /** Strop zásoby skleněných tabulí do oken reprezentativního domu. */
+    private static final int GLASS_PANE_STOCK = 16;
+
+    /** Strop zásoby luceren (osvětlení reprezentativního domu). */
+    private static final int LANTERN_STOCK = 4;
+
+    /** Ingoty železa ponechané na nástroje/brnění – nugety až z přebytku. */
+    private static final int IRON_RESERVE = 3;
+
+    /** Strop zásoby květináčů (dekorace reprezentativního domu). */
+    private static final int FLOWER_POT_STOCK = 2;
+
+    /**
      * Jeden plán receptu: co vyrobit a z čeho (3×3 matice, row-major).
      *
      * @param id         české označení výrobku (pro chat/log)
@@ -70,9 +91,12 @@ public final class CraftPlanner {
      * @param plankType konkrétní druh prken (null = žádná)
      * @param stoneType druh kamene pro nástroje (cobblestone/deepslate)
      * @param woolType  konkrétní druh vlny (null = žádná)
+     * @param masonry   míří bot na reprezentativní dům? (odemyká tesané cihly –
+     *                  jinak by je mlel každý a plýtval kamenem)
      */
     public record State(Map<Material, Integer> items, Material logType,
-                        Material plankType, Material stoneType, Material woolType) {
+                        Material plankType, Material stoneType, Material woolType,
+                        boolean masonry) {
 
         /** @return počet kusů materiálu */
         public int count(Material material) {
@@ -578,6 +602,58 @@ public final class CraftPlanner {
             return new Plan("truhla do zásoby", matrix(
                     plank, 0, plank, 1, plank, 2, plank, 3, plank, 5,
                     plank, 6, plank, 7, plank, 8), true);
+        }
+
+        // ---- cihlový blok pro reprezentativní dům (REFINED): 4 cihly → blok.
+        // Nejnižší priorita (za výbavou). Přirozeně gate-ované sběrem hlíny –
+        // jen stavitel mířící na REFINED sbírá hlínu, taví ji na cihly a má
+        // z čeho blok složit; zásoba se drží na rozumné mezi.
+        if (s.count(Material.BRICK) >= 4 && s.count(Material.BRICKS) < BRICK_BLOCK_STOCK) {
+            return new Plan("cihlový blok", matrix(
+                    Material.BRICK, 0, Material.BRICK, 1, Material.BRICK, 3, Material.BRICK, 4),
+                    false);
+        }
+        // ---- tesané cihly na základ a střechu REFINED domu: 4 kameny → 4 tesané.
+        // Gate na masonry: kámen (z cobble) mají i cizí boti, tak by je jinak
+        // mleli zbytečně. Kámen dodá tavba cobble (FurnaceService, masonry gate).
+        if (s.masonry() && s.count(Material.STONE) >= 4
+                && s.count(Material.STONE_BRICKS) < STONE_BRICK_STOCK) {
+            return new Plan("tesané cihly", matrix(
+                    Material.STONE, 0, Material.STONE, 1, Material.STONE, 3, Material.STONE, 4),
+                    false);
+        }
+        // ---- skleněné tabule do oken REFINED domu: 6 skla → 16 tabulí. Jen
+        // masonry (REFINED chce tabule); solidní dům skleněná okna z plného
+        // skla by si jinak proměnil na tabule a přestal je umět zasklít.
+        if (s.masonry() && s.count(Material.GLASS) >= 6
+                && s.count(Material.GLASS_PANE) < GLASS_PANE_STOCK) {
+            return new Plan("skleněné tabule", matrix(
+                    Material.GLASS, 0, Material.GLASS, 1, Material.GLASS, 2,
+                    Material.GLASS, 3, Material.GLASS, 4, Material.GLASS, 5), true);
+        }
+        // ---- lucerny do REFINED domu: z přebytku železa nugety, z nich lucerna
+        // (8 nugetů + pochodeň). Úplně nejnižší priorita a rezerva ingotů –
+        // nástroje a brnění mají vždy přednost před osvětlením.
+        if (s.masonry() && s.count(Material.LANTERN) < LANTERN_STOCK
+                && s.count(Material.IRON_NUGGET) < 8
+                && s.count(Material.IRON_INGOT) > IRON_RESERVE) {
+            return new Plan("železné nugety", matrix(Material.IRON_INGOT, 0), false);
+        }
+        if (s.masonry() && s.hasTable() && s.count(Material.IRON_NUGGET) >= 8
+                && s.count(Material.TORCH) >= 1 && s.count(Material.LANTERN) < LANTERN_STOCK) {
+            return new Plan("lucerna", matrix(
+                    Material.IRON_NUGGET, 0, Material.IRON_NUGGET, 1, Material.IRON_NUGGET, 2,
+                    Material.IRON_NUGGET, 3, Material.TORCH, 4, Material.IRON_NUGGET, 5,
+                    Material.IRON_NUGGET, 6, Material.IRON_NUGGET, 7, Material.IRON_NUGGET, 8),
+                    true);
+        }
+        // ---- květináče do REFINED domu: 3 cihly do V. Až z přebytku cihel
+        // (dům už má zásobu bloků na zdi) – dekorace nesmí ujídat zdivo.
+        if (s.masonry() && s.hasTable() && s.count(Material.BRICK) >= 3
+                && s.count(Material.BRICKS) >= 8
+                && s.count(Material.FLOWER_POT) < FLOWER_POT_STOCK) {
+            return new Plan("květináč", matrix(
+                    Material.BRICK, 0, Material.BRICK, 2, Material.BRICK, 4), true);
         }
         return null;
     }

@@ -25,15 +25,16 @@ public final class HouseGenerator implements Blueprint {
     private final int width;
     private final int wallHeight;
     private final boolean roofPeaked;
+    private final BuildTier tier;
 
     /**
-     * Dům s plnou jehlanovou střechou do špičky.
+     * Dům s plnou jehlanovou střechou do špičky (stupeň {@link BuildTier#SOLID}).
      *
      * @param width      šířka i hloubka půdorysu (lichá, ≥ 5)
      * @param wallHeight výška zdí (≥ 2)
      */
     public HouseGenerator(int width, int wallHeight) {
-        this(width, wallHeight, true);
+        this(width, wallHeight, true, BuildTier.SOLID);
     }
 
     /**
@@ -43,6 +44,18 @@ public final class HouseGenerator implements Blueprint {
      *                   vrcholem (o stupeň nižší) – variace vzhledu
      */
     public HouseGenerator(int width, int wallHeight, boolean roofPeaked) {
+        this(width, wallHeight, roofPeaked, BuildTier.SOLID);
+    }
+
+    /**
+     * @param width      šířka i hloubka půdorysu (lichá, ≥ 5)
+     * @param wallHeight výška zdí (≥ 2)
+     * @param roofPeaked plná jehlanová střecha do špičky, nebo valba s plochým
+     *                   vrcholem (o stupeň nižší) – variace vzhledu
+     * @param tier       stavební stupeň – reprezentativní ({@link BuildTier#REFINED})
+     *                   dostane navíc komín; nižší stupně mají prostou geometrii
+     */
+    public HouseGenerator(int width, int wallHeight, boolean roofPeaked, BuildTier tier) {
         if (width < 5 || width % 2 == 0) {
             throw new IllegalArgumentException("width musí být liché a ≥ 5: " + width);
         }
@@ -52,6 +65,7 @@ public final class HouseGenerator implements Blueprint {
         this.width = width;
         this.wallHeight = wallHeight;
         this.roofPeaked = roofPeaked;
+        this.tier = tier;
     }
 
     private int center() {
@@ -101,7 +115,31 @@ public final class HouseGenerator implements Blueprint {
                 }
             }
         }
+        // Reprezentativní dům má komín: sloupec u nároží nad střechu.
+        if (tier == BuildTier.REFINED) {
+            for (int y = chimneyBase(); y <= chimneyTop(); y++) {
+                result.add(new PlacementCell(local(origin, CHIMNEY_X, y, CHIMNEY_Z, facing),
+                        BlockSpec.of(PaletteRole.ROOF)));
+            }
+        }
         return result;
+    }
+
+    /** Sloupec komína (u nároží, aby nekolidoval se stoupající valbou). */
+    private static final int CHIMNEY_X = 1;
+    private static final int CHIMNEY_Z = 1;
+
+    /** Nejvyšší y střešního bloku ve sloupci komína (odtud komín pokračuje výš). */
+    private int chimneyBase() {
+        int maxStep = Math.min(Math.min(CHIMNEY_X, CHIMNEY_Z),
+                Math.min(width - 1 - CHIMNEY_X, width - 1 - CHIMNEY_Z));
+        int cover = Math.min(maxStep, roofSteps() - 1);
+        return wallTop() + 1 + cover + 1; // první blok nad střechou v tom sloupci
+    }
+
+    /** Vrchol komína – dva bloky nad špičkou střechy. */
+    private int chimneyTop() {
+        return wallTop() + roofSteps() + 2;
     }
 
     /** Role obvodového bloku: nároží = kmen, okno = sklo, základ = kámen, jinak zeď. */
@@ -129,6 +167,12 @@ public final class HouseGenerator implements Blueprint {
                 }
             }
         }
+        // Komín reprezentativního domu vyčnívá nad běžný objem – uvolnit i nad ním.
+        if (tier == BuildTier.REFINED) {
+            for (int y = top + 1; y <= chimneyTop(); y++) {
+                result.add(local(origin, CHIMNEY_X, y, CHIMNEY_Z, facing));
+            }
+        }
         return result;
     }
 
@@ -145,10 +189,22 @@ public final class HouseGenerator implements Blueprint {
 
     @Override
     public List<FurnishCell> furnishing(BlockPos origin, Cardinal facing) {
-        return List.of(
-                new FurnishCell(FurnishKind.DOOR, local(origin, center(), 0, 0, facing)),
-                new FurnishCell(FurnishKind.BED, local(origin, 1, 0, 1, facing)),
-                new FurnishCell(FurnishKind.TORCH, local(origin, width - 2, 0, 1, facing)));
+        List<FurnishCell> result = new ArrayList<>();
+        result.add(new FurnishCell(FurnishKind.DOOR, local(origin, center(), 0, 0, facing)));
+        result.add(new FurnishCell(FurnishKind.BED, local(origin, 1, 0, 1, facing)));
+        // Reprezentativní dům svítí lucernami (místo pochodně, a jednou navíc).
+        FurnishKind light = tier == BuildTier.REFINED ? FurnishKind.LANTERN : FurnishKind.TORCH;
+        result.add(new FurnishCell(light, local(origin, width - 2, 0, 1, facing)));
+        if (tier == BuildTier.REFINED) {
+            result.add(new FurnishCell(FurnishKind.LANTERN,
+                    local(origin, 1, 0, width - 2, facing)));
+            // Květináče u bočních oken – reprezentativní dekorace.
+            result.add(new FurnishCell(FurnishKind.FLOWER_POT,
+                    local(origin, 1, 0, center(), facing)));
+            result.add(new FurnishCell(FurnishKind.FLOWER_POT,
+                    local(origin, width - 2, 0, center(), facing)));
+        }
+        return result;
     }
 
     @Override

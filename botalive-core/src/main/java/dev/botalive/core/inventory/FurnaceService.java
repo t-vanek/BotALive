@@ -30,6 +30,9 @@ public final class FurnaceService implements dev.botalive.core.station.FurnaceSt
     // Písek → sklo: bez něj nemá bot okna z čeho postavit. Okenní role v
     // paletě sice sklo chce, ale když ho bot nemá, stavba tiše sáhne po
     // náhradním bloku a dům skončí slepý (BuildSession.equipFor).
+    // Hliněná kulička → cihla: reprezentativní dům (REFINED) se staví z cihel.
+    // Přirozeně gate-ované sběrem hlíny – hlínu sbírá jen stavitel mířící na
+    // REFINED (BuildMaterials), takže cizí boti pec cihlami nezaplevelí.
     private static final Set<Material> SMELTABLE = Set.of(
             Material.RAW_IRON, Material.RAW_GOLD, Material.RAW_COPPER,
             Material.IRON_ORE, Material.GOLD_ORE, Material.COPPER_ORE,
@@ -37,7 +40,8 @@ public final class FurnaceService implements dev.botalive.core.station.FurnaceSt
             Material.BEEF, Material.PORKCHOP, Material.CHICKEN,
             Material.MUTTON, Material.RABBIT, Material.COD, Material.SALMON,
             Material.POTATO, Material.KELP,
-            Material.SAND, Material.RED_SAND
+            Material.SAND, Material.RED_SAND,
+            Material.CLAY_BALL
     );
 
     /** Paliva, která bot do pece ochotně obětuje. */
@@ -77,8 +81,9 @@ public final class FurnaceService implements dev.botalive.core.station.FurnaceSt
 
     @Override
     public CompletableFuture<InsertReport> insert(dev.botalive.core.ai.BotContext ctx,
-                                                  String worldName, BlockPos pos) {
-        return insert(ctx.bot().id(), worldName, pos);
+                                                  String worldName, BlockPos pos,
+                                                  boolean wantsMasonry) {
+        return insert(ctx.bot().id(), worldName, pos, wantsMasonry);
     }
 
     @Override
@@ -95,17 +100,21 @@ public final class FurnaceService implements dev.botalive.core.station.FurnaceSt
      * @param pos       pozice pece
      * @return future s počty vložených kusů
      */
-    public CompletableFuture<InsertReport> insert(UUID botId, String worldName, BlockPos pos) {
+    public CompletableFuture<InsertReport> insert(UUID botId, String worldName, BlockPos pos,
+                                                  boolean wantsMasonry) {
         return withFurnace(botId, worldName, pos, (player, furnace) -> {
             FurnaceInventory inventory = furnace.getInventory();
-            // Tavicí řetězy nad rámec základu: kámen na blastovou pec a dřevěné
-            // uhlí při nouzi o palivo – jen když je bot skutečně potřebuje,
+            // Tavicí řetězy nad rámec základu: kámen na blastovou pec, dřevěné
+            // uhlí při nouzi o palivo a cobble → kámen na tesané cihly (jen
+            // stavitel REFINED domu) – vždy jen když je bot skutečně potřebuje,
             // aby pec nespalovala zásoby bezúčelně.
             boolean stoneChain = needsSmoothStone(player);
             boolean charcoalChain = needsCharcoal(player);
+            boolean masonryStone = wantsMasonry && needsMasonryStone(player);
             int inserted = moveMatching(player, inventory.getSmelting(),
                     m -> isSmeltable(m)
                             || (stoneChain && (m == Material.COBBLESTONE || m == Material.STONE))
+                            || (masonryStone && m == Material.COBBLESTONE)
                             || (charcoalChain && m.name().endsWith("_LOG")),
                     inventory::setSmelting);
             // Palivo podle priority: uhlí → prkna/tyčky → klády až jako nouzovka.
@@ -137,6 +146,20 @@ public final class FurnaceService implements dev.botalive.core.station.FurnaceSt
                 && inv.contains(Material.FURNACE)
                 && count(inv, Material.IRON_INGOT) >= 5
                 && count(inv, Material.SMOOTH_STONE) < 3;
+    }
+
+    /** Strop zásoby kamene/tesaných cihel pro zednické tavení (jako CraftPlanner). */
+    private static final int MASONRY_STOCK = 16;
+
+    /**
+     * Stavitel REFINED domu potřebuje kámen na tesané cihly? Taví se cobble →
+     * kámen, dokud nemá dost tesaných cihel ani kamene čekajícího na craft –
+     * ať pec cobble nemele donekonečna.
+     */
+    private static boolean needsMasonryStone(org.bukkit.entity.Player player) {
+        var inv = player.getInventory();
+        return count(inv, Material.STONE_BRICKS) < MASONRY_STOCK
+                && count(inv, Material.STONE) < MASONRY_STOCK;
     }
 
     /** Došlo uhlí a je z čeho pálit dřevěné uhlí? */

@@ -40,10 +40,8 @@ public final class SettlementFenceGoal extends AbstractGoal {
 
     private enum Phase { PROVISION, WORK, DONE }
 
-    /** Odsazení plotu od domu (dvorek) – domek 4×4 → plot 6×6. */
+    /** Odsazení plotu od domu (dvorek) – půdorys {@code w×w} → plot {@code (w+2)×(w+2)}. */
     private static final int MARGIN = 1;
-    /** Odhad plaňků na obvod plotu 6×6 (2·6 + 2·6 − 4 = 20). */
-    private static final int FENCE_ESTIMATE = 20;
     /** Strop kroků plánu na jednu seanci (zbytek příště, plán je idempotentní). */
     private static final int MAX_STEPS = 40;
     /** Okruh kolem domova, ve kterém se plot řeší (nechodí kvůli němu daleko). */
@@ -55,6 +53,8 @@ public final class SettlementFenceGoal extends AbstractGoal {
     private Phase phase = Phase.DONE;
     private BlockPos origin;
     private Cardinal facing = Cardinal.NORTH;
+    /** Skutečná šířka domu (generovaný dům je širší než legacy 4×4). */
+    private int width = HouseBlueprint.SIZE;
     private Material planks;
     private Material post;
     private Material gate;
@@ -98,7 +98,7 @@ public final class SettlementFenceGoal extends AbstractGoal {
                 return 0;
             }
         }
-        FenceBounds b = fenceBounds(origin, facing);
+        FenceBounds b = fenceBounds(origin, facing, width);
         Enclosure.Assessment a = assessor.assess(ctx, b.min(), b.max(), origin.y(),
                 Set.of(b.gate()));
         boolean damaged = BarrierRepair.isDamaged(a);
@@ -165,8 +165,9 @@ public final class SettlementFenceGoal extends AbstractGoal {
         int haveFences = ctx.inventory().countItem(snapshot, post);
         boolean hasTable = snapshot.hasItem(m -> m == Material.CRAFTING_TABLE);
 
-        if (haveFences < FENCE_ESTIMATE) {
-            int need = FENCE_ESTIMATE - haveFences;
+        int estimate = fenceEstimate(width);
+        if (haveFences < estimate) {
+            int need = estimate - haveFences;
             if (planks != null && hasTable
                     && CraftingService.canCraftFencing(snapshot, planks, need, 0)) {
                 craftFuture = crafting.craftFencing(bot.id(), planks, post, gate, need, 0);
@@ -220,23 +221,29 @@ public final class SettlementFenceGoal extends AbstractGoal {
     }
 
     /**
-     * Plot kolem domku {@link HouseBlueprint#SIZE}×SIZE s odsazením {@link #MARGIN}
-     * (dvorek) a brankou na straně dveří.
+     * Plot kolem domu {@code width×width} s odsazením {@link #MARGIN} (dvorek)
+     * a brankou na straně dveří.
      *
      * @param origin roh půdorysu domu
      * @param facing orientace dveří (sem přijde branka)
+     * @param width  šířka půdorysu domu (legacy 4, generovaný 5/7/9…)
      * @return obdélník plotu a strana branky
      */
-    static FenceBounds fenceBounds(BlockPos origin, Cardinal facing) {
+    static FenceBounds fenceBounds(BlockPos origin, Cardinal facing, int width) {
         return new FenceBounds(
                 origin.offset(-MARGIN, 0, -MARGIN),
-                origin.offset(HouseBlueprint.SIZE - 1 + MARGIN, 0, HouseBlueprint.SIZE - 1 + MARGIN),
+                origin.offset(width - 1 + MARGIN, 0, width - 1 + MARGIN),
                 facing);
+    }
+
+    /** Odhad plaňků na obvod plotu kolem domu {@code width×width} (prstenec +MARGIN). */
+    static int fenceEstimate(int width) {
+        return 4 * (width + 2 * MARGIN) - 4;
     }
 
     /** Naplánuje plaňky+branku po obvodu parcely (odsazení MARGIN, branka ke dveřím). */
     private List<Enclosure.Placement> planFence(WorldView world) {
-        FenceBounds bounds = fenceBounds(origin, facing);
+        FenceBounds bounds = fenceBounds(origin, facing, width);
         List<Enclosure.Placement> cells = new ArrayList<>();
         for (Enclosure.Post p : Enclosure.plan(world, bounds.min(), bounds.max(), origin.y(),
                 Set.of(bounds.gate()), MAX_STEPS)) {
@@ -247,7 +254,7 @@ public final class SettlementFenceGoal extends AbstractGoal {
 
     /** Střed parcely (pro vnitřní stanoviště branky a měření vzdálenosti). */
     private BlockPos plotCenter() {
-        int half = HouseBlueprint.SIZE / 2;
+        int half = width / 2;
         return origin.offset(half, 0, half);
     }
 
@@ -268,15 +275,17 @@ public final class SettlementFenceGoal extends AbstractGoal {
             return snapshot != null && snapshot.hasItem(m -> m.name().endsWith("_FENCE"));
         }
         Material fence = BarrierStyle.FENCE.materials(dominant).post();
-        if (ctx.inventory().countItem(snapshot, fence) >= FENCE_ESTIMATE) {
+        int estimate = fenceEstimate(width);
+        if (ctx.inventory().countItem(snapshot, fence) >= estimate) {
             return true;
         }
         return snapshot.hasItem(m -> m == Material.CRAFTING_TABLE)
-                && CraftingService.canCraftFencing(snapshot, dominant, FENCE_ESTIMATE, 1);
+                && CraftingService.canCraftFencing(snapshot, dominant, estimate, 1);
     }
 
     /** Origin a orientace domu: parcela vesnice → HOME data → rekonstrukce. */
     private boolean resolvePlot(BotContext ctx, Bot bot) {
+        width = houseWidth(bot); // plot obkrouží skutečnou šířku (generovaný dům je širší)
         SettlementService settlements = ctx.settlements();
         if (settlements != null) {
             var plot = settlements.claimedPlot(bot.id());
@@ -308,6 +317,28 @@ public final class SettlementFenceGoal extends AbstractGoal {
             return true;
         }
         return false;
+    }
+
+    /**
+     * Šířka domu z HOME dat: generovaný dům nese {@code bw}, legacy 4×4 ne.
+     * Nikdy pod {@link HouseBlueprint#SIZE} – plot menší než dům nedává smysl.
+     */
+    private int houseWidth(Bot bot) {
+        for (MemoryRecord record : bot.memory().recall(MemoryKind.HOME)) {
+            if (!"house".equals(record.data().get("type"))) {
+                continue;
+            }
+            String bw = record.data().get("bw");
+            if (bw != null) {
+                try {
+                    return Math.max(HouseBlueprint.SIZE, Integer.parseInt(bw));
+                } catch (NumberFormatException ignored) {
+                    // poškozené – legacy velikost
+                }
+            }
+            return HouseBlueprint.SIZE; // legacy dům (bez bw)
+        }
+        return HouseBlueprint.SIZE;
     }
 
     private void finish(BotContext ctx, int cooldown, boolean announce) {

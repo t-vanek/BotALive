@@ -12,15 +12,29 @@ package dev.botalive.core.build.plan;
 public enum PaletteRole {
 
     /** Zaměnitelný stavební blok (dnešní {@code equipBuildingBlock}). */
-    GENERIC,
+    GENERIC(SubstitutionPolicy.FILL_GENERIC),
     /** Základová / spodní obruba stavby (kámen). */
-    FOUNDATION,
+    FOUNDATION(SubstitutionPolicy.FILL_GENERIC),
     /** Hlavní zdivo. */
-    WALL,
+    WALL(SubstitutionPolicy.FILL_GENERIC),
     /** Nároží a rámy (kontrastní, typicky kmeny). */
-    WALL_ACCENT,
-    /** Okno (sklo). */
-    WINDOW,
+    WALL_ACCENT(SubstitutionPolicy.FILL_GENERIC),
+    /** Okno (sklo) – bez skla se nechá otvor, nezazdívá se. */
+    WINDOW(SubstitutionPolicy.LEAVE_EMPTY),
     /** Střešní krytina. */
-    ROOF
+    ROOF(SubstitutionPolicy.FILL_GENERIC);
+
+    private final SubstitutionPolicy substitution;
+
+    PaletteRole(SubstitutionPolicy substitution) {
+        this.substitution = substitution;
+    }
+
+    /**
+     * @return co dělat, když stavba nemá materiál této role po ruce
+     *         (náhrada generikem / otvor / tier-0 s dluhem na upgrade)
+     */
+    public SubstitutionPolicy substitution() {
+        return substitution;
+    }
 }

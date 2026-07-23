@@ -106,6 +106,46 @@ class HouseGeneratorTest {
     }
 
     @Test
+    void refinedHouseIsLitByLanterns() {
+        List<FurnishCell> solid = new HouseGenerator(5, 3, true, BuildTier.SOLID)
+                .furnishing(ORIGIN, Cardinal.NORTH);
+        List<FurnishCell> refined = new HouseGenerator(5, 3, true, BuildTier.REFINED)
+                .furnishing(ORIGIN, Cardinal.NORTH);
+        // Solidní dům svítí pochodní, reprezentativní lucernami.
+        assertTrue(solid.stream().anyMatch(f -> f.kind() == FurnishKind.TORCH),
+                "solidní má pochodeň");
+        assertTrue(solid.stream().noneMatch(f -> f.kind() == FurnishKind.LANTERN),
+                "solidní bez lucerny");
+        long lanterns = refined.stream().filter(f -> f.kind() == FurnishKind.LANTERN).count();
+        assertEquals(2, lanterns, "reprezentativní dům má dvě lucerny");
+        assertTrue(refined.stream().noneMatch(f -> f.kind() == FurnishKind.TORCH),
+                "reprezentativní bez pochodně");
+        // …a květináče u bočních oken; nižší stupeň je nemá.
+        long pots = refined.stream().filter(f -> f.kind() == FurnishKind.FLOWER_POT).count();
+        assertEquals(2, pots, "reprezentativní dům má dva květináče");
+        assertTrue(solid.stream().noneMatch(f -> f.kind() == FurnishKind.FLOWER_POT),
+                "solidní bez květináčů");
+    }
+
+    @Test
+    void refinedHouseHasSupportedChimneyAboveRoof() {
+        HouseGenerator solid = new HouseGenerator(5, 3, true, BuildTier.SOLID);
+        HouseGenerator refined = new HouseGenerator(5, 3, true, BuildTier.REFINED);
+        List<PlacementCell> solidCells = solid.cells(ORIGIN, Cardinal.NORTH);
+        List<PlacementCell> refinedCells = refined.cells(ORIGIN, Cardinal.NORTH);
+        // Komín přidá bloky a ční nad špičku střechy.
+        assertTrue(refinedCells.size() > solidCells.size(), "komín přidá bloky");
+        int roofPeak = solidCells.stream().mapToInt(c -> c.pos().y()).max().orElseThrow();
+        int refinedTop = refinedCells.stream().mapToInt(c -> c.pos().y()).max().orElseThrow();
+        assertTrue(refinedTop > roofPeak, "komín přesahuje střechu");
+        // Každý blok (i komín) má při pokládce oporu – jinak order() vyhodí výjimku.
+        for (Cardinal facing : Cardinal.values()) {
+            BuildPlanner.order(refined.cells(ORIGIN, facing),
+                    refined.groundColumns(ORIGIN, facing));
+        }
+    }
+
+    @Test
     void flatTopRoofVariantReachesSupportsAndBuilds() {
         HouseGenerator gen = new HouseGenerator(5, 3, false); // valba s plochým vrcholem
         // Nižší střecha než plná jehla.

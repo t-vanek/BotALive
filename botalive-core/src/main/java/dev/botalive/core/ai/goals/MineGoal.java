@@ -5,7 +5,12 @@ import dev.botalive.api.memory.MemoryKind;
 import dev.botalive.api.personality.Trait;
 import dev.botalive.core.ai.BotContext;
 import dev.botalive.core.ai.BotNeeds;
+import dev.botalive.core.build.plan.BuildMaterials;
+import dev.botalive.core.build.plan.BuildTier;
+import dev.botalive.core.build.plan.HouseDesigner;
 import dev.botalive.core.mining.DigPlanner;
+import dev.botalive.core.settlement.SettlementService;
+import dev.botalive.core.settlement.SettlementTier;
 import dev.botalive.core.tasks.MineBlockTask;
 import dev.botalive.core.tasks.PlaceBlockTask;
 import dev.botalive.core.util.BlockPos;
@@ -278,6 +283,21 @@ public final class MineGoal extends AbstractGoal {
     // Výběr cíle
     // ==================================================================
 
+    /**
+     * Cílový stavební stupeň domu bota – z prosperity sídla a osobnosti
+     * ({@link HouseDesigner#tierFor}). Řídí, jestli má smysl shánět sklo:
+     * solidní+ dům zasklívá okna, srub (osada / samotář) ne.
+     */
+    private static BuildTier buildTarget(BotContext ctx, Bot bot) {
+        SettlementTier tier = SettlementTier.OSADA;
+        SettlementService settlements = ctx.settlements();
+        if (settlements != null) {
+            tier = settlements.settlementOf(bot.id())
+                    .map(SettlementService.SettlementInfo::tier).orElse(SettlementTier.OSADA);
+        }
+        return HouseDesigner.tierFor(tier, bot.personality().trait(Trait.LAZINESS));
+    }
+
     /** Najde další cíl: wishlist → hodnotné rudy → dřevo → výkop/schodiště. */
     private void acquireTarget(BotContext ctx, Bot bot) {
         WorldView world = ctx.worldView();
@@ -294,6 +314,25 @@ public final class MineGoal extends AbstractGoal {
         if (!found.isEmpty()) {
             setTarget(ctx, found, needs);
             return;
+        }
+        // 1b) Stavební suroviny (písek na sklo, hlína na cihly) – nižší priorita
+        // než rudy: bere se, jen když poblíž není žádaná ruda, ať těžba nástrojů
+        // má přednost. Cílový tier řídí, co má smysl shánět.
+        var snapshot = ctx.serverView().latest();
+        List<Material> build = BuildMaterials.gatherWishlist(buildTarget(ctx, bot),
+                snapshot != null && snapshot.hasItem(m -> m == Material.GLASS
+                        || m == Material.GLASS_PANE),
+                snapshot != null && snapshot.hasItem(m -> m == Material.SAND
+                        || m == Material.RED_SAND),
+                snapshot != null && snapshot.hasItem(m -> m == Material.CLAY
+                        || m == Material.CLAY_BALL),
+                snapshot != null && snapshot.hasItem(m -> m == Material.BRICKS));
+        if (!build.isEmpty()) {
+            found = scanExposedAll(ctx, m -> build.contains(m) && needs.canHarvest(m));
+            if (!found.isEmpty()) {
+                setTarget(ctx, found, needs);
+                return;
+            }
         }
         // 2) Dřevo, když ho bot potřebuje/preferuje.
         if (preferLogs) {

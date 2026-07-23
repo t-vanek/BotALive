@@ -3,8 +3,13 @@ package dev.botalive.core.ai.goals;
 import dev.botalive.api.ai.Goal;
 import dev.botalive.api.bot.Bot;
 import dev.botalive.api.memory.MemoryKind;
+import dev.botalive.api.personality.Trait;
 import dev.botalive.core.ai.BotContext;
+import dev.botalive.core.build.plan.BuildTier;
+import dev.botalive.core.build.plan.HouseDesigner;
 import dev.botalive.core.entity.TrackedEntity;
+import dev.botalive.core.settlement.SettlementService;
+import dev.botalive.core.settlement.SettlementTier;
 
 /**
  * Společný základ vestavěných cílů.
@@ -45,6 +50,38 @@ public abstract class AbstractGoal implements Goal {
      */
     protected static boolean outsideOverworld(BotContext ctx) {
         return ctx.dimension() != dev.botalive.core.world.WorldDimension.OVERWORLD;
+    }
+
+    /**
+     * Cílový stavební stupeň domu bota z prosperity sídla a osobnosti
+     * ({@link HouseDesigner#tierFor}). Bez sídla / bez služby = osada (srub).
+     * Sdílené místo pravdy pro cíle, které se řídí tím, na jaký dům bot míří
+     * (stavba, údržba, těžba surovin, craft/tavba materiálu).
+     *
+     * @param bot API bot
+     * @return cílový stavební stupeň
+     */
+    protected static BuildTier houseTier(Bot bot) {
+        BotContext ctx = ctx(bot);
+        SettlementTier tier = SettlementTier.OSADA;
+        SettlementService settlements = ctx.settlements();
+        if (settlements != null) {
+            tier = settlements.settlementOf(bot.id())
+                    .map(SettlementService.SettlementInfo::tier).orElse(SettlementTier.OSADA);
+        }
+        return HouseDesigner.tierFor(tier, bot.personality().trait(Trait.LAZINESS));
+    }
+
+    /**
+     * Míří bot na reprezentativní (cihlový + tesaný kámen) dům? Gate pro
+     * zednické řetězce – tavbu cobble→kámen a craft tesaných cihel – aby je
+     * dělal jen stavitel, jehož dům je vyžaduje, a cizí boti neplýtvali.
+     *
+     * @param bot API bot
+     * @return {@code true} pokud je cílový tier {@link BuildTier#REFINED}
+     */
+    protected static boolean wantsMasonry(Bot bot) {
+        return houseTier(bot) == BuildTier.REFINED;
     }
 
     @Override

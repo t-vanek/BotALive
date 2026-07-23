@@ -624,6 +624,8 @@ public final class Blueprints {
         return switch (kind) {
             case DOOR -> m -> m.name().endsWith("_DOOR");
             case TORCH -> m -> m == Material.TORCH;
+            case LANTERN -> m -> m == Material.LANTERN;
+            case FLOWER_POT -> m -> m == Material.FLOWER_POT;
             case BED -> m -> m.name().endsWith("_BED");
             case CHEST -> m -> m == Material.CHEST;
             case BELL -> m -> m == Material.BELL;

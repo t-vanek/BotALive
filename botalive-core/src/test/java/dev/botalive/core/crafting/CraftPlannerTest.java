@@ -16,8 +16,17 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class CraftPlannerTest {
 
-    /** Sestaví stav z dvojic (materiál, počet). */
+    /** Sestaví stav z dvojic (materiál, počet); bot nemíří na REFINED. */
     private static CraftPlanner.State state(Object... pairs) {
+        return build(false, pairs);
+    }
+
+    /** Jako {@link #state}, ale bot míří na reprezentativní dům (masonry). */
+    private static CraftPlanner.State stateMasonry(Object... pairs) {
+        return build(true, pairs);
+    }
+
+    private static CraftPlanner.State build(boolean masonry, Object... pairs) {
         Map<Material, Integer> items = new HashMap<>();
         for (int i = 0; i < pairs.length; i += 2) {
             items.merge((Material) pairs[i], (Integer) pairs[i + 1], Integer::sum);
@@ -28,7 +37,7 @@ class CraftPlannerTest {
                 .filter(m -> m.name().endsWith("_PLANKS")).findFirst().orElse(null);
         Material wool = items.keySet().stream()
                 .filter(m -> m.name().endsWith("_WOOL")).findFirst().orElse(null);
-        return new CraftPlanner.State(items, log, plank, Material.COBBLESTONE, wool);
+        return new CraftPlanner.State(items, log, plank, Material.COBBLESTONE, wool, masonry);
     }
 
     /** Kompletně vybavený bot (nic dalšího nedává smysl). */
@@ -46,6 +55,66 @@ class CraftPlannerTest {
     @Test
     void bezSurovinNicNeplanuje() {
         assertNull(CraftPlanner.next(state()));
+    }
+
+    @Test
+    void ctyriCihlyDajiCihlovyBlok() {
+        // Reprezentativní dům (REFINED): ze 4 cihel se složí cihlový blok.
+        assertEquals("cihlový blok", CraftPlanner.next(state(Material.BRICK, 4)).id());
+        // Pod 4 cihly se blok nesloží.
+        assertNull(CraftPlanner.next(state(Material.BRICK, 3)));
+        // Se zásobou bloků se už další nemelou (strop).
+        assertNull(CraftPlanner.next(state(Material.BRICK, 8, Material.BRICKS, 16)));
+    }
+
+    @Test
+    void tesaneCihlyJenProStaviteleRefined() {
+        // Stavitel REFINED (masonry) ze 4 kamenů složí tesané cihly.
+        assertEquals("tesané cihly", CraftPlanner.next(stateMasonry(Material.STONE, 4)).id());
+        // Bez masonry se kámen na tesané cihly nemele – nestavitel by plýtval.
+        assertNull(CraftPlanner.next(state(Material.STONE, 4)));
+        // Se zásobou tesaných cihel už další netřeba (strop).
+        assertNull(CraftPlanner.next(
+                stateMasonry(Material.STONE, 8, Material.STONE_BRICKS, 16)));
+    }
+
+    @Test
+    void lucernyJenProRefined() {
+        // Z přebytku železa se udělají nugety (1×1, bez ponku).
+        assertEquals("železné nugety",
+                CraftPlanner.next(stateMasonry(Material.IRON_INGOT, 4)).id());
+        // 8 nugetů + pochodeň + ponk → lucerna.
+        assertEquals("lucerna", CraftPlanner.next(stateMasonry(
+                Material.CRAFTING_TABLE, 1, Material.IRON_NUGGET, 8, Material.TORCH, 1)).id());
+        // Bez masonry se lucerny nedělají – nestavitel železo neplýtvá.
+        assertNull(CraftPlanner.next(state(Material.IRON_INGOT, 4)));
+        // Rezerva železa: na mezi ingotů se nugety nemelou.
+        assertNull(CraftPlanner.next(stateMasonry(Material.IRON_INGOT, 3)));
+    }
+
+    @Test
+    void kvetinaceZPrebytkuCihel() {
+        // REFINED s ponkem, zásobou bloků a přebytkem cihel → květináč.
+        assertEquals("květináč", CraftPlanner.next(stateMasonry(
+                Material.CRAFTING_TABLE, 1, Material.BRICK, 3, Material.BRICKS, 8)).id());
+        // Dokud nemá zásobu bloků na zdi, cihly jdou na zdivo, ne na dekoraci.
+        assertNull(CraftPlanner.next(stateMasonry(
+                Material.CRAFTING_TABLE, 1, Material.BRICK, 3, Material.BRICKS, 4)));
+        // Bez masonry se květináče nedělají.
+        assertNull(CraftPlanner.next(state(
+                Material.CRAFTING_TABLE, 1, Material.BRICK, 3, Material.BRICKS, 8)));
+    }
+
+    @Test
+    void skleneneTabuleJenProRefined() {
+        // Stavitel REFINED (masonry) ze 6 skel složí tabule do oken.
+        assertEquals("skleněné tabule", CraftPlanner.next(stateMasonry(Material.GLASS, 6)).id());
+        // Bez masonry (solidní dům) se plné sklo na tabule nemění – jinak by
+        // solidní dům přestal umět zasklít okna z plného skla.
+        assertNull(CraftPlanner.next(state(Material.GLASS, 6)));
+        // Se zásobou tabulí už další netřeba (strop).
+        assertNull(CraftPlanner.next(
+                stateMasonry(Material.GLASS, 12, Material.GLASS_PANE, 16)));
     }
 
     @Test
@@ -545,6 +614,6 @@ class CraftPlannerTest {
             items.merge((Material) pairs[i], (Integer) pairs[i + 1], Integer::sum);
         }
         return new CraftPlanner.State(items, base.logType(), base.plankType(),
-                base.stoneType(), base.woolType());
+                base.stoneType(), base.woolType(), base.masonry());
     }
 }

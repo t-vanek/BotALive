@@ -190,6 +190,12 @@ public record BotNeeds(int pickaxeTier, boolean hasAxe, boolean hasSword,
         if (name.equals("GRAVEL")) {
             return "sháním pazourek na křesadlo";
         }
+        if (name.equals("SAND") || name.equals("RED_SAND")) {
+            return "sháním písek na sklo do oken";
+        }
+        if (name.equals("CLAY")) {
+            return "sháním hlínu na cihly na hezčí dům";
+        }
         if (name.equals("OBSIDIAN")) {
             return "obsidián na portál do Netheru";
         }
