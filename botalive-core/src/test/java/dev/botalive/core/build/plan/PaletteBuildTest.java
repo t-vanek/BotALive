@@ -82,6 +82,42 @@ class PaletteBuildTest {
         assertEquals(Material.COBBLESTONE, world.materialAt(wall), "náhradní blok");
     }
 
+    @Test
+    void leavesWindowOpenWhenGlassMissing() {
+        FakeWorldView world = new FakeWorldView(63);
+        BlockPos wallA = new BlockPos(0, 64, 0);
+        BlockPos window = new BlockPos(1, 64, 0);
+        BlockPos wallB = new BlockPos(2, 64, 0);
+        BlockPos stand = new BlockPos(1, 64, -1);
+
+        BuildPlan plan = new BuildPlan(
+                List.of(
+                        new PlacementCell(wallA, BlockSpec.of(PaletteRole.WALL)),
+                        new PlacementCell(window, BlockSpec.of(PaletteRole.WINDOW)),
+                        new PlacementCell(wallB, BlockSpec.of(PaletteRole.WALL))),
+                List.of(wallA, window, wallB),
+                List.of(wallA.down(), window.down(), wallB.down()),
+                List.of(), stand, Optional.empty(), false);
+
+        Palette palette = PaletteResolver.resolve(Material.SPRUCE_LOG, 5);
+        BuildSchedule schedule = BuildPlanner.schedule(plan, world);
+        FakeBotContext ctx = new FakeBotContext(world, personality());
+        ctx.update(new Vec3(stand.x() + 0.5, stand.y(), stand.z() + 0.5), true);
+        // Prkna na zeď má, sklo na okno NE → okno se nechá otvorem, ne zazdí.
+        ctx.give(Material.SPRUCE_PLANKS, 10);
+
+        BuildSession session = new BuildSession(schedule, palette);
+        BuildSession.State state = BuildSession.State.RUNNING;
+        for (int i = 0; i < 500 && state == BuildSession.State.RUNNING; i++) {
+            state = session.tick(ctx);
+        }
+        // Stavba doběhne (otvor není torzo), zdi stojí, okno zůstane vzduchem.
+        assertEquals(BuildSession.State.DONE, state, "otvor okna není nedokončená stavba");
+        assertEquals(Material.SPRUCE_PLANKS, world.materialAt(wallA), "zeď z prken");
+        assertEquals(Material.SPRUCE_PLANKS, world.materialAt(wallB), "zeď z prken");
+        assertEquals(Material.AIR, world.materialAt(window), "okno bez skla je otvor");
+    }
+
     private static Personality personality() {
         return new Personality() {
             @Override

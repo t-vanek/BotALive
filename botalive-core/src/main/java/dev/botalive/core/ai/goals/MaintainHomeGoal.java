@@ -9,9 +9,11 @@ import dev.botalive.core.build.plan.Blueprint;
 import dev.botalive.core.build.plan.Blueprints;
 import dev.botalive.core.build.plan.FurnishCell;
 import dev.botalive.core.build.plan.HouseDesigner;
+import dev.botalive.core.bot.ServerSideView;
 import dev.botalive.core.build.plan.Palette;
 import dev.botalive.core.build.plan.PaletteRole;
 import dev.botalive.core.build.plan.PlacementCell;
+import dev.botalive.core.build.plan.SubstitutionPolicy;
 import dev.botalive.core.util.Cardinal;
 import dev.botalive.core.chat.PhraseCategory;
 import dev.botalive.core.settlement.SettlementService;
@@ -262,6 +264,7 @@ public final class MaintainHomeGoal extends AbstractGoal {
      */
     private void planRepairs(BotContext ctx, Bot bot) {
         WorldView world = ctx.worldView();
+        var snapshot = ctx.serverView().latest();
 
         // Chybějící bloky stavby proti plánu (díra = nepevná pozice); materiál
         // se doplní podle role (AcceptancePolicy rozhodne, co už je v pořádku).
@@ -274,11 +277,15 @@ public final class MaintainHomeGoal extends AbstractGoal {
                 return;
             }
             if (!traits.solid() && missing < MAX_REPAIRS) {
+                // Otvor s politikou LEAVE_EMPTY (okno) nezazdívat: doplnit jen
+                // když máme cílový materiál (sklo), jinak zůstane otvorem.
+                if (leaveEmpty(cell, snapshot)) {
+                    continue;
+                }
                 refills.add(cell);
                 missing++;
             }
         }
-        var snapshot = ctx.serverView().latest();
         // Vchod: co se tam připletlo (pevný blok, ne dveře), vykopat.
         blueprint.doorCell(origin, facing).ifPresent(doorBottom -> {
             for (BlockPos pos : List.of(doorBottom, doorBottom.up())) {
@@ -370,7 +377,26 @@ public final class MaintainHomeGoal extends AbstractGoal {
         if (intended != null && ctx.inventory().equipItem(snapshot, intended)) {
             return true;
         }
+        // Okno bez skla nezazdívat generikem – otvor je legitimní stav.
+        if (role.substitution() == SubstitutionPolicy.LEAVE_EMPTY) {
+            return false;
+        }
         return ctx.inventory().equipBuildingBlock(snapshot);
+    }
+
+    /**
+     * Otvor s politikou {@link SubstitutionPolicy#LEAVE_EMPTY} (okno), který se
+     * nemá zazdívat: doplní se jen když máme cílový materiál (sklo), jinak
+     * zůstane otvorem, dokud sklo nebude.
+     */
+    private boolean leaveEmpty(PlacementCell cell, ServerSideView.Snapshot snapshot) {
+        PaletteRole role = cell.spec().role();
+        if (role.substitution() != SubstitutionPolicy.LEAVE_EMPTY) {
+            return false;
+        }
+        Material intended = palette.intended(role).orElse(null);
+        return intended == null || snapshot == null
+                || !snapshot.hasItem(m -> m == intended);
     }
 
     /** Doplní vybavení (dveře, postel, pochodeň); co chybí v batohu, přeskočí. */

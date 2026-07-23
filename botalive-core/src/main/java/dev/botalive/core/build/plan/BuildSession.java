@@ -187,10 +187,16 @@ public final class BuildSession {
             current = new MineBlockTask(dig);
             return State.RUNNING;
         }
-        BlockPos hole = fill.poll();
+        BlockPos hole = fill.peek();
         if (hole != null) {
-            // Zásyp podlahy zaměnitelným blokem (zásypů je pár, materiál je zajištěn gate).
-            ctx.inventory().equipBuildingBlock(ctx.serverView().latest());
+            // Zásyp podlahy zaměnitelným blokem. Bez čeho zasypat se stavba
+            // nesmí rozjet: díra v podlaze = zeď bez opory a dům nad prázdnem.
+            // Radši BLOCKED_MATERIAL a dostavět jindy (resume), než torzo.
+            if (!ctx.inventory().equipBuildingBlock(ctx.serverView().latest())) {
+                missing = PaletteRole.GENERIC;
+                return State.BLOCKED_MATERIAL;
+            }
+            fill.poll();
             current = new PlaceBlockTask(hole);
             return State.RUNNING;
         }
@@ -234,12 +240,20 @@ public final class BuildSession {
             placements.poll();
             return State.RUNNING;
         }
-        if (!equipFor(ctx, cell.spec().role())) {
-            missing = cell.spec().role();
-            return State.BLOCKED_MATERIAL;
+        PaletteRole role = cell.spec().role();
+        switch (equip(ctx, role)) {
+            case READY -> {
+                placements.poll();
+                current = new PlaceBlockTask(cell.pos());
+            }
+            // Materiál role není, ale politika velí nechat otvor (okno bez skla).
+            // Cela je odbavená – doplní se, až materiál bude (upgrade/údržba).
+            case SKIP -> placements.poll();
+            case BLOCKED -> {
+                missing = role;
+                return State.BLOCKED_MATERIAL;
+            }
         }
-        placements.poll();
-        current = new PlaceBlockTask(cell.pos());
         return State.RUNNING;
     }
 
@@ -308,6 +322,11 @@ public final class BuildSession {
         for (WorkUnit unit : attempted) {
             List<PlacementCell> missingCells = new ArrayList<>();
             for (PlacementCell cell : unit.placements()) {
+                // Otvor (okno bez skla) je legitimní stav, ne nepoložený blok –
+                // jinak by ho verifikace hlásila věčně a dům skončil jako torzo.
+                if (cell.spec().role().substitution() == SubstitutionPolicy.LEAVE_EMPTY) {
+                    continue;
+                }
                 if (!world.traitsAt(cell.pos()).solid()) {
                     missingCells.add(cell);
                 }
@@ -395,19 +414,33 @@ public final class BuildSession {
         return State.RUNNING;
     }
 
+    /** Výsledek pokusu vzít materiál role do ruky. */
+    private enum Equip {
+        /** Materiál v ruce – lze pokládat. */
+        READY,
+        /** Materiál není, ale politika role velí nechat otvor (okno bez skla). */
+        SKIP,
+        /** Nezbývá vůbec žádný stavební blok – stavba se zastaví. */
+        BLOCKED
+    }
+
     /**
-     * Vezme do ruky materiál role: zamýšlený z palety, a když došel, jakýkoli
-     * zaměnitelný stavební blok (náhrada – stavba se nezasekne). U
-     * {@link Palette#GENERIC} rovnou zaměnitelný blok jako dnes.
-     *
-     * @return {@code false} když nezbývá vůbec žádný stavební blok
+     * Vezme do ruky materiál role: zamýšlený z palety, a když došel, podle
+     * {@link SubstitutionPolicy politiky role}: {@code LEAVE_EMPTY} nechá otvor
+     * ({@link Equip#SKIP}), jinak jakýkoli zaměnitelný stavební blok (náhrada –
+     * stavba se nezasekne). U {@link Palette#GENERIC} rovnou zaměnitelný blok
+     * jako dnes.
      */
-    private boolean equipFor(BotContext ctx, PaletteRole role) {
+    private Equip equip(BotContext ctx, PaletteRole role) {
         var snapshot = ctx.serverView().latest();
         Material intended = palette.intended(role).orElse(null);
         if (intended != null && ctx.inventory().equipItem(snapshot, intended)) {
-            return true;
+            return Equip.READY;
         }
-        return ctx.inventory().equipBuildingBlock(snapshot);
+        // Cílový materiál role není po ruce – rozhodne politika role.
+        if (role.substitution() == SubstitutionPolicy.LEAVE_EMPTY) {
+            return Equip.SKIP;
+        }
+        return ctx.inventory().equipBuildingBlock(snapshot) ? Equip.READY : Equip.BLOCKED;
     }
 }
