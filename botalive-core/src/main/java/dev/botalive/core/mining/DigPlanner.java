@@ -1,5 +1,6 @@
 package dev.botalive.core.mining;
 
+import dev.botalive.core.inventory.Materials;
 import dev.botalive.core.util.BlockPos;
 import dev.botalive.core.world.WorldView;
 
@@ -139,6 +140,26 @@ public final class DigPlanner {
                 || world.traitsAt(block.offset(-1, 0, 0)).liquid()
                 || world.traitsAt(block.offset(0, 0, 1)).liquid()
                 || world.traitsAt(block.offset(0, 0, -1)).liquid();
+    }
+
+    /**
+     * Spadl by při vytěžení bloku gravitační blok (písek, štěrk, betonový
+     * prášek, kovadlina…) přímo shora do vzniklé díry? Katalogové pravidlo
+     * „nekopat zespodu" v akci: horník, který vyrazí blok pod sloupcem písku,
+     * si ho nasype na hlavu a udusí se – přesně před tím {@link
+     * dev.botalive.core.inventory.MaterialGuide} u gravitačních bloků varuje.
+     * Klasifikaci čte z katalogu ({@link Materials#isGravityBlock}), takže je
+     * sonda registry-free a jednotkově testovatelná bez serveru.
+     *
+     * <p>Stačí sledovat blok přímo nad cílem: padá jen gravitační blok, který
+     * nad ním leží bezprostředně – vyšší sloupec drží případný pevný blok mezi.</p>
+     *
+     * @param world pohled na svět
+     * @param block blok k vytěžení
+     * @return {@code true} pokud je nad blokem gravitační blok (sesypal by se)
+     */
+    public static boolean wouldCollapse(WorldView world, BlockPos block) {
+        return Materials.isGravityBlock(world.materialAt(block.up()));
     }
 
     /**

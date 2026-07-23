@@ -509,6 +509,17 @@ public final class MineGoal extends AbstractGoal {
             }
             return;
         }
+        // Bezpečnost: nad blokem gravitační sloupec (písek/štěrk) → nekopat
+        // zespodu, sesypal by se dolů a horníka zasypal (katalogové pravidlo
+        // „nekopat zespodu", které o gravitačních blocích drží MaterialGuide).
+        if (DigPlanner.wouldCollapse(world, block)) {
+            abortDig();
+            cooldownTicks = 600;
+            if (ctx.rng().chance(0.4)) {
+                ctx.chat().say("nad hlavou pisek, to bych se zasypal, radsi jinudy");
+            }
+            return;
+        }
         if (digBudget-- <= 0) {
             abortDig();
             cooldownTicks = 400; // dost na jednu seanci

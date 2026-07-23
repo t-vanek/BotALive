@@ -114,4 +114,30 @@ class DigPlannerTest {
         assertFalse(DigPlanner.hasFloorBelow(world, new dev.botalive.core.util.BlockPos(0, 64, 0), 3),
                 "tekutina pod chodidly není podlaha");
     }
+
+    // ------------------------------------------------ gravitační sloupec shora
+
+    @Test
+    void nadHlavouGravitacniBlokJeNebezpecny() {
+        var world = new dev.botalive.core.testutil.FakeWorldView(50);
+        BlockPos block = new BlockPos(0, 64, 0);
+        // Nad těženým blokem je písek – vytěžením by se sesypal na horníka.
+        world.set(0, 65, 0, org.bukkit.Material.SAND, dev.botalive.core.testutil.FakeWorldView.SOLID);
+        assertTrue(DigPlanner.wouldCollapse(world, block),
+                "nad blokem gravitační blok → nekopat zespodu (zasypání/udušení)");
+        // Štěrk se chová stejně (katalog isGravityBlock).
+        world.set(0, 65, 0, org.bukkit.Material.GRAVEL, dev.botalive.core.testutil.FakeWorldView.SOLID);
+        assertTrue(DigPlanner.wouldCollapse(world, block), "štěrk nad hlavou je taky gravitační");
+    }
+
+    @Test
+    void pevnyBlokNadHlavouJeVPohode() {
+        var world = new dev.botalive.core.testutil.FakeWorldView(50);
+        BlockPos block = new BlockPos(0, 64, 0);
+        // Vzduch nad blokem – nic nespadne.
+        assertFalse(DigPlanner.wouldCollapse(world, block), "vzduch nad blokem není nebezpečí");
+        // Kámen nad blokem drží, není gravitační.
+        world.set(0, 65, 0, org.bukkit.Material.STONE, dev.botalive.core.testutil.FakeWorldView.SOLID);
+        assertFalse(DigPlanner.wouldCollapse(world, block), "kámen nad blokem se nesesype");
+    }
 }
