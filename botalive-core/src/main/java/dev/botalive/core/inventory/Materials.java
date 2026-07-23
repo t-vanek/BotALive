@@ -273,6 +273,27 @@ public final class Materials {
         return material != null && material.name().endsWith("_PLANKS");
     }
 
+    /** @param material materiál @return {@code true} pro listí (libovolného stromu) */
+    public static boolean isLeaves(Material material) {
+        return material != null && material.name().endsWith("_LEAVES");
+    }
+
+    /** Přírodní kámen overworldu (z čeho je svět udělaný). */
+    private static final Set<Material> BASE_STONE = Set.of(
+            Material.STONE, Material.GRANITE, Material.DIORITE, Material.ANDESITE,
+            Material.DEEPSLATE, Material.TUFF, Material.CALCITE);
+
+    /**
+     * Přírodní kámen overworldu (kámen, žula, diorit, andezit, deepslate, tuff,
+     * kalcit) – co bot při kopání běžně potká jako „jen kámen".
+     *
+     * @param material materiál ({@code null} = ne)
+     * @return {@code true} pro přírodní kámen
+     */
+    public static boolean isStone(Material material) {
+        return material != null && BASE_STONE.contains(material);
+    }
+
     /**
      * Je materiál <b>dřevo</b> – prkna, klády, kmeny, dřevo nebo kůra (i
      * oloupané varianty, napříč celou vanillou vč. crimson/warped)? Tj. „mám

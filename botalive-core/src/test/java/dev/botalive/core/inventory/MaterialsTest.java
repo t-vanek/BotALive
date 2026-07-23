@@ -191,6 +191,20 @@ class MaterialsTest {
     }
 
     @Test
+    void listiAKamenNaturalni() {
+        assertTrue(Materials.isLeaves(Material.OAK_LEAVES));
+        assertTrue(Materials.isLeaves(Material.AZALEA_LEAVES));
+        assertFalse(Materials.isLeaves(Material.OAK_LOG));
+        assertFalse(Materials.isLeaves(null));
+        assertTrue(Materials.isStone(Material.STONE));
+        assertTrue(Materials.isStone(Material.GRANITE));
+        assertTrue(Materials.isStone(Material.DEEPSLATE));
+        assertTrue(Materials.isStone(Material.TUFF));
+        assertFalse(Materials.isStone(Material.COBBLESTONE), "dlažba není přírodní kámen");
+        assertFalse(Materials.isStone(Material.OAK_PLANKS));
+    }
+
+    @Test
     void isLogNestripovanaKladaNeboKmen() {
         assertTrue(Materials.isLog(Material.OAK_LOG));
         assertTrue(Materials.isLog(Material.CRIMSON_STEM));

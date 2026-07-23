@@ -29,6 +29,35 @@ class ItemsTest {
     }
 
     @Test
+    void podtypyNastroju() {
+        assertTrue(Items.isPickaxe(Material.IRON_PICKAXE));
+        assertFalse(Items.isPickaxe(Material.IRON_AXE));
+        assertTrue(Items.isAxe(Material.IRON_AXE));
+        assertFalse(Items.isAxe(Material.IRON_PICKAXE), "krumpáč není sekera");
+        assertTrue(Items.isShovel(Material.IRON_SHOVEL));
+        assertTrue(Items.isHoe(Material.IRON_HOE));
+        assertTrue(Items.isSword(Material.DIAMOND_SWORD));
+        assertFalse(Items.isSword(Material.DIAMOND_PICKAXE));
+        assertTrue(Items.isMeleeWeapon(Material.DIAMOND_SWORD));
+        assertTrue(Items.isMeleeWeapon(Material.TRIDENT));
+        assertFalse(Items.isMeleeWeapon(Material.BOW));
+    }
+
+    @Test
+    void podtypyDopravyADalsi() {
+        assertTrue(Items.isMinecart(Material.MINECART));
+        assertTrue(Items.isMinecart(Material.CHEST_MINECART));
+        assertFalse(Items.isMinecart(Material.OAK_BOAT));
+        assertTrue(Items.isRail(Material.RAIL));
+        assertTrue(Items.isRail(Material.POWERED_RAIL));
+        assertFalse(Items.isRail(Material.MINECART));
+        assertTrue(Items.isSmithingTemplate(Material.NETHERITE_UPGRADE_SMITHING_TEMPLATE));
+        assertTrue(Items.isSpawnEgg(Material.ZOMBIE_SPAWN_EGG));
+        assertFalse(Items.isSpawnEgg(Material.EGG));
+        assertTrue(Items.isHorseArmor(Material.IRON_HORSE_ARMOR));
+    }
+
+    @Test
     void zbraneAStrelivo() {
         assertTrue(Items.isWeapon(Material.DIAMOND_SWORD));
         assertTrue(Items.isWeapon(Material.BOW));
