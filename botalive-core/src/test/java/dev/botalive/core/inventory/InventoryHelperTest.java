@@ -213,6 +213,38 @@ class InventoryHelperTest {
         assertEquals(7, actions3.selected, "když je jen rezerva, sní ji");
     }
 
+    // ------------------------------------------------------- nejlepší zbraň
+
+    @Test
+    void nejlepsiZbranDleTieru() {
+        // Dřevěný i diamantový meč po ruce → tasí diamantový (dřív první = dřevěný).
+        var actions = new CapturingActions();
+        var helper = new InventoryHelper(actions);
+        Material[] hotbar = new Material[9];
+        hotbar[0] = Material.WOODEN_SWORD;
+        hotbar[3] = Material.DIAMOND_SWORD;
+        assertTrue(helper.equipWeapon(snapshot(hotbar, new int[9], new Material[27])));
+        assertEquals(3, actions.selected, "nejlepší meč v tieru (diamantový)");
+
+        // Bez meče: nejlepší sekera (železná před kamennou).
+        var actions2 = new CapturingActions();
+        var helper2 = new InventoryHelper(actions2);
+        Material[] hotbar2 = new Material[9];
+        hotbar2[1] = Material.STONE_AXE;
+        hotbar2[4] = Material.IRON_AXE;
+        assertTrue(helper2.equipWeapon(snapshot(hotbar2, new int[9], new Material[27])));
+        assertEquals(4, actions2.selected, "bez meče nejlepší sekera (železná)");
+
+        // Meč i sekera → meč má přednost (i horší meč před lepší sekerou).
+        var actions3 = new CapturingActions();
+        var helper3 = new InventoryHelper(actions3);
+        Material[] hotbar3 = new Material[9];
+        hotbar3[2] = Material.WOODEN_SWORD;
+        hotbar3[5] = Material.DIAMOND_AXE;
+        assertTrue(helper3.equipWeapon(snapshot(hotbar3, new int[9], new Material[27])));
+        assertEquals(2, actions3.selected, "meč má přednost před sekerou");
+    }
+
     /** Zachytí zvolený hotbar slot – equip metody končí voláním selectHotbar. */
     private static final class CapturingActions extends dev.botalive.core.network.BotActions {
         private int selected = -1;

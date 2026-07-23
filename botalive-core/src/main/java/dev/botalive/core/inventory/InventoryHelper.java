@@ -437,23 +437,41 @@ public class InventoryHelper {
      */
     public boolean equipBestTool(ServerSideView.Snapshot snapshot, Material block) {
         ToolType type = toolFor(block);
-        if (type == ToolType.NONE || snapshot == null) {
+        if (type == ToolType.NONE) {
+            return false;
+        }
+        return equipBestByTier(snapshot, m -> isTool(m, type));
+    }
+
+    /**
+     * Vybere <b>nejlepší</b> kus vyhovující predikátu podle tieru nástroje
+     * (netherite &gt; diamant &gt; …): nejvyšší tier z hotbaru, a je-li v
+     * hlavním inventáři lepší, přitáhne ho. Sdílený primitiv „vem to nejlepší,
+     * co na to máš" – nezáleží, jestli jde o krumpáč na blok, nebo o zbraň.
+     *
+     * @param snapshot server-side snapshot inventáře
+     * @param what     podmínka na materiál (typ nástroje/zbraně)
+     * @return {@code true} pokud byl nalezen a vybrán vyhovující kus
+     */
+    public boolean equipBestByTier(ServerSideView.Snapshot snapshot,
+                                   java.util.function.Predicate<Material> what) {
+        if (snapshot == null) {
             return false;
         }
         int bestSlot = -1;
         int bestTier = -1;
         Material[] hotbar = snapshot.hotbar();
         for (int i = 0; i < hotbar.length; i++) {
-            if (hotbar[i] != null && isTool(hotbar[i], type) && toolTier(hotbar[i]) > bestTier) {
+            if (hotbar[i] != null && what.test(hotbar[i]) && toolTier(hotbar[i]) > bestTier) {
                 bestTier = toolTier(hotbar[i]);
                 bestSlot = i;
             }
         }
-        // Lepší nástroj v hlavním inventáři? Přitáhnout (kliky vlastního okna).
-        int mainBest = findBestInMain(snapshot, m -> isTool(m, type));
+        // Lepší kus v hlavním inventáři? Přitáhnout (kliky vlastního okna).
+        int mainBest = findBestInMain(snapshot, what);
         if (puller != null && mainBest >= 0
                 && toolTier(snapshot.mainInventory()[mainBest]) > bestTier) {
-            int pulled = puller.pullToHotbar(m -> isTool(m, type));
+            int pulled = puller.pullToHotbar(what);
             if (pulled >= 0) {
                 actions.selectHotbar(pulled);
                 return true;
@@ -467,24 +485,19 @@ public class InventoryHelper {
     }
 
     /**
-     * Najde a vybere zbraň (meč, případně sekeru).
+     * Najde a vybere zbraň: nejlepší meč v tieru, a když meč není, nejlepší
+     * sekeru. Preference meč&gt;sekera zůstává; nově se z každé kategorie bere
+     * ten nejlepší kus (dřív první nalezený – bot s dřevěným i diamantovým
+     * mečem mohl tasit dřevěný).
      *
      * @param snapshot server-side snapshot
      * @return {@code true} pokud má bot zbraň v ruce
      */
     public boolean equipWeapon(ServerSideView.Snapshot snapshot) {
-        if (snapshot == null) {
-            return false;
-        }
-        int slot = slotOrPull(snapshot, m -> isTool(m, ToolType.SWORD));
-        if (slot < 0) {
-            slot = slotOrPull(snapshot, m -> isTool(m, ToolType.AXE));
-        }
-        if (slot >= 0) {
-            actions.selectHotbar(slot);
+        if (equipBestByTier(snapshot, m -> isTool(m, ToolType.SWORD))) {
             return true;
         }
-        return false;
+        return equipBestByTier(snapshot, m -> isTool(m, ToolType.AXE));
     }
 
     /**
