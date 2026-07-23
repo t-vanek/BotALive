@@ -122,6 +122,17 @@ public final class Items {
                 || material == Material.TRIDENT;
     }
 
+    /**
+     * Zbraň vystřelující šípy (luk, kuše) – bez trojzubce, který se vrhá.
+     * Rozhodovací gate „mám čím střílet šípy" (lov, drakovi krystaly, wither).
+     *
+     * @param material materiál
+     * @return {@code true} pro luk nebo kuši
+     */
+    public static boolean isBow(Material material) {
+        return material == Material.BOW || material == Material.CROSSBOW;
+    }
+
     /** @param material materiál @return {@code true} pro zbraň nablízko (meč, trojzubec) */
     public static boolean isMeleeWeapon(Material material) {
         return isSword(material) || material == Material.TRIDENT;
@@ -307,6 +318,11 @@ public final class Items {
             return false;
         }
         String name = material.name();
+        // Netherové dřevo (crimson/warped) NEHOŘÍ – vyloučit, jinak by je vzor
+        // _PLANKS/_STEM/_HYPHAE nesprávně označil za palivo.
+        if (name.startsWith("CRIMSON_") || name.startsWith("WARPED_")) {
+            return false;
+        }
         if (name.endsWith("_PLANKS") || name.endsWith("_LOG") || name.endsWith("_WOOD")
                 || name.endsWith("_STEM") || name.endsWith("_HYPHAE")) {
             return true;

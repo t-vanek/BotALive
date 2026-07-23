@@ -33,25 +33,15 @@ public final class FurnaceService implements dev.botalive.core.station.FurnaceSt
     // Hliněná kulička → cihla: reprezentativní dům (REFINED) se staví z cihel.
     // Přirozeně gate-ované sběrem hlíny – hlínu sbírá jen stavitel mířící na
     // REFINED (BuildMaterials), takže cizí boti pec cihlami nezaplevelí.
+    // Syrové maso/ryby (BEEF, PORKCHOP, COD…) řeší katalog Items.isRawFood –
+    // tady zůstávají jen suroviny mimo tuto kategorii (rudy, písek, brambora…).
     private static final Set<Material> SMELTABLE = Set.of(
             Material.RAW_IRON, Material.RAW_GOLD, Material.RAW_COPPER,
             Material.IRON_ORE, Material.GOLD_ORE, Material.COPPER_ORE,
             Material.ANCIENT_DEBRIS,
-            Material.BEEF, Material.PORKCHOP, Material.CHICKEN,
-            Material.MUTTON, Material.RABBIT, Material.COD, Material.SALMON,
             Material.POTATO, Material.KELP,
             Material.SAND, Material.RED_SAND,
             Material.CLAY_BALL
-    );
-
-    /** Paliva, která bot do pece ochotně obětuje. */
-    // Blaze rod tu záměrně chybí: je to surovina (blaze powder → oči
-    // Enderu, lektvary), spálit ji pod železem je zločin proti progresi.
-    private static final Set<Material> FUEL = Set.of(
-            Material.COAL, Material.CHARCOAL, Material.COAL_BLOCK,
-            Material.OAK_PLANKS, Material.SPRUCE_PLANKS, Material.BIRCH_PLANKS,
-            Material.JUNGLE_PLANKS, Material.ACACIA_PLANKS, Material.DARK_OAK_PLANKS,
-            Material.STICK
     );
 
     private final MainThreadBridge bridge;
@@ -68,7 +58,7 @@ public final class FurnaceService implements dev.botalive.core.station.FurnaceSt
      * @return {@code true} pokud jde o tavitelnou surovinu
      */
     public static boolean isSmeltable(Material material) {
-        return SMELTABLE.contains(material);
+        return SMELTABLE.contains(material) || Items.isRawFood(material);
     }
 
     /**
@@ -76,7 +66,19 @@ public final class FurnaceService implements dev.botalive.core.station.FurnaceSt
      * @return {@code true} pokud jde o použitelné palivo
      */
     public static boolean isFuel(Material material) {
-        return FUEL.contains(material);
+        if (material == null) {
+            return false;
+        }
+        // Politika = co bot ochotně obětuje. Uhlí, klacky a dřevo, které
+        // SKUTEČNĚ hoří (Items.isFuel vyloučí netherové crimson/warped dřevo) –
+        // prkna i klády, sjednocené s pořadím paliva FUEL_PRIORITY. Blaze rod a
+        // láva schválně mimo (surovina / cenný kýbl).
+        if (material == Material.COAL || material == Material.CHARCOAL
+                || material == Material.COAL_BLOCK || material == Material.STICK) {
+            return true;
+        }
+        return Items.isFuel(material)
+                && (Materials.isPlanks(material) || material.name().endsWith("_LOG"));
     }
 
     @Override
@@ -136,8 +138,10 @@ public final class FurnaceService implements dev.botalive.core.station.FurnaceSt
             java.util.List.of(
                     m -> m == Material.COAL || m == Material.CHARCOAL
                             || m == Material.COAL_BLOCK,
-                    m -> m.name().endsWith("_PLANKS") || m == Material.STICK,
-                    m -> m.name().endsWith("_LOG"));
+                    // Prkna: jen ta, co skutečně hoří – Items.isFuel vyloučí
+                    // netherové (crimson/warped) dřevo, které v peci neshoří.
+                    m -> m == Material.STICK || (Materials.isPlanks(m) && Items.isFuel(m)),
+                    m -> m.name().endsWith("_LOG") && Items.isFuel(m));
 
     /** Chybí smooth stone na blastovou pec (a bot na ni jinak má)? */
     private static boolean needsSmoothStone(org.bukkit.entity.Player player) {

@@ -9,6 +9,7 @@ import dev.botalive.core.combat.RangedAttack;
 import dev.botalive.core.entity.TrackedEntity;
 import dev.botalive.core.inventory.InventoryHelper;
 import dev.botalive.core.inventory.ItemVariants;
+import dev.botalive.core.inventory.Items;
 import dev.botalive.core.nether.NetherReadiness;
 import dev.botalive.core.nether.WitherAltar;
 import dev.botalive.core.personality.PersonalityEvolution;
@@ -121,7 +122,7 @@ public final class WitherFightGoal extends AbstractGoal {
                 && InventoryHelper.countItem(snapshot, Material.SOUL_SAND)
                         >= WitherAltar.SOUL_SAND_NEEDED
                 && NetherReadiness.assess(snapshot, 5).gearReady(5)
-                && snapshot.hasItem(m -> m == Material.BOW || m == Material.CROSSBOW)
+                && snapshot.hasItem(Items::isBow)
                 && InventoryHelper.countItem(snapshot, Material.ARROW) >= MIN_ARROWS;
         return equipped ? READY_UTILITY : 0;
     }

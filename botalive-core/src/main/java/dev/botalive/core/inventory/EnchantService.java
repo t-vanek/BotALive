@@ -38,12 +38,12 @@ public final class EnchantService implements dev.botalive.core.station.EnchantSt
      * @return {@code true} pokud jde o výbavu, kterou umíme očarovat
      */
     public static boolean isEnchantable(Material material) {
-        String name = material.name();
-        return name.endsWith("_SWORD") || name.endsWith("_PICKAXE")
-                || name.endsWith("_AXE") || name.endsWith("_SHOVEL")
-                || material == Material.BOW || material == Material.CROSSBOW
-                || name.endsWith("_HELMET") || name.endsWith("_CHESTPLATE")
-                || name.endsWith("_LEGGINGS") || name.endsWith("_BOOTS");
+        // Politika = katalogová klasifikace + záměrné výjimky: očarováváme meče,
+        // krumpáče/sekery/lopaty, luk/kuši a brnění – NE motyku, trojzubec,
+        // nůžky, prut… (ty katalog zná, ale bot je neočarovává).
+        return Items.isSword(material) || Items.isPickaxe(material) || Items.isAxe(material)
+                || Items.isShovel(material) || material == Material.BOW
+                || material == Material.CROSSBOW || Items.isArmor(material);
     }
 
     @Override
@@ -108,14 +108,13 @@ public final class EnchantService implements dev.botalive.core.station.EnchantSt
 
     /** Vhodné enchanty podle typu předmětu. */
     private static List<Enchantment> enchantsFor(Material material) {
-        String name = material.name();
-        if (name.endsWith("_SWORD")) {
+        if (Items.isSword(material)) {
             return List.of(Enchantment.SHARPNESS, Enchantment.UNBREAKING, Enchantment.KNOCKBACK);
         }
-        if (name.endsWith("_PICKAXE")) {
+        if (Items.isPickaxe(material)) {
             return List.of(Enchantment.EFFICIENCY, Enchantment.UNBREAKING, Enchantment.FORTUNE);
         }
-        if (name.endsWith("_AXE") || name.endsWith("_SHOVEL")) {
+        if (Items.isAxe(material) || Items.isShovel(material)) {
             return List.of(Enchantment.EFFICIENCY, Enchantment.UNBREAKING);
         }
         if (material == Material.BOW) {
@@ -124,8 +123,7 @@ public final class EnchantService implements dev.botalive.core.station.EnchantSt
         if (material == Material.CROSSBOW) {
             return List.of(Enchantment.QUICK_CHARGE, Enchantment.UNBREAKING);
         }
-        if (name.endsWith("_HELMET") || name.endsWith("_CHESTPLATE")
-                || name.endsWith("_LEGGINGS") || name.endsWith("_BOOTS")) {
+        if (Items.isArmor(material)) {
             return List.of(Enchantment.PROTECTION, Enchantment.UNBREAKING);
         }
         return List.of();
