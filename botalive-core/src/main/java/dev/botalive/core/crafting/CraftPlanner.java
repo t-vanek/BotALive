@@ -59,6 +59,9 @@ public final class CraftPlanner {
     /** Ingoty železa ponechané na nástroje/brnění – nugety až z přebytku. */
     private static final int IRON_RESERVE = 3;
 
+    /** Strop zásoby květináčů (dekorace reprezentativního domu). */
+    private static final int FLOWER_POT_STOCK = 2;
+
     /**
      * Jeden plán receptu: co vyrobit a z čeho (3×3 matice, row-major).
      *
@@ -643,6 +646,14 @@ public final class CraftPlanner {
                     Material.IRON_NUGGET, 3, Material.TORCH, 4, Material.IRON_NUGGET, 5,
                     Material.IRON_NUGGET, 6, Material.IRON_NUGGET, 7, Material.IRON_NUGGET, 8),
                     true);
+        }
+        // ---- květináče do REFINED domu: 3 cihly do V. Až z přebytku cihel
+        // (dům už má zásobu bloků na zdi) – dekorace nesmí ujídat zdivo.
+        if (s.masonry() && s.hasTable() && s.count(Material.BRICK) >= 3
+                && s.count(Material.BRICKS) >= 8
+                && s.count(Material.FLOWER_POT) < FLOWER_POT_STOCK) {
+            return new Plan("květináč", matrix(
+                    Material.BRICK, 0, Material.BRICK, 2, Material.BRICK, 4), true);
         }
         return null;
     }

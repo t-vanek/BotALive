@@ -120,6 +120,11 @@ class HouseGeneratorTest {
         assertEquals(2, lanterns, "reprezentativní dům má dvě lucerny");
         assertTrue(refined.stream().noneMatch(f -> f.kind() == FurnishKind.TORCH),
                 "reprezentativní bez pochodně");
+        // …a květináče u bočních oken; nižší stupeň je nemá.
+        long pots = refined.stream().filter(f -> f.kind() == FurnishKind.FLOWER_POT).count();
+        assertEquals(2, pots, "reprezentativní dům má dva květináče");
+        assertTrue(solid.stream().noneMatch(f -> f.kind() == FurnishKind.FLOWER_POT),
+                "solidní bez květináčů");
     }
 
     @Test

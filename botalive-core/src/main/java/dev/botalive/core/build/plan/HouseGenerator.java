@@ -198,6 +198,11 @@ public final class HouseGenerator implements Blueprint {
         if (tier == BuildTier.REFINED) {
             result.add(new FurnishCell(FurnishKind.LANTERN,
                     local(origin, 1, 0, width - 2, facing)));
+            // Květináče u bočních oken – reprezentativní dekorace.
+            result.add(new FurnishCell(FurnishKind.FLOWER_POT,
+                    local(origin, 1, 0, center(), facing)));
+            result.add(new FurnishCell(FurnishKind.FLOWER_POT,
+                    local(origin, width - 2, 0, center(), facing)));
         }
         return result;
     }

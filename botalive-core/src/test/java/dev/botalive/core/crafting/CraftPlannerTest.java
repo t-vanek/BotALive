@@ -93,6 +93,19 @@ class CraftPlannerTest {
     }
 
     @Test
+    void kvetinaceZPrebytkuCihel() {
+        // REFINED s ponkem, zásobou bloků a přebytkem cihel → květináč.
+        assertEquals("květináč", CraftPlanner.next(stateMasonry(
+                Material.CRAFTING_TABLE, 1, Material.BRICK, 3, Material.BRICKS, 8)).id());
+        // Dokud nemá zásobu bloků na zdi, cihly jdou na zdivo, ne na dekoraci.
+        assertNull(CraftPlanner.next(stateMasonry(
+                Material.CRAFTING_TABLE, 1, Material.BRICK, 3, Material.BRICKS, 4)));
+        // Bez masonry se květináče nedělají.
+        assertNull(CraftPlanner.next(state(
+                Material.CRAFTING_TABLE, 1, Material.BRICK, 3, Material.BRICKS, 8)));
+    }
+
+    @Test
     void skleneneTabuleJenProRefined() {
         // Stavitel REFINED (masonry) ze 6 skel složí tabule do oken.
         assertEquals("skleněné tabule", CraftPlanner.next(stateMasonry(Material.GLASS, 6)).id());
