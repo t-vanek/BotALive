@@ -42,6 +42,12 @@ public final class CraftPlanner {
     private static final int EYES_TARGET = 12;
 
     /**
+     * Strop zásoby cihlových bloků, které bot vyrobí do zásoby na reprezentativní
+     * dům – dost na zdi/základ/střechu jednoho domu, ať nemele cihly donekonečna.
+     */
+    private static final int BRICK_BLOCK_STOCK = 16;
+
+    /**
      * Jeden plán receptu: co vyrobit a z čeho (3×3 matice, row-major).
      *
      * @param id         české označení výrobku (pro chat/log)
@@ -578,6 +584,16 @@ public final class CraftPlanner {
             return new Plan("truhla do zásoby", matrix(
                     plank, 0, plank, 1, plank, 2, plank, 3, plank, 5,
                     plank, 6, plank, 7, plank, 8), true);
+        }
+
+        // ---- cihlový blok pro reprezentativní dům (REFINED): 4 cihly → blok.
+        // Nejnižší priorita (za výbavou). Přirozeně gate-ované sběrem hlíny –
+        // jen stavitel mířící na REFINED sbírá hlínu, taví ji na cihly a má
+        // z čeho blok složit; zásoba se drží na rozumné mezi.
+        if (s.count(Material.BRICK) >= 4 && s.count(Material.BRICKS) < BRICK_BLOCK_STOCK) {
+            return new Plan("cihlový blok", matrix(
+                    Material.BRICK, 0, Material.BRICK, 1, Material.BRICK, 3, Material.BRICK, 4),
+                    false);
         }
         return null;
     }

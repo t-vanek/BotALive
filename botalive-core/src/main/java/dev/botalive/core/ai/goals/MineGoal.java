@@ -315,15 +315,18 @@ public final class MineGoal extends AbstractGoal {
             setTarget(ctx, found, needs);
             return;
         }
-        // 1b) Stavební suroviny (písek na sklo do oken solidního+ domu) – nižší
-        // priorita než rudy: bere se, jen když poblíž není žádaná ruda, ať
-        // těžba nástrojů má přednost.
+        // 1b) Stavební suroviny (písek na sklo, hlína na cihly) – nižší priorita
+        // než rudy: bere se, jen když poblíž není žádaná ruda, ať těžba nástrojů
+        // má přednost. Cílový tier řídí, co má smysl shánět.
         var snapshot = ctx.serverView().latest();
         List<Material> build = BuildMaterials.gatherWishlist(buildTarget(ctx, bot),
                 snapshot != null && snapshot.hasItem(m -> m == Material.GLASS
                         || m == Material.GLASS_PANE),
                 snapshot != null && snapshot.hasItem(m -> m == Material.SAND
-                        || m == Material.RED_SAND));
+                        || m == Material.RED_SAND),
+                snapshot != null && snapshot.hasItem(m -> m == Material.CLAY
+                        || m == Material.CLAY_BALL),
+                snapshot != null && snapshot.hasItem(m -> m == Material.BRICKS));
         if (!build.isEmpty()) {
             found = scanExposedAll(ctx, m -> build.contains(m) && needs.canHarvest(m));
             if (!found.isEmpty()) {

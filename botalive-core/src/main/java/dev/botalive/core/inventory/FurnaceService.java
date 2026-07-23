@@ -30,6 +30,9 @@ public final class FurnaceService implements dev.botalive.core.station.FurnaceSt
     // Písek → sklo: bez něj nemá bot okna z čeho postavit. Okenní role v
     // paletě sice sklo chce, ale když ho bot nemá, stavba tiše sáhne po
     // náhradním bloku a dům skončí slepý (BuildSession.equipFor).
+    // Hliněná kulička → cihla: reprezentativní dům (REFINED) se staví z cihel.
+    // Přirozeně gate-ované sběrem hlíny – hlínu sbírá jen stavitel mířící na
+    // REFINED (BuildMaterials), takže cizí boti pec cihlami nezaplevelí.
     private static final Set<Material> SMELTABLE = Set.of(
             Material.RAW_IRON, Material.RAW_GOLD, Material.RAW_COPPER,
             Material.IRON_ORE, Material.GOLD_ORE, Material.COPPER_ORE,
@@ -37,7 +40,8 @@ public final class FurnaceService implements dev.botalive.core.station.FurnaceSt
             Material.BEEF, Material.PORKCHOP, Material.CHICKEN,
             Material.MUTTON, Material.RABBIT, Material.COD, Material.SALMON,
             Material.POTATO, Material.KELP,
-            Material.SAND, Material.RED_SAND
+            Material.SAND, Material.RED_SAND,
+            Material.CLAY_BALL
     );
 
     /** Paliva, která bot do pece ochotně obětuje. */

@@ -77,19 +77,22 @@ public final class PaletteResolver {
                 byRole.put(PaletteRole.ROOF, List.of(roof, Material.COBBLESTONE, planks));
             }
             case REFINED -> {
-                // Reprezentativní: cihly / tesaný kámen, tabulková okna.
-                Material wall = choose(rng, Material.BRICKS, Material.STONE_BRICKS);
-                Material roof = choose(rng, Material.BRICKS, Material.STONE_BRICKS,
-                        Material.COBBLESTONE);
+                // Reprezentativní: cihlový dům. Zamýšlený materiál je BRICKS,
+                // který bot celý vyrobí sám (hlína → cihla → blok cihel), takže
+                // se na REFINED dá dozrát plně autonomně. Tesaný kámen zůstává
+                // přijatelný (nebourá se), ale zatím se nevyrábí – chtěl by
+                // gate-ovaný řetězec cobble → kámen (viz docs/BUILD_AS_PROCESS.md).
                 byRole.put(PaletteRole.FOUNDATION,
-                        List.of(Material.STONE_BRICKS, Material.STONE, Material.COBBLESTONE));
-                byRole.put(PaletteRole.WALL, List.of(wall, planks));
+                        List.of(Material.BRICKS, Material.STONE_BRICKS, Material.STONE,
+                                Material.COBBLESTONE));
+                byRole.put(PaletteRole.WALL,
+                        List.of(Material.BRICKS, Material.STONE_BRICKS, planks));
                 byRole.put(PaletteRole.WALL_ACCENT, List.of(log));
                 // Sklo (ne tabule): boti ho umí vytavit z písku, tabule zatím ne –
                 // tak se reprezentativní okna vůbec zasklí. Tabule zůstává přijatelná.
                 byRole.put(PaletteRole.WINDOW, List.of(Material.GLASS, Material.GLASS_PANE));
                 byRole.put(PaletteRole.ROOF,
-                        List.of(roof, Material.STONE_BRICKS, Material.COBBLESTONE));
+                        List.of(Material.BRICKS, Material.STONE_BRICKS, Material.COBBLESTONE));
             }
             default -> throw new IllegalStateException("neznámý tier: " + tier);
         }

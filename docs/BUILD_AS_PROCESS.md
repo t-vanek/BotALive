@@ -48,7 +48,7 @@ a jsou hotové; 2–5 čekají na dopracování.
 | **1** | Okna jako otvor | `SubstitutionPolicy` po rolích; `WINDOW`=`LEAVE_EMPTY`; oprava pasti ve verifikaci a údržbě | **hotovo** |
 | **2** | Tiery palety | `PaletteResolver.resolve(wood, seed, tier)`; Tier 0 = dřevo + otvory; `tier` do HOME dat | **hotovo** |
 | **3** | Upgrade smyčka | údržba diffuje proti *vyššímu* tieru a nahrazuje po rolích, atomicky | **hotovo** |
-| **4** | BOM wishlist | *build wishlist* → cílené shánění; hotová **sklo-smyčka** (písek → sklo), cihly/tesaný kámen zbývají | **z části** |
+| **4** | Build wishlist | cílené shánění: **sklo-smyčka** (písek→sklo) i **cihlová smyčka** (hlína→cihla→blok) hotové; tesaný kámen volitelný | **hotovo** |
 | **5** | Zarovnání okolí | apron dig (srovnat prstenec) hotový; sokl/terasa (zásyp svahu) zbývá | **z části** |
 
 ### Fáze 0 – Gate zásypu (hotovo)
@@ -88,11 +88,15 @@ Dům dostane **stavební stupeň**
 
 | Role | PROVISIONAL „srub" | SOLID „solidní" | REFINED „reprezentativní" |
 |---|---|---|---|
-| FOUNDATION | prkna / hlína | dlažba / kámen (dnešek) | tesaný kámen |
-| WALL | prkna | prkna | cihly / kámen |
+| FOUNDATION | prkna / hlína | dlažba / kámen (dnešek) | cihly |
+| WALL | prkna | prkna | cihly |
 | WALL_ACCENT | kmen | kmen | kmen |
 | WINDOW | otvor (prázdná role) | sklo | sklo (tabule přijatelná) |
-| ROOF | prkna / kmen | dlažba / prkna | cihly / kámen |
+| ROOF | prkna / kmen | dlažba / prkna | cihly |
+
+REFINED je celý cihlový: zamýšlený materiál je `BRICKS`, který bot vyrobí sám
+(hlína → cihla → blok). Tesaný kámen zůstává **přijatelný** (nebourá se), ale
+zatím se nevyrábí – chtěl by gate-ovaný řetězec cobble → kámen.
 
 - `PaletteResolver.resolve(woodHint, seed, tier)` – nová dimenze `tier`;
   2-arg varianta zůstává a míří na `SOLID` (dnešní vzhled beze změny).
@@ -140,28 +144,36 @@ pozdější kapitola. Když dům plně dosáhne cílového tieru, `MaintainHomeG
 už zbytečně nediffuje a údržba míří na správný materiál i kdyby prosperita
 později splaskla.
 
-### Fáze 4 – Build wishlist (z části hotovo)
+### Fáze 4 – Build wishlist (hotovo)
 
-Bez cíleného shánění by tiery uvázly – bot nikdy záměrně nesežene sklo a okna
-zůstanou navždy otvory. Zapojena je **kompletní sklo-smyčka**:
+Bez cíleného shánění by tiery uvázly – bot nikdy záměrně nesežene sklo ani
+cihly a vyšší domy by navždy zůstaly ze dřeva s otvory místo oken. Zapojeny
+jsou **dva kompletní autonomní řetězce**, oba **gate-ované samotným sběrem**
+(surovinu si natěží jen stavitel, jehož cílový tier ji vyžaduje):
 
 - [`BuildMaterials.gatherWishlist`](../botalive-core/src/main/java/dev/botalive/core/build/plan/BuildMaterials.java)
-  (čistá funkce): pro solidní+ dům, který nemá sklo ani písek, vrátí **písek**
-  (a červený písek) k natěžení. Srub (PROVISIONAL) nic nechce – okna jsou otvory.
+  (čistá funkce): solidnímu+ domu bez skla/písku vrátí **písek**, reprezentativnímu
+  (REFINED) bez zásoby cihel navíc **hlínu**. Srub (PROVISIONAL) nic nechce.
 - [`MineGoal`](../botalive-core/src/main/java/dev/botalive/core/ai/goals/MineGoal.java)
-  ho bere jako **krok 1b** – nižší priorita než rudy: písek se sbírá, jen když
-  poblíž není žádaná ruda, ať těžba nástrojů má přednost. Cílový tier počítá
+  ho bere jako **krok 1b** – nižší priorita než rudy: surovina se sbírá, jen
+  když poblíž není žádaná ruda, ať těžba nástrojů má přednost. Cílový tier počítá
   `MineGoal.buildTarget` z prosperity a osobnosti (`HouseDesigner.tierFor`).
-- Písek pak roztaví na sklo existující `SmeltGoal`/`FurnaceService` (reaktivně)
-  a okna zasklí oprava (`MaintainHomeGoal`, fáze 3). Řetězec je uzavřený:
-  **natěžit písek → roztavit → zasklít**.
+- **Sklo-smyčka:** písek → `SmeltGoal`/`FurnaceService` roztaví na **sklo** →
+  okna zasklí oprava (`MaintainHomeGoal`, fáze 3). *natěžit → roztavit → zasklít*.
+- **Cihlová smyčka:** hlína → těžba dá `CLAY_BALL` → pec roztaví na **cihlu**
+  (`FurnaceService.SMELTABLE`) → `CraftPlanner` složí *4 cihly → blok cihel*
+  (strop zásoby drží tempo) → REFINED dům se z nich postaví/dozraje.
+  *natěžit → roztavit → složit → postavit.*
 
-**Zbývá:** cihly (hlína → tavba) a tesaný kámen (kámen → craft) pro REFINED –
-chtějí nové recepty v `CraftPlanner` (dnes žádný `BRICKS`/`STONE_BRICKS` recept
-neexistuje), pak je přidat do `gatherWishlist`. Do budoucna sem patří i zapojení
-per-materiálového [`BillOfMaterials`](../botalive-core/src/main/java/dev/botalive/core/build/plan/BillOfMaterials.java)
-jako přesného rozpisu (dnes gate zůstává na skalárním počtu bloků) a dosud
-neexistující `build.substitute-after-minutes`.
+Protože hlínu sbírá jen bot mířící na REFINED, cizí boti pec ani ponk cihlami
+nezaplevelí – gating je čistě ve sběru, bez „masonry" příznaku v tavicí/craft
+vrstvě.
+
+**Volitelné dál:** tesaný kámen (cobble → kámen → tesané cihly) pro variaci
+REFINED – potřeboval by *explicitně* gate-ovaný tavicí řetězec (cobble mají
+všichni), proto je zatím mimo. Do budoucna sem patří i per-materiálový
+[`BillOfMaterials`](../botalive-core/src/main/java/dev/botalive/core/build/plan/BillOfMaterials.java)
+jako přesný rozpis (dnes gate na skalárním počtu bloků).
 
 ### Fáze 5 – Zarovnání okolí (z části hotovo)
 

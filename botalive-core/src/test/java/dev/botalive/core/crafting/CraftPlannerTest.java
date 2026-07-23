@@ -49,6 +49,16 @@ class CraftPlannerTest {
     }
 
     @Test
+    void ctyriCihlyDajiCihlovyBlok() {
+        // Reprezentativní dům (REFINED): ze 4 cihel se složí cihlový blok.
+        assertEquals("cihlový blok", CraftPlanner.next(state(Material.BRICK, 4)).id());
+        // Pod 4 cihly se blok nesloží.
+        assertNull(CraftPlanner.next(state(Material.BRICK, 3)));
+        // Se zásobou bloků se už další nemelou (strop).
+        assertNull(CraftPlanner.next(state(Material.BRICK, 8, Material.BRICKS, 16)));
+    }
+
+    @Test
     void osivoOdemkneMotyku() {
         // Bot s kamennou výbavou a osivem si dodělá motyku (zorá pole i bez role).
         CraftPlanner.State withSeeds = state(
