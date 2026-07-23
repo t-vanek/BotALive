@@ -53,7 +53,9 @@ class InventoryHelperTest {
 
     @Test
     void odkladaciSlotFallbackNejpocetnejsiNeceny() {
-        Material[] hotbar = {Material.STICK, Material.OAK_LOG, Material.STRING,
+        // Bez stavebního bloku v hotbaru (klády jsou nově stavební blok, proto
+        // PAPER jako neutrální výplň) padne volba na nejpočetnější neceněný stack.
+        Material[] hotbar = {Material.STICK, Material.PAPER, Material.STRING,
                 Material.FLINT, Material.FEATHER, Material.COAL,
                 Material.IRON_INGOT, Material.DIAMOND, Material.OAK_SAPLING};
         int[] counts = {4, 22, 3, 2, 2, 3, 12, 40, 1};

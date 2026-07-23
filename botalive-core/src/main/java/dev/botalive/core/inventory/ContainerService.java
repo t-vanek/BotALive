@@ -13,7 +13,6 @@ import org.bukkit.inventory.ItemStack;
 
 import java.util.EnumMap;
 import java.util.Map;
-import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
@@ -28,14 +27,6 @@ import java.util.concurrent.CompletableFuture;
  * sdílejí region i na Folii.</p>
  */
 public final class ContainerService implements dev.botalive.core.station.ChestStation {
-
-    /** Materiály považované za „přebytek" k uložení do truhly. */
-    private static final Set<Material> JUNK = Set.of(
-            Material.COBBLESTONE, Material.COBBLED_DEEPSLATE, Material.DIRT,
-            Material.GRAVEL, Material.SAND, Material.NETHERRACK, Material.GRANITE,
-            Material.DIORITE, Material.ANDESITE, Material.TUFF, Material.ROTTEN_FLESH,
-            Material.STONE, Material.DEEPSLATE
-    );
 
     /** Kolik kusů stavebního materiálu si bot nechává na stavění/crafting. */
     private static final int KEEP_BUILDING_BLOCKS = 32;
@@ -57,10 +48,11 @@ public final class ContainerService implements dev.botalive.core.station.ChestSt
 
     /**
      * @param material materiál
-     * @return {@code true} pokud jde o přebytek vhodný do truhly
+     * @return {@code true} pokud jde o bezcenný sypký odpad vhodný do truhly
+     *         (deleguje na {@link Materials#isBulkJunk} – celá vanilla)
      */
     public static boolean isJunk(Material material) {
-        return JUNK.contains(material);
+        return Materials.isBulkJunk(material);
     }
 
     /**

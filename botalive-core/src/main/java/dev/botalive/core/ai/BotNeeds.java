@@ -2,6 +2,7 @@ package dev.botalive.core.ai;
 
 import dev.botalive.core.bot.ServerSideView;
 import dev.botalive.core.inventory.InventoryHelper;
+import dev.botalive.core.inventory.Materials;
 import org.bukkit.Material;
 
 import java.util.ArrayList;
@@ -144,22 +145,7 @@ public record BotNeeds(int pickaxeTier, boolean hasAxe, boolean hasSword,
      * @return tier dle {@link InventoryHelper#toolTier} (1 = dřevěný stačí)
      */
     public static int requiredPickTier(Material block) {
-        String name = block.name();
-        if (block == Material.ANCIENT_DEBRIS || block == Material.OBSIDIAN
-                || block == Material.CRYING_OBSIDIAN) {
-            return 5; // jen diamantový a lepší
-        }
-        if (block == Material.NETHER_GOLD_ORE || block == Material.NETHER_QUARTZ_ORE) {
-            return 1; // netherové rudy padají z libovolného krumpáče
-        }
-        if (name.contains("DIAMOND_ORE") || name.contains("EMERALD_ORE")
-                || name.contains("GOLD_ORE") || name.contains("REDSTONE_ORE")) {
-            return 4; // železný a lepší
-        }
-        if (name.contains("IRON_ORE") || name.contains("LAPIS_ORE")) {
-            return 3; // kamenný a lepší
-        }
-        return 1; // uhlí, měď, kámen – stačí dřevěný
+        return Materials.requiredPickTier(block);
     }
 
     /**
@@ -216,8 +202,7 @@ public record BotNeeds(int pickaxeTier, boolean hasAxe, boolean hasSword,
 
     /** @return normalizovaná rodina rudy ({@code DEEPSLATE_X_ORE} → {@code X_ORE}) */
     public static String oreFamily(Material material) {
-        String name = material.name();
-        return name.startsWith("DEEPSLATE_") ? name.substring("DEEPSLATE_".length()) : name;
+        return Materials.oreFamily(material);
     }
 
     /** Počet stavebních bloků (skutečné počty; bez nich konzervativní odhad). */
