@@ -136,8 +136,10 @@ public final class FurnaceService implements dev.botalive.core.station.FurnaceSt
             java.util.List.of(
                     m -> m == Material.COAL || m == Material.CHARCOAL
                             || m == Material.COAL_BLOCK,
-                    m -> m.name().endsWith("_PLANKS") || m == Material.STICK,
-                    m -> m.name().endsWith("_LOG"));
+                    // Prkna: jen ta, co skutečně hoří – Items.isFuel vyloučí
+                    // netherové (crimson/warped) dřevo, které v peci neshoří.
+                    m -> m == Material.STICK || (Materials.isPlanks(m) && Items.isFuel(m)),
+                    m -> m.name().endsWith("_LOG") && Items.isFuel(m));
 
     /** Chybí smooth stone na blastovou pec (a bot na ni jinak má)? */
     private static boolean needsSmoothStone(org.bukkit.entity.Player player) {
