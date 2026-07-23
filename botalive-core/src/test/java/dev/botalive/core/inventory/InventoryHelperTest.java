@@ -5,6 +5,7 @@ import org.bukkit.Material;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -87,5 +88,64 @@ class InventoryHelperTest {
         var withoutCounts = snapshot(new Material[9], new int[9], main);
         assertEquals(4, InventoryHelper.countEstimate(withoutCounts,
                 m -> m == Material.OBSIDIAN));
+    }
+
+    @Test
+    void bankovatelneJsouCennostiNeOdpad() {
+        assertTrue(InventoryHelper.isBankable(Material.DIAMOND));
+        assertTrue(InventoryHelper.isBankable(Material.IRON_INGOT));
+        assertTrue(InventoryHelper.isBankable(Material.RAW_IRON));
+        assertTrue(InventoryHelper.isBankable(Material.COAL));
+        // Odpad a spotřebák se nebankuje (řeší depositJunk / nechává se).
+        assertFalse(InventoryHelper.isBankable(Material.COBBLESTONE));
+        assertFalse(InventoryHelper.isBankable(Material.BREAD));
+        assertFalse(InventoryHelper.isBankable(Material.IRON_PICKAXE));
+        // Netheritový řetězec je schválně mimo – příliš vzácný na bankování.
+        assertFalse(InventoryHelper.isBankable(Material.NETHERITE_INGOT));
+        assertFalse(InventoryHelper.isBankable(null));
+    }
+
+    @Test
+    void bankableSurplusPocitaPrebytekNadRezervu() {
+        // 40 uhlí (rezerva 32) → přebytek 8; 10 železa (rezerva 16) → 0.
+        Material[] hotbar = new Material[9];
+        hotbar[0] = Material.COAL;
+        hotbar[1] = Material.IRON_INGOT;
+        int[] counts = new int[9];
+        counts[0] = 40;
+        counts[1] = 10;
+        assertEquals(8, InventoryHelper.bankableSurplus(
+                snapshot(hotbar, counts, new Material[27])));
+    }
+
+    @Test
+    void bankableSurplusSecitaNaprricInventarem() {
+        // Uhlí rozdělené na hotbar (20) + hlavní inventář (20) = 40, rezerva 32
+        // → přebytek 8. Rezerva se odečítá jen jednou z celku, ne z každé půlky.
+        Material[] hotbar = new Material[9];
+        hotbar[0] = Material.COAL;
+        int[] hotbarCounts = new int[9];
+        hotbarCounts[0] = 20;
+        Material[] main = new Material[27];
+        main[0] = Material.COAL;
+        int[] mainCounts = new int[27];
+        mainCounts[0] = 20;
+        var snap = new ServerSideView.Snapshot(null, hotbar, hotbarCounts, main, mainCounts,
+                null, null, new Material[4], null, 0, 20, 20, 0, false, false, false, 1000, 0);
+        assertEquals(8, InventoryHelper.bankableSurplus(snap));
+    }
+
+    @Test
+    void freeSlotsPocitaProstorBatohu() {
+        Material[] hotbar = new Material[9];
+        hotbar[0] = Material.STONE;
+        hotbar[1] = Material.STONE;
+        Material[] main = new Material[27];
+        main[0] = Material.DIRT;
+        // 3 zaplněné z 36 → 33 volných.
+        assertEquals(33, InventoryHelper.freeSlots(snapshot(hotbar, new int[9], main)));
+        assertEquals(36, InventoryHelper.freeSlots(
+                snapshot(new Material[9], new int[9], new Material[27])));
+        assertEquals(0, InventoryHelper.freeSlots(null));
     }
 }

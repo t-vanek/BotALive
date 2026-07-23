@@ -8,6 +8,7 @@ import dev.botalive.core.ai.BotNeeds;
 import dev.botalive.core.build.plan.BuildMaterials;
 import dev.botalive.core.build.plan.BuildTier;
 import dev.botalive.core.build.plan.HouseDesigner;
+import dev.botalive.core.inventory.InventoryHelper;
 import dev.botalive.core.mining.DigPlanner;
 import dev.botalive.core.settlement.SettlementService;
 import dev.botalive.core.settlement.SettlementTier;
@@ -108,6 +109,15 @@ public final class MineGoal extends AbstractGoal {
         // Těžbu v Netheru řídí výprava (NetherGoal) – vlastní cíle a rizika.
         if (outsideOverworld(ctx)) {
             return 0;
+        }
+        // Plný batoh: vytěžený drop by neměl kam padnout a ztratil by se.
+        // Rozdělané (blok/žíla/výkop) se dokope – jen se nezačíná nová seance –
+        // ať zaskočí StashGoal a batoh se vybankuje do truhly.
+        if (!miningInProgress()) {
+            var snapshot = ctx.serverView().latest();
+            if (snapshot != null && InventoryHelper.freeSlots(snapshot) <= 1) {
+                return 0;
+            }
         }
         double greed = bot.personality().trait(Trait.GREED);
         double patience = bot.personality().trait(Trait.PATIENCE);
@@ -254,6 +264,12 @@ public final class MineGoal extends AbstractGoal {
     @Override
     public boolean finished(Bot bot) {
         return cooldownTicks > 0;
+    }
+
+    /** Probíhá právě těžba (blok, žíla nebo výkop)? Rozdělané se má dokopat. */
+    private boolean miningInProgress() {
+        return task != null || targetBlock != null
+                || !digSteps.isEmpty() || !stepBlocks.isEmpty();
     }
 
     @Override

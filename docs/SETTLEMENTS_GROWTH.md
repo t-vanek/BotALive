@@ -62,7 +62,28 @@ Normy rostou s infrastrukturou, ne dekretem:
   `WAREHOUSE` (zásobárna s dvojtruhlou, od vesnice, po dílnách) – člen s
   přebytkem materiálu ho přes `StashGoal` uloží do společného skladu místo
   soukromé truhly (je-li rozumně blízko). Přebytky přestávají hnít po
-  kapsách jednotlivců.
+  kapsách jednotlivců. `StashGoal` už neukládá jen odpadní kámen: přes
+  `ContainerService.depositSurplus` bankuje i **vytěžené cennosti nad
+  pracovní rezervu** (rudy, ingoty, uhlí, drahé kameny – `InventoryHelper`),
+  takže se do společného skladu poolují i rudy, ne jen stavební bloky, a
+  výtěžek těžby přežije smrt bota. Rezerva je štědrá (bot si nechá dost na
+  tavení/výrobu), takže se nepřetrhne řetěz ruda → ingot → nástroj;
+  netheritový řetězec se schválně nebankuje.
+- **Obecný zpětný odběr ze skladu** *(hotovo)*: cíl `restock` (`RestockGoal`)
+  je opak `SupplyGoal` – **člen sídla, kterému schází materiál pro jeho práci,
+  si ho ze společného skladu vybere**, místo aby ho šel těžit. Co brát řídí
+  `BotNeeds` (čistá funkce `restockPlan`): komodity (železo surové/ingot, když
+  ho bot s kamenným+ krumpáčem nemá; uhlí bez pochodní) bere každý člen,
+  **stavební bloky jen bezdomovec** (potřebuje je na první dům – odemyká
+  stavební pilíř). Miner plní (`StashGoal`), ostatní berou (`RestockGoal`) →
+  emergentní dělba práce nad jedním skladem. Odběr je obecný primitiv
+  (`ChestStation.withdrawRestock`: mapa `materiál → strop` + strop bloků,
+  jedním průchodem), role jen vychylují váhu (`RoleProfiles`: stavitel,
+  kameník, kovář, nástrojář, zbrojíř, horník). Férovost vůči sdílenému
+  skladu: bere se jen deficit (ne celý volný batoh), se stropem na dávku a
+  cooldownem (delším, když sklad nic nedal), v nízkém utility pásmu (pod
+  přežitím). Odběr bloků na velké společné stavby dál řeší `CommunalBuildGoal`
+  PROVISION.
 - **Starosta** – odvozený, ne volený: člen s nejsilnějším součtem
   FRIEND vazeb na ostatní členy (lazy přepočet ze `SocialView`).
   Přednostně vítá hráče (`tickVillageWelcome`), přednostně staví
