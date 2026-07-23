@@ -77,13 +77,14 @@ public final class PaletteResolver {
                 byRole.put(PaletteRole.ROOF, List.of(roof, Material.COBBLESTONE, planks));
             }
             case REFINED -> {
-                // Reprezentativní: cihlový dům. Zamýšlený materiál je BRICKS,
-                // který bot celý vyrobí sám (hlína → cihla → blok cihel), takže
-                // se na REFINED dá dozrát plně autonomně. Tesaný kámen zůstává
-                // přijatelný (nebourá se), ale zatím se nevyrábí – chtěl by
-                // gate-ovaný řetězec cobble → kámen (viz docs/BUILD_AS_PROCESS.md).
+                // Reprezentativní: cihlové zdi na tesaném základu a pod tesanou
+                // střechou. Oba materiály bot vyrobí sám – cihly z hlíny (hlína
+                // → cihla → blok), tesané cihly z kamene (cobble → kámen →
+                // tesané, gate-ováno na REFINED) – takže se na tenhle tier dá
+                // dozrát plně autonomně. Přírodní kámen/dlažba zůstávají
+                // přijatelné (nebourá se, co už drží pohromadě).
                 byRole.put(PaletteRole.FOUNDATION,
-                        List.of(Material.BRICKS, Material.STONE_BRICKS, Material.STONE,
+                        List.of(Material.STONE_BRICKS, Material.BRICKS, Material.STONE,
                                 Material.COBBLESTONE));
                 byRole.put(PaletteRole.WALL,
                         List.of(Material.BRICKS, Material.STONE_BRICKS, planks));
@@ -92,7 +93,7 @@ public final class PaletteResolver {
                 // tak se reprezentativní okna vůbec zasklí. Tabule zůstává přijatelná.
                 byRole.put(PaletteRole.WINDOW, List.of(Material.GLASS, Material.GLASS_PANE));
                 byRole.put(PaletteRole.ROOF,
-                        List.of(Material.BRICKS, Material.STONE_BRICKS, Material.COBBLESTONE));
+                        List.of(Material.STONE_BRICKS, Material.BRICKS, Material.COBBLESTONE));
             }
             default -> throw new IllegalStateException("neznámý tier: " + tier);
         }

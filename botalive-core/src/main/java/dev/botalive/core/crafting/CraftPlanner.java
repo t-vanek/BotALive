@@ -47,6 +47,9 @@ public final class CraftPlanner {
      */
     private static final int BRICK_BLOCK_STOCK = 16;
 
+    /** Strop zásoby tesaných cihel (jako {@link #BRICK_BLOCK_STOCK}). */
+    private static final int STONE_BRICK_STOCK = 16;
+
     /**
      * Jeden plán receptu: co vyrobit a z čeho (3×3 matice, row-major).
      *
@@ -76,9 +79,12 @@ public final class CraftPlanner {
      * @param plankType konkrétní druh prken (null = žádná)
      * @param stoneType druh kamene pro nástroje (cobblestone/deepslate)
      * @param woolType  konkrétní druh vlny (null = žádná)
+     * @param masonry   míří bot na reprezentativní dům? (odemyká tesané cihly –
+     *                  jinak by je mlel každý a plýtval kamenem)
      */
     public record State(Map<Material, Integer> items, Material logType,
-                        Material plankType, Material stoneType, Material woolType) {
+                        Material plankType, Material stoneType, Material woolType,
+                        boolean masonry) {
 
         /** @return počet kusů materiálu */
         public int count(Material material) {
@@ -593,6 +599,15 @@ public final class CraftPlanner {
         if (s.count(Material.BRICK) >= 4 && s.count(Material.BRICKS) < BRICK_BLOCK_STOCK) {
             return new Plan("cihlový blok", matrix(
                     Material.BRICK, 0, Material.BRICK, 1, Material.BRICK, 3, Material.BRICK, 4),
+                    false);
+        }
+        // ---- tesané cihly na základ a střechu REFINED domu: 4 kameny → 4 tesané.
+        // Gate na masonry: kámen (z cobble) mají i cizí boti, tak by je jinak
+        // mleli zbytečně. Kámen dodá tavba cobble (FurnaceService, masonry gate).
+        if (s.masonry() && s.count(Material.STONE) >= 4
+                && s.count(Material.STONE_BRICKS) < STONE_BRICK_STOCK) {
+            return new Plan("tesané cihly", matrix(
+                    Material.STONE, 0, Material.STONE, 1, Material.STONE, 3, Material.STONE, 4),
                     false);
         }
         return null;

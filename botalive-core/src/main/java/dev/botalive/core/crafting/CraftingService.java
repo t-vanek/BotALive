@@ -41,24 +41,26 @@ public final class CraftingService implements dev.botalive.core.station.Crafting
     }
 
     @Override
-    public CompletableFuture<String> craftNext(dev.botalive.core.ai.BotContext ctx) {
-        return craftNextInProgression(ctx.bot().id());
+    public CompletableFuture<String> craftNext(dev.botalive.core.ai.BotContext ctx,
+                                               boolean wantsMasonry) {
+        return craftNextInProgression(ctx.bot().id(), wantsMasonry);
     }
 
     /**
      * Zkusí vyrobit další recept z progrese bota. Vše (kontrola surovin,
      * spotřeba, vložení výsledku) proběhne atomicky na vlákně entity.
      *
-     * @param botId UUID bota
+     * @param botId        UUID bota
+     * @param wantsMasonry míří bot na reprezentativní dům (odemyká tesané cihly)?
      * @return future s id vyrobeného receptu, nebo {@code null} když není co vyrábět
      */
-    public CompletableFuture<String> craftNextInProgression(UUID botId) {
+    public CompletableFuture<String> craftNextInProgression(UUID botId, boolean wantsMasonry) {
         Player player = Bukkit.getPlayer(botId);
         if (player == null) {
             return CompletableFuture.completedFuture(null);
         }
         return bridge.callForEntity(player, () -> {
-            CraftPlanner.Plan plan = nextPlan(player.getInventory());
+            CraftPlanner.Plan plan = nextPlan(player.getInventory(), wantsMasonry);
             if (plan == null) {
                 return null;
             }
@@ -71,10 +73,11 @@ public final class CraftingService implements dev.botalive.core.station.Crafting
      * sestaví souhrn z živého inventáře a deleguje na sdílený
      * {@link CraftPlanner}. Běží na vlákně entity.
      *
-     * @param inventory inventář bota
+     * @param inventory    inventář bota
+     * @param wantsMasonry míří bot na reprezentativní dům (odemyká tesané cihly)?
      * @return plán, nebo {@code null} když nic nedává smysl
      */
-    public static CraftPlanner.Plan nextPlan(PlayerInventory inventory) {
+    public static CraftPlanner.Plan nextPlan(PlayerInventory inventory, boolean wantsMasonry) {
         Map<Material, Integer> items = new java.util.HashMap<>();
         for (ItemStack item : inventory.getStorageContents()) {
             if (item != null && !item.getType().isAir() && !nearlyBroken(item)) {
@@ -86,7 +89,8 @@ public final class CraftingService implements dev.botalive.core.station.Crafting
                 firstMatching(inventory, m -> Tag.LOGS.isTagged(m)),
                 firstMatching(inventory, m -> Tag.PLANKS.isTagged(m)),
                 cobbleStd >= 3 ? Material.COBBLESTONE : Material.COBBLED_DEEPSLATE,
-                firstMatching(inventory, m -> m.name().endsWith("_WOOL"))));
+                firstMatching(inventory, m -> m.name().endsWith("_WOOL")),
+                wantsMasonry));
     }
 
     private static boolean containsMatching(PlayerInventory inventory,

@@ -26,12 +26,15 @@ public interface FurnaceStation {
     /**
      * Vloží suroviny a palivo z inventáře bota do pece.
      *
-     * @param ctx       kontext bota (stojí u otevřené pece)
-     * @param worldName svět pece
-     * @param pos       pozice pece
+     * @param ctx          kontext bota (stojí u otevřené pece)
+     * @param worldName    svět pece
+     * @param pos          pozice pece
+     * @param wantsMasonry míří bot na reprezentativní dům? (odemyká tavbu
+     *                     cobble → kámen na tesané cihly)
      * @return future s počty vložených kusů
      */
-    CompletableFuture<InsertReport> insert(BotContext ctx, String worldName, BlockPos pos);
+    CompletableFuture<InsertReport> insert(BotContext ctx, String worldName, BlockPos pos,
+                                           boolean wantsMasonry);
 
     /**
      * Vyzvedne hotové výsledky tavení.

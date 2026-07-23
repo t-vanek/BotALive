@@ -54,18 +54,19 @@ class PaletteModelTest {
     }
 
     @Test
-    void refinedTierIsBrickAndSelfMakeable() {
+    void refinedTierIsBrickAndStoneAndSelfMakeable() {
         Palette t2 = PaletteResolver.resolve(Material.OAK_LOG, 5, BuildTier.REFINED);
-        // Zamýšlené jsou cihly (hlína → cihla → blok) – bot je vyrobí sám.
+        // Cihlové zdi (hlína → cihla → blok) na tesaném základu a pod tesanou
+        // střechou (cobble → kámen → tesané cihly) – vše bot vyrobí sám.
         assertEquals(Optional.of(Material.BRICKS), t2.intended(PaletteRole.WALL),
                 "reprezentativní zeď z cihel");
-        assertEquals(Optional.of(Material.BRICKS), t2.intended(PaletteRole.FOUNDATION),
-                "reprezentativní základ z cihel");
-        assertEquals(Optional.of(Material.BRICKS), t2.intended(PaletteRole.ROOF),
-                "reprezentativní střecha z cihel");
-        // Tesaný kámen zůstává přijatelný (nebourá se), jen se zatím nevyrábí.
-        assertTrue(t2.accepted(PaletteRole.WALL).contains(Material.STONE_BRICKS),
-                "tesaný kámen ve zdi je přijatelný");
+        assertEquals(Optional.of(Material.STONE_BRICKS), t2.intended(PaletteRole.FOUNDATION),
+                "reprezentativní základ z tesaného kamene");
+        assertEquals(Optional.of(Material.STONE_BRICKS), t2.intended(PaletteRole.ROOF),
+                "reprezentativní střecha z tesaného kamene");
+        // Cihly zůstávají přijatelné i pro základ (nebourá se, co drží).
+        assertTrue(t2.accepted(PaletteRole.FOUNDATION).contains(Material.BRICKS),
+                "cihly v základu jsou přijatelné");
         assertEquals(Optional.of(Material.GLASS), t2.intended(PaletteRole.WINDOW),
                 "reprezentativní okna ze skla (tabule přijatelná)");
     }

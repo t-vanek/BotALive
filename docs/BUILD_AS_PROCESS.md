@@ -88,15 +88,16 @@ Dům dostane **stavební stupeň**
 
 | Role | PROVISIONAL „srub" | SOLID „solidní" | REFINED „reprezentativní" |
 |---|---|---|---|
-| FOUNDATION | prkna / hlína | dlažba / kámen (dnešek) | cihly |
+| FOUNDATION | prkna / hlína | dlažba / kámen (dnešek) | tesaný kámen |
 | WALL | prkna | prkna | cihly |
 | WALL_ACCENT | kmen | kmen | kmen |
 | WINDOW | otvor (prázdná role) | sklo | sklo (tabule přijatelná) |
-| ROOF | prkna / kmen | dlažba / prkna | cihly |
+| ROOF | prkna / kmen | dlažba / prkna | tesaný kámen |
 
-REFINED je celý cihlový: zamýšlený materiál je `BRICKS`, který bot vyrobí sám
-(hlína → cihla → blok). Tesaný kámen zůstává **přijatelný** (nebourá se), ale
-zatím se nevyrábí – chtěl by gate-ovaný řetězec cobble → kámen.
+REFINED = **cihlové zdi na tesaném základu a pod tesanou střechou**. Oba
+materiály bot vyrobí sám: `BRICKS` z hlíny (hlína → cihla → blok), `STONE_BRICKS`
+z kamene (cobble → kámen → tesané cihly). Přírodní kámen/dlažba zůstávají
+přijatelné (nebourá se, co drží pohromadě).
 
 - `PaletteResolver.resolve(woodHint, seed, tier)` – nová dimenze `tier`;
   2-arg varianta zůstává a míří na `SOLID` (dnešní vzhled beze změny).
@@ -160,20 +161,26 @@ jsou **dva kompletní autonomní řetězce**, oba **gate-ované samotným sběre
   `MineGoal.buildTarget` z prosperity a osobnosti (`HouseDesigner.tierFor`).
 - **Sklo-smyčka:** písek → `SmeltGoal`/`FurnaceService` roztaví na **sklo** →
   okna zasklí oprava (`MaintainHomeGoal`, fáze 3). *natěžit → roztavit → zasklít*.
-- **Cihlová smyčka:** hlína → těžba dá `CLAY_BALL` → pec roztaví na **cihlu**
-  (`FurnaceService.SMELTABLE`) → `CraftPlanner` složí *4 cihly → blok cihel*
-  (strop zásoby drží tempo) → REFINED dům se z nich postaví/dozraje.
-  *natěžit → roztavit → složit → postavit.*
+- **Cihlová smyčka** (zdi): hlína → těžba dá `CLAY_BALL` → pec roztaví na
+  **cihlu** (`FurnaceService.SMELTABLE`) → `CraftPlanner` složí *4 cihly → blok*
+  → REFINED zdi. Gate je **čistě ve sběru** (hlínu sbírá jen REFINED stavitel),
+  bez příznaku v tavicí/craft vrstvě.
+- **Tesaný kámen** (základ, střecha): cobble mají všichni boti, tak tenhle
+  řetězec nese **explicitní `masonry` gate** = cílový tier je REFINED
+  ([`AbstractGoal.wantsMasonry`](../botalive-core/src/main/java/dev/botalive/core/ai/goals/AbstractGoal.java)).
+  Spočítá se v goal vrstvě (`SmeltGoal`, `CraftGoal`) a protáhne jako boolean
+  do `FurnaceStation.insert` / `CraftingStation.craftNext` → `CraftPlanner.State`
+  (tavicí a craft vrstva neznají sídlo). Řetěz: cobble → pec: **kámen**
+  (masonry gate + strop zásoby) → `CraftPlanner`: *4 kameny → 4 tesané cihly*
+  → REFINED základ a střecha. Cizí boti tak cobble nemelou.
 
-Protože hlínu sbírá jen bot mířící na REFINED, cizí boti pec ani ponk cihlami
-nezaplevelí – gating je čistě ve sběru, bez „masonry" příznaku v tavicí/craft
-vrstvě.
+Oba materiálové stropy (`BRICK_BLOCK_STOCK`, `STONE_BRICK_STOCK`, `MASONRY_STOCK`)
+drží tempo střídmé – bot nevyrábí donekonečna.
 
-**Volitelné dál:** tesaný kámen (cobble → kámen → tesané cihly) pro variaci
-REFINED – potřeboval by *explicitně* gate-ovaný tavicí řetězec (cobble mají
-všichni), proto je zatím mimo. Do budoucna sem patří i per-materiálový
+**Volitelné dál:** per-materiálový
 [`BillOfMaterials`](../botalive-core/src/main/java/dev/botalive/core/build/plan/BillOfMaterials.java)
-jako přesný rozpis (dnes gate na skalárním počtu bloků).
+jako přesný rozpis (dnes gate na skalárním počtu bloků) a
+`build.substitute-after-minutes`.
 
 ### Fáze 5 – Zarovnání okolí (z části hotovo)
 

@@ -81,8 +81,9 @@ public final class FurnaceService implements dev.botalive.core.station.FurnaceSt
 
     @Override
     public CompletableFuture<InsertReport> insert(dev.botalive.core.ai.BotContext ctx,
-                                                  String worldName, BlockPos pos) {
-        return insert(ctx.bot().id(), worldName, pos);
+                                                  String worldName, BlockPos pos,
+                                                  boolean wantsMasonry) {
+        return insert(ctx.bot().id(), worldName, pos, wantsMasonry);
     }
 
     @Override
@@ -99,17 +100,21 @@ public final class FurnaceService implements dev.botalive.core.station.FurnaceSt
      * @param pos       pozice pece
      * @return future s počty vložených kusů
      */
-    public CompletableFuture<InsertReport> insert(UUID botId, String worldName, BlockPos pos) {
+    public CompletableFuture<InsertReport> insert(UUID botId, String worldName, BlockPos pos,
+                                                  boolean wantsMasonry) {
         return withFurnace(botId, worldName, pos, (player, furnace) -> {
             FurnaceInventory inventory = furnace.getInventory();
-            // Tavicí řetězy nad rámec základu: kámen na blastovou pec a dřevěné
-            // uhlí při nouzi o palivo – jen když je bot skutečně potřebuje,
+            // Tavicí řetězy nad rámec základu: kámen na blastovou pec, dřevěné
+            // uhlí při nouzi o palivo a cobble → kámen na tesané cihly (jen
+            // stavitel REFINED domu) – vždy jen když je bot skutečně potřebuje,
             // aby pec nespalovala zásoby bezúčelně.
             boolean stoneChain = needsSmoothStone(player);
             boolean charcoalChain = needsCharcoal(player);
+            boolean masonryStone = wantsMasonry && needsMasonryStone(player);
             int inserted = moveMatching(player, inventory.getSmelting(),
                     m -> isSmeltable(m)
                             || (stoneChain && (m == Material.COBBLESTONE || m == Material.STONE))
+                            || (masonryStone && m == Material.COBBLESTONE)
                             || (charcoalChain && m.name().endsWith("_LOG")),
                     inventory::setSmelting);
             // Palivo podle priority: uhlí → prkna/tyčky → klády až jako nouzovka.
@@ -141,6 +146,20 @@ public final class FurnaceService implements dev.botalive.core.station.FurnaceSt
                 && inv.contains(Material.FURNACE)
                 && count(inv, Material.IRON_INGOT) >= 5
                 && count(inv, Material.SMOOTH_STONE) < 3;
+    }
+
+    /** Strop zásoby kamene/tesaných cihel pro zednické tavení (jako CraftPlanner). */
+    private static final int MASONRY_STOCK = 16;
+
+    /**
+     * Stavitel REFINED domu potřebuje kámen na tesané cihly? Taví se cobble →
+     * kámen, dokud nemá dost tesaných cihel ani kamene čekajícího na craft –
+     * ať pec cobble nemele donekonečna.
+     */
+    private static boolean needsMasonryStone(org.bukkit.entity.Player player) {
+        var inv = player.getInventory();
+        return count(inv, Material.STONE_BRICKS) < MASONRY_STOCK
+                && count(inv, Material.STONE) < MASONRY_STOCK;
     }
 
     /** Došlo uhlí a je z čeho pálit dřevěné uhlí? */

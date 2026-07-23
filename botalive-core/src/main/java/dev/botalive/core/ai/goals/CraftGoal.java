@@ -93,7 +93,7 @@ public final class CraftGoal extends AbstractGoal {
         }
         if (pending == null) {
             ctx.actions().swing(); // "sahá do inventáře"
-            pending = crafting.craftNext(ctx);
+            pending = crafting.craftNext(ctx, wantsMasonry(bot));
             return;
         }
         if (!pending.isDone()) {

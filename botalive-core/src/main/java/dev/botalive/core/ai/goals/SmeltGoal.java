@@ -78,7 +78,11 @@ public final class SmeltGoal extends AbstractGoal {
         boolean charcoalChain = !snapshot.hasItem(m -> m == org.bukkit.Material.COAL
                         || m == org.bukkit.Material.CHARCOAL)
                 && snapshot.hasItem(m -> m.name().endsWith("_LOG"));
-        if (!smeltables && !stoneChain && !charcoalChain) {
+        // Zednický řetěz: stavitel REFINED domu taví cobble na kámen (→ tesané
+        // cihly). Furnace-side gate hlídá, kolik – tady stačí, že má co tavit.
+        boolean masonryChain = wantsMasonry(bot)
+                && snapshot.hasItem(m -> m == org.bukkit.Material.COBBLESTONE);
+        if (!smeltables && !stoneChain && !charcoalChain && !masonryChain) {
             return 0;
         }
         double patience = bot.personality().trait(Trait.PATIENCE);
@@ -148,7 +152,8 @@ public final class SmeltGoal extends AbstractGoal {
                 if (pending == null) {
                     pending = collecting
                             ? furnaces.collect(ctx, ctx.worldView().worldName(), furnace)
-                            : furnaces.insert(ctx, ctx.worldView().worldName(), furnace);
+                            : furnaces.insert(ctx, ctx.worldView().worldName(), furnace,
+                                    wantsMasonry(bot));
                     return;
                 }
                 if (!pending.isDone()) {
