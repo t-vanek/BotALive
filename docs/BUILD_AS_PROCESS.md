@@ -100,6 +100,12 @@ REFINED = cihly a tesaný kámen, oba si bot vyrobí sám: `BRICKS` z hlíny
 dva reprezentativní domy nejsou stejné. Okna jsou **skleněné tabule** (sklo →
 tabule, masonry gate); plné sklo i přírodní kámen zůstávají přijatelné.
 
+**Honosnější geometrie:** `tier` se protahuje i do `HouseGenerator` (ne jen do
+palety), takže REFINED dům dostane **komín** – sloupec u nároží nad střechu
+(role ROOF, materiál z palety). Komín má oporu při pokládce (`BuildPlanner.order`
+projde) a vyšší bloky stavitel dosáhne z pilířového stanoviště. Nižší stupně
+mají prostou geometrii beze změny.
+
 - `PaletteResolver.resolve(woodHint, seed, tier)` – nová dimenze `tier`;
   2-arg varianta zůstává a míří na `SOLID` (dnešní vzhled beze změny).
   U `PROVISIONAL` je role `WINDOW` prázdná → `intended` je prázdné →

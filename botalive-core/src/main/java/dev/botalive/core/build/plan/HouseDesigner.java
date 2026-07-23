@@ -48,9 +48,9 @@ public final class HouseDesigner {
             this(width, wallHeight, wood, seed, BuildTier.SOLID);
         }
 
-        /** @return geometrie domu (tvar střechy odvozen ze seedu – variace vzhledu) */
+        /** @return geometrie domu (tvar střechy ze seedu, komín u REFINED) */
         public Blueprint blueprint() {
-            return new HouseGenerator(width, wallHeight, Math.floorMod(seed, 3) != 0);
+            return new HouseGenerator(width, wallHeight, Math.floorMod(seed, 3) != 0, tier);
         }
 
         /** @return materiály podle rolí pro daný {@link #tier} */

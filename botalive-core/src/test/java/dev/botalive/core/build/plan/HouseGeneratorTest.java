@@ -106,6 +106,24 @@ class HouseGeneratorTest {
     }
 
     @Test
+    void refinedHouseHasSupportedChimneyAboveRoof() {
+        HouseGenerator solid = new HouseGenerator(5, 3, true, BuildTier.SOLID);
+        HouseGenerator refined = new HouseGenerator(5, 3, true, BuildTier.REFINED);
+        List<PlacementCell> solidCells = solid.cells(ORIGIN, Cardinal.NORTH);
+        List<PlacementCell> refinedCells = refined.cells(ORIGIN, Cardinal.NORTH);
+        // Komín přidá bloky a ční nad špičku střechy.
+        assertTrue(refinedCells.size() > solidCells.size(), "komín přidá bloky");
+        int roofPeak = solidCells.stream().mapToInt(c -> c.pos().y()).max().orElseThrow();
+        int refinedTop = refinedCells.stream().mapToInt(c -> c.pos().y()).max().orElseThrow();
+        assertTrue(refinedTop > roofPeak, "komín přesahuje střechu");
+        // Každý blok (i komín) má při pokládce oporu – jinak order() vyhodí výjimku.
+        for (Cardinal facing : Cardinal.values()) {
+            BuildPlanner.order(refined.cells(ORIGIN, facing),
+                    refined.groundColumns(ORIGIN, facing));
+        }
+    }
+
+    @Test
     void flatTopRoofVariantReachesSupportsAndBuilds() {
         HouseGenerator gen = new HouseGenerator(5, 3, false); // valba s plochým vrcholem
         // Nižší střecha než plná jehla.
