@@ -1047,7 +1047,10 @@ public final class BotAliveCommand implements TabExecutor {
     /**
      * {@code /botalive codex [materiál]} – nahlédnutí do botní databáze materiálů
      * ({@link dev.botalive.core.inventory.Codex}). Bez argumentu vypíše histogram
-     * kategorií celé vanilly, s materiálem jeho „kartu" (kategorie a fakta).
+     * kategorií celé vanilly, s materiálem jeho „kartu" (kategorie a fakta +
+     * afordance z {@link dev.botalive.core.inventory.MaterialGuide}); je-li to
+     * pracovní stanice, přidá i kartu stanice z
+     * {@link dev.botalive.core.inventory.StationGuide}.
      */
     private void codex(CommandSender sender, String[] args) {
         if (args.length < 2) {
@@ -1070,6 +1073,11 @@ public final class BotAliveCommand implements TabExecutor {
         }
         info(sender, dev.botalive.core.inventory.Codex.describe(material));
         for (String line : dev.botalive.core.inventory.MaterialGuide.lines(material)) {
+            sender.sendMessage(Component.text("  " + line, NamedTextColor.GRAY));
+        }
+        // Je-li to pracovní stanice, přidej i její kartu (funkce, vstupy/výstupy,
+        // který bot ji obsluhuje) – prázdné pro nestanice.
+        for (String line : dev.botalive.core.inventory.StationGuide.lines(material)) {
             sender.sendMessage(Component.text("  " + line, NamedTextColor.GRAY));
         }
     }
