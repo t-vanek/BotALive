@@ -113,6 +113,33 @@ class AmbitionTest {
     }
 
     @Test
+    void frontierBoostujeCileAktualnihoKroku() {
+        // Krok „postavit dům" (1/3): house = frontier (silný boost), mine je
+        // v balíku, ale ne frontier kroku → slabší boost.
+        var build = new Ambition.Progress(1, 3, "postavit dům");
+        assertEquals(1.6, Ambition.COZY_HOME.weight("house", build), 1e-9);
+        assertEquals(1.25, Ambition.COZY_HOME.weight("mine", build), 1e-9);
+        assertEquals(1.0, Ambition.COZY_HOME.weight("fish", build), 1e-9);
+    }
+
+    @Test
+    void shearSeTahneAzUKrokuPostel() {
+        // Klíčová oprava: shear NENÍ v balíku COZY_HOME, takže ho dřív ambice
+        // netáhla vůbec – u kroku „postel" ho ale krok potřebuje.
+        var gather = new Ambition.Progress(0, 3, "materiál");
+        var bed = new Ambition.Progress(2, 3, "sehnat vlnu a vyrobit postel");
+        assertEquals(1.0, Ambition.COZY_HOME.weight("shear", gather), 1e-9);
+        assertEquals(1.6, Ambition.COZY_HOME.weight("shear", bed), 1e-9);
+    }
+
+    @Test
+    void splnenaAmbiceNeboBezPostupuNeboostuje() {
+        var done = new Ambition.Progress(3, 3, "splněno");
+        assertEquals(1.0, Ambition.COZY_HOME.weight("house", done), 1e-9);
+        assertEquals(1.0, Ambition.COZY_HOME.weight("house", (Ambition.Progress) null), 1e-9);
+    }
+
+    @Test
     void stareAmbiceStavemNetrpi() {
         // Refaktoring na State nesmí změnit milníky původních ambicí.
         var needs = BotNeeds.assess(null);

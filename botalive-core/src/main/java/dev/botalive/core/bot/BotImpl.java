@@ -658,7 +658,7 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
         if (current == null || progress == null) {
             return 1.0;
         }
-        return current.weight(goalId, progress.complete());
+        return current.weight(goalId, progress);
     }
 
     /**
