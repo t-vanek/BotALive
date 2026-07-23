@@ -555,16 +555,20 @@ public final class BuildHouseGoal extends AbstractGoal {
         // (výška, katastr, resume) zůstal na cíli. Complex režim staví
         // generovaný dům z palety, jinak legacy domek 4×4.
         var buildCfg = ctx.config().build();
+        // Zarovnat prstenec kolem domu smí bot jen když smí upravovat terén.
+        boolean gradeApron = terraforming;
         if (buildCfg.complex()) {
             design = HouseDesigner.design(bot, ctx.serverView().latest(), buildCfg,
                     settlementTier(ctx, bot));
             BuildPlan buildPlan = BuildPlan.of(design.blueprint(), origin, facing);
             session = new BuildSession(
-                    BuildPlanner.schedule(buildPlan, ctx.worldView()), design.palette());
+                    BuildPlanner.schedule(buildPlan, ctx.worldView(), gradeApron),
+                    design.palette());
         } else {
             design = null;
             BuildPlan buildPlan = BuildPlan.of(Blueprints.house(), origin, facing);
-            session = new BuildSession(BuildPlanner.schedule(buildPlan, ctx.worldView()));
+            session = new BuildSession(
+                    BuildPlanner.schedule(buildPlan, ctx.worldView(), gradeApron));
         }
         return true;
     }

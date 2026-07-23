@@ -2,6 +2,7 @@ package dev.botalive.core.build.plan;
 
 import dev.botalive.core.util.BlockPos;
 import dev.botalive.core.util.Vec3;
+import dev.botalive.core.world.BlockTraits;
 import dev.botalive.core.world.WorldView;
 
 import java.util.ArrayList;
@@ -78,13 +79,31 @@ public final class BuildPlanner {
 
     /**
      * Sestaví rozvrh: úpravy terénu podle aktuálního světa a pokládku
-     * v pořadí s oporou.
+     * v pořadí s oporou. Bez zarovnání okolí (parita s dřívějším chováním).
      *
      * @param plan  rozvinutý plán stavby
      * @param world stav světa (načtené okolí staveniště)
      * @return proveditelný rozvrh
      */
     public static BuildSchedule schedule(BuildPlan plan, WorldView world) {
+        return schedule(plan, world, false);
+    }
+
+    /**
+     * Jako {@link #schedule(BuildPlan, WorldView)}, ale volitelně srovná
+     * <b>1-blokový prstenec kolem půdorysu</b> na úroveň podlahy: co v prstenci
+     * trčí do svahu (blok podlahy a hlava nad ním), vytěží, aby dům netrčel do
+     * kopce a šlo k němu dojít. Jen výkopy – žádný materiál, takže zarovnání
+     * nikdy nezablokuje stavbu; zásyp svažité strany (sokl/terasa) je zatím
+     * mimo (viz {@code docs/BUILD_AS_PROCESS.md}). Gate-uje {@code ai.terraforming}
+     * (volající).
+     *
+     * @param plan       rozvinutý plán stavby
+     * @param world      stav světa (načtené okolí staveniště)
+     * @param gradeApron srovnat prstenec kolem půdorysu?
+     * @return proveditelný rozvrh
+     */
+    public static BuildSchedule schedule(BuildPlan plan, WorldView world, boolean gradeApron) {
         Set<Long> structure = new HashSet<>();
         for (PlacementCell cell : plan.cells()) {
             structure.add(cell.pos().asLong());
@@ -103,11 +122,70 @@ public final class BuildPlanner {
                 fill.add(ground);
             }
         }
+        if (gradeApron) {
+            addApronDigs(plan, world, mine);
+        }
         List<PlacementCell> ordered = order(plan.cells(), plan.groundColumns());
         List<WorkUnit> units = segment(ordered, plan);
         List<BlockPos> scaffold = scaffoldFor(units, plan.stand().y());
         return new BuildSchedule(mine, fill, units, plan.stand(),
                 plan.standExact(), plan.furnishing(), scaffold);
+    }
+
+    /**
+     * Srovná 1-blokový prstenec kolem půdorysu na úroveň podlahy: v každém
+     * sloupci prstence vytěží, co trčí na úrovni podlahy a hlavy ({@code
+     * origin.y()} a {@code +1}), aby dům netrčel do svahu a šlo k němu dojít.
+     * Podlahová opora leží na {@code origin.y()-1} (úroveň {@code groundColumns});
+     * hazard a nenačtené bloky přeskočí. Jen výkopy (bez materiálu).
+     */
+    private static void addApronDigs(BuildPlan plan, WorldView world, List<BlockPos> mine) {
+        Set<Long> footprint = new HashSet<>();
+        int supportY = Integer.MIN_VALUE;
+        for (BlockPos ground : plan.groundColumns()) {
+            footprint.add(columnKey(ground.x(), ground.z()));
+            supportY = ground.y(); // všechny na origin.y()-1
+        }
+        if (footprint.isEmpty()) {
+            return;
+        }
+        int floorY = supportY + 1;
+        Set<Long> already = new HashSet<>();
+        for (BlockPos pos : mine) {
+            already.add(pos.asLong());
+        }
+        Set<Long> ring = new HashSet<>();
+        for (BlockPos ground : plan.groundColumns()) {
+            for (int dx = -1; dx <= 1; dx++) {
+                for (int dz = -1; dz <= 1; dz++) {
+                    if (dx == 0 && dz == 0) {
+                        continue;
+                    }
+                    int x = ground.x() + dx;
+                    int z = ground.z() + dz;
+                    long col = columnKey(x, z);
+                    if (footprint.contains(col) || !ring.add(col)) {
+                        continue; // vlastní půdorys, nebo sloupec už zpracován
+                    }
+                    for (int y = floorY; y <= floorY + 1; y++) {
+                        BlockPos pos = new BlockPos(x, y, z);
+                        BlockTraits traits = world.traitsAt(pos);
+                        if (traits == BlockTraits.UNKNOWN || traits.hazard()
+                                || !traits.solid()) {
+                            continue;
+                        }
+                        if (already.add(pos.asLong())) {
+                            mine.add(pos);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /** Klíč sloupce (x, z) do množiny – nezávislý na y. */
+    private static long columnKey(int x, int z) {
+        return ((long) x << 32) ^ (z & 0xffffffffL);
     }
 
     /**

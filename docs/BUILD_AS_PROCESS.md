@@ -49,7 +49,7 @@ a jsou hotové; 2–5 čekají na dopracování.
 | **2** | Tiery palety | `PaletteResolver.resolve(wood, seed, tier)`; Tier 0 = dřevo + otvory; `tier` do HOME dat | **hotovo** |
 | **3** | Upgrade smyčka | údržba diffuje proti *vyššímu* tieru a nahrazuje po rolích, atomicky | **hotovo** |
 | **4** | BOM wishlist | *build wishlist* → cílené shánění; hotová **sklo-smyčka** (písek → sklo), cihly/tesaný kámen zbývají | **z části** |
-| **5** | Zarovnání okolí | apron + sokl/terasa kolem půdorysu | návrh |
+| **5** | Zarovnání okolí | apron dig (srovnat prstenec) hotový; sokl/terasa (zásyp svahu) zbývá | **z části** |
 
 ### Fáze 0 – Gate zásypu (hotovo)
 
@@ -161,22 +161,32 @@ per-materiálového [`BillOfMaterials`](../botalive-core/src/main/java/dev/botal
 jako přesného rozpisu (dnes gate zůstává na skalárním počtu bloků) a dosud
 neexistující `build.substitute-after-minutes`.
 
-### Fáze 5 – Zarovnání okolí
+### Fáze 5 – Zarovnání okolí (z části hotovo)
 
-Nad rámec dnešního (srovná se jen sloupce přesně pod půdorysem):
-- **Apron:** prsten 1 blok kolem půdorysu srovnat na úroveň podlahy
-  (odkopat vršky, zasypat prohlubně) – přístup ke dveřím, čistý sokl.
-- **Sokl / terasa:** svažitou stranu podezdít místo věčného kopání –
-  vypadá líp a míň jizví krajinu. Iterativně: nejdřív kopat do rozumné míry,
-  pak dorovnat podezdívkou.
-Vše pod `ai.terraforming` a novým `build.grade-apron`. Nezávislé na tierech –
-dá se vsunout kdykoli.
+Nad rámec dnešního (srovná se jen sloupce přesně pod půdorysem) je hotový
+**apron dig** – v duchu rozhodnutí „kopat a snažit se o sokl a terasu iterativně"
+se začíná kopáním:
+
+- [`BuildPlanner.schedule(plan, world, gradeApron)`](../botalive-core/src/main/java/dev/botalive/core/build/plan/BuildPlanner.java)
+  srovná **1-blokový prstenec kolem půdorysu** na úroveň podlahy: v každém
+  sloupci prstence vytěží, co trčí na úrovni podlahy a hlavy (`origin.y()` a
+  `+1`), aby dům netrčel do svahu a šlo k němu dojít.
+- **Jen výkopy** – žádný materiál, takže zarovnání nikdy nezablokuje stavbu
+  (na rozdíl od zásypu). Hazard (láva/magma) a nenačtené bloky přeskočí; na
+  rovině nedělá nic (self-limiting terénem).
+- Gate-uje `ai.terraforming` (`BuildHouseGoal` předá příznak). Civilní stavby
+  ho zatím neberou (bezpečnější default).
+
+**Zbývá — sokl / terasa (iterativní krok):** svažitou stranu **podezdít**
+místo věčného kopání – vypadá líp a míň jizví krajinu. Chce to zásyp
+s materiálem (nesmí zablokovat stavbu → best-effort, ne přes hlavní `fill`
+frontu) a hezčí geometrii podezdívky. Nezávislé na tierech.
 
 ## Config a data (průřezově)
 
-- `Build` record (`config/BotAliveConfig.java`): `build.max-tier`,
-  `build.grade-apron`, `build.substitute-after-minutes`.
-- HOME paměť: nové pole `tier` (aditivní migrace).
+- Apron dig je gate-ovaný stávajícím `ai.terraforming` (žádný nový config).
+  Do budoucna možné přepínače: `build.max-tier`, `build.substitute-after-minutes`.
+- HOME paměť: přidané pole `btier` (ordinal; aditivní migrace, chybí = `SOLID`).
 - Testy: `PaletteBuildTest` (hotový nový případ), plus budoucí testy na
   tier-diff a atomicitu upgrade.
 
