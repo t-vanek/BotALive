@@ -65,6 +65,21 @@ class InventoryHelperTest {
     }
 
     @Test
+    void odkladaciSlotChraniLukJakoZbran() {
+        // Luk se ovládá z hotbaru jako meč – nesmí se vytlačit kvůli přitaženému
+        // itemu, dokud je po ruce obyčejná surovina (papír). Přes tier krumpáče
+        // luk (tier 0) neprojde; katalog Items.isWeapon ho chrání spolu s kuší
+        // a trojzubcem. Bez něj by luk propadl mezi „necenné" a obětoval se.
+        Material[] hotbar = {Material.BOW, Material.PAPER, Material.IRON_SWORD,
+                Material.IRON_PICKAXE, Material.DIAMOND_AXE, Material.STONE_SHOVEL,
+                Material.BREAD, Material.COOKED_BEEF, Material.CARROT};
+        int[] counts = {1, 1, 1, 1, 1, 1, 5, 2, 3};
+        int slot = InventoryHelper.chooseHotbarDumpSlot(
+                snapshot(hotbar, counts, new Material[27]));
+        assertEquals(1, slot, "obětuje papír, ne luk (zbraň zůstává po ruce)");
+    }
+
+    @Test
     void prazdnyHlavniInventarVraciMinusJedna() {
         assertEquals(-1, InventoryHelper.findBestInMain(
                 snapshot(new Material[9], new int[9], new Material[27]),

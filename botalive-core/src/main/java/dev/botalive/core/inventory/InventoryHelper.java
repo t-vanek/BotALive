@@ -91,8 +91,10 @@ public class InventoryHelper {
 
     /**
      * Vybere hotbar slot, kam lze bezpečně odložit přitažený item:
-     * prázdný → obyčejný materiál (bloky) → nejpočetnější stack. Nikdy nástroj
-     * ani jídlo, pokud existuje jiná možnost.
+     * prázdný → obyčejný materiál (bloky) → nejpočetnější stack. Nikdy nástroj,
+     * zbraň, brnění ani jídlo, pokud existuje jiná možnost – tyhle se používají
+     * přímo z hotbaru (klávesa), tak ať zůstanou po ruce. Suroviny (i cenné jako
+     * diamanty) se z hotbaru vytlačit smí – přesunou se do batohu, ne pryč.
      *
      * @param snapshot server-side snapshot
      * @return hotbar index 0–8
@@ -114,8 +116,10 @@ public class InventoryHelper {
         int best = 0;
         int bestCount = -1;
         for (int j = 0; j < hotbar.length; j++) {
+            // Přímo z hotbaru se ovládá nástroj, zbraň (i luk/kuše/trojzubec –
+            // ty přes tier neprojdou), brnění a jídlo – ať zůstanou po ruce.
             boolean precious = toolTier(hotbar[j]) > 0 || armorTier(hotbar[j]) > 0
-                    || isFood(hotbar[j]);
+                    || isFood(hotbar[j]) || Items.isWeapon(hotbar[j]);
             int count = counts != null ? counts[j] : 1;
             if (!precious && count > bestCount) {
                 bestCount = count;
