@@ -9,6 +9,7 @@ import dev.botalive.core.build.plan.BuildMaterials;
 import dev.botalive.core.build.plan.BuildTier;
 import dev.botalive.core.build.plan.HouseDesigner;
 import dev.botalive.core.inventory.InventoryHelper;
+import dev.botalive.core.inventory.Materials;
 import dev.botalive.core.mining.DigPlanner;
 import dev.botalive.core.settlement.SettlementService;
 import dev.botalive.core.settlement.SettlementTier;
@@ -23,7 +24,6 @@ import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import dev.botalive.core.pathfinding.PathGoal;
 
 /**
@@ -42,25 +42,6 @@ import dev.botalive.core.pathfinding.PathGoal;
  * ({@code ai.terraforming: false}).</p>
  */
 public final class MineGoal extends AbstractGoal {
-
-    /** Cílové bloky těžby a jejich hodnota pro ekonomiku. */
-    private static final Map<Material, Double> ORE_VALUES = Map.ofEntries(
-            Map.entry(Material.COAL_ORE, 2.0), Map.entry(Material.DEEPSLATE_COAL_ORE, 2.0),
-            Map.entry(Material.COPPER_ORE, 2.5), Map.entry(Material.DEEPSLATE_COPPER_ORE, 2.5),
-            Map.entry(Material.IRON_ORE, 5.0), Map.entry(Material.DEEPSLATE_IRON_ORE, 5.0),
-            Map.entry(Material.GOLD_ORE, 8.0), Map.entry(Material.DEEPSLATE_GOLD_ORE, 8.0),
-            Map.entry(Material.REDSTONE_ORE, 4.0), Map.entry(Material.DEEPSLATE_REDSTONE_ORE, 4.0),
-            Map.entry(Material.LAPIS_ORE, 6.0), Map.entry(Material.DEEPSLATE_LAPIS_ORE, 6.0),
-            Map.entry(Material.DIAMOND_ORE, 25.0), Map.entry(Material.DEEPSLATE_DIAMOND_ORE, 25.0),
-            Map.entry(Material.EMERALD_ORE, 20.0), Map.entry(Material.DEEPSLATE_EMERALD_ORE, 20.0)
-    );
-
-    /** Dřevo – náhradní cíl těžby, když nejsou rudy. */
-    private static final Set<Material> LOGS = Set.of(
-            Material.OAK_LOG, Material.SPRUCE_LOG, Material.BIRCH_LOG, Material.JUNGLE_LOG,
-            Material.ACACIA_LOG, Material.DARK_OAK_LOG, Material.MANGROVE_LOG,
-            Material.CHERRY_LOG, Material.PALE_OAK_LOG
-    );
 
     /** Cílová hloubka schodiště podle hledané rudy (nohy bota). */
     private static final Map<String, Integer> ORE_DEPTHS = Map.of(
@@ -352,16 +333,16 @@ public final class MineGoal extends AbstractGoal {
         }
         // 2) Dřevo, když ho bot potřebuje/preferuje.
         if (preferLogs) {
-            found = scanExposedAll(ctx, LOGS::contains);
+            found = scanExposedAll(ctx, Materials::isLog);
             if (!found.isEmpty()) {
                 setTarget(ctx, found, needs);
                 return;
             }
         }
         // 3) Jakákoli hodnotná ruda, kterou umí vytěžit.
-        found = scanExposedAll(ctx, m -> ORE_VALUES.containsKey(m) && needs.canHarvest(m));
+        found = scanExposedAll(ctx, m -> Materials.isValuableOre(m) && needs.canHarvest(m));
         if (found.isEmpty() && !preferLogs) {
-            found = scanExposedAll(ctx, LOGS::contains);
+            found = scanExposedAll(ctx, Materials::isLog);
         }
         if (!found.isEmpty()) {
             setTarget(ctx, found, needs);
@@ -592,9 +573,9 @@ public final class MineGoal extends AbstractGoal {
     /** Statistiky/ekonomika/paměť + sledování žíly nebo pokračování výkopu. */
     private void onBlockMined(BotContext ctx, Bot bot) {
         ctx.stats().addMined();
-        boolean valuable = targetMaterial != null && ORE_VALUES.containsKey(targetMaterial);
+        boolean valuable = targetMaterial != null && Materials.isValuableOre(targetMaterial);
         if (valuable) {
-            Double value = ORE_VALUES.get(targetMaterial);
+            Double value = Materials.oreValue(targetMaterial);
             if (ctx.config().economy().enabled()) {
                 bot.wallet().deposit(value, "těžba "
                         + targetMaterial.name().toLowerCase(java.util.Locale.ROOT));
@@ -646,7 +627,7 @@ public final class MineGoal extends AbstractGoal {
                     }
                     BlockPos next = targetBlock.offset(dx, dy, dz);
                     Material material = world.materialAt(next);
-                    if (material != null && ORE_VALUES.containsKey(material)
+                    if (material != null && Materials.isValuableOre(material)
                             && BotNeeds.oreFamily(material).equals(family)
                             && !DigPlanner.unsafeToBreak(world, next)) {
                         targetBlock = next;

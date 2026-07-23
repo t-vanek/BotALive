@@ -288,62 +288,33 @@ public class InventoryHelper {
 
     /**
      * @param material materiál
-     * @return {@code true} pokud jde o blok vhodný ke stavění úkrytu
+     * @return {@code true} pokud jde o plný stavební kvádr (deleguje na
+     *         {@link Materials#isBuildingBlock} – celá vanilla)
      */
     public static boolean isBuildingBlock(Material material) {
-        return material == Material.DIRT || material == Material.COBBLESTONE
-                || material == Material.COBBLED_DEEPSLATE || material == Material.NETHERRACK
-                || material == Material.STONE || material == Material.OAK_PLANKS
-                || material == Material.SPRUCE_PLANKS || material == Material.BIRCH_PLANKS
-                || material == Material.END_STONE;
+        return Materials.isBuildingBlock(material);
     }
 
     /**
-     * Pracovní rezervy komodit: nad tento počet kusů je zbytek <b>přebytek</b>
-     * k uložení do truhly (bankování). Rezerva je štědrá schválně – bot si
-     * nechá dost na tavení, výrobu a opravy a bankuje jen skutečný přebytek,
-     * takže se nepřetrhne řetěz ruda → ingot → nástroj. Netheritový řetězec
-     * (příliš vzácný, koncová hra) se schválně <b>nebankuje</b> – drží se v
-     * batohu, dokud z něj nevznikne upgrade.
-     */
-    private static final java.util.Map<Material, Integer> BANK_RESERVE = java.util.Map.ofEntries(
-            java.util.Map.entry(Material.RAW_IRON, 16),
-            java.util.Map.entry(Material.RAW_GOLD, 16),
-            java.util.Map.entry(Material.RAW_COPPER, 16),
-            java.util.Map.entry(Material.IRON_INGOT, 16),
-            java.util.Map.entry(Material.GOLD_INGOT, 8),
-            java.util.Map.entry(Material.COPPER_INGOT, 16),
-            java.util.Map.entry(Material.COAL, 32),
-            java.util.Map.entry(Material.DIAMOND, 12),
-            java.util.Map.entry(Material.EMERALD, 12),
-            java.util.Map.entry(Material.LAPIS_LAZULI, 32),
-            java.util.Map.entry(Material.REDSTONE, 32),
-            java.util.Map.entry(Material.QUARTZ, 32),
-            java.util.Map.entry(Material.AMETHYST_SHARD, 16),
-            java.util.Map.entry(Material.GOLD_NUGGET, 16));
-
-    /**
-     * Je materiál <b>bankovatelná komodita</b> (ruda, ingot, uhlí, drahý kámen)?
-     * Tj. cennost, kterou má smysl nad pracovní rezervu uložit do truhly –
-     * na rozdíl od odpadu ({@link ContainerService#isJunk}) a spotřebního
-     * materiálu (jídlo, nástroje, stavební bloky).
+     * Je materiál <b>bankovatelná komodita</b>? Deleguje na centrální katalog
+     * ({@link Materials#isBankable}).
      *
      * @param material materiál ({@code null} = ne)
      * @return {@code true} pro komoditu s pracovní rezervou
      */
     public static boolean isBankable(Material material) {
-        return material != null && BANK_RESERVE.containsKey(material);
+        return Materials.isBankable(material);
     }
 
     /**
-     * Pracovní rezerva komodity – kolik kusů si bot nechává v batohu, než
-     * začne zbytek bankovat.
+     * Pracovní rezerva komodity – kolik kusů si bot nechává, než začne zbytek
+     * bankovat ({@link Materials#bankReserve}).
      *
      * @param material materiál
      * @return rezerva v kusech (0 pro nebankovatelné materiály)
      */
     public static int bankReserve(Material material) {
-        return BANK_RESERVE.getOrDefault(material, 0);
+        return Materials.bankReserve(material);
     }
 
     /**
@@ -363,8 +334,8 @@ public class InventoryHelper {
         tally(snapshot.mainInventory(), snapshot.mainCounts(), have);
         int surplus = 0;
         for (java.util.Map.Entry<Material, Integer> entry : have.entrySet()) {
-            Integer reserve = BANK_RESERVE.get(entry.getKey());
-            if (reserve != null) {
+            int reserve = Materials.bankReserve(entry.getKey());
+            if (reserve > 0) {
                 surplus += Math.max(0, entry.getValue() - reserve);
             }
         }
