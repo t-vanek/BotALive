@@ -376,6 +376,95 @@ public final class Items {
     }
 
     // ==================================================================
+    // Kovy, drahokamy, jídlo, knihy a další podkategorie
+    // ==================================================================
+
+    /** @param material materiál @return {@code true} pro ingot (železný/zlatý/měděný/netheritový) */
+    public static boolean isIngot(Material material) {
+        return material != null && material.name().endsWith("_INGOT");
+    }
+
+    /** @param material materiál @return {@code true} pro nuget (železný/zlatý) */
+    public static boolean isNugget(Material material) {
+        return material != null && material.name().endsWith("_NUGGET");
+    }
+
+    /** @param material materiál @return {@code true} pro surový kov (ruda-drop, ne blok) */
+    public static boolean isRawMetal(Material material) {
+        if (material == null) {
+            return false;
+        }
+        String name = material.name();
+        return name.startsWith("RAW_") && !name.endsWith("_BLOCK");
+    }
+
+    private static final Set<Material> GEMS = Set.of(
+            Material.DIAMOND, Material.EMERALD, Material.LAPIS_LAZULI,
+            Material.AMETHYST_SHARD, Material.QUARTZ);
+
+    /** @param material materiál @return {@code true} pro drahý kámen (diamant, smaragd…) */
+    public static boolean isGem(Material material) {
+        return material != null && GEMS.contains(material);
+    }
+
+    private static final Set<Material> RAW_FOOD = Set.of(
+            Material.BEEF, Material.PORKCHOP, Material.CHICKEN, Material.MUTTON,
+            Material.RABBIT, Material.COD, Material.SALMON);
+
+    /** @param material materiál @return {@code true} pro syrové maso/rybu (k upečení) */
+    public static boolean isRawFood(Material material) {
+        return material != null && RAW_FOOD.contains(material);
+    }
+
+    /** @param material materiál @return {@code true} pro pečené jídlo (COOKED_*) */
+    public static boolean isCookedFood(Material material) {
+        return material != null && material.name().startsWith("COOKED_");
+    }
+
+    private static final Set<Material> BOOKS = Set.of(
+            Material.BOOK, Material.WRITABLE_BOOK, Material.WRITTEN_BOOK,
+            Material.ENCHANTED_BOOK, Material.KNOWLEDGE_BOOK);
+
+    /** @param material materiál @return {@code true} pro knihu (i psací/enchantovanou) */
+    public static boolean isBook(Material material) {
+        return material != null && BOOKS.contains(material);
+    }
+
+    /** @param material materiál @return {@code true} pro vlajku */
+    public static boolean isBanner(Material material) {
+        return material != null && material.name().endsWith("_BANNER");
+    }
+
+    /** @param material materiál @return {@code true} pro postel */
+    public static boolean isBed(Material material) {
+        return material != null && material.name().endsWith("_BED");
+    }
+
+    /** @param material materiál @return {@code true} pro hlavu/lebku moba */
+    public static boolean isHead(Material material) {
+        if (material == null) {
+            return false;
+        }
+        String name = material.name();
+        return name.endsWith("_HEAD") || name.endsWith("_SKULL");
+    }
+
+    /** @param material materiál @return {@code true} pro mapu (prázdnou i vyplněnou) */
+    public static boolean isMap(Material material) {
+        return material == Material.MAP || material == Material.FILLED_MAP;
+    }
+
+    private static final Set<Material> THROWABLES = Set.of(
+            Material.SNOWBALL, Material.EGG, Material.ENDER_PEARL,
+            Material.EXPERIENCE_BOTTLE, Material.SPLASH_POTION, Material.LINGERING_POTION,
+            Material.FIRE_CHARGE);
+
+    /** @param material materiál @return {@code true} pro vrhací item (koule, vejce, splash…) */
+    public static boolean isThrowable(Material material) {
+        return material != null && THROWABLES.contains(material);
+    }
+
+    // ==================================================================
     // Souhrnná kategorie
     // ==================================================================
 

@@ -177,6 +177,41 @@ class ItemsTest {
     }
 
     @Test
+    void kovyDrahokamy() {
+        assertTrue(Items.isIngot(Material.IRON_INGOT));
+        assertTrue(Items.isIngot(Material.NETHERITE_INGOT));
+        assertFalse(Items.isIngot(Material.IRON_NUGGET));
+        assertTrue(Items.isNugget(Material.GOLD_NUGGET));
+        assertTrue(Items.isRawMetal(Material.RAW_IRON));
+        assertFalse(Items.isRawMetal(Material.RAW_IRON_BLOCK), "blok surové rudy není surový kov");
+        assertTrue(Items.isGem(Material.DIAMOND));
+        assertTrue(Items.isGem(Material.LAPIS_LAZULI));
+        assertFalse(Items.isGem(Material.COAL));
+    }
+
+    @Test
+    void jidloKnihyMisc() {
+        assertTrue(Items.isRawFood(Material.BEEF));
+        assertTrue(Items.isRawFood(Material.COD));
+        assertFalse(Items.isRawFood(Material.COOKED_BEEF));
+        assertTrue(Items.isCookedFood(Material.COOKED_BEEF));
+        assertTrue(Items.isCookedFood(Material.COOKED_SALMON));
+        assertFalse(Items.isCookedFood(Material.BEEF));
+        assertTrue(Items.isBook(Material.BOOK));
+        assertTrue(Items.isBook(Material.ENCHANTED_BOOK));
+        assertFalse(Items.isBook(Material.PAPER));
+        assertTrue(Items.isBanner(Material.WHITE_BANNER));
+        assertTrue(Items.isBed(Material.RED_BED));
+        assertTrue(Items.isHead(Material.SKELETON_SKULL));
+        assertTrue(Items.isHead(Material.PLAYER_HEAD));
+        assertFalse(Items.isHead(Material.STONE));
+        assertTrue(Items.isMap(Material.FILLED_MAP));
+        assertTrue(Items.isThrowable(Material.SNOWBALL));
+        assertTrue(Items.isThrowable(Material.SPLASH_POTION));
+        assertFalse(Items.isThrowable(Material.ARROW));
+    }
+
+    @Test
     void hlavniKategoriePrioritizuje() {
         assertEquals(ItemCategory.ARMOR, Items.primaryCategory(Material.DIAMOND_HELMET));
         assertEquals(ItemCategory.ARMOR, Items.primaryCategory(Material.ELYTRA));
