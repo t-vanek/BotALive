@@ -209,6 +209,9 @@ public final class MaterialGuide {
         if (Items.isFuel(m)) {
             return "palivo do pece";
         }
+        if (InventoryHelper.isReserveFood(m)) {
+            return "nouzové léčení a sytost (šetřit na boj, ne na běžný hlad)";
+        }
         if (Items.isFood(m)) {
             return "obnova hladu a sytosti";
         }
@@ -264,6 +267,9 @@ public final class MaterialGuide {
             cannot.add("může způsobit hlad – jíst až v nouzi");
         } else if (Items.isRawFood(m)) {
             cannot.add("syrové – radši nejdřív upéct (víc sytosti)");
+        }
+        if (InventoryHelper.isReserveFood(m)) {
+            cannot.add("neplýtvat na běžný hlad – schovat na nouzi a boj");
         }
         if (m == Material.SPIDER_EYE || m == Material.POISONOUS_POTATO
                 || m == Material.PUFFERFISH) {

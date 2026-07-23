@@ -80,6 +80,26 @@ class InventoryHelperTest {
     }
 
     @Test
+    void kvalitaJidlaPorada() {
+        // Pořádné jídlo (0) < syrové (1) < zlaté jablko (2) < nejídlo (3).
+        assertEquals(0, InventoryHelper.foodRank(Material.COOKED_BEEF), "vařené = pořádné");
+        assertEquals(0, InventoryHelper.foodRank(Material.BREAD));
+        assertEquals(1, InventoryHelper.foodRank(Material.BEEF), "syrové maso");
+        assertEquals(1, InventoryHelper.foodRank(Material.CHICKEN), "syrové kuře (otráví)");
+        assertEquals(2, InventoryHelper.foodRank(Material.GOLDEN_APPLE), "rezerva na nouzi");
+        assertEquals(2, InventoryHelper.foodRank(Material.ENCHANTED_GOLDEN_APPLE));
+        assertEquals(3, InventoryHelper.foodRank(Material.COBBLESTONE), "není jídlo");
+        assertEquals(3, InventoryHelper.foodRank(null));
+        // Klíčové uspořádání politiky: sníst dřív pořádné, zlaté jablko nakonec.
+        assertTrue(InventoryHelper.foodRank(Material.COOKED_BEEF)
+                < InventoryHelper.foodRank(Material.BEEF));
+        assertTrue(InventoryHelper.foodRank(Material.BEEF)
+                < InventoryHelper.foodRank(Material.GOLDEN_APPLE));
+        assertTrue(InventoryHelper.isReserveFood(Material.GOLDEN_APPLE));
+        assertFalse(InventoryHelper.isReserveFood(Material.BREAD));
+    }
+
+    @Test
     void prazdnyHlavniInventarVraciMinusJedna() {
         assertEquals(-1, InventoryHelper.findBestInMain(
                 snapshot(new Material[9], new int[9], new Material[27]),

@@ -255,6 +255,43 @@ public class InventoryHelper {
     }
 
     /**
+     * „Rezervní" jídlo – zlatá jablka. Léčivé cennosti na nouzi a boj
+     * (regenerace, absorpce, u očarovaného i odolnost), ne rutinní zahánění
+     * hladu ani dárek: stojí zlato, tak se šetří úplně na konec.
+     *
+     * @param material materiál
+     * @return {@code true} pro zlaté / očarované zlaté jablko
+     */
+    public static boolean isReserveFood(Material material) {
+        return material == Material.GOLDEN_APPLE
+                || material == Material.ENCHANTED_GOLDEN_APPLE;
+    }
+
+    /**
+     * Pořadí jídla podle kvality (nižší = sníst / rozdat dřív). Bot dá přednost
+     * pořádnému jídlu (vařené, pečivo, zelenina) před syrovým – to má míň
+     * sytosti a syrové kuře navíc otráví – a zlaté jablko ({@link
+     * #isReserveFood}) šetří úplně na konec. Není to zákaz: rank 2 se sní taky,
+     * když nic lepšího není, ať bot radši jí, než by hladověl.
+     *
+     * @param material materiál
+     * @return 0 = pořádné jídlo, 1 = syrové, 2 = rezervní (zlaté jablko),
+     *         3 = není normální jídlo
+     */
+    public static int foodRank(Material material) {
+        if (material == null) {
+            return 3;
+        }
+        if (isReserveFood(material)) {
+            return 2;
+        }
+        if (Items.isRawFood(material)) {
+            return 1;
+        }
+        return isFood(material) ? 0 : 3;
+    }
+
+    /**
      * Odhad počtu kusů odpovídajících filtru: hotbar přesně, hlavní inventář
      * konzervativně 4 kusy na slot (snapshot počty hlavního inventáře nenese).
      *
@@ -446,7 +483,9 @@ public class InventoryHelper {
     }
 
     /**
-     * Najde a vybere jídlo.
+     * Najde a vybere jídlo – od nejlepšího ({@link #foodRank}): pořádné jídlo,
+     * pak syrové, zlaté jablko až úplně nakonec. Jen pořadí, ne zákaz: když je
+     * po ruce jen horší jídlo, sáhne se i po něm (radši jíst než hladovět).
      *
      * @param snapshot server-side snapshot
      * @return {@code true} pokud bot drží jídlo
@@ -455,10 +494,13 @@ public class InventoryHelper {
         if (snapshot == null) {
             return false;
         }
-        int slot = slotOrPull(snapshot, InventoryHelper::isFood);
-        if (slot >= 0) {
-            actions.selectHotbar(slot);
-            return true;
+        for (int rank = 0; rank <= 2; rank++) {
+            final int wanted = rank;
+            int slot = slotOrPull(snapshot, m -> foodRank(m) == wanted);
+            if (slot >= 0) {
+                actions.selectHotbar(slot);
+                return true;
+            }
         }
         return false;
     }
