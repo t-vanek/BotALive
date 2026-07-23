@@ -245,8 +245,7 @@ public final class Materials {
             return false; // sklo (i tabule) a redstone prach nejsou kvádr
         }
         // Dřevo: prkna, klády, kmeny, kůra (i oloupané varianty).
-        if (name.endsWith("_PLANKS") || name.endsWith("_LOG") || name.endsWith("_WOOD")
-                || name.endsWith("_STEM") || name.endsWith("_HYPHAE")) {
+        if (isWood(material)) {
             return true;
         }
         // Cihlové kvádry (kamenné, netherové, endové, bahenní, prismarine…).
@@ -267,5 +266,28 @@ public final class Materials {
         }
         String name = material.name();
         return (name.endsWith("_LOG") || name.endsWith("_STEM")) && !name.startsWith("STRIPPED_");
+    }
+
+    /** @param material materiál @return {@code true} pro prkna (libovolné dřevo) */
+    public static boolean isPlanks(Material material) {
+        return material != null && material.name().endsWith("_PLANKS");
+    }
+
+    /**
+     * Je materiál <b>dřevo</b> – prkna, klády, kmeny, dřevo nebo kůra (i
+     * oloupané varianty, napříč celou vanillou vč. crimson/warped)? Tj. „mám
+     * z čeho craftit / stavět dřevem". Širší než {@link #isLog} (ten je jen
+     * těžební cíl, bez prken a oloupaných).
+     *
+     * @param material materiál ({@code null} = ne)
+     * @return {@code true} pro dřevěný materiál
+     */
+    public static boolean isWood(Material material) {
+        if (material == null) {
+            return false;
+        }
+        String name = material.name();
+        return name.endsWith("_PLANKS") || name.endsWith("_LOG") || name.endsWith("_WOOD")
+                || name.endsWith("_STEM") || name.endsWith("_HYPHAE");
     }
 }

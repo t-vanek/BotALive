@@ -176,6 +176,21 @@ class MaterialsTest {
     }
 
     @Test
+    void woodPokryvaCelouVanilluDreva() {
+        assertTrue(Materials.isWood(Material.OAK_PLANKS));
+        assertTrue(Materials.isWood(Material.OAK_LOG));
+        assertTrue(Materials.isWood(Material.STRIPPED_OAK_LOG));
+        assertTrue(Materials.isWood(Material.OAK_WOOD));
+        assertTrue(Materials.isWood(Material.CRIMSON_STEM), "nether dřevo se počítá");
+        assertTrue(Materials.isWood(Material.CRIMSON_HYPHAE));
+        assertFalse(Materials.isWood(Material.STONE));
+        assertFalse(Materials.isWood(Material.STICK), "klacek není dřevo (polotovar)");
+        assertFalse(Materials.isWood(null));
+        assertTrue(Materials.isPlanks(Material.SPRUCE_PLANKS));
+        assertFalse(Materials.isPlanks(Material.OAK_LOG));
+    }
+
+    @Test
     void isLogNestripovanaKladaNeboKmen() {
         assertTrue(Materials.isLog(Material.OAK_LOG));
         assertTrue(Materials.isLog(Material.CRIMSON_STEM));

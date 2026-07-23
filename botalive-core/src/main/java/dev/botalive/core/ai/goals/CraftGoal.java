@@ -52,8 +52,7 @@ public final class CraftGoal extends AbstractGoal {
         }
         // Levná heuristika bez sahání na živý inventář: má suroviny a chybí
         // mu nástroje? Přesné rozhodnutí udělá CraftingService na vlákně entity.
-        boolean hasWood = snapshot.hasItem(m -> m.name().endsWith("_LOG")
-                || m.name().endsWith("_PLANKS"));
+        boolean hasWood = snapshot.hasItem(dev.botalive.core.inventory.Materials::isWood);
         boolean missingTools = !snapshot.hasItem(
                 m -> InventoryHelper.isTool(m, InventoryHelper.ToolType.PICKAXE))
                 || !snapshot.hasItem(m -> InventoryHelper.isTool(m, InventoryHelper.ToolType.SWORD));

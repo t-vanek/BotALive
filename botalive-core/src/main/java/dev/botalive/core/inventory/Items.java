@@ -189,7 +189,23 @@ public final class Items {
             Material.WARPED_FUNGUS_ON_A_STICK);
 
     /**
-     * Dopravní prostředek (loďka, vozík, kolej, sedlo, elytra, prut na striderа)?
+     * Loďka nebo prám (i varianta s truhlou, napříč dřevy vč. bambusového
+     * prámu {@code _RAFT}).
+     *
+     * @param material materiál ({@code null} = ne)
+     * @return {@code true} pro lodní item
+     */
+    public static boolean isBoat(Material material) {
+        if (material == null) {
+            return false;
+        }
+        String name = material.name();
+        return name.endsWith("_BOAT") || name.endsWith("_RAFT");
+    }
+
+    /**
+     * Dopravní prostředek (loďka/prám, vozík, kolej, sedlo, elytra, prut na
+     * striderа)?
      *
      * @param material materiál
      * @return {@code true} pro dopravu
@@ -199,7 +215,7 @@ public final class Items {
             return false;
         }
         String name = material.name();
-        return name.endsWith("_BOAT") || name.equals("MINECART") || name.endsWith("_MINECART")
+        return isBoat(material) || name.equals("MINECART") || name.endsWith("_MINECART")
                 || name.equals("RAIL") || name.endsWith("_RAIL")
                 || TRANSPORT_EXTRA.contains(material);
     }

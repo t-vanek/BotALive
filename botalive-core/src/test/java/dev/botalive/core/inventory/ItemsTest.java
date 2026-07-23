@@ -88,6 +88,12 @@ class ItemsTest {
     void dopravaUtilityBarviva() {
         assertTrue(Items.isTransport(Material.OAK_BOAT));
         assertTrue(Items.isTransport(Material.OAK_CHEST_BOAT));
+        assertTrue(Items.isTransport(Material.BAMBOO_RAFT), "bambusový prám je doprava");
+        assertTrue(Items.isBoat(Material.OAK_BOAT));
+        assertTrue(Items.isBoat(Material.BAMBOO_RAFT), "prám je loďka");
+        assertTrue(Items.isBoat(Material.BAMBOO_CHEST_RAFT));
+        assertFalse(Items.isBoat(Material.MINECART));
+        assertFalse(Items.isBoat(null));
         assertTrue(Items.isTransport(Material.MINECART));
         assertTrue(Items.isTransport(Material.CHEST_MINECART));
         assertTrue(Items.isTransport(Material.RAIL));
