@@ -257,19 +257,39 @@ public final class BuildShelterGoal extends AbstractGoal {
         return false;
     }
 
-    /** Naplánuje obvodové zdi (2 bloky vysoké) + strop kolem aktuální pozice. */
+    /**
+     * Naplánuje přístřešek: <b>nejdřív srovná/uzavře podlahu</b> (zaplní díry pod
+     * celým půdorysem 3×3), teprve pak postaví obvodové zdi (2 bloky) a strop.
+     * Pořadí ve frontě je pojistka „nestavět zeď bez srovnané opory": bez pevné
+     * podlahy by přístřešek stál na svahu, zeď by neměla oporu a zespodu by vlezli
+     * mobové. Na rovině je podlaha už pevná → žádný zásyp, přístřešek jako dřív.
+     */
     private void planShelter(BotContext ctx) {
+        if (ctx.worldView() == null) {
+            return;
+        }
         BlockPos feet = ctx.position().toBlockPos();
+        // 1) Podlaha: zaplnit díry pod 3×3 (střed + věnec), ať stavba stojí na
+        //    srovnané pevné zemi (jako TERRAFORM u velkých staveb, jen v malém).
+        for (int dx = -1; dx <= 1; dx++) {
+            for (int dz = -1; dz <= 1; dz++) {
+                BlockPos floor = feet.offset(dx, -1, dz);
+                if (!ctx.worldView().traitsAt(floor).solid()) {
+                    plan.add(new PlaceBlockTask(floor));
+                }
+            }
+        }
+        // 2) Obvodové zdi (2 bloky) až na srovnané podlaze.
         for (int level = 0; level <= 1; level++) {
             for (int[] offset : RING) {
                 BlockPos wall = feet.offset(offset[0], level, offset[1]);
-                if (ctx.worldView() != null && ctx.worldView().traitsAt(wall).passable()) {
+                if (ctx.worldView().traitsAt(wall).passable()) {
                     plan.add(new PlaceBlockTask(wall));
                 }
             }
         }
         BlockPos roof = feet.offset(0, 2, 0);
-        if (ctx.worldView() != null && ctx.worldView().traitsAt(roof).passable()) {
+        if (ctx.worldView().traitsAt(roof).passable()) {
             plan.add(new PlaceBlockTask(roof));
         }
     }

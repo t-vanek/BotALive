@@ -278,6 +278,14 @@ apron), takže nikdy nespotřebuje bloky určené domu; díry dorovná až růst
 ([`BuildPlanner.schedule(..., reserveGround)`](../botalive-core/src/main/java/dev/botalive/core/build/plan/BuildPlanner.java)).
 Rezerva se přichytí pod rozestup parcel, takže si stavby nechají odstup.
 
+**Nesmí se stavět na nesrovnaném terénu.** Pokládka je tvrdě gate-ovaná
+srovnáním: `BuildSession` projde **celý** `mine` (výkopy) + `fill` (zásyp podlahy;
+bez materiálu vrátí `BLOCKED_MATERIAL`, nikdy nepoloží zeď nad díru) a teprve pak
+klade stavbu. Platí to **i pro malé přístřešky**: `BuildShelterGoal` nově
+**nejdřív srovná/uzavře podlahu** (zaplní díry pod celým půdorysem 3×3) a teprve
+pak staví zdi – přístřešek tak stojí na pevné zemi, zeď má oporu a zespodu se
+nikdo nedostane (na rovině je podlaha už pevná → beze změny).
+
 **Nouzový přístřešek je dočasný.** Panik-budka z první noci (`BuildShelterGoal`,
 `type=shelter`) není domov navždy: jakmile má bot **reálný dům**, ve dne budku
 poblíž **zbourá** (vytěží zdi a strop, zapomene záznam) a bydlí v opravdové stavbě,
