@@ -35,17 +35,27 @@ public final class HouseDesigner {
      * @param wallHeight výška zdí
      * @param wood       druh dřeva (prkna/kmen)
      * @param seed       seed variace palety
+     * @param tier       stavební stupeň (materiály; geometrie je na tieru nezávislá)
      */
-    public record HouseDesign(int width, int wallHeight, Material wood, long seed) {
+    public record HouseDesign(int width, int wallHeight, Material wood, long seed,
+                              BuildTier tier) {
+
+        /**
+         * Bez tieru = {@link BuildTier#SOLID} (dnešní vzhled). Drží zpětnou
+         * kompatibilitu: starý dům bez uloženého stupně se opraví jako solidní.
+         */
+        public HouseDesign(int width, int wallHeight, Material wood, long seed) {
+            this(width, wallHeight, wood, seed, BuildTier.SOLID);
+        }
 
         /** @return geometrie domu (tvar střechy odvozen ze seedu – variace vzhledu) */
         public Blueprint blueprint() {
             return new HouseGenerator(width, wallHeight, Math.floorMod(seed, 3) != 0);
         }
 
-        /** @return materiály podle rolí */
+        /** @return materiály podle rolí pro daný {@link #tier} */
         public Palette palette() {
-            return PaletteResolver.resolve(wood, seed);
+            return PaletteResolver.resolve(wood, seed, tier);
         }
 
         /** @return klíč designu do paměti HOME (rekonstrukce při údržbě). */
@@ -63,9 +73,35 @@ public final class HouseDesigner {
      */
     public static HouseDesign design(Bot bot, ServerSideView.Snapshot snapshot,
                                      BotAliveConfig.Build cfg, SettlementTier tier) {
-        int width = widthFor(tier, bot.personality().trait(Trait.LAZINESS), cfg.width());
-        return new HouseDesign(width, cfg.wallHeight(),
-                dominantWood(snapshot), bot.personality().seed());
+        double laziness = bot.personality().trait(Trait.LAZINESS);
+        int width = widthFor(tier, laziness, cfg.width());
+        return new HouseDesign(width, cfg.wallHeight(), dominantWood(snapshot),
+                bot.personality().seed(), tierFor(tier, laziness));
+    }
+
+    /**
+     * Stavební stupeň nového domu z prosperity sídla a osobnosti (čistá,
+     * testovatelná): osada staví provizorně (srub), vesnice solidně, město
+     * reprezentativně. Osobnost posune o stupeň – pracovitý zvelebuje, líný
+     * bydlí skromně. Samotář (bez sídla) začíná srubem. Prosperita je hlavní
+     * hnací síla, osobnost jen modulace (rozhodnutí rámce „stavba jako proces").
+     *
+     * @param tier     stupeň sídla ({@code null} = osada / bez sídla)
+     * @param laziness lenost bota (0–1)
+     * @return stavební stupeň domu
+     */
+    public static BuildTier tierFor(SettlementTier tier, double laziness) {
+        int base = switch (tier == null ? SettlementTier.OSADA : tier) {
+            case OSADA -> 0;   // srub
+            case VESNICE -> 1; // solidní
+            case MESTO -> 2;   // reprezentativní
+        };
+        if (laziness < 0.34) {
+            base += 1; // pracovitý/hrdý zvelebuje
+        } else if (laziness > 0.66) {
+            base -= 1; // líný bydlí skromně
+        }
+        return BuildTier.fromOrdinal(base);
     }
 
     /**

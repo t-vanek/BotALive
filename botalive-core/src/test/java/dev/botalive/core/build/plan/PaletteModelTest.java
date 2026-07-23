@@ -43,6 +43,27 @@ class PaletteModelTest {
     }
 
     @Test
+    void provisionalTierIsWoodWithOpenWindows() {
+        Palette t0 = PaletteResolver.resolve(Material.SPRUCE_LOG, 5, BuildTier.PROVISIONAL);
+        assertEquals(Optional.of(Material.SPRUCE_PLANKS), t0.intended(PaletteRole.WALL),
+                "srub má prkenné zdi");
+        assertEquals(Optional.of(Material.SPRUCE_PLANKS), t0.intended(PaletteRole.FOUNDATION),
+                "srub má dřevěný základ");
+        assertEquals(Optional.empty(), t0.intended(PaletteRole.WINDOW),
+                "srub nemá sklo – okna jsou otvory (LEAVE_EMPTY)");
+    }
+
+    @Test
+    void refinedTierUsesStoneOrBrick() {
+        Palette t2 = PaletteResolver.resolve(Material.OAK_LOG, 5, BuildTier.REFINED);
+        Material wall = t2.intended(PaletteRole.WALL).orElseThrow();
+        assertTrue(wall == Material.BRICKS || wall == Material.STONE_BRICKS,
+                "reprezentativní zeď z cihel/kamene");
+        assertEquals(Optional.of(Material.GLASS_PANE), t2.intended(PaletteRole.WINDOW),
+                "reprezentativní okna z tabulí");
+    }
+
+    @Test
     void acceptanceMatchesPaletteAndFallsBackToBuildingBlock() {
         Palette palette = PaletteResolver.resolve(Material.SPRUCE_LOG, 3);
         assertTrue(AcceptancePolicy.accepts(PaletteRole.WALL, Material.SPRUCE_PLANKS, palette));

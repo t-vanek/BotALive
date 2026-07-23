@@ -10,6 +10,7 @@ import dev.botalive.core.build.plan.Blueprints;
 import dev.botalive.core.build.plan.FurnishCell;
 import dev.botalive.core.build.plan.HouseDesigner;
 import dev.botalive.core.bot.ServerSideView;
+import dev.botalive.core.build.plan.BuildTier;
 import dev.botalive.core.build.plan.Palette;
 import dev.botalive.core.build.plan.PaletteRole;
 import dev.botalive.core.build.plan.PlacementCell;
@@ -140,11 +141,17 @@ public final class MaintainHomeGoal extends AbstractGoal {
             return;
         }
         try {
+            // Bez uloženého stupně = SOLID (starý dům se opraví jako solidní).
+            String tierStr = home.data().get("btier");
+            BuildTier tier = tierStr == null
+                    ? BuildTier.SOLID
+                    : BuildTier.fromOrdinal(Integer.parseInt(tierStr));
             var design = new HouseDesigner.HouseDesign(
                     Integer.parseInt(home.data().get("bw")),
                     Integer.parseInt(home.data().get("bh")),
                     Material.valueOf(home.data().get("bwood")),
-                    Long.parseLong(home.data().get("bseed")));
+                    Long.parseLong(home.data().get("bseed")),
+                    tier);
             blueprint = design.blueprint();
             palette = design.palette();
         } catch (RuntimeException e) {

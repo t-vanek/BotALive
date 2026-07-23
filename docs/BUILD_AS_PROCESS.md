@@ -46,7 +46,7 @@ a jsou hotové; 2–5 čekají na dopracování.
 |---|---|---|---|
 | **0** | Gate zásypu | terraform bez zásypového bloku vrátí `BLOCKED_MATERIAL`, ne díru | **hotovo** |
 | **1** | Okna jako otvor | `SubstitutionPolicy` po rolích; `WINDOW`=`LEAVE_EMPTY`; oprava pasti ve verifikaci a údržbě | **hotovo** |
-| **2** | Tiery palety | `PaletteResolver.resolve(wood, seed, tier)`; Tier 0 = dřevo + otvory; `tier` do HOME dat | návrh |
+| **2** | Tiery palety | `PaletteResolver.resolve(wood, seed, tier)`; Tier 0 = dřevo + otvory; `tier` do HOME dat | **hotovo** |
 | **3** | Upgrade smyčka | údržba diffuje proti *vyššímu* tieru a nahrazuje po rolích, atomicky | návrh |
 | **4** | BOM wishlist | zapojit `BillOfMaterials` → cílené shánění/craft (sklo, cihly) | návrh |
 | **5** | Zarovnání okolí | apron + sokl/terasa kolem půdorysu | návrh |
@@ -79,29 +79,35 @@ Blast radius je úzký: legacy domek 4×4 okna nemá, `CivicHall` je řeší
 vynecháním buňky (žádná role) – `LEAVE_EMPTY` se týká jen `HouseGenerator`.
 Test `leavesWindowOpenWhenGlassMissing` hlídá, že otvor není torzo.
 
-### Fáze 2 – Tiery palety
+### Fáze 2 – Tiery palety (hotovo)
 
-Dům dostane **stavební stupeň** a každý stupeň je jen jiná `Palette` nad
-**stejnou geometrií**:
+Dům dostane **stavební stupeň**
+([`BuildTier`](../botalive-core/src/main/java/dev/botalive/core/build/plan/BuildTier.java):
+`PROVISIONAL` / `SOLID` / `REFINED`) a každý stupeň je jen jiná `Palette` nad
+**stejnou geometrií** – povýšení domu je záměna palety, ne přestavba tvaru.
 
-| Role | Tier 0 „srub" | Tier 1 „solidní" | Tier 2 „reprezentativní" |
+| Role | PROVISIONAL „srub" | SOLID „solidní" | REFINED „reprezentativní" |
 |---|---|---|---|
-| FOUNDATION | hlína / dřevo | dlažba / kámen | tesaný kámen |
+| FOUNDATION | prkna / hlína | dlažba / kámen (dnešek) | tesaný kámen |
 | WALL | prkna | prkna | cihly / kámen |
-| WALL_ACCENT | kmen | kmen | kmen + detaily |
-| WINDOW | otvor (`LEAVE_EMPTY`) | sklo | skleněné tabule |
-| ROOF | prkna | schody / dlažba | cihly |
+| WALL_ACCENT | kmen | kmen | kmen |
+| WINDOW | otvor (prázdná role) | sklo | tabule |
+| ROOF | prkna / kmen | dlažba / prkna | cihly / kámen |
 
-- `PaletteResolver.resolve(woodHint, seed, tier)` – nová dimenze `tier`.
-  Tier 0 dává nosným rolím tier-0 materiál (dřevo/hlína), okna zůstávají
-  otvorem. `TIER0_MATERIAL` politika u vyšších tierů řeší „chybí cihla → polož
-  prkno + dluh".
-- Nový dům se postaví na tieru podle prosperity sídla (viz rozhodnutí 2);
-  samotář začíná na Tier 0.
-- **Persistence:** HOME paměť už nese `bwood/bseed/bw/bh` (viz
-  `BuildHouseGoal.finishHouse`); přidá se `tier`.
-  `MaintainHomeGoal.resolveDesign` z něj složí paletu správného stupně.
-  Migrace je aditivní – starý dům bez `tier` = Tier 1 (dnešní vzhled).
+- `PaletteResolver.resolve(woodHint, seed, tier)` – nová dimenze `tier`;
+  2-arg varianta zůstává a míří na `SOLID` (dnešní vzhled beze změny).
+  U `PROVISIONAL` je role `WINDOW` prázdná → `intended` je prázdné →
+  `LEAVE_EMPTY` nechá otvor vždy (sklo přijde až upgradem).
+- Nový dům dostane tier z prosperity a osobnosti:
+  `HouseDesigner.tierFor(settlementTier, laziness)` – osada→`PROVISIONAL`,
+  vesnice→`SOLID`, město→`REFINED`; pracovitý posune o stupeň nahoru, líný
+  dolů (přichyceno k mezím). Samotář (bez sídla) začíná srubem.
+- **Persistence:** HOME paměť už nese `bwood/bseed/bw/bh`; přidalo se `btier`
+  (ordinal). `MaintainHomeGoal.resolveDesign` z něj složí paletu správného
+  stupně. Migrace je aditivní – **starý dům bez `btier` = `SOLID`** (žádná
+  regrese vzhledu), díky sekundárnímu 4-arg konstruktoru `HouseDesign`.
+- `TIER0_MATERIAL` politika (chybí cihla → polož prkno + dluh) je zavedená
+  jako enum, ale sešlape se až s upgrade smyčkou (fáze 3).
 
 ### Fáze 3 – Upgrade smyčka
 

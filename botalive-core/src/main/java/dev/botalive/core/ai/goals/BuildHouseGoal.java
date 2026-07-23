@@ -688,6 +688,8 @@ public final class BuildHouseGoal extends AbstractGoal {
                 data.put("bh", String.valueOf(design.wallHeight()));
                 data.put("bwood", design.wood().name());
                 data.put("bseed", String.valueOf(design.seed()));
+                // Stavební stupeň pro údržbu a pozdější upgrade (fáze 3).
+                data.put("btier", String.valueOf(design.tier().ordinal()));
             }
             if (settlements != null) {
                 settlements.settlementIdOf(bot.id()).ifPresent(

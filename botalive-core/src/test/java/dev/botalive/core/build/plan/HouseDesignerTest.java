@@ -53,6 +53,37 @@ class HouseDesignerTest {
     }
 
     @Test
+    void tierGrowsWithProsperityAndPersonality() {
+        double neutral = 0.5;
+        double diligent = 0.2;
+        double lazy = 0.9;
+        // Prosperita je hlavní hnací síla: osada srub, vesnice solidní, město honosné.
+        assertEquals(BuildTier.PROVISIONAL, HouseDesigner.tierFor(SettlementTier.OSADA, neutral));
+        assertEquals(BuildTier.SOLID, HouseDesigner.tierFor(SettlementTier.VESNICE, neutral));
+        assertEquals(BuildTier.REFINED, HouseDesigner.tierFor(SettlementTier.MESTO, neutral));
+        // Osobnost posune o stupeň (s přichycením k mezím).
+        assertEquals(BuildTier.SOLID, HouseDesigner.tierFor(SettlementTier.OSADA, diligent));
+        assertEquals(BuildTier.PROVISIONAL, HouseDesigner.tierFor(SettlementTier.VESNICE, lazy));
+        assertEquals(BuildTier.REFINED, HouseDesigner.tierFor(SettlementTier.MESTO, diligent));
+        // Samotář (bez sídla) začíná srubem.
+        assertEquals(BuildTier.PROVISIONAL, HouseDesigner.tierFor(null, neutral));
+    }
+
+    @Test
+    void tierRoundTripsThroughHomeData() {
+        var original = new HouseDesigner.HouseDesign(5, 3, Material.OAK_PLANKS, 42,
+                BuildTier.PROVISIONAL);
+        // Serializace/rekonstrukce jako finishHouse ↔ resolveDesign (btier = ordinal).
+        String btier = String.valueOf(original.tier().ordinal());
+        var restored = new HouseDesigner.HouseDesign(5, 3, Material.OAK_PLANKS, 42,
+                BuildTier.fromOrdinal(Integer.parseInt(btier)));
+        assertEquals(original.palette(), restored.palette(), "stejná paleta i tier");
+        // Starý dům bez uloženého stupně = SOLID (žádná regrese vzhledu).
+        assertEquals(BuildTier.SOLID,
+                new HouseDesigner.HouseDesign(5, 3, Material.OAK_PLANKS, 42).tier());
+    }
+
+    @Test
     void designRoundTripsThroughHomeData() {
         var original = new HouseDesigner.HouseDesign(5, 3, Material.SPRUCE_PLANKS, 123456789L);
         // Serializace jako ve finishHouse.

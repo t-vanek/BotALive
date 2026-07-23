@@ -26,25 +26,71 @@ public final class PaletteResolver {
     }
 
     /**
+     * Výchozí (solidní) paleta – zpětně kompatibilní vstupní bod.
+     *
      * @param woodHint materiál napovídající dřevo (kmen/prkna), nebo {@code null}
      * @param seed     seed variace (typicky osobnostní seed bota)
-     * @return paleta stavby
+     * @return paleta stavby na stupni {@link BuildTier#SOLID}
      */
     public static Palette resolve(Material woodHint, long seed) {
+        return resolve(woodHint, seed, BuildTier.SOLID);
+    }
+
+    /**
+     * Paleta pro daný stavební stupeň: {@link BuildTier#PROVISIONAL srub} ze
+     * dřeva s otvory místo oken, {@link BuildTier#SOLID solidní} kámen+sklo
+     * (dnešní vzhled), {@link BuildTier#REFINED reprezentativní} cihly/tesaný
+     * kámen. Geometrie se nemění – jen materiály rolí, takže povýšení domu je
+     * záměna palety, ne přestavba.
+     *
+     * @param woodHint materiál napovídající dřevo (kmen/prkna), nebo {@code null}
+     * @param seed     seed variace (typicky osobnostní seed bota)
+     * @param tier     stavební stupeň
+     * @return paleta stavby
+     */
+    public static Palette resolve(Material woodHint, long seed, BuildTier tier) {
         String wood = woodPrefix(woodHint);
         Material planks = material(wood + "_PLANKS", Material.OAK_PLANKS);
         Material log = material(wood + "_LOG", Material.OAK_LOG);
         Random rng = new Random(seed);
-        Material foundation = choose(rng, Material.COBBLESTONE, Material.STONE_BRICKS, Material.STONE);
-        Material roof = choose(rng, Material.COBBLESTONE, planks, Material.STONE_BRICKS);
 
         Map<PaletteRole, List<Material>> byRole = new EnumMap<>(PaletteRole.class);
-        byRole.put(PaletteRole.FOUNDATION,
-                List.of(foundation, Material.COBBLESTONE, Material.STONE));
-        byRole.put(PaletteRole.WALL, List.of(planks));
-        byRole.put(PaletteRole.WALL_ACCENT, List.of(log, planks));
-        byRole.put(PaletteRole.WINDOW, List.of(Material.GLASS, Material.GLASS_PANE));
-        byRole.put(PaletteRole.ROOF, List.of(roof, Material.COBBLESTONE, planks));
+        switch (tier) {
+            case PROVISIONAL -> {
+                // Srub: dřevo a hlína, okna jen otvory (prázdná role → LEAVE_EMPTY).
+                byRole.put(PaletteRole.FOUNDATION,
+                        List.of(planks, Material.DIRT, Material.COBBLESTONE));
+                byRole.put(PaletteRole.WALL, List.of(planks));
+                byRole.put(PaletteRole.WALL_ACCENT, List.of(log, planks));
+                byRole.put(PaletteRole.WINDOW, List.of());
+                byRole.put(PaletteRole.ROOF, List.of(planks, log));
+            }
+            case SOLID -> {
+                Material foundation =
+                        choose(rng, Material.COBBLESTONE, Material.STONE_BRICKS, Material.STONE);
+                Material roof = choose(rng, Material.COBBLESTONE, planks, Material.STONE_BRICKS);
+                byRole.put(PaletteRole.FOUNDATION,
+                        List.of(foundation, Material.COBBLESTONE, Material.STONE));
+                byRole.put(PaletteRole.WALL, List.of(planks));
+                byRole.put(PaletteRole.WALL_ACCENT, List.of(log, planks));
+                byRole.put(PaletteRole.WINDOW, List.of(Material.GLASS, Material.GLASS_PANE));
+                byRole.put(PaletteRole.ROOF, List.of(roof, Material.COBBLESTONE, planks));
+            }
+            case REFINED -> {
+                // Reprezentativní: cihly / tesaný kámen, tabulková okna.
+                Material wall = choose(rng, Material.BRICKS, Material.STONE_BRICKS);
+                Material roof = choose(rng, Material.BRICKS, Material.STONE_BRICKS,
+                        Material.COBBLESTONE);
+                byRole.put(PaletteRole.FOUNDATION,
+                        List.of(Material.STONE_BRICKS, Material.STONE, Material.COBBLESTONE));
+                byRole.put(PaletteRole.WALL, List.of(wall, planks));
+                byRole.put(PaletteRole.WALL_ACCENT, List.of(log));
+                byRole.put(PaletteRole.WINDOW, List.of(Material.GLASS_PANE, Material.GLASS));
+                byRole.put(PaletteRole.ROOF,
+                        List.of(roof, Material.STONE_BRICKS, Material.COBBLESTONE));
+            }
+            default -> throw new IllegalStateException("neznámý tier: " + tier);
+        }
         return new Palette(byRole);
     }
 
