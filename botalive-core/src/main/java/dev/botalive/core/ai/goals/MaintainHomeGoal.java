@@ -31,7 +31,9 @@ import org.bukkit.Material;
 
 import java.util.ArrayDeque;
 import java.util.Deque;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Údržba vlastního domu – creeper díry, vytlučené zdi, chybějící dveře.
@@ -87,6 +89,8 @@ public final class MaintainHomeGoal extends AbstractGoal {
     private final Deque<PlacementCell> upgrades = new ArrayDeque<>();
     /** Míří dům na vyšší tier, než na jakém stojí? (prosperita/osobnost stouply) */
     private boolean upgrading;
+    /** Efektivní stavební stupeň domu této seance (max z uloženého a cílového). */
+    private BuildTier tier = BuildTier.SOLID;
     private final Deque<FurnishStep> furnish = new ArrayDeque<>();
     private DecorWorker decor;
     private BotTask current;
@@ -168,7 +172,7 @@ public final class MaintainHomeGoal extends AbstractGoal {
             // sídlo pak splaskne.
             BuildTier target = targetTier(bot);
             upgrading = target.ordinal() > storedTier.ordinal();
-            BuildTier tier = upgrading ? target : storedTier;
+            tier = upgrading ? target : storedTier;
             var design = new HouseDesigner.HouseDesign(
                     Integer.parseInt(home.data().get("bw")),
                     Integer.parseInt(home.data().get("bh")),
@@ -361,7 +365,7 @@ public final class MaintainHomeGoal extends AbstractGoal {
         // materiálu cílovými, po celých rolích. Až po opravách – údržba je
         // prioritní, zvelebení bonus.
         if (upgrading) {
-            planUpgrades(world, snapshot);
+            planUpgrades(bot, world, snapshot);
         }
         // Cestička a veřejné osvětlení (jen členové vesnice, plán je idempotentní).
         planDecor(ctx, bot);
@@ -389,17 +393,48 @@ public final class MaintainHomeGoal extends AbstractGoal {
      * Cap na seanci drží tempo střídmé; okna (otvor → sklo) řeší oprava proti
      * vyšší paletě, ne tahle cesta.
      */
-    private void planUpgrades(WorldView world, ServerSideView.Snapshot snapshot) {
+    private void planUpgrades(Bot bot, WorldView world, ServerSideView.Snapshot snapshot) {
         var plan = HomeUpgrade.next(blueprint.cells(origin, facing), palette,
                 world::materialAt, MAX_UPGRADES);
         if (plan.isEmpty()) {
-            return; // dům už je celý z cílového materiálu
+            // Dům dosáhl cílového tieru – zapsat ho do paměti (monotónně). Pak
+            // se příště nemusí zbytečně diffovat a údržba míří na správný
+            // materiál i kdyby prosperita později splaskla.
+            persistTier(bot, tier);
+            return;
         }
         Material intended = palette.intended(plan.get().role()).orElse(null);
         if (intended == null || snapshot == null || !snapshot.hasItem(m -> m == intended)) {
             return; // cílový materiál nemáme – povyšovat začneme, až bude
         }
         upgrades.addAll(plan.get().cells());
+    }
+
+    /**
+     * Zapíše dosažený stavební stupeň do HOME dat, když ho dům plně dosáhl
+     * (konvergoval). Jen zvýšení – nikdy nesnižuje. Paměť merguje podle pozice,
+     * takže se přepíše stávající záznam (celá data se předají, ať se neztratí
+     * {@code bw/bh/bwood/bseed}).
+     */
+    private void persistTier(Bot bot, BuildTier achieved) {
+        MemoryRecord home = houseRecord(bot);
+        if (home == null) {
+            return;
+        }
+        String stored = home.data().get("btier");
+        if (stored != null) {
+            try {
+                if (Integer.parseInt(stored) >= achieved.ordinal()) {
+                    return; // už zapsáno (nebo výš) – nepřepisovat
+                }
+            } catch (NumberFormatException ignored) {
+                // poškozené číslo – přepíšeme platným
+            }
+        }
+        Map<String, String> data = new HashMap<>(home.data());
+        data.put("btier", String.valueOf(achieved.ordinal()));
+        bot.memory().remember(MemoryKind.HOME, home.world(), home.x(), home.y(), home.z(),
+                null, data, 0.9);
     }
 
     /** U členů vesnice naplánuje obnovu cestičky a pochodní k návsi. */

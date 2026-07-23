@@ -59,8 +59,8 @@ class PaletteModelTest {
         Material wall = t2.intended(PaletteRole.WALL).orElseThrow();
         assertTrue(wall == Material.BRICKS || wall == Material.STONE_BRICKS,
                 "reprezentativní zeď z cihel/kamene");
-        assertEquals(Optional.of(Material.GLASS_PANE), t2.intended(PaletteRole.WINDOW),
-                "reprezentativní okna z tabulí");
+        assertEquals(Optional.of(Material.GLASS), t2.intended(PaletteRole.WINDOW),
+                "reprezentativní okna ze skla (boti ho umí vytavit; tabule přijatelná)");
     }
 
     @Test

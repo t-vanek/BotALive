@@ -91,7 +91,7 @@ Dům dostane **stavební stupeň**
 | FOUNDATION | prkna / hlína | dlažba / kámen (dnešek) | tesaný kámen |
 | WALL | prkna | prkna | cihly / kámen |
 | WALL_ACCENT | kmen | kmen | kmen |
-| WINDOW | otvor (prázdná role) | sklo | tabule |
+| WINDOW | otvor (prázdná role) | sklo | sklo (tabule přijatelná) |
 | ROOF | prkna / kmen | dlažba / prkna | cihly / kámen |
 
 - `PaletteResolver.resolve(woodHint, seed, tier)` – nová dimenze `tier`;
@@ -135,8 +135,10 @@ nikdy nesnižuje: dům povýšený za rozkvětu se nebourá, když sídlo splask
 
 Hranice: implementován **materiálový** upgrade (stejná geometrie – levné,
 bezpečné). **Strukturální** (větší dům, patro – bourá střechu) je samostatná,
-pozdější kapitola. Uložený `btier` se dnes při konvergenci nepřepisuje (dům se
-levně re-diffuje každé ráno) – volitelná optimalizace do budoucna.
+pozdější kapitola. Když dům plně dosáhne cílového tieru, `MaintainHomeGoal`
+**zapíše dosažený `btier`** do HOME dat (jen zvýšení, nikdy nesnížení) – pak se
+už zbytečně nediffuje a údržba míří na správný materiál i kdyby prosperita
+později splaskla.
 
 ### Fáze 4 – Build wishlist (z části hotovo)
 

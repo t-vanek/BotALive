@@ -85,7 +85,9 @@ public final class PaletteResolver {
                         List.of(Material.STONE_BRICKS, Material.STONE, Material.COBBLESTONE));
                 byRole.put(PaletteRole.WALL, List.of(wall, planks));
                 byRole.put(PaletteRole.WALL_ACCENT, List.of(log));
-                byRole.put(PaletteRole.WINDOW, List.of(Material.GLASS_PANE, Material.GLASS));
+                // Sklo (ne tabule): boti ho umí vytavit z písku, tabule zatím ne –
+                // tak se reprezentativní okna vůbec zasklí. Tabule zůstává přijatelná.
+                byRole.put(PaletteRole.WINDOW, List.of(Material.GLASS, Material.GLASS_PANE));
                 byRole.put(PaletteRole.ROOF,
                         List.of(roof, Material.STONE_BRICKS, Material.COBBLESTONE));
             }
