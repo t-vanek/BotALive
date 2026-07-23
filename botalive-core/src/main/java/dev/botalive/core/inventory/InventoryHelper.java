@@ -537,6 +537,9 @@ public class InventoryHelper {
      * @return index 0–3, nebo -1 pokud nejde o brnění
      */
     public static int armorSlot(Material material) {
+        if (material == null) {
+            return -1;
+        }
         String name = material.name();
         if (name.endsWith("_BOOTS")) {
             return 0;
