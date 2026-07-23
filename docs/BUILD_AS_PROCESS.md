@@ -271,6 +271,18 @@ při vzniku** a rozměr se persistuje (viz `SETTLEMENTS_GROWTH.md`) – nová st
 v prosperujícím městě je větší. Plné *re-growth* už dokončené společné stavby (jako
 u domů) je přirozený další krok nad touž persistencí.
 
+**Rezervované staveniště.** Aby růst nemusel dorovnávat terén, staveniště se rovnou
+srovná pro **maximální dorostlý dům + okraj** (`build.reserve`) – ve všech osách
+(rovná plocha v X/Z, výškové srovnání). Srovnání rezervy je **jen výkopové** (jako
+apron), takže nikdy nespotřebuje bloky určené domu; díry dorovná až růst
+([`BuildPlanner.schedule(..., reserveGround)`](../botalive-core/src/main/java/dev/botalive/core/build/plan/BuildPlanner.java)).
+Rezerva se přichytí pod rozestup parcel, takže si stavby nechají odstup.
+
+**Nouzový přístřešek je dočasný.** Panik-budka z první noci (`BuildShelterGoal`,
+`type=shelter`) není domov navždy: jakmile má bot **reálný dům**, ve dne budku
+poblíž **zbourá** (vytěží zdi a strop, zapomene záznam) a bydlí v opravdové stavbě,
+která pak roste. Nízká priorita – úklid se řeší, jen když není nic naléhavějšího.
+
 ## Config a data (průřezově)
 
 - Apron dig je gate-ovaný stávajícím `ai.terraforming` (žádný nový config).
