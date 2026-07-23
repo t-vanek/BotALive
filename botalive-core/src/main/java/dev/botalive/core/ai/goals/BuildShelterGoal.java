@@ -62,6 +62,24 @@ public final class BuildShelterGoal extends AbstractGoal {
         if (outsideOverworld(ctx)) {
             return 0;
         }
+        // Rozdělané rozebrání přístřešku se VŽDY dokončí (nikdy budku půl na půl):
+        // jinak by se uprostřed mohla utilita přepnout (vytěžená zeď = už ne
+        // „uvězněn") a bot by zůstal jen s dírou, ne venku, se záznamem, který
+        // večer zabrání znovu-zapečetění.
+        if (mode == Mode.DEMOLISH && (demolishTask != null
+                || (demolishPlanned && !demolish.isEmpty()))) {
+            return 100;
+        }
+        // KRITICKÉ: ráno se z uzavřeného přístřešku dostat ven. Panik-budka je
+        // v noci zapečetěná (bezpečí = žádné dveře), ale bez východu se bot sám
+        // zazdí a neuteče. Ve dne proto celou budku rozebere ("sbalí tábor"):
+        // hned prvním vytěženým blokem zdi vznikne východ, zbytek dorozebere a
+        // bloky získá zpět. Nejvyšší priorita – zazděný bot stejně nic jiného
+        // nezvládne (pohyb je zablokovaný), tak ho nic nesmí předběhnout.
+        if (trappedInShelter(ctx, bot)) {
+            mode = Mode.DEMOLISH;
+            return 100;
+        }
         // Dočasný přístřešek je jen na první noc: jakmile má bot reálný dům, ve dne
         // ho zbourá, ať po světě nezůstávají panikářské budky. Nízká priorita –
         // úklid se řeší, jen když není nic naléhavějšího (nikdy nepřebije přežití).
@@ -163,6 +181,29 @@ public final class BuildShelterGoal extends AbstractGoal {
             return demolishPlanned && demolish.isEmpty() && demolishTask == null;
         }
         return planned && plan.isEmpty() && current == null;
+    }
+
+    /**
+     * Je bot uvězněný ve vlastním uzavřeném přístřešku a je den? Panik-budka
+     * nemá dveře (v noci zapečetěná = bezpečná), takže ráno se z ní musí dostat
+     * ven – jinak se bot sám zazdí a neuteče. Jen ve dne (v noci ať zůstane
+     * uvnitř v bezpečí), jen u vlastního přístřešku a jen když je opravdu
+     * zavřený (buňka zdi u stavitele stojí).
+     */
+    private boolean trappedInShelter(BotContext ctx, Bot bot) {
+        if (ctx.worldView() == null || isNight(ctx.worldTime())) {
+            return false;
+        }
+        MemoryRecord shelter = shelterRecord(bot);
+        if (shelter == null || !ctx.worldView().worldName().equals(shelter.world())) {
+            return false;
+        }
+        BlockPos center = new BlockPos(shelter.x(), shelter.y(), shelter.z());
+        BlockPos feet = ctx.position().toBlockPos();
+        if (feet.distanceSquared(center) > 4) {
+            return false; // není uvnitř – žádné uvěznění
+        }
+        return ctx.worldView().traitsAt(center.offset(0, 0, 1)).solid();
     }
 
     // ============================================================ demolice

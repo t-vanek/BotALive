@@ -286,10 +286,17 @@ klade stavbu. Platí to **i pro malé přístřešky**: `BuildShelterGoal` nově
 pak staví zdi – přístřešek tak stojí na pevné zemi, zeď má oporu a zespodu se
 nikdo nedostane (na rovině je podlaha už pevná → beze změny).
 
-**Nouzový přístřešek je dočasný.** Panik-budka z první noci (`BuildShelterGoal`,
-`type=shelter`) není domov navždy: jakmile má bot **reálný dům**, ve dne budku
-poblíž **zbourá** (vytěží zdi a strop, zapomene záznam) a bydlí v opravdové stavbě,
-která pak roste. Nízká priorita – úklid se řeší, jen když není nic naléhavějšího.
+**Přístřešek se sám nezazdí napořád.** Panik-budka je v noci **zapečetěná bez
+dveří** (bezpečí), takže by se v ní bot ráno sám zavřel a neutekl. Proto ji ve
+dne **rozebere** (`BuildShelterGoal`, mód demolice): hned prvním vytěženým blokem
+zdi vznikne východ, zbytek dorozebere a bloky si vezme zpět („ráno sbalí tábor").
+Nejvyšší priorita, dokud je zazděný – uvězněný bot stejně nic jiného nezvládne;
+rozdělaná demolice se vždy dokončí (žádná budka půl na půl).
+
+**Nouzový přístřešek je dočasný.** Panik-budka z první noci (`type=shelter`)
+není domov navždy: jakmile má bot **reálný dům**, ve dne budku poblíž **zbourá**
+(zapomene záznam) a bydlí v opravdové stavbě, která pak roste. Nízká priorita –
+úklid se řeší, jen když není nic naléhavějšího.
 
 ## Config a data (průřezově)
 
