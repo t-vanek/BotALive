@@ -66,6 +66,11 @@ class ItemsTest {
         assertTrue(Items.isRangedWeapon(Material.BOW));
         assertFalse(Items.isRangedWeapon(Material.DIAMOND_SWORD));
         assertFalse(Items.isWeapon(Material.DIAMOND_PICKAXE));
+        // isBow = zbraň vystřelující šípy: luk a kuše, ale NE trojzubec (vrhá se).
+        assertTrue(Items.isBow(Material.BOW));
+        assertTrue(Items.isBow(Material.CROSSBOW));
+        assertFalse(Items.isBow(Material.TRIDENT));
+        assertFalse(Items.isBow(Material.DIAMOND_SWORD));
         assertTrue(Items.isAmmo(Material.ARROW));
         assertTrue(Items.isAmmo(Material.SPECTRAL_ARROW));
         assertTrue(Items.isAmmo(Material.FIREWORK_ROCKET));

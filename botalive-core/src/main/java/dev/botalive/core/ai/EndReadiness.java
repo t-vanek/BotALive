@@ -2,6 +2,7 @@ package dev.botalive.core.ai;
 
 import dev.botalive.core.bot.ServerSideView;
 import dev.botalive.core.inventory.InventoryHelper;
+import dev.botalive.core.inventory.Items;
 import org.bukkit.Material;
 
 /**
@@ -60,7 +61,7 @@ public record EndReadiness(int swordTier, int armorPieces, boolean hasBow, int a
                 armor++;
             }
         }
-        boolean bow = snapshot.hasItem(m -> m == Material.BOW || m == Material.CROSSBOW);
+        boolean bow = snapshot.hasItem(Items::isBow);
         int arrows = InventoryHelper.countEstimate(snapshot, m -> m == Material.ARROW
                 || m == Material.SPECTRAL_ARROW || m == Material.TIPPED_ARROW);
         int food = InventoryHelper.countEstimate(snapshot, InventoryHelper::isFood);

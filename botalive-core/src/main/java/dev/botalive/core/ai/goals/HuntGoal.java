@@ -6,6 +6,7 @@ import dev.botalive.core.ai.BotContext;
 import dev.botalive.core.bot.ServerSideView;
 import dev.botalive.core.entity.TrackedEntity;
 import dev.botalive.core.inventory.InventoryHelper;
+import dev.botalive.core.inventory.Items;
 
 import org.bukkit.Material;
 
@@ -151,7 +152,7 @@ public final class HuntGoal extends AbstractGoal {
         if (snapshot == null) {
             return false;
         }
-        boolean hasBow = snapshot.hasItem(m -> m == Material.BOW || m == Material.CROSSBOW);
+        boolean hasBow = snapshot.hasItem(Items::isBow);
         boolean hasRod = snapshot.hasItem(m -> m == Material.FISHING_ROD);
         return !hasBow && !hasRod
                 && InventoryHelper.countItem(snapshot, Material.STRING) < 3;

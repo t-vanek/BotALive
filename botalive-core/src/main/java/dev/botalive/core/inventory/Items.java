@@ -122,6 +122,17 @@ public final class Items {
                 || material == Material.TRIDENT;
     }
 
+    /**
+     * Zbraň vystřelující šípy (luk, kuše) – bez trojzubce, který se vrhá.
+     * Rozhodovací gate „mám čím střílet šípy" (lov, drakovi krystaly, wither).
+     *
+     * @param material materiál
+     * @return {@code true} pro luk nebo kuši
+     */
+    public static boolean isBow(Material material) {
+        return material == Material.BOW || material == Material.CROSSBOW;
+    }
+
     /** @param material materiál @return {@code true} pro zbraň nablízko (meč, trojzubec) */
     public static boolean isMeleeWeapon(Material material) {
         return isSword(material) || material == Material.TRIDENT;
