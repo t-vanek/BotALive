@@ -1069,6 +1069,9 @@ public final class BotAliveCommand implements TabExecutor {
             return;
         }
         info(sender, dev.botalive.core.inventory.Codex.describe(material));
+        for (String line : dev.botalive.core.inventory.MaterialGuide.lines(material)) {
+            sender.sendMessage(Component.text("  " + line, NamedTextColor.GRAY));
+        }
     }
 
     /** Názvy (moderních) materiálů malými písmeny – pro tab-complete /botalive codex. */

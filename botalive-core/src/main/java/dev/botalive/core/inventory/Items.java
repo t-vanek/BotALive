@@ -307,6 +307,11 @@ public final class Items {
             return false;
         }
         String name = material.name();
+        // Netherové dřevo (crimson/warped) NEHOŘÍ – vyloučit, jinak by je vzor
+        // _PLANKS/_STEM/_HYPHAE nesprávně označil za palivo.
+        if (name.startsWith("CRIMSON_") || name.startsWith("WARPED_")) {
+            return false;
+        }
         if (name.endsWith("_PLANKS") || name.endsWith("_LOG") || name.endsWith("_WOOD")
                 || name.endsWith("_STEM") || name.endsWith("_HYPHAE")) {
             return true;

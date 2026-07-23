@@ -155,6 +155,8 @@ class ItemsTest {
         assertTrue(Items.isFuel(Material.LAVA_BUCKET));
         assertFalse(Items.isFuel(Material.IRON_INGOT));
         assertFalse(Items.isFuel(Material.STONE));
+        assertFalse(Items.isFuel(Material.CRIMSON_PLANKS), "netherové dřevo nehoří");
+        assertFalse(Items.isFuel(Material.WARPED_STEM), "netherový kmen nehoří");
     }
 
     @Test
