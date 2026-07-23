@@ -269,6 +269,9 @@ public final class MaterialGuide {
                 || m == Material.PUFFERFISH) {
             cannot.add("jedovaté – nejíst normálně");
         }
+        if (InventoryHelper.isReserveFood(m)) {
+            cannot.add("vzácná rezerva – šetřit na nouzi (léčení), nejíst na běžný hlad");
+        }
         if (Materials.isGravityBlock(m)) {
             cannot.add("padá dolů – nestavět bez podpory, nekopat zespodu");
         }

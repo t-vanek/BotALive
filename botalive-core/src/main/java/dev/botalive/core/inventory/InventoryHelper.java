@@ -255,6 +255,48 @@ public class InventoryHelper {
     }
 
     /**
+     * Rezervní jídlo – zlaté jablko (i očarované): vzácné, drží se na nouzi
+     * (léčení, regenerace), ne na běžný hlad. Registry-free (enum konstanty),
+     * takže stejný predikát čte i {@link MaterialGuide} – znalost i výběr pak
+     * říkají totéž.
+     *
+     * @param material materiál
+     * @return {@code true} pro zlaté jablko (běžné i očarované)
+     */
+    public static boolean isReserveFood(Material material) {
+        return material == Material.GOLDEN_APPLE
+                || material == Material.ENCHANTED_GOLDEN_APPLE;
+    }
+
+    /**
+     * Kvalita jídla pro POŘADÍ konzumace i darování (nižší rank = sníst/rozdat
+     * dřív):
+     * <ul>
+     *   <li>0 – pořádné (upečené maso, chleba, zelenina, ovoce),</li>
+     *   <li>1 – syrové maso/ryba ({@link Items#isRawFood}) – radši upéct, ale
+     *       sníst dřív než rezervu,</li>
+     *   <li>2 – rezervní zlaté jablko ({@link #isReserveFood}) – až v nouzi,</li>
+     *   <li>3 – nejídlo.</li>
+     * </ul>
+     *
+     * <p>Rezervu a syrové rozezná z registry-free katalogů ještě před {@link
+     * #isFood} (ta potřebuje Registry / fallback), takže je celé pořadí
+     * testovatelné bez serveru.</p>
+     *
+     * @param material materiál
+     * @return rank 0–3
+     */
+    public static int foodRank(Material material) {
+        if (isReserveFood(material)) {
+            return 2;
+        }
+        if (Items.isRawFood(material)) {
+            return 1;
+        }
+        return isFood(material) ? 0 : 3;
+    }
+
+    /**
      * Odhad počtu kusů odpovídajících filtru: hotbar přesně, hlavní inventář
      * konzervativně 4 kusy na slot (snapshot počty hlavního inventáře nenese).
      *
@@ -455,10 +497,19 @@ public class InventoryHelper {
         if (snapshot == null) {
             return false;
         }
-        int slot = slotOrPull(snapshot, InventoryHelper::isFood);
-        if (slot >= 0) {
-            actions.selectHotbar(slot);
-            return true;
+        // Kvalita rozhoduje jen o POŘADÍ, ne o zákazu: nejdřív pořádné jídlo,
+        // pak syrové, rezervní zlaté jablko až když nic jiného není (radši
+        // sníst rezervu než hladovět). Množina jedlého se nemění – jen se
+        // prochází po ranku. Stejné pořadí platí i pro darování: ShareGoal a
+        // ReconcileGoal chodí přes tuhle metodu, tak rozdají to horší a vzácné
+        // zlaté jablko si nechají.
+        for (int rank = 0; rank <= 2; rank++) {
+            final int wanted = rank;
+            int slot = slotOrPull(snapshot, m -> foodRank(m) == wanted);
+            if (slot >= 0) {
+                actions.selectHotbar(slot);
+                return true;
+            }
         }
         return false;
     }

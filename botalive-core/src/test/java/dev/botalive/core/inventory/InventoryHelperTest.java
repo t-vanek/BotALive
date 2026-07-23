@@ -165,4 +165,65 @@ class InventoryHelperTest {
                 snapshot(new Material[9], new int[9], new Material[27])));
         assertEquals(0, InventoryHelper.freeSlots(null));
     }
+
+    // ------------------------------------------------------------ kvalita jídla
+
+    @Test
+    void foodRankRadiKvalitu() {
+        // Pořadí: pořádné(0) < syrové(1) < rezerva(2) < nejídlo(3).
+        assertEquals(0, InventoryHelper.foodRank(Material.COOKED_BEEF), "upečené je pořádné");
+        assertEquals(0, InventoryHelper.foodRank(Material.BREAD), "chleba je pořádné");
+        assertEquals(1, InventoryHelper.foodRank(Material.BEEF), "syrové maso");
+        assertEquals(1, InventoryHelper.foodRank(Material.SALMON), "syrová ryba");
+        assertEquals(2, InventoryHelper.foodRank(Material.GOLDEN_APPLE), "zlaté jablko je rezerva");
+        assertEquals(2, InventoryHelper.foodRank(Material.ENCHANTED_GOLDEN_APPLE),
+                "očarované zlaté jablko taky rezerva");
+        assertEquals(3, InventoryHelper.foodRank(Material.COBBLESTONE), "kámen není jídlo");
+        assertTrue(InventoryHelper.isReserveFood(Material.GOLDEN_APPLE));
+        assertFalse(InventoryHelper.isReserveFood(Material.COOKED_BEEF));
+    }
+
+    @Test
+    void kvalitaJidlaPorada() {
+        // Rezerva(0), syrové(1) i pořádné(2) po ruce → sáhne po pořádném.
+        var actions = new CapturingActions();
+        var helper = new InventoryHelper(actions);
+        Material[] hotbar = new Material[9];
+        hotbar[0] = Material.GOLDEN_APPLE;
+        hotbar[1] = Material.BEEF;
+        hotbar[2] = Material.COOKED_BEEF;
+        assertTrue(helper.equipFood(snapshot(hotbar, new int[9], new Material[27])));
+        assertEquals(2, actions.selected, "sní pořádné jídlo dřív než syrové/rezervu");
+
+        // Bez pořádného: syrové dřív než vzácné zlaté jablko.
+        var actions2 = new CapturingActions();
+        var helper2 = new InventoryHelper(actions2);
+        Material[] hotbar2 = new Material[9];
+        hotbar2[3] = Material.GOLDEN_APPLE;
+        hotbar2[5] = Material.BEEF;
+        assertTrue(helper2.equipFood(snapshot(hotbar2, new int[9], new Material[27])));
+        assertEquals(5, actions2.selected, "syrové dřív než rezerva");
+
+        // Jen zlaté jablko po ruce → sní ho (pořadí, ne zákaz – radši než hladovět).
+        var actions3 = new CapturingActions();
+        var helper3 = new InventoryHelper(actions3);
+        Material[] hotbar3 = new Material[9];
+        hotbar3[7] = Material.GOLDEN_APPLE;
+        assertTrue(helper3.equipFood(snapshot(hotbar3, new int[9], new Material[27])));
+        assertEquals(7, actions3.selected, "když je jen rezerva, sní ji");
+    }
+
+    /** Zachytí zvolený hotbar slot – equip metody končí voláním selectHotbar. */
+    private static final class CapturingActions extends dev.botalive.core.network.BotActions {
+        private int selected = -1;
+
+        CapturingActions() {
+            super(null, null);
+        }
+
+        @Override
+        public void selectHotbar(int hotbarIndex) {
+            selected = hotbarIndex;
+        }
+    }
 }
