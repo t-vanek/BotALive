@@ -165,6 +165,8 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
     private volatile dev.botalive.core.ai.Ambition ambition;
     private volatile dev.botalive.core.ai.Ambition.Progress ambitionProgress;
     private int ambitionRefreshTicks;
+    /** Odpočet průběžného vyvažování řemesel v sídle (počáteční odklad na usazení). */
+    private int roleBalanceTicks = 800;
 
     /** Čeká se na první teleport po loginu/respawnu (pošle se PlayerLoaded). */
     private volatile boolean awaitingFirstTeleport = true;
@@ -385,6 +387,44 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
                     role(needed);
                     chat.sayFrom(dev.botalive.core.chat.PhraseCategory
                             .SETTLEMENT_ROLE_TAKEN, needed.displayName());
+                }));
+    }
+
+    /**
+     * Průběžné vyvažování řemesel v sídle. Na rozdíl od {@link #maybeAdoptRole}
+     * (jednorázová nabídka jen univerzálovi při vstupu) běží periodicky, takže
+     * vesnice zacelí i <b>pozdější</b> výpadek core řemesla (umřel/odešel jediný
+     * stavitel). Chybí-li core role:
+     * <ul>
+     *   <li>univerzál (NONE) ji převezme, jako při vstupu;</li>
+     *   <li>člen s <b>non-core</b> řemeslem (miner, obchodník…) se přeškolí –
+     *       vedlejší řemeslo je vůči chybějícímu páteřnímu postradatelné;</li>
+     *   <li>člen s <b>přebytkovým core</b> řemeslem (≥ 2 stejné role v sídle)
+     *       se přeškolí taky – po jeho odchodu zůstane role pořád pokrytá.</li>
+     * </ul>
+     * Nikdy se tím neodkryje jiné core řemeslo. Self-limiting: jakmile role
+     * přejde na pokrytou, {@code missingCoreRole} vrátí prázdno a ostatní se už
+     * nepřeškolují (rng offset ticku rozprostře kontroly, ať se nepřeškolí dva
+     * naráz).
+     */
+    private void tickRoleBalance() {
+        var settlements = services.settlements();
+        if (!config.settlement().enabled() || settlements == null) {
+            return;
+        }
+        settlements.settlementIdOf(id).ifPresent(settlementId ->
+                settlements.missingCoreRole(settlementId).ifPresent(needed -> {
+                    boolean roleless = "none".equals(roleId);
+                    var mine = role();
+                    boolean expendable = !roleless
+                            && (!dev.botalive.core.settlement.SettlementService
+                                    .isCoreRole(mine)
+                            || settlements.roleCount(settlementId, mine) >= 2);
+                    if (roleless || expendable) {
+                        role(needed);
+                        chat.sayFrom(dev.botalive.core.chat.PhraseCategory
+                                .SETTLEMENT_ROLE_TAKEN, needed.displayName());
+                    }
                 }));
     }
 
@@ -658,7 +698,7 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
         if (current == null || progress == null) {
             return 1.0;
         }
-        return current.weight(goalId, progress.complete());
+        return current.weight(goalId, progress);
     }
 
     /**
@@ -671,6 +711,25 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
     public double employmentWeight(String goalId) {
         var employment = services.employment();
         return employment == null ? 1.0 : employment.weight(id, goalId);
+    }
+
+    /** Naučená hybnost cílů (zpětná vazba z úspěšných dokončení). */
+    private final dev.botalive.core.ai.GoalMomentum goalMomentum =
+            new dev.botalive.core.ai.GoalMomentum();
+
+    /** Násobič utility z naučené hybnosti cíle. */
+    public double momentumWeight(String goalId) {
+        return goalMomentum.weight(goalId);
+    }
+
+    /** Rozhodovací krok mozku – hybnost cílů o kus slábne. */
+    public void decayMomentum() {
+        goalMomentum.decay();
+    }
+
+    /** Cíl úspěšně dokončen – posílí jeho hybnost (jen produktivní práce). */
+    public void reinforceGoal(String goalId) {
+        goalMomentum.reinforce(goalId);
     }
 
     /** @return řádka „životní cíl" pro příkazy, nebo {@code null} */
@@ -1571,6 +1630,14 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
         if (--ambitionRefreshTicks <= 0) {
             ambitionRefreshTicks = 40;
             refreshAmbition();
+        }
+
+        // Periodicky: vyvážení řemesel v sídle – zacelí i pozdější výpadek
+        // (umřel jediný stavitel), na rozdíl od jednorázové nabídky při vstupu.
+        // Rozprostřeno rng offsetem, ať se boti nepřeškolují všichni naráz.
+        if (alive && !paused.get() && --roleBalanceTicks <= 0) {
+            roleBalanceTicks = 1200 + rng.rangeInt(0, 400);
+            tickRoleBalance();
         }
 
         // Periodicky: všimnout si portálu do Endu v okolí (kdo žádný nezná).

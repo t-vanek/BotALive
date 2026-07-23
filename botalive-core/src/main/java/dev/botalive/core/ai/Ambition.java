@@ -37,6 +37,15 @@ public enum Ambition {
 
     /** Násobič utility cílů, které k ambici vedou (dokud není splněná). */
     private static final double DRIVE = 1.25;
+    /**
+     * Silnější násobič pro cíle, které posouvají PRÁVĚ AKTUÁLNÍ krok ambice
+     * ({@link #frontierGoals}). Obecný balík {@link #drivenGoals} táhne všechno
+     * stejně, takže bot u kroku „sehnat vlnu a vyrobit postel" pořád stejně
+     * boostoval i {@code house} (hotový) a {@code shear} (nutný) vůbec – řetěz
+     * se pak dokončil jen náhodou. Frontier drží prioritu na tom, co krok
+     * reálně odemyká, včetně upstream záložek (např. těžba železa pro nůžky).
+     */
+    private static final double DRIVE_FRONTIER = 1.6;
 
     private final String label;
     private final Set<String> drivenGoals;
@@ -215,6 +224,63 @@ public enum Ambition {
      */
     public double weight(String goalId, boolean complete) {
         return !complete && drivenGoals.contains(goalId) ? DRIVE : 1.0;
+    }
+
+    /**
+     * Krokově uvědomělý násobič: cíle posouvající aktuální krok dostanou
+     * {@link #DRIVE_FRONTIER}, zbytek balíku slabší {@link #DRIVE}. Frontier smí
+     * obsahovat i cíle mimo {@link #drivenGoals} (např. {@code shear} u kroku
+     * „postel") – jinak by je ambice netáhla vůbec.
+     *
+     * @param goalId   id cíle
+     * @param progress aktuální postup ambice ({@code null} = žádná ambice)
+     * @return násobič utility
+     */
+    public double weight(String goalId, Progress progress) {
+        if (progress == null || progress.complete()) {
+            return 1.0;
+        }
+        if (frontierGoals(progress.step()).contains(goalId)) {
+            return DRIVE_FRONTIER;
+        }
+        return drivenGoals.contains(goalId) ? DRIVE : 1.0;
+    }
+
+    /**
+     * Cíle, které odemykají daný krok ambice – včetně upstream záložek, takže
+     * když je bezprostřední krok zablokovaný nedostatkem materiálu, táhne se
+     * jeho prerekvizita (vlastní brána cíle už vybere ten právě proveditelný).
+     *
+     * @param step index splněných kroků (0 = úplný začátek)
+     * @return frontier cíle kroku
+     */
+    private Set<String> frontierGoals(int step) {
+        return switch (this) {
+            case FULL_IRON -> switch (step) {
+                case 0, 1 -> Set.of("mine", "craft");
+                case 2 -> Set.of("mine");
+                default -> Set.of("smelt", "craft");
+            };
+            case COZY_HOME -> switch (step) {
+                case 0 -> Set.of("mine", "collect");
+                case 1 -> Set.of("house");
+                // Postel: ostříhat (má-li nůžky), vyrobit (nůžky/postel), a jako
+                // upstream záložka těžit železo na nůžky.
+                default -> Set.of("shear", "craft", "mine");
+            };
+            case RICH -> Set.of("mine", "sell", "trade", "fish", "farm");
+            case NETHERITE -> switch (step) {
+                case 0 -> Set.of("mine", "smelt", "craft");
+                case 1 -> Set.of("mine", "craft");
+                default -> Set.of("nether", "mine");
+            };
+            case DRAGON_SLAYER -> switch (step) {
+                case 0 -> Set.of("mine", "smelt", "craft", "smith");
+                case 1 -> Set.of("craft", "hunt");
+                case 2 -> Set.of("explore", "stronghold");
+                default -> Set.of("end-travel", "dragon-fight");
+            };
+        };
     }
 
     /**

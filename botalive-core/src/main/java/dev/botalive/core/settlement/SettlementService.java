@@ -1697,6 +1697,46 @@ public final class SettlementService {
         return Optional.empty();
     }
 
+    /** @return {@code true} pro páteřní řemeslo osady (viz {@link #CORE_ROLES}) */
+    public static boolean isCoreRole(dev.botalive.api.role.BotRole role) {
+        return CORE_ROLES.contains(role);
+    }
+
+    /**
+     * Kolik členů sídla dělá dané řemeslo. Slouží k rozhodnutí, zda je role
+     * <b>přebytková</b> (≥ 2) – přebytkový specialista se pak smí přeškolit na
+     * chybějící core řemeslo, aniž by své vlastní nechal nepokryté.
+     *
+     * @param settlementId sídlo
+     * @param role         řemeslo
+     * @return počet členů s tou rolí
+     */
+    public int roleCount(long settlementId, dev.botalive.api.role.BotRole role) {
+        BotManagerImpl manager = botManager;
+        if (manager == null) {
+            return 0;
+        }
+        return roleCount(settlementId, role,
+                id -> manager.byId(id).map(dev.botalive.api.bot.Bot::role)
+                        .orElse(dev.botalive.api.role.BotRole.NONE));
+    }
+
+    /** Testovatelná varianta s injektovaným zdrojem rolí. */
+    synchronized int roleCount(long settlementId, dev.botalive.api.role.BotRole role,
+            java.util.function.Function<UUID, dev.botalive.api.role.BotRole> roleOf) {
+        Settlement settlement = settlements.get(settlementId);
+        if (settlement == null || role == null) {
+            return 0;
+        }
+        int count = 0;
+        for (Member member : settlement.members.values()) {
+            if (roleOf.apply(member.botId()) == role) {
+                count++;
+            }
+        }
+        return count;
+    }
+
     /**
      * Zaznamená zakotvenost člena (Σ FRIEND vazeb k ostatním členům) pro
      * odvození starosty. Volá se ze sousedské úvahy; oddělené kvůli

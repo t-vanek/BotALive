@@ -145,6 +145,10 @@ public final class Brain {
             try {
                 goal.tick(bot);
                 if (goal.finished(bot)) {
+                    // Úspěšné dokončení posílí hybnost cíle (učení z výsledků).
+                    if (bot instanceof dev.botalive.core.bot.BotImpl impl) {
+                        impl.reinforceGoal(goal.id());
+                    }
                     // Vynucení uvolnit HNED: decide() by jinak viděl current == null
                     // a vynucený (už hotový) cíl donekonečna restartoval.
                     if (goal.id().equals(forcedGoalId)) {
@@ -198,6 +202,10 @@ public final class Brain {
 
         Goal best = null;
         double bestUtility = 0;
+        // Hybnost cílů o krok zeslábne (jednou za rozhodnutí, ne per cíl).
+        if (bot instanceof dev.botalive.core.bot.BotImpl momentumImpl) {
+            momentumImpl.decayMomentum();
+        }
         dev.botalive.core.world.WorldDimension dimension = BotContext.of(bot).dimension();
         for (Goal goal : goals) {
             double utility;
@@ -236,6 +244,8 @@ public final class Brain {
                 utility *= impl.vitalsWeight(goal.id());
                 // Pudy: naléhavá základní potřeba tlumí cíle vyšších potřeb (Maslow).
                 utility *= impl.drivesWeight(goal.id());
+                // Naučená hybnost: co bot úspěšně dokončuje, dělá o kus radši.
+                utility *= impl.momentumWeight(goal.id());
             }
             // Hystereze aktivního cíle + drobný rozhodovací šum.
             if (goal == current) {
