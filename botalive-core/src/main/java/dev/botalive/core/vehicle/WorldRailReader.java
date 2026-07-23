@@ -25,7 +25,7 @@ public final class WorldRailReader implements RailReader {
     @Override
     public RailInfo railAt(BlockPos pos) {
         Material material = world.materialAt(pos);
-        if (material == null || !material.name().endsWith("RAIL")) {
+        if (!dev.botalive.core.inventory.Items.isRail(material)) {
             return null;
         }
         BlockData data = world.blockDataAt(pos);

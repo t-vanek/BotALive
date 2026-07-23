@@ -244,6 +244,9 @@ class MaterialsTest {
         assertTrue(Materials.isGravityBlock(Material.SAND));
         assertTrue(Materials.isGravityBlock(Material.WHITE_CONCRETE_POWDER));
         assertTrue(Materials.isGravityBlock(Material.ANVIL));
+        assertTrue(Materials.isGravityBlock(Material.POINTED_DRIPSTONE));
+        assertTrue(Materials.isGravityBlock(Material.DRAGON_EGG));
+        assertTrue(Materials.isGravityBlock(Material.SUSPICIOUS_GRAVEL));
         assertFalse(Materials.isGravityBlock(Material.STONE));
         assertTrue(Materials.isMineralBlock(Material.IRON_BLOCK));
         assertTrue(Materials.isMineralBlock(Material.RAW_IRON_BLOCK));

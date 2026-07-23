@@ -89,7 +89,7 @@ public final class CraftingService implements dev.botalive.core.station.Crafting
                 firstMatching(inventory, m -> Tag.LOGS.isTagged(m)),
                 firstMatching(inventory, m -> Tag.PLANKS.isTagged(m)),
                 cobbleStd >= 3 ? Material.COBBLESTONE : Material.COBBLED_DEEPSLATE,
-                firstMatching(inventory, m -> m.name().endsWith("_WOOL")),
+                firstMatching(inventory, dev.botalive.core.inventory.Materials::isWool),
                 wantsMasonry));
     }
 

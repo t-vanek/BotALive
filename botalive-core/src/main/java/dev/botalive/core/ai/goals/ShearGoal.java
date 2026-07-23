@@ -200,20 +200,19 @@ public final class ShearGoal extends AbstractGoal {
     }
 
     private static boolean hasBed(ServerSideView.Snapshot snapshot) {
-        return snapshot.hasItem(m -> m.name().endsWith("_BED"));
+        return snapshot.hasItem(dev.botalive.core.inventory.Items::isBed);
     }
 
     /** Součet kusů vlny v batohu (hotbar + hlavní inventář). */
     private static int woolCount(ServerSideView.Snapshot snapshot) {
         int total = 0;
         for (int i = 0; i < snapshot.hotbar().length; i++) {
-            if (snapshot.hotbar()[i] != null && snapshot.hotbar()[i].name().endsWith("_WOOL")) {
+            if (dev.botalive.core.inventory.Materials.isWool(snapshot.hotbar()[i])) {
                 total += snapshot.hotbarCounts()[i];
             }
         }
         for (int i = 0; i < snapshot.mainInventory().length; i++) {
-            if (snapshot.mainInventory()[i] != null
-                    && snapshot.mainInventory()[i].name().endsWith("_WOOL")) {
+            if (dev.botalive.core.inventory.Materials.isWool(snapshot.mainInventory()[i])) {
                 total += snapshot.mainCounts()[i];
             }
         }

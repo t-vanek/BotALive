@@ -720,11 +720,11 @@ public final class Blueprints {
     /** Predikát pro vybavení daného druhu (jedno místo pravdy o materiálech). */
     public static java.util.function.Predicate<Material> itemFor(FurnishKind kind) {
         return switch (kind) {
-            case DOOR -> m -> m.name().endsWith("_DOOR");
+            case DOOR -> dev.botalive.core.inventory.Materials::isDoor;
             case TORCH -> m -> m == Material.TORCH;
             case LANTERN -> m -> m == Material.LANTERN;
             case FLOWER_POT -> m -> m == Material.FLOWER_POT;
-            case BED -> m -> m.name().endsWith("_BED");
+            case BED -> dev.botalive.core.inventory.Items::isBed;
             case CHEST -> m -> m == Material.CHEST;
             case BELL -> m -> m == Material.BELL;
             case STATION -> throw new IllegalArgumentException(

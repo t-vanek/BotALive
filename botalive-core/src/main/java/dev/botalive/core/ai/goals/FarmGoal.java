@@ -50,7 +50,7 @@ public final class FarmGoal extends AbstractGoal {
 
     /** Motyka libovolného materiálu – zorá hlínu/trávu na farmland. */
     private static final java.util.function.Predicate<Material> HOE =
-            m -> m != null && m.name().endsWith("_HOE");
+            dev.botalive.core.inventory.Items::isHoe;
 
     private enum Phase {
         FIND, GO, HARVEST, REPLANT, BED_PLACE, BED_PLANT, FIELD_TILL, FIELD_PLANT, DONE

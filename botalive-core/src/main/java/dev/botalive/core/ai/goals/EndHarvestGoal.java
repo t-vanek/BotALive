@@ -223,7 +223,8 @@ public final class EndHarvestGoal extends AbstractGoal {
             return false;
         }
         var snapshot = ctx.serverView().latest();
-        if (snapshot == null || !snapshot.hasItem(m -> m.name().endsWith("_SWORD"))) {
+        if (snapshot == null
+                || !snapshot.hasItem(dev.botalive.core.inventory.Items::isSword)) {
             return false;
         }
         return InventoryHelper.countEstimate(snapshot, m -> m == Material.ENDER_PEARL)
@@ -234,7 +235,7 @@ public final class EndHarvestGoal extends AbstractGoal {
         if (snapshot == null) {
             return false;
         }
-        boolean pickaxe = snapshot.hasItem(m -> m.name().endsWith("_PICKAXE"));
+        boolean pickaxe = snapshot.hasItem(dev.botalive.core.inventory.Items::isPickaxe);
         return pickaxe && InventoryHelper.countEstimate(snapshot,
                 InventoryHelper::isBuildingBlock) < BLOCKS_TARGET;
     }

@@ -420,8 +420,11 @@ public final class Materials {
         if (isSand(material) || material == Material.GRAVEL || isConcretePowder(material)) {
             return true;
         }
-        return material == Material.ANVIL || material == Material.CHIPPED_ANVIL
-                || material == Material.DAMAGED_ANVIL;
+        return switch (material) {
+            case ANVIL, CHIPPED_ANVIL, DAMAGED_ANVIL, SUSPICIOUS_SAND, SUSPICIOUS_GRAVEL,
+                 POINTED_DRIPSTONE, DRAGON_EGG -> true;
+            default -> false;
+        };
     }
 
     private static final Set<Material> MINERAL_BLOCKS = Set.of(

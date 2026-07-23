@@ -178,7 +178,7 @@ public final class SleepGoal extends AbstractGoal {
                 for (int dz = -radius; dz <= radius; dz++) {
                     BlockPos pos = center.offset(dx, dy, dz);
                     var material = world.materialAt(pos);
-                    if (material != null && material.name().endsWith("_BED")) {
+                    if (dev.botalive.core.inventory.Items.isBed(material)) {
                         found.add(pos);
                     }
                 }
