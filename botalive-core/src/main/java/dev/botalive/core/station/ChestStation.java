@@ -2,7 +2,9 @@ package dev.botalive.core.station;
 
 import dev.botalive.core.ai.BotContext;
 import dev.botalive.core.util.BlockPos;
+import org.bukkit.Material;
 
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
 /**
@@ -116,4 +118,23 @@ public interface ChestStation {
      */
     CompletableFuture<Integer> withdrawBuildingBlocks(BotContext ctx, String worldName,
                                                       BlockPos chestPos, int maxBlocks);
+
+    /**
+     * Obecný zpětný odběr materiálu ze společného skladu ({@code RestockGoal}):
+     * vybere z kontejneru <b>komodity, které bot potřebuje</b> (mapa materiál →
+     * strop kusů – rudy, ingoty, uhlí…) a k tomu <b>stavební bloky</b> až do
+     * {@code blockCap} (kategorie {@link
+     * dev.botalive.core.inventory.InventoryHelper#isBuildingBlock}). Jedním
+     * průchodem, bere jen deficit (ne celý volný batoh), takže sklad
+     * nevydrancuje. Bot musí stát u otevřeného kontejneru.
+     *
+     * @param ctx       kontext bota (stojí u otevřené truhly)
+     * @param worldName svět kontejneru
+     * @param chestPos  pozice kontejneru
+     * @param wants     mapa materiál → kolik kusů z něj nejvýš vzít (může být prázdná)
+     * @param blockCap  strop odebraných stavebních bloků (0 = žádné bloky)
+     * @return future s počtem odebraných kusů (0 = nic/chyba)
+     */
+    CompletableFuture<Integer> withdrawRestock(BotContext ctx, String worldName, BlockPos chestPos,
+                                               Map<Material, Integer> wants, int blockCap);
 }

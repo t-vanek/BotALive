@@ -451,6 +451,77 @@ public final class ContainerService implements dev.botalive.core.station.ChestSt
     }
 
     @Override
+    public CompletableFuture<Integer> withdrawRestock(dev.botalive.core.ai.BotContext ctx,
+                                                      String worldName, BlockPos chestPos,
+                                                      Map<Material, Integer> wants, int blockCap) {
+        UUID botId = ctx.bot().id();
+        World world = Bukkit.getWorld(worldName);
+        Player player = Bukkit.getPlayer(botId);
+        if (world == null || player == null) {
+            return CompletableFuture.completedFuture(0);
+        }
+        Location location = new Location(world, chestPos.x(), chestPos.y(), chestPos.z());
+        // Kopie zbývajících stropů komodit – EnumMap(prázdná) hází, proto větev.
+        Map<Material, Integer> wantLeft = wants.isEmpty()
+                ? new EnumMap<>(Material.class) : new EnumMap<>(wants);
+        return bridge.callAt(location, () -> {
+            if (player.getLocation().distanceSquared(location) > 6 * 6) {
+                return 0; // bot mezitím odešel – nesahat na cizí region
+            }
+            if (!(world.getBlockAt(chestPos.x(), chestPos.y(), chestPos.z())
+                    .getState() instanceof Container container)) {
+                return 0;
+            }
+            Inventory chest = container.getInventory();
+            var playerInventory = player.getInventory();
+            int taken = 0;
+            int blocksTaken = 0;
+            for (int slot = 0; slot < chest.getSize(); slot++) {
+                ItemStack stack = chest.getItem(slot);
+                if (stack == null) {
+                    continue;
+                }
+                Material material = stack.getType();
+                Integer wantSpecific = wantLeft.get(material);
+                boolean asBlock = false;
+                int wantCount;
+                if (wantSpecific != null && wantSpecific > 0) {
+                    wantCount = Math.min(stack.getAmount(), wantSpecific);
+                } else if (blocksTaken < blockCap && InventoryHelper.isBuildingBlock(material)) {
+                    wantCount = Math.min(stack.getAmount(), blockCap - blocksTaken);
+                    asBlock = true;
+                } else {
+                    continue;
+                }
+                if (wantCount <= 0) {
+                    continue;
+                }
+                ItemStack take = stack.clone();
+                take.setAmount(wantCount);
+                var leftover = playerInventory.addItem(take);
+                int moved = wantCount - leftover.values().stream()
+                        .mapToInt(ItemStack::getAmount).sum();
+                if (moved <= 0) {
+                    break; // plný inventář bota
+                }
+                if (moved >= stack.getAmount()) {
+                    chest.setItem(slot, null);
+                } else {
+                    stack.setAmount(stack.getAmount() - moved);
+                    chest.setItem(slot, stack);
+                }
+                taken += moved;
+                if (asBlock) {
+                    blocksTaken += moved;
+                } else {
+                    wantLeft.put(material, wantSpecific - moved);
+                }
+            }
+            return taken;
+        }).exceptionally(t -> 0);
+    }
+
+    @Override
     public CompletableFuture<Integer> withdrawSupplies(dev.botalive.core.ai.BotContext ctx,
                                                        String worldName, BlockPos chestPos,
                                                        boolean includeGear) {

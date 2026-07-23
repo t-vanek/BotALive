@@ -17,14 +17,18 @@ public final class RoleProfiles {
 
     // Map.ofEntries, ne Map.of – to má strop 10 dvojic a rolí je víc.
     private static final Map<BotRole, Map<String, Double>> WEIGHTS = Map.ofEntries(
-            Map.entry(BotRole.BUILDER, Map.of(
-                    "shelter", 2.5, "house", 3.0, "communal-build", 2.5,
-                    "craft", 1.4, "mine", 1.3, "home", 1.3,
-                    "maintain", 2.2, "shear", 1.3, "settlement-fences", 1.8,
-                    "settlement-walls", 2.2)),
+            // Map.ofEntries – 11 dvojic přesahuje strop 10 u Map.of.
+            Map.entry(BotRole.BUILDER, Map.ofEntries(
+                    Map.entry("shelter", 2.5), Map.entry("house", 3.0),
+                    Map.entry("communal-build", 2.5), Map.entry("craft", 1.4),
+                    Map.entry("mine", 1.3), Map.entry("home", 1.3),
+                    Map.entry("maintain", 2.2), Map.entry("shear", 1.3),
+                    Map.entry("settlement-fences", 1.8), Map.entry("settlement-walls", 2.2),
+                    Map.entry("restock", 1.6))),
             Map.entry(BotRole.MINER, Map.of(
                     "mine", 2.5, "collect", 1.3, "craft", 1.2, "smelt", 1.3,
-                    "nether", 1.6, "smith", 1.4, "end-harvest", 1.4, "supply", 1.6)),
+                    "nether", 1.6, "smith", 1.4, "end-harvest", 1.4, "supply", 1.6,
+                    "restock", 1.4)),
             Map.entry(BotRole.LUMBERJACK, Map.of(
                     "mine", 2.2, "craft", 1.4, "shelter", 1.2, "house", 1.4)),
             Map.entry(BotRole.HUNTER, Map.of(
@@ -33,7 +37,7 @@ public final class RoleProfiles {
                     "dragon-fight", 1.5, "end-harvest", 1.3)),
             Map.entry(BotRole.BLACKSMITH, Map.of(
                     "smelt", 2.5, "craft", 1.6, "mine", 1.4, "repair", 2.2,
-                    "smith", 2.2, "nether", 1.2)),
+                    "smith", 2.2, "nether", 1.2, "restock", 1.5)),
             Map.entry(BotRole.ENCHANTER, Map.of(
                     "enchant", 2.5, "mine", 1.2, "smelt", 1.1)),
             Map.entry(BotRole.TRADER, Map.of(
@@ -85,16 +89,18 @@ public final class RoleProfiles {
             Map.entry(BotRole.LIBRARIAN, Map.of(
                     "enchant", 2.4, "craft", 1.4, "trade", 1.3, "home", 1.2)),
             Map.entry(BotRole.TOOLSMITH, Map.of(
-                    "smith", 2.2, "craft", 1.8, "repair", 2.0, "mine", 1.4, "smelt", 1.3)),
+                    "smith", 2.2, "craft", 1.8, "repair", 2.0, "mine", 1.4, "smelt", 1.3,
+                    "restock", 1.5)),
             Map.entry(BotRole.WEAPONSMITH, Map.of(
-                    "smith", 2.0, "craft", 1.6, "repair", 2.0, "combat", 1.4, "mine", 1.3)),
+                    "smith", 2.0, "craft", 1.6, "repair", 2.0, "combat", 1.4, "mine", 1.3,
+                    "restock", 1.4)),
             Map.entry(BotRole.ARMORER, Map.of(
-                    "smelt", 2.2, "smith", 2.0, "repair", 2.0, "mine", 1.5)),
+                    "smelt", 2.2, "smith", 2.0, "repair", 2.0, "mine", 1.5, "restock", 1.5)),
             Map.entry(BotRole.CARTOGRAPHER, Map.of(
                     "explore", 2.5, "boat", 1.4, "craft", 1.3, "trade", 1.3, "collect", 1.2)),
             Map.entry(BotRole.MASON, Map.of(
                     "mine", 2.4, "craft", 1.5, "communal-build", 1.6, "house", 1.4,
-                    "shelter", 1.3, "settlement-walls", 2.4, "supply", 2.0)),
+                    "shelter", 1.3, "settlement-walls", 2.4, "supply", 2.0, "restock", 1.6)),
             Map.entry(BotRole.LEATHERWORKER, Map.of(
                     "hunt", 2.0, "breed", 1.8, "craft", 1.6, "trade", 1.3)),
             Map.entry(BotRole.SHEPHERD, Map.of(
