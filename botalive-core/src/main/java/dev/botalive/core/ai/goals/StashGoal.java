@@ -5,6 +5,7 @@ import dev.botalive.api.memory.MemoryKind;
 import dev.botalive.api.personality.Trait;
 import dev.botalive.core.ai.BotContext;
 import dev.botalive.core.inventory.ContainerService;
+import dev.botalive.core.inventory.InventoryHelper;
 import dev.botalive.core.settlement.DiplomacyService;
 import dev.botalive.core.station.ChestStation;
 import dev.botalive.core.util.BlockPos;
@@ -66,7 +67,8 @@ public final class StashGoal extends AbstractGoal {
         if (snapshot == null) {
             return 0;
         }
-        // Zaplněnost hlavního inventáře + přítomnost přebytků.
+        // Zaplněnost hlavního inventáře + co je k uložení: odpad (dlažba,
+        // hlína…) nebo přebytek cenností nad pracovní rezervu (rudy, ingoty…).
         int filled = 0;
         boolean junk = false;
         for (Material material : snapshot.mainInventory()) {
@@ -75,11 +77,35 @@ public final class StashGoal extends AbstractGoal {
                 junk |= ContainerService.isJunk(material);
             }
         }
-        if (filled < 18 || !junk) {
+        boolean bankable = InventoryHelper.bankableSurplus(snapshot) > 0;
+        double greed = bot.personality().trait(Trait.GREED);
+        return utilityFor(filled, junk, bankable, greed);
+    }
+
+    /**
+     * Váha ukládání do truhly (čistá funkce – testovatelná bez živého
+     * kontextu). Nese jen s naplněným batohem a s něčím k uložení: <b>odpadem</b>
+     * (dlažba, hlína, štěrk…) nebo <b>přebytkem cenností</b> nad pracovní
+     * rezervu (rudy, ingoty, uhlí, drahé kameny). Fuller batoh = vyšší priorita.
+     * Drží se v pásmu vlastní správy inventáře – nad pomocnými pracemi, ale pod
+     * přežitím, bojem a jídlem.
+     *
+     * <p>Přebytek cenností tu figuruje schválně: bez něj se do truhly ukládal
+     * jen odpad a vytěžené rudy/ingoty se hromadily v batohu, dokud je smrt
+     * nesebrala. Teď si bot výdělek těžby uloží (a člen sídla ho poblíž skladu
+     * pooluje pro skupinu).</p>
+     *
+     * @param filledMain zaplněné sloty hlavního inventáře (0–27)
+     * @param junk       má odpad k uložení
+     * @param bankable   má přebytek cenností nad rezervu
+     * @param greed      rys chamtivosti [0,1]
+     * @return váha cíle (0 = neukládat)
+     */
+    static double utilityFor(int filledMain, boolean junk, boolean bankable, double greed) {
+        if (filledMain < 18 || (!junk && !bankable)) {
             return 0;
         }
-        double greed = bot.personality().trait(Trait.GREED);
-        return 8 + greed * 10 + (filled - 18) * 1.5;
+        return 8 + greed * 10 + (filledMain - 18) * 1.5;
     }
 
     @Override
@@ -154,7 +180,7 @@ public final class StashGoal extends AbstractGoal {
                     return;
                 }
                 if (deposit == null) {
-                    deposit = containers.depositJunk(ctx,
+                    deposit = containers.depositSurplus(ctx,
                             ctx.worldView().worldName(), chest);
                     return;
                 }

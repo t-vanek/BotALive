@@ -299,6 +299,118 @@ public class InventoryHelper {
     }
 
     /**
+     * Pracovní rezervy komodit: nad tento počet kusů je zbytek <b>přebytek</b>
+     * k uložení do truhly (bankování). Rezerva je štědrá schválně – bot si
+     * nechá dost na tavení, výrobu a opravy a bankuje jen skutečný přebytek,
+     * takže se nepřetrhne řetěz ruda → ingot → nástroj. Netheritový řetězec
+     * (příliš vzácný, koncová hra) se schválně <b>nebankuje</b> – drží se v
+     * batohu, dokud z něj nevznikne upgrade.
+     */
+    private static final java.util.Map<Material, Integer> BANK_RESERVE = java.util.Map.ofEntries(
+            java.util.Map.entry(Material.RAW_IRON, 16),
+            java.util.Map.entry(Material.RAW_GOLD, 16),
+            java.util.Map.entry(Material.RAW_COPPER, 16),
+            java.util.Map.entry(Material.IRON_INGOT, 16),
+            java.util.Map.entry(Material.GOLD_INGOT, 8),
+            java.util.Map.entry(Material.COPPER_INGOT, 16),
+            java.util.Map.entry(Material.COAL, 32),
+            java.util.Map.entry(Material.DIAMOND, 12),
+            java.util.Map.entry(Material.EMERALD, 12),
+            java.util.Map.entry(Material.LAPIS_LAZULI, 32),
+            java.util.Map.entry(Material.REDSTONE, 32),
+            java.util.Map.entry(Material.QUARTZ, 32),
+            java.util.Map.entry(Material.AMETHYST_SHARD, 16),
+            java.util.Map.entry(Material.GOLD_NUGGET, 16));
+
+    /**
+     * Je materiál <b>bankovatelná komodita</b> (ruda, ingot, uhlí, drahý kámen)?
+     * Tj. cennost, kterou má smysl nad pracovní rezervu uložit do truhly –
+     * na rozdíl od odpadu ({@link ContainerService#isJunk}) a spotřebního
+     * materiálu (jídlo, nástroje, stavební bloky).
+     *
+     * @param material materiál ({@code null} = ne)
+     * @return {@code true} pro komoditu s pracovní rezervou
+     */
+    public static boolean isBankable(Material material) {
+        return material != null && BANK_RESERVE.containsKey(material);
+    }
+
+    /**
+     * Pracovní rezerva komodity – kolik kusů si bot nechává v batohu, než
+     * začne zbytek bankovat.
+     *
+     * @param material materiál
+     * @return rezerva v kusech (0 pro nebankovatelné materiály)
+     */
+    public static int bankReserve(Material material) {
+        return BANK_RESERVE.getOrDefault(material, 0);
+    }
+
+    /**
+     * Celkový přebytek bankovatelných komodit nad jejich pracovní rezervu –
+     * odhad, kolik kusů by šlo uložit do truhly. Slouží jako signál „mám co
+     * bankovat" pro {@code StashGoal} (nezávisle na odpadu).
+     *
+     * @param snapshot server-side snapshot ({@code null} = 0)
+     * @return počet kusů přebytku (0 = jen rezerva, nic k uložení)
+     */
+    public static int bankableSurplus(ServerSideView.Snapshot snapshot) {
+        if (snapshot == null) {
+            return 0;
+        }
+        java.util.Map<Material, Integer> have = new java.util.EnumMap<>(Material.class);
+        tally(snapshot.hotbar(), snapshot.hotbarCounts(), have);
+        tally(snapshot.mainInventory(), snapshot.mainCounts(), have);
+        int surplus = 0;
+        for (java.util.Map.Entry<Material, Integer> entry : have.entrySet()) {
+            Integer reserve = BANK_RESERVE.get(entry.getKey());
+            if (reserve != null) {
+                surplus += Math.max(0, entry.getValue() - reserve);
+            }
+        }
+        return surplus;
+    }
+
+    /** Sečte kusy materiálů do mapy (počty přesně, u ručních snapshotů 1/slot). */
+    private static void tally(Material[] items, int[] counts,
+                              java.util.Map<Material, Integer> into) {
+        if (items == null) {
+            return;
+        }
+        for (int i = 0; i < items.length; i++) {
+            if (items[i] != null) {
+                int count = counts != null && i < counts.length ? Math.max(1, counts[i]) : 1;
+                into.merge(items[i], count, Integer::sum);
+            }
+        }
+    }
+
+    /**
+     * Počet volných slotů batohu (hotbar + hlavní inventář). Kapacitní signál:
+     * blíží-li se k nule, hrozí, že vytěžené dropy nemají kam padnout.
+     *
+     * @param snapshot server-side snapshot ({@code null} = 0)
+     * @return počet prázdných slotů (0–36)
+     */
+    public static int freeSlots(ServerSideView.Snapshot snapshot) {
+        if (snapshot == null) {
+            return 0;
+        }
+        int free = 0;
+        for (Material material : snapshot.hotbar()) {
+            if (material == null) {
+                free++;
+            }
+        }
+        for (Material material : snapshot.mainInventory()) {
+            if (material == null) {
+                free++;
+            }
+        }
+        return free;
+    }
+
+    /**
      * Najde a vybere nejlepší nástroj pro blok v hotbaru.
      *
      * @param snapshot server-side snapshot inventáře

@@ -62,7 +62,15 @@ Normy rostou s infrastrukturou, ne dekretem:
   `WAREHOUSE` (zásobárna s dvojtruhlou, od vesnice, po dílnách) – člen s
   přebytkem materiálu ho přes `StashGoal` uloží do společného skladu místo
   soukromé truhly (je-li rozumně blízko). Přebytky přestávají hnít po
-  kapsách jednotlivců.
+  kapsách jednotlivců. `StashGoal` už neukládá jen odpadní kámen: přes
+  `ContainerService.depositSurplus` bankuje i **vytěžené cennosti nad
+  pracovní rezervu** (rudy, ingoty, uhlí, drahé kameny – `InventoryHelper`),
+  takže se do společného skladu poolují i rudy, ne jen stavební bloky, a
+  výtěžek těžby přežije smrt bota. Rezerva je štědrá (bot si nechá dost na
+  tavení/výrobu), takže se nepřetrhne řetěz ruda → ingot → nástroj;
+  netheritový řetězec se schválně nebankuje. Zpětný odběr rud kovářem ze
+  skladu je zatím mimo (odběr bloků řeší `CommunalBuildGoal` PROVISION) –
+  přirozené rozšíření, ne předpoklad.
 - **Starosta** – odvozený, ne volený: člen s nejsilnějším součtem
   FRIEND vazeb na ostatní členy (lazy přepočet ze `SocialView`).
   Přednostně vítá hráče (`tickVillageWelcome`), přednostně staví

@@ -23,6 +23,21 @@ public interface ChestStation {
     CompletableFuture<Integer> depositJunk(BotContext ctx, String worldName, BlockPos chestPos);
 
     /**
+     * Uloží do kontejneru <b>přebytky</b>: odpad (jako {@link #depositJunk}) i
+     * cennosti a polotovary nad pracovní rezervu – rudy, ingoty, uhlí, drahé
+     * kameny ({@link dev.botalive.core.inventory.InventoryHelper#isBankable}).
+     * Bot si nechá pracovní rezervu na tavení/výrobu/opravy a stavební rezervu
+     * (aby měl z čeho stavět dům). Chrání výtěžek těžby před ztrátou při smrti
+     * a – u společného skladu sídla – ho pooluje pro skupinu.
+     *
+     * @param ctx       kontext bota (stojí u otevřené truhly)
+     * @param worldName svět kontejneru
+     * @param chestPos  pozice kontejneru
+     * @return future s počtem uložených kusů (0 = nic/chyba)
+     */
+    CompletableFuture<Integer> depositSurplus(BotContext ctx, String worldName, BlockPos chestPos);
+
+    /**
      * Vybere z kontejneru nouzové zásoby (krádež z beznadějе): jídlo a
      * volitelně základní vybavení. Bot musí stát u kontejneru.
      *
