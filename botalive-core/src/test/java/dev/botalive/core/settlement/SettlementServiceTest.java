@@ -1,5 +1,6 @@
 package dev.botalive.core.settlement;
 
+import dev.botalive.api.role.BotRole;
 import dev.botalive.core.util.Cardinal;
 import dev.botalive.core.config.BotAliveConfig;
 import dev.botalive.core.util.BlockPos;
@@ -64,6 +65,35 @@ class SettlementServiceTest {
                 Cardinal.NORTH, 42L);
         assertTrue(info.isPresent());
         return info.get();
+    }
+
+    @Test
+    void roleCountRozliseniPrebytkuAChybejiciCoreRole() {
+        var village = foundVillage();
+        for (UUID settler : new UUID[]{joiner, third}) {
+            var v = view(settler, HOME_SITE.offset(30, 0, 0), 0.7, null,
+                    Map.of(founder, 0.6), Map.of(), Map.of());
+            assertTrue(service.join(village.id(), v));
+        }
+        // Zakladatel + joiner = FARMER (přebytek), third = HUNTER.
+        Map<UUID, BotRole> roles = Map.of(founder, BotRole.FARMER,
+                joiner, BotRole.FARMER, third, BotRole.HUNTER);
+        java.util.function.Function<UUID, BotRole> roleOf =
+                uid -> roles.getOrDefault(uid, BotRole.NONE);
+
+        assertEquals(2, service.roleCount(village.id(), BotRole.FARMER, roleOf),
+                "dva farmáři = přebytek (specialista se smí přeškolit)");
+        assertEquals(1, service.roleCount(village.id(), BotRole.HUNTER, roleOf));
+        assertEquals(0, service.roleCount(village.id(), BotRole.BUILDER, roleOf));
+        // FARMER + HUNTER pokryté → první nepokrytá core role je BLACKSMITH.
+        assertEquals(Optional.of(BotRole.BLACKSMITH),
+                service.missingCoreRole(village.id(), roleOf),
+                "vyvažování míří na první nepokryté core řemeslo");
+
+        // Postradatelnost: non-core (diplomat) se smí přeškolit i sám, přebytkový
+        // core (2 farmáři) taky; osamělé core řemeslo ne (odkrylo by ho).
+        assertFalse(SettlementService.isCoreRole(BotRole.DIPLOMAT));
+        assertTrue(SettlementService.isCoreRole(BotRole.BUILDER));
     }
 
     // ------------------------------------------------------------- růst sídla
