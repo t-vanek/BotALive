@@ -79,6 +79,18 @@ class CraftPlannerTest {
     }
 
     @Test
+    void skleneneTabuleJenProRefined() {
+        // Stavitel REFINED (masonry) ze 6 skel složí tabule do oken.
+        assertEquals("skleněné tabule", CraftPlanner.next(stateMasonry(Material.GLASS, 6)).id());
+        // Bez masonry (solidní dům) se plné sklo na tabule nemění – jinak by
+        // solidní dům přestal umět zasklít okna z plného skla.
+        assertNull(CraftPlanner.next(state(Material.GLASS, 6)));
+        // Se zásobou tabulí už další netřeba (strop).
+        assertNull(CraftPlanner.next(
+                stateMasonry(Material.GLASS, 12, Material.GLASS_PANE, 16)));
+    }
+
+    @Test
     void osivoOdemkneMotyku() {
         // Bot s kamennou výbavou a osivem si dodělá motyku (zorá pole i bez role).
         CraftPlanner.State withSeeds = state(

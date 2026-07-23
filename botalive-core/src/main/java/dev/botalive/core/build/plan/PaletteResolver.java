@@ -77,23 +77,24 @@ public final class PaletteResolver {
                 byRole.put(PaletteRole.ROOF, List.of(roof, Material.COBBLESTONE, planks));
             }
             case REFINED -> {
-                // Reprezentativní: cihlové zdi na tesaném základu a pod tesanou
-                // střechou. Oba materiály bot vyrobí sám – cihly z hlíny (hlína
-                // → cihla → blok), tesané cihly z kamene (cobble → kámen →
-                // tesané, gate-ováno na REFINED) – takže se na tenhle tier dá
-                // dozrát plně autonomně. Přírodní kámen/dlažba zůstávají
-                // přijatelné (nebourá se, co už drží pohromadě).
+                // Reprezentativní dům: cihly a tesaný kámen, oba si bot vyrobí sám
+                // (cihly z hlíny, tesané cihly z kamene – gate-ováno na REFINED).
+                // Podle seedu se prohodí, co je zeď a co základ/střecha, ať dva
+                // reprezentativní domy nejsou stejné; přírodní kámen/dlažba
+                // zůstávají přijatelné (nebourá se, co drží pohromadě).
+                Material primary = choose(rng, Material.BRICKS, Material.STONE_BRICKS);
+                Material accent = primary == Material.BRICKS
+                        ? Material.STONE_BRICKS : Material.BRICKS;
                 byRole.put(PaletteRole.FOUNDATION,
-                        List.of(Material.STONE_BRICKS, Material.BRICKS, Material.STONE,
-                                Material.COBBLESTONE));
-                byRole.put(PaletteRole.WALL,
-                        List.of(Material.BRICKS, Material.STONE_BRICKS, planks));
+                        List.of(accent, primary, Material.STONE, Material.COBBLESTONE));
+                byRole.put(PaletteRole.WALL, List.of(primary, accent, planks));
                 byRole.put(PaletteRole.WALL_ACCENT, List.of(log));
-                // Sklo (ne tabule): boti ho umí vytavit z písku, tabule zatím ne –
-                // tak se reprezentativní okna vůbec zasklí. Tabule zůstává přijatelná.
-                byRole.put(PaletteRole.WINDOW, List.of(Material.GLASS, Material.GLASS_PANE));
+                // Tabule (ne plné sklo): tenká reprezentativní okna. Bot je
+                // vyrobí ze skla (sklo z písku → tabule, masonry gate). Plné
+                // sklo zůstává přijatelné.
+                byRole.put(PaletteRole.WINDOW, List.of(Material.GLASS_PANE, Material.GLASS));
                 byRole.put(PaletteRole.ROOF,
-                        List.of(Material.STONE_BRICKS, Material.BRICKS, Material.COBBLESTONE));
+                        List.of(accent, primary, Material.COBBLESTONE));
             }
             default -> throw new IllegalStateException("neznámý tier: " + tier);
         }

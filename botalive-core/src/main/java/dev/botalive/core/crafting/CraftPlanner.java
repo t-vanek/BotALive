@@ -50,6 +50,9 @@ public final class CraftPlanner {
     /** Strop zásoby tesaných cihel (jako {@link #BRICK_BLOCK_STOCK}). */
     private static final int STONE_BRICK_STOCK = 16;
 
+    /** Strop zásoby skleněných tabulí do oken reprezentativního domu. */
+    private static final int GLASS_PANE_STOCK = 16;
+
     /**
      * Jeden plán receptu: co vyrobit a z čeho (3×3 matice, row-major).
      *
@@ -609,6 +612,15 @@ public final class CraftPlanner {
             return new Plan("tesané cihly", matrix(
                     Material.STONE, 0, Material.STONE, 1, Material.STONE, 3, Material.STONE, 4),
                     false);
+        }
+        // ---- skleněné tabule do oken REFINED domu: 6 skla → 16 tabulí. Jen
+        // masonry (REFINED chce tabule); solidní dům skleněná okna z plného
+        // skla by si jinak proměnil na tabule a přestal je umět zasklít.
+        if (s.masonry() && s.count(Material.GLASS) >= 6
+                && s.count(Material.GLASS_PANE) < GLASS_PANE_STOCK) {
+            return new Plan("skleněné tabule", matrix(
+                    Material.GLASS, 0, Material.GLASS, 1, Material.GLASS, 2,
+                    Material.GLASS, 3, Material.GLASS, 4, Material.GLASS, 5), true);
         }
         return null;
     }

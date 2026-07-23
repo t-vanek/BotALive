@@ -88,16 +88,17 @@ Dům dostane **stavební stupeň**
 
 | Role | PROVISIONAL „srub" | SOLID „solidní" | REFINED „reprezentativní" |
 |---|---|---|---|
-| FOUNDATION | prkna / hlína | dlažba / kámen (dnešek) | tesaný kámen |
-| WALL | prkna | prkna | cihly |
+| FOUNDATION | prkna / hlína | dlažba / kámen (dnešek) | cihly / tesaný kámen* |
+| WALL | prkna | prkna | cihly / tesaný kámen* |
 | WALL_ACCENT | kmen | kmen | kmen |
-| WINDOW | otvor (prázdná role) | sklo | sklo (tabule přijatelná) |
-| ROOF | prkna / kmen | dlažba / prkna | tesaný kámen |
+| WINDOW | otvor (prázdná role) | sklo | skleněné tabule |
+| ROOF | prkna / kmen | dlažba / prkna | cihly / tesaný kámen* |
 
-REFINED = **cihlové zdi na tesaném základu a pod tesanou střechou**. Oba
-materiály bot vyrobí sám: `BRICKS` z hlíny (hlína → cihla → blok), `STONE_BRICKS`
-z kamene (cobble → kámen → tesané cihly). Přírodní kámen/dlažba zůstávají
-přijatelné (nebourá se, co drží pohromadě).
+REFINED = cihly a tesaný kámen, oba si bot vyrobí sám: `BRICKS` z hlíny
+(hlína → cihla → blok), `STONE_BRICKS` z kamene (cobble → kámen → tesané cihly).
+`*` **Variace podle seedu:** zeď je jeden materiál, základ a střecha druhý –
+dva reprezentativní domy nejsou stejné. Okna jsou **skleněné tabule** (sklo →
+tabule, masonry gate); plné sklo i přírodní kámen zůstávají přijatelné.
 
 - `PaletteResolver.resolve(woodHint, seed, tier)` – nová dimenze `tier`;
   2-arg varianta zůstává a míří na `SOLID` (dnešní vzhled beze změny).

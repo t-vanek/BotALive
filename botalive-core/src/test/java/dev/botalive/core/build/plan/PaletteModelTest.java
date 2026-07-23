@@ -8,9 +8,11 @@ import org.junit.jupiter.api.Test;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /** Paleta, přijatelnost a rozpis materiálu – čisté funkce, deterministické. */
@@ -54,21 +56,23 @@ class PaletteModelTest {
     }
 
     @Test
-    void refinedTierIsBrickAndStoneAndSelfMakeable() {
+    void refinedTierIsSelfMakeableMasonryWithVariation() {
         Palette t2 = PaletteResolver.resolve(Material.OAK_LOG, 5, BuildTier.REFINED);
-        // Cihlové zdi (hlína → cihla → blok) na tesaném základu a pod tesanou
-        // střechou (cobble → kámen → tesané cihly) – vše bot vyrobí sám.
-        assertEquals(Optional.of(Material.BRICKS), t2.intended(PaletteRole.WALL),
-                "reprezentativní zeď z cihel");
-        assertEquals(Optional.of(Material.STONE_BRICKS), t2.intended(PaletteRole.FOUNDATION),
-                "reprezentativní základ z tesaného kamene");
-        assertEquals(Optional.of(Material.STONE_BRICKS), t2.intended(PaletteRole.ROOF),
-                "reprezentativní střecha z tesaného kamene");
-        // Cihly zůstávají přijatelné i pro základ (nebourá se, co drží).
-        assertTrue(t2.accepted(PaletteRole.FOUNDATION).contains(Material.BRICKS),
-                "cihly v základu jsou přijatelné");
-        assertEquals(Optional.of(Material.GLASS), t2.intended(PaletteRole.WINDOW),
-                "reprezentativní okna ze skla (tabule přijatelná)");
+        Material wall = t2.intended(PaletteRole.WALL).orElseThrow();
+        Material foundation = t2.intended(PaletteRole.FOUNDATION).orElseThrow();
+        Material roof = t2.intended(PaletteRole.ROOF).orElseThrow();
+        // Zeď i základ jsou cihly nebo tesaný kámen (obojí bot vyrobí sám)…
+        Set<Material> masonry = Set.of(Material.BRICKS, Material.STONE_BRICKS);
+        assertTrue(masonry.contains(wall), "zeď z cihel/tesaného kamene");
+        assertTrue(masonry.contains(foundation), "základ z cihel/tesaného kamene");
+        // …a liší se (variace): zeď jedno, základ + střecha druhé.
+        assertNotEquals(wall, foundation, "zeď a základ se liší (variace)");
+        assertEquals(foundation, roof, "základ a střecha stejný materiál");
+        // Tabulková okna (bot je vyrobí ze skla), plné sklo přijatelné.
+        assertEquals(Optional.of(Material.GLASS_PANE), t2.intended(PaletteRole.WINDOW),
+                "reprezentativní okna z tabulí");
+        // Deterministické podle seedu.
+        assertEquals(t2, PaletteResolver.resolve(Material.OAK_LOG, 5, BuildTier.REFINED));
     }
 
     @Test
