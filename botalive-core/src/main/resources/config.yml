@@ -564,11 +564,10 @@ build:
   # místa, větší z několika stanovišť po vnitřní podlaze.
   #
   # Strop 9 je záměrný kompromis: dá žebříček 5 → 7 → 9 v zákrytu se stupni
-  # sídla a nechá mezi parcelami 3 bloky na cestičky. Zvyšovat dál se
-  # nevyplácí – dům 11×11 chce 403 bloků v batohu naráz (brána v
-  # BuildHouseGoal je vyžaduje před zahájením) a při rozestupu parcel 12
-  # zbude mezi domy jediný blok; od 13 se parcely překrývají. Když strop
-  # zvedáš, zvedni s ním i settlement.plot-spacing.
+  # sídla a nechá mezi parcelami 3 bloky na cestičky. Strop se PŘI NAČTENÍ
+  # automaticky zkrátí pod rozestup parcel (settlement.plot-spacing − 3), aby
+  # dům nikdy nelezl k sousedovi ani nevyčníval z ochranného pásma. Když chceš
+  # větší domy, zvedni ZÁROVEŇ settlement.plot-spacing (jinak se strop zkrátí zpět).
   width: 9
   # Spodní mez výšky zdí (útulná osada). Skutečnou výšku volí bot podle stupně
   # sídla a povahy: osada staví nízko (tato hodnota), vesnice o patro výš, město
