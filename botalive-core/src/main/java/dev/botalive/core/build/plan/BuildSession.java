@@ -5,6 +5,7 @@ import dev.botalive.core.tasks.BotTask;
 import dev.botalive.core.tasks.MineBlockTask;
 import dev.botalive.core.tasks.PlaceBlockTask;
 import dev.botalive.core.util.BlockPos;
+import dev.botalive.core.util.Vec3;
 
 import org.bukkit.Material;
 
@@ -76,6 +77,15 @@ public final class BuildSession {
     private static final int NAV_PER_CLIMB_BLOCK = 30;
     /** Kolikrát projet chybějící bloky znovu, než se stavba prohlásí za torzo. */
     private static final int MAX_VERIFY_PASSES = 2;
+    /**
+     * Pojistka proti zamrznutí: kolik ticků smí session stát bez jakéhokoli
+     * postupu (fronty i pozice bota se nehýbou), než to vzdá jako torzo.
+     * Volí se nad interní stropy dílčích tasků ({@code MineBlockTask} ~600,
+     * chůze na stanoviště ≤ ~660), takže normální „pomalý" krok (těžba tvrdého
+     * bloku, výstup po pilíři) pojistku nesepne – jen skutečné uváznutí, které
+     * watchdog {@code BotImpl}u nevidí, protože bot zrovna nenaviguje.
+     */
+    private static final int STALL_LIMIT = 800;
 
     private final BlockPos furnishStand;
     private final boolean standExact;
@@ -98,6 +108,11 @@ public final class BuildSession {
     private int navBudget = NAV_BUDGET;
     private int verifyPasses;
     private PaletteRole missing;
+
+    /** Pojistka proti zamrznutí: postupový podpis a pozice z minulého pokroku. */
+    private long lastProgressSig = Long.MIN_VALUE;
+    private Vec3 lastProgressPos;
+    private int idleTicks;
 
     /**
      * Legacy stavba: zaměnitelný stavební blok pro všechny bloky.
@@ -135,6 +150,16 @@ public final class BuildSession {
      * @return stav (RUNNING / DONE / BLOCKED_MATERIAL / UNREACHABLE)
      */
     public State tick(BotContext ctx) {
+        State state = advance(ctx);
+        // Pojistka: jen dokud session „běží". Terminální stavy (DONE, blokace)
+        // řeší cíl sám; hlídáme uváznutí uvnitř běhu.
+        if (state == State.RUNNING && stalled(ctx)) {
+            return State.INCOMPLETE; // nic se nehýbe – radši torzo k dostavbě jindy než zamrznout
+        }
+        return state;
+    }
+
+    private State advance(BotContext ctx) {
         return switch (phase) {
             case TERRAFORM -> tickTerraform(ctx);
             case UNIT_GOTO -> tickUnitGoto(ctx);
@@ -144,6 +169,29 @@ public final class BuildSession {
             case FURNISH -> tickFurnish(ctx);
             case DONE -> State.DONE;
         };
+    }
+
+    /**
+     * Uvázla stavba? Postup se pozná ze změny fáze/velikosti front nebo z pohybu
+     * bota; když se ani jedno nezmění {@link #STALL_LIMIT} ticků, session
+     * zamrzla (task, který nikdy nedokončí, nebo chůze, kterou nižší vrstvy
+     * neošetřily) a je čas to vzdát. Pohyb bota se počítá jako postup, takže
+     * legitimní chůze/pilířování na stanoviště pojistku nesepne.
+     */
+    private boolean stalled(BotContext ctx) {
+        long sig = phase.ordinal()
+                + 7L * mine.size() + 13L * fill.size() + 17L * units.size()
+                + 19L * placements.size() + 23L * scaffold.size() + 29L * furnish.size();
+        Vec3 pos = ctx.position();
+        boolean moved = lastProgressPos == null
+                || (pos != null && pos.distanceSquared(lastProgressPos) > 0.04);
+        if (sig != lastProgressSig || moved) {
+            lastProgressSig = sig;
+            lastProgressPos = pos;
+            idleTicks = 0;
+            return false;
+        }
+        return ++idleTicks > STALL_LIMIT;
     }
 
     /** @return stanoviště, kam session právě míří (pro simulaci/diagnostiku). */

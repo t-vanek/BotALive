@@ -3,6 +3,7 @@ package dev.botalive.core.tasks;
 import dev.botalive.core.ai.BotContext;
 import dev.botalive.core.util.BlockPos;
 import dev.botalive.core.util.Vec3;
+import dev.botalive.core.world.BlockTraits;
 import org.geysermc.mcprotocollib.protocol.data.game.entity.object.Direction;
 
 /**
@@ -23,6 +24,8 @@ public final class PlaceBlockTask implements BotTask {
     private int verifyTicks;
     private BlockPos against;
     private Direction face;
+    /** Byl cílový chunk načtený těsně před pokládkou? (rozliší úspěch od studeného chunku) */
+    private boolean targetWasLoaded;
 
     /**
      * @param target pozice, kde má blok vzniknout
@@ -49,19 +52,30 @@ public final class PlaceBlockTask implements BotTask {
                 }
             }
             case PLACE -> {
+                // Stav cache před pokládkou: úspěšný place chunk vzápětí
+                // invaliduje (BlockPlaceEvent → SnapshotWorldView.invalidate),
+                // takže „cíl byl načtený a teď je UNKNOWN" je signál úspěchu.
+                targetWasLoaded = ctx.worldView() != null && ctx.worldView().isAvailable(target);
                 ctx.actions().useItemOn(against, face);
                 phase = Phase.VERIFY;
             }
             case VERIFY -> {
                 // Ověření přes traits (kolize se objevila), ne Material.isAir –
                 // materiálové API sahá na server Registry a vrstva tasků má
-                // zůstat nad WorldView abstrakcí.
-                if (ctx.worldView() != null
-                        && !ctx.worldView().traitsAt(target).noCollision()) {
+                // zůstat nad WorldView abstrakcí. UNKNOWN (nenačtený chunk) má
+                // FULL_BOXES, takže sám o sobě NEznamená „položeno": bral by se
+                // jako úspěch i nad studeným chunkem (odmítnutá pokládka na
+                // hranici) a nafoukl statistiku. Úspěch je buď potvrzený pevný
+                // blok, nebo UNKNOWN vzniklé invalidací po NAŠÍ pokládce do
+                // dříve načteného chunku; studený cíl počká na reload.
+                BlockTraits at = ctx.worldView() == null ? null : ctx.worldView().traitsAt(target);
+                boolean placed = at != null && at != BlockTraits.UNKNOWN && !at.noCollision();
+                boolean invalidatedByOwnPlace = at == BlockTraits.UNKNOWN && targetWasLoaded;
+                if (placed || invalidatedByOwnPlace) {
                     ctx.stats().addPlaced();
                     phase = Phase.DONE;
                 } else if (++verifyTicks > 20) {
-                    phase = Phase.DONE; // nepodařilo se (kolize s entitou apod.)
+                    phase = Phase.DONE; // nepodařilo se (kolize s entitou / studený cíl)
                 }
             }
             case DONE -> {

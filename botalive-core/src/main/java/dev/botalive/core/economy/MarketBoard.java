@@ -33,6 +33,14 @@ public final class MarketBoard {
     private static final long OFFER_TTL_MS = 4 * 60_000L;
     /** Jak dlouho smí zájemci trvat cesta pro zboží. */
     private static final long DEAL_TTL_MS = 90_000L;
+    /**
+     * Tržní poplatek (podíl z ceny), který se při předávce „spálí" – kupec
+     * zaplatí plnou cenu, prodejce dostane o poplatek méně. Jediný propad
+     * peněz v ekonomice: bez něj se peníze jen razí (těžba) a zásoba roste
+     * monotónně, takže cena přestává být signálem. Drží se nízko, ať obchod
+     * pořád dává smysl.
+     */
+    private static final double MARKET_FEE = 0.10;
 
     /**
      * Nabídka na tržišti.
@@ -188,7 +196,10 @@ public final class MarketBoard {
         if (!buyer.get().wallet().withdraw(price, "trh: nákup " + what)) {
             return false;
         }
-        seller.get().wallet().deposit(price, "trh: prodej " + what);
+        // Poplatek se spálí: prodejci přeteče cena bez poplatku, zbytek mizí
+        // z ekonomiky (jediný sink proti ražbě z těžby).
+        double proceeds = price * (1.0 - MARKET_FEE);
+        seller.get().wallet().deposit(proceeds, "trh: prodej " + what);
         return true;
     }
 

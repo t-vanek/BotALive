@@ -136,6 +136,7 @@ public final class BotMemoryImpl implements BotMemory {
         MemoryRecord record = new MemoryRecord(0, botId, enumKind, world, x, y, z, subject,
                 Map.copyOf(effectiveData), Math.min(1.0, importance), now, now);
         records.add(record);
+        enforceKindCap(enumKind);
         if (repository == null) {
             return;
         }
@@ -184,6 +185,50 @@ public final class BotMemoryImpl implements BotMemory {
         long now = clock.getAsLong();
         return records.stream().filter(r -> Objects.equals(r.subject(), subject))
                 .map(r -> decayed(r, now)).toList();
+    }
+
+    /** Prozkoumané body: nejvíc přibývají, nejmenší hodnota – držíme jen nedávné. */
+    private static final int VISITED_PLACE_CAP = 64;
+    /** Štědrá pojistka pro ostatní kategorie – běžný počet ji nikdy netkne. */
+    private static final int DEFAULT_KIND_CAP = 256;
+
+    /** Horní mez počtu záznamů dané kategorie na bota. */
+    private static int capForKind(MemoryKind kind) {
+        return kind == MemoryKind.VISITED_PLACE ? VISITED_PLACE_CAP : DEFAULT_KIND_CAP;
+    }
+
+    /**
+     * Udrží počet záznamů kategorie pod {@link #capForKind}: při překročení
+     * vyřadí nejslabší (nejnižší dožitá důležitost, pak nejstarší). Čerstvě
+     * vložený má aktuální důležitost i nejnovější čas, takže se řadí naposled a
+     * nikdy nepadne za oběť (pořadí chrání i případné dosud neuložené záznamy).
+     * Z DB se maže jen to, co v ní je ({@code id > 0}). Bez capu roste
+     * {@code ba_memories} neomezeně (nejvíc {@code VISITED_PLACE} z
+     * {@code ExploreGoal}) a zpomaluje i slučovací sken.
+     */
+    private void enforceKindCap(MemoryKind kind) {
+        int cap = capForKind(kind);
+        long now = clock.getAsLong();
+        List<MemoryRecord> ofKind = new ArrayList<>();
+        for (MemoryRecord r : records) {
+            if (r.kind() == kind) {
+                ofKind.add(r);
+            }
+        }
+        int over = ofKind.size() - cap;
+        if (over <= 0) {
+            return;
+        }
+        ofKind.sort(Comparator
+                .comparingDouble((MemoryRecord r) -> effectiveImportance(r, now))
+                .thenComparingLong(MemoryRecord::updatedAt));
+        for (int i = 0; i < over; i++) {
+            MemoryRecord victim = ofKind.get(i);
+            records.remove(victim);
+            if (victim.id() > 0 && repository != null) {
+                repository.deleteMemory(victim.id());
+            }
+        }
     }
 
     /** Efektivní důležitost vzpomínky (rozpad vztahů i cizích kategorií při čtení). */
