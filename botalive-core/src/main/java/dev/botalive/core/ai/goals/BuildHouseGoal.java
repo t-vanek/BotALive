@@ -589,9 +589,10 @@ public final class BuildHouseGoal extends AbstractGoal {
         if (!buildCfg.complex()) {
             return HouseBlueprint.blocksNeeded();
         }
-        int width = HouseDesigner.widthFor(settlementTier(ctx, bot),
-                bot.personality().trait(Trait.LAZINESS), buildCfg.width());
-        return new HouseGenerator(width, buildCfg.wallHeight()).blocksNeeded();
+        var size = dev.botalive.core.build.plan.StructureSizer.house(settlementTier(ctx, bot),
+                bot.personality().trait(Trait.LAZINESS), buildCfg.width(),
+                buildCfg.wallHeight(), buildCfg.maxWallHeight());
+        return new HouseGenerator(size.width(), size.wallHeight()).blocksNeeded();
     }
 
     /**

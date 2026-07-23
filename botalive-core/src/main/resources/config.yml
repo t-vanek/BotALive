@@ -570,8 +570,13 @@ build:
   # zbude mezi domy jediný blok; od 13 se parcely překrývají. Když strop
   # zvedáš, zvedni s ním i settlement.plot-spacing.
   width: 9
-  # Výška zdí.
+  # Spodní mez výšky zdí (útulná osada). Skutečnou výšku volí bot podle stupně
+  # sídla a povahy: osada staví nízko (tato hodnota), vesnice o patro výš, město
+  # až k max-wall-height; pracovitý staví vzdušněji, líný skromněji. Vyšší dům
+  # dostaví z pilířového stanoviště (jako komín reprezentativního domu).
   wall-height: 3
+  # Horní mez výšky zdí (strop pro reprezentativní domy měst).
+  max-wall-height: 5
   # Ladění výběru staveniště SPOLEČNÝCH staveb (studna, sýpka, tržiště,
   # radnice, kostel). Čistá geometrie – bezpečné měnit za běhu. Defaulty drží
   # dnešní chování.

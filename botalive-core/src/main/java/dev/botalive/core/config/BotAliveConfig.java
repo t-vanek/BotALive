@@ -56,12 +56,15 @@ public record BotAliveConfig(
      * (plná zpětná kompatibilita); zapnuto = generované domy z palet podle
      * místního dřeva (větší půdorys, okna, valbová střecha).
      *
-     * @param complex    zapnout generované domy místo legacy 4×4
-     * @param width      strop půdorysu (lichý, ≥ 5); skutečnou velikost volí
-     *                   bot podle stupně sídla a povahy
-     * @param wallHeight výška zdí
+     * @param complex       zapnout generované domy místo legacy 4×4
+     * @param width         strop půdorysu (lichý, ≥ 5); skutečnou velikost volí
+     *                      bot podle stupně sídla a povahy
+     * @param wallHeight    spodní mez výšky zdí (osada); skutečnou výšku volí bot
+     *                      podle stupně sídla a povahy (vesnice/město staví výš)
+     * @param maxWallHeight horní mez výšky zdí (strop pro reprezentativní domy měst)
      */
-    public record Build(boolean complex, int width, int wallHeight, Site site) {
+    public record Build(boolean complex, int width, int wallHeight, int maxWallHeight,
+                        Site site) {
 
         /**
          * Ladění výběru staveniště společných staveb (studna, sýpka, tržiště,

@@ -269,10 +269,12 @@ public final class ConfigLoader {
         if (buildWidth % 2 == 0) {
             buildWidth++; // lichý půdorys – čistý střed pro stavitele
         }
+        int buildWallHeight = Math.max(2, c.getInt("build.wall-height", 3));
         var build = new BotAliveConfig.Build(
                 c.getBoolean("build.complex", true),
                 buildWidth,
-                Math.max(2, c.getInt("build.wall-height", 3)),
+                buildWallHeight,
+                Math.max(buildWallHeight, c.getInt("build.max-wall-height", 5)),
                 new BotAliveConfig.Build.Site(
                         Math.max(4, c.getInt("build.site.surface-scan", 24)),
                         Math.max(0, c.getInt("build.site.max-fills", 4)),
