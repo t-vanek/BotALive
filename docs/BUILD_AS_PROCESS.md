@@ -48,7 +48,7 @@ a jsou hotové; 2–5 čekají na dopracování.
 | **1** | Okna jako otvor | `SubstitutionPolicy` po rolích; `WINDOW`=`LEAVE_EMPTY`; oprava pasti ve verifikaci a údržbě | **hotovo** |
 | **2** | Tiery palety | `PaletteResolver.resolve(wood, seed, tier)`; Tier 0 = dřevo + otvory; `tier` do HOME dat | **hotovo** |
 | **3** | Upgrade smyčka | údržba diffuje proti *vyššímu* tieru a nahrazuje po rolích, atomicky | **hotovo** |
-| **4** | BOM wishlist | zapojit `BillOfMaterials` → cílené shánění/craft (sklo, cihly) | návrh |
+| **4** | BOM wishlist | *build wishlist* → cílené shánění; hotová **sklo-smyčka** (písek → sklo), cihly/tesaný kámen zbývají | **z části** |
 | **5** | Zarovnání okolí | apron + sokl/terasa kolem půdorysu | návrh |
 
 ### Fáze 0 – Gate zásypu (hotovo)
@@ -138,14 +138,27 @@ bezpečné). **Strukturální** (větší dům, patro – bourá střechu) je sa
 pozdější kapitola. Uložený `btier` se dnes při konvergenci nepřepisuje (dům se
 levně re-diffuje každé ráno) – volitelná optimalizace do budoucna.
 
-### Fáze 4 – BOM wishlist
+### Fáze 4 – Build wishlist (z části hotovo)
 
-Dosud mrtvý
-[`BillOfMaterials`](../botalive-core/src/main/java/dev/botalive/core/build/plan/BillOfMaterials.java)
-se zapojí jako *build wishlist*: rozpis materiálu tieru → bot cíleně shání a
-craftuje (sklo z písku, cihly z hlíny, tesaný kámen). Bez toho tiery uváznou –
-bot nikdy záměrně nesežene sklo. Řetězec „rozpis → wishlist → náhrada" už
-předjímá `COMPLEX_BUILDS.md`, jen nebyl postavený. Sem patří i dosud
+Bez cíleného shánění by tiery uvázly – bot nikdy záměrně nesežene sklo a okna
+zůstanou navždy otvory. Zapojena je **kompletní sklo-smyčka**:
+
+- [`BuildMaterials.gatherWishlist`](../botalive-core/src/main/java/dev/botalive/core/build/plan/BuildMaterials.java)
+  (čistá funkce): pro solidní+ dům, který nemá sklo ani písek, vrátí **písek**
+  (a červený písek) k natěžení. Srub (PROVISIONAL) nic nechce – okna jsou otvory.
+- [`MineGoal`](../botalive-core/src/main/java/dev/botalive/core/ai/goals/MineGoal.java)
+  ho bere jako **krok 1b** – nižší priorita než rudy: písek se sbírá, jen když
+  poblíž není žádaná ruda, ať těžba nástrojů má přednost. Cílový tier počítá
+  `MineGoal.buildTarget` z prosperity a osobnosti (`HouseDesigner.tierFor`).
+- Písek pak roztaví na sklo existující `SmeltGoal`/`FurnaceService` (reaktivně)
+  a okna zasklí oprava (`MaintainHomeGoal`, fáze 3). Řetězec je uzavřený:
+  **natěžit písek → roztavit → zasklít**.
+
+**Zbývá:** cihly (hlína → tavba) a tesaný kámen (kámen → craft) pro REFINED –
+chtějí nové recepty v `CraftPlanner` (dnes žádný `BRICKS`/`STONE_BRICKS` recept
+neexistuje), pak je přidat do `gatherWishlist`. Do budoucna sem patří i zapojení
+per-materiálového [`BillOfMaterials`](../botalive-core/src/main/java/dev/botalive/core/build/plan/BillOfMaterials.java)
+jako přesného rozpisu (dnes gate zůstává na skalárním počtu bloků) a dosud
 neexistující `build.substitute-after-minutes`.
 
 ### Fáze 5 – Zarovnání okolí
