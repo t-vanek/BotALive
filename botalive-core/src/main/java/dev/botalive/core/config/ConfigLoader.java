@@ -269,10 +269,23 @@ public final class ConfigLoader {
         if (buildWidth % 2 == 0) {
             buildWidth++; // lichý půdorys – čistý střed pro stavitele
         }
+        // Strop půdorysu musí zůstat pod rozestupem parcel (jinak by dům lezl
+        // k sousedovi a vyčníval z ochranného pásma). Zkrátit na plot-spacing − 3
+        // (lichý), aby mezi domy zbyla cesta i při zvednutém stropu velikosti.
+        int plotSpacing = settlement.plotSpacing();
+        int widthCeiling = plotSpacing - 3;
+        if (widthCeiling % 2 == 0) {
+            widthCeiling--;
+        }
+        buildWidth = Math.max(5, Math.min(buildWidth, widthCeiling));
+        int buildWallHeight = Math.max(2, c.getInt("build.wall-height", 3));
         var build = new BotAliveConfig.Build(
                 c.getBoolean("build.complex", true),
                 buildWidth,
-                Math.max(2, c.getInt("build.wall-height", 3)),
+                buildWallHeight,
+                Math.max(buildWallHeight, c.getInt("build.max-wall-height", 5)),
+                c.getBoolean("build.grow", false),
+                Math.max(0, c.getInt("build.reserve", 2)),
                 new BotAliveConfig.Build.Site(
                         Math.max(4, c.getInt("build.site.surface-scan", 24)),
                         Math.max(0, c.getInt("build.site.max-fills", 4)),

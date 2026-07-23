@@ -875,6 +875,12 @@ class SettlementServiceTest {
                 "podloží těsně pod domem se nesmí vybrat");
         assertTrue(service.isStructureProtected(WORLD, plot.offset(3, 4, 3)),
                 "objem domu do výšky");
+        // Ochranné pásmo se škáluje s rozestupem (12−3 = 9), takže pokryje i
+        // rohy širšího generovaného domu, ne jen legacy 4×4 (poloměr 8).
+        assertTrue(service.isStructureProtected(WORLD, plot.offset(9, 0, 9)),
+                "roh širokého domu (poloměr 9) je chráněný");
+        assertFalse(service.isStructureProtected(WORLD, plot.offset(11, 0, 11)),
+                "za pásmem se zase kopat smí");
     }
 
     /** Hluboko pod vesnicí i kus za ní se kopat smí – ochrana není klec. */

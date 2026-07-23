@@ -104,6 +104,28 @@ public final class BuildPlanner {
      * @return proveditelný rozvrh
      */
     public static BuildSchedule schedule(BuildPlan plan, WorldView world, boolean gradeApron) {
+        return schedule(plan, world, gradeApron, List.of());
+    }
+
+    /**
+     * Jako {@link #schedule(BuildPlan, WorldView, boolean)}, ale navíc <b>srovná
+     * rezervovanou platformu</b> pro pozdější růst: pro každý sloupec
+     * {@code reserveGround} (půdorys DOROSTLÉ velikosti + okraj, na úrovni
+     * {@code origin.y − 1}) srovná hrbol trčící do svahu na úrovni podlahy a hlavy.
+     * Rezerva tak dá rovnou zem pro celý dorostlý dům dopředu – růst pak nemusí
+     * dorovnávat terén. <b>Jen výkopy</b> (jako apron) – žádný materiál, takže
+     * srovnání rezervy nikdy nezablokuje stavbu domu (na rozdíl od zásypu, který
+     * by mohl bloky vyčerpat dřív, než dům vůbec vznikne).
+     *
+     * @param plan          rozvinutý plán stavby (aktuální velikost)
+     * @param world         stav světa
+     * @param gradeApron    srovnat i 1-blokový apron kolem aktuálního půdorysu
+     * @param reserveGround sloupce rezervované platformy (roh dorostlého půdorysu,
+     *                      {@code y = origin.y − 1}); prázdné = bez rezervy
+     * @return proveditelný rozvrh
+     */
+    public static BuildSchedule schedule(BuildPlan plan, WorldView world, boolean gradeApron,
+                                         List<BlockPos> reserveGround) {
         Set<Long> structure = new HashSet<>();
         for (PlacementCell cell : plan.cells()) {
             structure.add(cell.pos().asLong());
@@ -125,11 +147,43 @@ public final class BuildPlanner {
         if (gradeApron) {
             addApronDigs(plan, world, mine);
         }
+        gradeReserve(world, reserveGround, structure, mine);
         List<PlacementCell> ordered = order(plan.cells(), plan.groundColumns());
         List<WorkUnit> units = segment(ordered, plan);
         List<BlockPos> scaffold = scaffoldFor(units, plan.stand().y());
         return new BuildSchedule(mine, fill, units, plan.stand(),
                 plan.standExact(), plan.furnishing(), scaffold);
+    }
+
+    /**
+     * Srovná rezervovanou platformu (jen výkopy): pro každý sloupec
+     * {@code reserveGround} (na {@code y = floorY − 1}) srovná trčící blok na
+     * úrovni podlahy a hlavy. Hazard a nenačtené bloky přeskočí; bloky stavby
+     * ({@code structure}) i už zaevidované výkopy se nezdvojují. Bez zásypu –
+     * díry v platformě dorovná až pozdější růst (jeho viability gate), aby
+     * srovnání rezervy nikdy nespotřebovalo bloky určené domu.
+     */
+    private static void gradeReserve(WorldView world, List<BlockPos> reserveGround,
+                                     Set<Long> structure, List<BlockPos> mine) {
+        if (reserveGround == null || reserveGround.isEmpty()) {
+            return;
+        }
+        Set<Long> mined = new HashSet<>();
+        mine.forEach(p -> mined.add(p.asLong()));
+        for (BlockPos ground : reserveGround) {
+            int floorY = ground.y() + 1;
+            for (int y = floorY; y <= floorY + 1; y++) {
+                BlockPos pos = new BlockPos(ground.x(), y, ground.z());
+                BlockTraits t = world.traitsAt(pos);
+                if (t == BlockTraits.UNKNOWN || t.hazard() || !t.solid()) {
+                    continue;
+                }
+                if (structure.contains(pos.asLong()) || !mined.add(pos.asLong())) {
+                    continue;
+                }
+                mine.add(pos);
+            }
+        }
     }
 
     /**

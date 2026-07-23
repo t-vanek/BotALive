@@ -50,6 +50,7 @@ a jsou hotové; 2–5 čekají na dopracování.
 | **3** | Upgrade smyčka | údržba diffuje proti *vyššímu* tieru a nahrazuje po rolích, atomicky | **hotovo** |
 | **4** | Build wishlist | cílené shánění: **sklo-smyčka** (písek→sklo) i **cihlová smyčka** (hlína→cihla→blok) hotové; tesaný kámen volitelný | **hotovo** |
 | **5** | Zarovnání okolí | apron dig (srovnat prstenec) hotový; sokl/terasa (zásyp svahu) zbývá | **z části** |
+| **6** | Strukturální růst | dům se s prosperitou zvětšuje (5×5 → 7×7 → 9×9, vyšší zdi); aditivně, pak se odklidí starý vnitřek | **hotovo** (opt-in) |
 
 ### Fáze 0 – Gate zásypu (hotovo)
 
@@ -164,9 +165,9 @@ nikdy nesnižuje: dům povýšený za rozkvětu se nebourá, když sídlo splask
   v klidném ranním okně u domova – upgrade tak nikdy nepřebije jídlo, obranu
   ani spánek. Prosperita je hlavní hnací síla, osobnost moduluje (`tierFor`).
 
-Hranice: implementován **materiálový** upgrade (stejná geometrie – levné,
-bezpečné). **Strukturální** (větší dům, patro – bourá střechu) je samostatná,
-pozdější kapitola. Když dům plně dosáhne cílového tieru, `MaintainHomeGoal`
+Hranice: tato fáze je **materiálový** upgrade (stejná geometrie – levné,
+bezpečné). **Strukturální** růst (větší dům) je fáze 6. Když dům plně dosáhne
+cílového tieru, `MaintainHomeGoal`
 **zapíše dosažený `btier`** do HOME dat (jen zvýšení, nikdy nesnížení) – pak se
 už zbytečně nediffuje a údržba míří na správný materiál i kdyby prosperita
 později splaskla.
@@ -229,17 +230,89 @@ místo věčného kopání – vypadá líp a míň jizví krajinu. Chce to zás
 s materiálem (nesmí zablokovat stavbu → best-effort, ne přes hlavní `fill`
 frontu) a hezčí geometrii podezdívky. Nezávislé na tierech.
 
+### Fáze 6 – Strukturální růst (hotovo, opt-in)
+
+Nad rámec materiálového zrání dům **fyzicky roste**: jak sídlo bohatne (osada →
+vesnice → město), zvětšuje se i **půdorys a výška** (5×5 → 7×7 → 9×9, vyšší zdi).
+Velikost volí jediný zdroj pravdy
+([`StructureSizer`](../botalive-core/src/main/java/dev/botalive/core/build/plan/StructureSizer.java):
+`houseWidth`/`houseWallHeight` – prosperita žene, osobnost moduluje, config dává
+strop), stejně jako materiálový tier.
+
+Klíč je **bezpečné pořadí** (rozhodnutí 4 zobecněné z materiálu na geometrii):
+*aditivně napřed, demolice vnitřku naposled.* Čistá funkce
+[`StructureGrowth`](../botalive-core/src/main/java/dev/botalive/core/build/plan/StructureGrowth.java)
+(sourozenec `HomeUpgrade`) vrátí **přídavky** (buňky většího pláště, které ještě
+nestojí) a **demolice** (staré strukturální bloky uvnitř nového pláště). Demolice
+jsou prázdné, **dokud plášť nestojí** – dům je tak celou dobu zakrytý (starý nižší
+krov drží, než se postaví nový vyšší; teprve pak se odklidí). Odklízí se přesně
+staré buňky mimo nový plášť, takže se nikdy neubourá nový plášť ani vybavení.
+
+[`MaintainHomeGoal.maybeGrow`](../botalive-core/src/main/java/dev/botalive/core/ai/goals/MaintainHomeGoal.java):
+- **Center-fixed origin.** Nový roh se spočítá tak, aby **střed** domu zůstal na
+  místě (dům je čtvercový). Střed = stanoviště stavitele = klíč HOME paměti, ten se
+  tedy nehýbe – žádná migrace klíče. Parcela v evidenci sídla se posune na nový roh.
+- **Viability gate.** Roste jen na **vhodném rovném terénu** (nová podlaha pod celým
+  půdorysem je pevná → obvod má oporu). Jinak růst počká – radši malý dům než torzo
+  na svahu.
+- **Determinismus a monotónnost.** Cíl je funkce prosperity a **uložené** velikosti
+  (`bw/bh`); přerušený růst se dostaví na tentýž tvar (world-diff resume). Po
+  dokončení se nová velikost i roh zapíšou (`max()`, nikdy nezmenší).
+- **Střídmost.** Materiál se povyšuje až po velikosti; růst běží po částech v klidném
+  ranním okně u domova, s nízkou utilitou – nikdy nepřebije jídlo/obranu/spánek.
+
+Za configem `build.grow` (default **vyp.**) – opt-in, protože i aditivní přestavba
+může dům přechodně otevřít jako každá rozestavěná stavba. Testy: `StructureGrowthTest`
+(invariant „žádná demolice, dokud plášť nestojí", přesnost demolic, idempotence,
+center-fixed origin).
+
+**Společné stavby** (radnice, kostel, městská sýpka/sklad) se **sizují z prosperity
+při vzniku** a rozměr se persistuje (viz `SETTLEMENTS_GROWTH.md`) – nová stavba
+v prosperujícím městě je větší. Plné *re-growth* už dokončené společné stavby (jako
+u domů) je přirozený další krok nad touž persistencí.
+
+**Rezervované staveniště.** Aby růst nemusel dorovnávat terén, staveniště se rovnou
+srovná pro **maximální dorostlý dům + okraj** (`build.reserve`) – ve všech osách
+(rovná plocha v X/Z, výškové srovnání). Srovnání rezervy je **jen výkopové** (jako
+apron), takže nikdy nespotřebuje bloky určené domu; díry dorovná až růst
+([`BuildPlanner.schedule(..., reserveGround)`](../botalive-core/src/main/java/dev/botalive/core/build/plan/BuildPlanner.java)).
+Rezerva se přichytí pod rozestup parcel, takže si stavby nechají odstup.
+
+**Nesmí se stavět na nesrovnaném terénu.** Pokládka je tvrdě gate-ovaná
+srovnáním: `BuildSession` projde **celý** `mine` (výkopy) + `fill` (zásyp podlahy;
+bez materiálu vrátí `BLOCKED_MATERIAL`, nikdy nepoloží zeď nad díru) a teprve pak
+klade stavbu. Platí to **i pro malé přístřešky**: `BuildShelterGoal` nově
+**nejdřív srovná/uzavře podlahu** (zaplní díry pod celým půdorysem 3×3) a teprve
+pak staví zdi – přístřešek tak stojí na pevné zemi, zeď má oporu a zespodu se
+nikdo nedostane (na rovině je podlaha už pevná → beze změny).
+
+**Přístřešek se sám nezazdí napořád.** Panik-budka je v noci **zapečetěná bez
+dveří** (bezpečí), takže by se v ní bot ráno sám zavřel a neutekl. Proto ji ve
+dne **rozebere** (`BuildShelterGoal`, mód demolice): hned prvním vytěženým blokem
+zdi vznikne východ, zbytek dorozebere a bloky si vezme zpět („ráno sbalí tábor").
+Nejvyšší priorita, dokud je zazděný – uvězněný bot stejně nic jiného nezvládne;
+rozdělaná demolice se vždy dokončí (žádná budka půl na půl).
+
+**Nouzový přístřešek je dočasný.** Panik-budka z první noci (`type=shelter`)
+není domov navždy: jakmile má bot **reálný dům**, ve dne budku poblíž **zbourá**
+(zapomene záznam) a bydlí v opravdové stavbě, která pak roste. Nízká priorita –
+úklid se řeší, jen když není nic naléhavějšího.
+
 ## Config a data (průřezově)
 
 - Apron dig je gate-ovaný stávajícím `ai.terraforming` (žádný nový config).
-  Do budoucna možné přepínače: `build.max-tier`, `build.substitute-after-minutes`.
 - HOME paměť: přidané pole `btier` (ordinal; aditivní migrace, chybí = `SOLID`).
-- Testy: `PaletteBuildTest` (hotový nový případ), plus budoucí testy na
-  tier-diff a atomicitu upgrade.
+- Výška domu: `build.wall-height` je nově **spodní mez** (osada), `build.max-wall-height`
+  strop; skutečnou výšku volí bot z prosperity a povahy (`StructureSizer`).
+- Strukturální růst: `build.grow` (default vyp.). Strop půdorysu (`build.width`) se
+  při načtení configu zkrátí pod rozestup parcel (`plot-spacing − 3`), aby dům
+  nelezl k sousedovi a nevyčníval z ochranného pásma.
+- Testy: `PaletteBuildTest`, `StructureSizerTest`, `StructureGrowthTest`.
 
-## Otevřené otázky pro fáze 2+
+## Otevřené otázky pro další fáze
 
 - Přesná materiálová tabulka tierů (co je „reprezentativní" pro které dřevo/biom).
-- Jak přesně škáluje tier s prosperitou a osobností (křivka utility).
 - Sokl vs. kopání: kde je hranice, za kterou se radši podezdí.
-- Strukturální upgrade (patro, přístavba) – vlastní kapitola, zatím mimo rámec.
+- Patro / přístavba (nečtvercová geometrie) – dnešní růst drží čtvercový půdorys
+  (rotační invariance, reach test); patro je další samostatná kapitola.
+- Re-growth už dokončených společných staveb (dnes se sizují při vzniku).

@@ -2,9 +2,12 @@ package dev.botalive.core.ai.goals;
 
 import dev.botalive.api.bot.Bot;
 import dev.botalive.api.memory.MemoryKind;
+import dev.botalive.api.memory.MemoryRecord;
 import dev.botalive.api.personality.Trait;
 import dev.botalive.core.ai.BotContext;
 import dev.botalive.core.inventory.InventoryHelper;
+import dev.botalive.core.tasks.BotTask;
+import dev.botalive.core.tasks.MineBlockTask;
 import dev.botalive.core.tasks.PlaceBlockTask;
 import dev.botalive.core.util.BlockPos;
 
@@ -22,10 +25,26 @@ import java.util.Map;
  */
 public final class BuildShelterGoal extends AbstractGoal {
 
+    /** Kolem přístřešku se řeší jen když je po ruce (netrmácet se kvůli úklidu). */
+    private static final int DEMOLISH_REACH = 80;
+    /** Osmi­směrný věnec zdí kolem stavitele (parita s {@link #planShelter}). */
+    private static final int[][] RING =
+            {{1, 0}, {-1, 0}, {0, 1}, {0, -1}, {1, 1}, {1, -1}, {-1, 1}, {-1, -1}};
+
+    private enum Mode { BUILD, DEMOLISH }
+
     private final Deque<PlaceBlockTask> plan = new ArrayDeque<>();
     private PlaceBlockTask current;
     private boolean planned;
     private int cooldownTicks;
+
+    /** Staví přístřešek (noc), nebo bourá dočasný přístřešek (má už reálný dům)? */
+    private Mode mode = Mode.BUILD;
+    /** Bloky bouraného přístřešku a jeho pozice (střed, uložený v HOME). */
+    private final Deque<BlockPos> demolish = new ArrayDeque<>();
+    private BlockPos shelterFeet;
+    private BotTask demolishTask;
+    private boolean demolishPlanned;
 
     /** Vytvoří cíl. */
     public BuildShelterGoal() {
@@ -43,6 +62,32 @@ public final class BuildShelterGoal extends AbstractGoal {
         if (outsideOverworld(ctx)) {
             return 0;
         }
+        // Rozdělané rozebrání přístřešku se VŽDY dokončí (nikdy budku půl na půl):
+        // jinak by se uprostřed mohla utilita přepnout (vytěžená zeď = už ne
+        // „uvězněn") a bot by zůstal jen s dírou, ne venku, se záznamem, který
+        // večer zabrání znovu-zapečetění.
+        if (mode == Mode.DEMOLISH && (demolishTask != null
+                || (demolishPlanned && !demolish.isEmpty()))) {
+            return 100;
+        }
+        // KRITICKÉ: ráno se z uzavřeného přístřešku dostat ven. Panik-budka je
+        // v noci zapečetěná (bezpečí = žádné dveře), ale bez východu se bot sám
+        // zazdí a neuteče. Ve dne proto celou budku rozebere ("sbalí tábor"):
+        // hned prvním vytěženým blokem zdi vznikne východ, zbytek dorozebere a
+        // bloky získá zpět. Nejvyšší priorita – zazděný bot stejně nic jiného
+        // nezvládne (pohyb je zablokovaný), tak ho nic nesmí předběhnout.
+        if (trappedInShelter(ctx, bot)) {
+            mode = Mode.DEMOLISH;
+            return 100;
+        }
+        // Dočasný přístřešek je jen na první noc: jakmile má bot reálný dům, ve dne
+        // ho zbourá, ať po světě nezůstávají panikářské budky. Nízká priorita –
+        // úklid se řeší, jen když není nic naléhavějšího (nikdy nepřebije přežití).
+        if (canDemolishShelter(ctx, bot)) {
+            mode = Mode.DEMOLISH;
+            return 3;
+        }
+        mode = Mode.BUILD;
         // Úkryt se staví na noc – a taky v bouřce (blesky zakládají požáry),
         // když je domov z ruky.
         if (!isNight(ctx.worldTime()) && !ctx.thundering()) {
@@ -84,11 +129,19 @@ public final class BuildShelterGoal extends AbstractGoal {
         plan.clear();
         current = null;
         planned = false;
+        demolish.clear();
+        demolishTask = null;
+        demolishPlanned = false;
+        shelterFeet = null;
     }
 
     @Override
     public void tick(Bot bot) {
         BotContext ctx = ctx(bot);
+        if (mode == Mode.DEMOLISH) {
+            tickDemolish(ctx, bot);
+            return;
+        }
         if (!planned) {
             planShelter(ctx);
             planned = true;
@@ -113,29 +166,171 @@ public final class BuildShelterGoal extends AbstractGoal {
             current.cancel(ctx(bot));
             current = null;
         }
+        if (demolishTask != null) {
+            demolishTask.cancel(ctx(bot));
+            demolishTask = null;
+        }
         plan.clear();
+        demolish.clear();
         super.stop(bot);
     }
 
     @Override
     public boolean finished(Bot bot) {
+        if (mode == Mode.DEMOLISH) {
+            return demolishPlanned && demolish.isEmpty() && demolishTask == null;
+        }
         return planned && plan.isEmpty() && current == null;
     }
 
-    /** Naplánuje obvodové zdi (2 bloky vysoké) + strop kolem aktuální pozice. */
-    private void planShelter(BotContext ctx) {
+    /**
+     * Je bot uvězněný ve vlastním uzavřeném přístřešku a je den? Panik-budka
+     * nemá dveře (v noci zapečetěná = bezpečná), takže ráno se z ní musí dostat
+     * ven – jinak se bot sám zazdí a neuteče. Jen ve dne (v noci ať zůstane
+     * uvnitř v bezpečí), jen u vlastního přístřešku a jen když je opravdu
+     * zavřený (buňka zdi u stavitele stojí).
+     */
+    private boolean trappedInShelter(BotContext ctx, Bot bot) {
+        if (ctx.worldView() == null || isNight(ctx.worldTime())) {
+            return false;
+        }
+        MemoryRecord shelter = shelterRecord(bot);
+        if (shelter == null || !ctx.worldView().worldName().equals(shelter.world())) {
+            return false;
+        }
+        BlockPos center = new BlockPos(shelter.x(), shelter.y(), shelter.z());
         BlockPos feet = ctx.position().toBlockPos();
-        int[][] ring = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}, {1, 1}, {1, -1}, {-1, 1}, {-1, -1}};
+        if (feet.distanceSquared(center) > 4) {
+            return false; // není uvnitř – žádné uvěznění
+        }
+        return ctx.worldView().traitsAt(center.offset(0, 0, 1)).solid();
+    }
+
+    // ============================================================ demolice
+
+    /**
+     * Smí bot ve dne zbourat svůj dočasný přístřešek? Jen když už má REÁLNÝ dům
+     * (přístřešek z první noci je pak zbytečný), je den a klid (v noci/bouřce si
+     * ho nech) a přístřešek je po ruce (nechodit kvůli úklidu přes celý svět).
+     */
+    private boolean canDemolishShelter(BotContext ctx, Bot bot) {
+        if (ctx.worldView() == null || isNight(ctx.worldTime()) || ctx.thundering()) {
+            return false;
+        }
+        if (!hasRealHouse(bot)) {
+            return false; // bez trvalého domova si přístřešek nech
+        }
+        MemoryRecord shelter = shelterRecord(bot);
+        if (shelter == null || !ctx.worldView().worldName().equals(shelter.world())) {
+            return false;
+        }
+        BlockPos feet = ctx.position().toBlockPos();
+        return shelter.distanceSquared(feet.x(), feet.y(), feet.z())
+                < DEMOLISH_REACH * DEMOLISH_REACH;
+    }
+
+    /** Zboří přístřešek: dojde k němu a vytěží jeho zdi a strop, pak ho zapomene. */
+    private void tickDemolish(BotContext ctx, Bot bot) {
+        if (!demolishPlanned) {
+            MemoryRecord shelter = shelterRecord(bot);
+            if (shelter == null) {
+                cooldownTicks = 6000;
+                return;
+            }
+            shelterFeet = new BlockPos(shelter.x(), shelter.y(), shelter.z());
+            for (int level = 0; level <= 1; level++) {
+                for (int[] offset : RING) {
+                    demolish.add(shelterFeet.offset(offset[0], level, offset[1]));
+                }
+            }
+            demolish.add(shelterFeet.offset(0, 2, 0)); // strop
+            demolishPlanned = true;
+        }
+        if (demolishTask != null) {
+            if (demolishTask.tick(ctx)) {
+                demolishTask = null;
+            }
+            return;
+        }
+        // Dojít k přístřešku (odtud dosáhne na celou budku 1×1).
+        if (ctx.position().toBlockPos().distanceSquared(shelterFeet) > 9) {
+            ctx.navigator().navigateTo(ctx.position(), shelterFeet);
+            if (!ctx.navigator().navigating()) {
+                finishDemolish(bot); // nedostupné – zapomenout, ať se necyklí
+            }
+            return;
+        }
+        ctx.navigator().stop();
+        BlockPos block = demolish.poll();
+        if (block == null) {
+            finishDemolish(bot);
+            return;
+        }
+        if (ctx.worldView() != null && ctx.worldView().traitsAt(block).solid()) {
+            demolishTask = new MineBlockTask(block);
+        }
+    }
+
+    /** Zapomene přístřešek (dům je teď skutečný domov) a nastaví klid. */
+    private void finishDemolish(Bot bot) {
+        bot.memory().forgetIf(MemoryKind.HOME, r -> "shelter".equals(r.data().get("type")));
+        demolish.clear();
+        cooldownTicks = 6000;
+    }
+
+    /** HOME záznam dočasného přístřešku (type=shelter), nebo {@code null}. */
+    private static MemoryRecord shelterRecord(Bot bot) {
+        for (MemoryRecord record : bot.memory().recall(MemoryKind.HOME)) {
+            if ("shelter".equals(record.data().get("type"))) {
+                return record;
+            }
+        }
+        return null;
+    }
+
+    /** Má bot skutečný dům (ne jen nouzový přístřešek)? */
+    private static boolean hasRealHouse(Bot bot) {
+        for (MemoryRecord record : bot.memory().recall(MemoryKind.HOME)) {
+            if ("house".equals(record.data().get("type"))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Naplánuje přístřešek: <b>nejdřív srovná/uzavře podlahu</b> (zaplní díry pod
+     * celým půdorysem 3×3), teprve pak postaví obvodové zdi (2 bloky) a strop.
+     * Pořadí ve frontě je pojistka „nestavět zeď bez srovnané opory": bez pevné
+     * podlahy by přístřešek stál na svahu, zeď by neměla oporu a zespodu by vlezli
+     * mobové. Na rovině je podlaha už pevná → žádný zásyp, přístřešek jako dřív.
+     */
+    private void planShelter(BotContext ctx) {
+        if (ctx.worldView() == null) {
+            return;
+        }
+        BlockPos feet = ctx.position().toBlockPos();
+        // 1) Podlaha: zaplnit díry pod 3×3 (střed + věnec), ať stavba stojí na
+        //    srovnané pevné zemi (jako TERRAFORM u velkých staveb, jen v malém).
+        for (int dx = -1; dx <= 1; dx++) {
+            for (int dz = -1; dz <= 1; dz++) {
+                BlockPos floor = feet.offset(dx, -1, dz);
+                if (!ctx.worldView().traitsAt(floor).solid()) {
+                    plan.add(new PlaceBlockTask(floor));
+                }
+            }
+        }
+        // 2) Obvodové zdi (2 bloky) až na srovnané podlaze.
         for (int level = 0; level <= 1; level++) {
-            for (int[] offset : ring) {
+            for (int[] offset : RING) {
                 BlockPos wall = feet.offset(offset[0], level, offset[1]);
-                if (ctx.worldView() != null && ctx.worldView().traitsAt(wall).passable()) {
+                if (ctx.worldView().traitsAt(wall).passable()) {
                     plan.add(new PlaceBlockTask(wall));
                 }
             }
         }
         BlockPos roof = feet.offset(0, 2, 0);
-        if (ctx.worldView() != null && ctx.worldView().traitsAt(roof).passable()) {
+        if (ctx.worldView().traitsAt(roof).passable()) {
             plan.add(new PlaceBlockTask(roof));
         }
     }
@@ -152,6 +347,8 @@ public final class BuildShelterGoal extends AbstractGoal {
 
     @Override
     public String explain(dev.botalive.api.bot.Bot bot) {
-        return "stmívá se, stavím si nouzový úkryt";
+        return mode == Mode.DEMOLISH
+                ? "bourám starý nouzový úkryt, mám už pořádný dům"
+                : "stmívá se, stavím si nouzový úkryt";
     }
 }

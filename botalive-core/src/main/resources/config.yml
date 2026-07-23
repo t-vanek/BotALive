@@ -564,14 +564,34 @@ build:
   # místa, větší z několika stanovišť po vnitřní podlaze.
   #
   # Strop 9 je záměrný kompromis: dá žebříček 5 → 7 → 9 v zákrytu se stupni
-  # sídla a nechá mezi parcelami 3 bloky na cestičky. Zvyšovat dál se
-  # nevyplácí – dům 11×11 chce 403 bloků v batohu naráz (brána v
-  # BuildHouseGoal je vyžaduje před zahájením) a při rozestupu parcel 12
-  # zbude mezi domy jediný blok; od 13 se parcely překrývají. Když strop
-  # zvedáš, zvedni s ním i settlement.plot-spacing.
+  # sídla a nechá mezi parcelami 3 bloky na cestičky. Strop se PŘI NAČTENÍ
+  # automaticky zkrátí pod rozestup parcel (settlement.plot-spacing − 3), aby
+  # dům nikdy nelezl k sousedovi ani nevyčníval z ochranného pásma. Když chceš
+  # větší domy, zvedni ZÁROVEŇ settlement.plot-spacing (jinak se strop zkrátí zpět).
   width: 9
-  # Výška zdí.
+  # Spodní mez výšky zdí (útulná osada). Skutečnou výšku volí bot podle stupně
+  # sídla a povahy: osada staví nízko (tato hodnota), vesnice o patro výš, město
+  # až k max-wall-height; pracovitý staví vzdušněji, líný skromněji. Vyšší dům
+  # dostaví z pilířového stanoviště (jako komín reprezentativního domu).
   wall-height: 3
+  # Horní mez výšky zdí (strop pro reprezentativní domy měst).
+  max-wall-height: 5
+  # Strukturální růst: povolit, aby existující dům s růstem prosperity sídla
+  # postupně DOROSTL na větší (osada 5×5 → vesnice 7×7 → město 9×9, i vyšší zdi).
+  # Přestavba je aditivní (nejdřív se dostaví větší plášť kolem/nad starým, teprve
+  # pak se odklidí zbylý starý vnitřek), roste jen na vhodném rovném terénu, po
+  # částech napříč seancemi, v klidném ranním okně u domova a s nízkou prioritou
+  # (nikdy nepřebije jídlo/obranu/spánek). Zvolená velikost se persistuje (týž tvar
+  # po restartu) a nikdy neklesá. Default vyp. – opt-in, protože i aditivní růst
+  # může dům přechodně otevřít jako každá rozestavěná stavba.
+  grow: false
+  # Okraj staveniště (bloky) nad rámec dorostlé velikosti. Staveniště se vybere
+  # a srovná rovnou pro MAXIMÁLNÍ dorostlý dům (podle stropu width) + tento okraj
+  # – ve všech osách: rovná plocha v X/Z i výškové srovnání. Díky tomu má pozdější
+  # růst (grow) zaručeně rovnou zem a nemusí terén dorovnávat, a stavby si mezi
+  # sebou nechají odstup. Okraj se přichytí tak, aby rezerva nepřelezla rozestup
+  # parcel. 0 = jen dnešní 1-blokový apron kolem aktuální velikosti.
+  reserve: 2
   # Ladění výběru staveniště SPOLEČNÝCH staveb (studna, sýpka, tržiště,
   # radnice, kostel). Čistá geometrie – bezpečné měnit za běhu. Defaulty drží
   # dnešní chování.

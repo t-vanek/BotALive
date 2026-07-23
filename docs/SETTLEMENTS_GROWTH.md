@@ -246,6 +246,30 @@ materiál) → `WORK` (idempotentní stavba/oprava přes `BarrierWorker`).
 - Město ohlašuje `settlement-town-up`, `/botalive settlements` ukazuje
   infrastrukturu.
 
+## Dynamická velikost staveb (hotovo)
+
+Stavby nemají pevný rozměr – **velikost roste s prosperitou sídla**. Jeden zdroj
+pravdy [`StructureSizer`](../botalive-core/src/main/java/dev/botalive/core/build/plan/StructureSizer.java)
+mapuje „stupeň sídla + povaha stavitele → rozměr" (osada útulně, město honosně;
+strop z configu). Většina navázaných subsystémů si velikost už bere z geometrie
+`Blueprint`u, takže se přizpůsobí sama: staveniště (`SiteFinder.footprintDims`),
+rozpočet terénu, rozmístění na parcele (`PlotLayout.centerFootprint`, vícparcelová
+rezervace), materiál (`blocksNeeded`), vícestanovištní stavba (`BuildPlanner`).
+
+- **Domy** škálují šířku i výšku (osada 5×5 → vesnice 7×7 → město 9×9) a s configem
+  `build.grow` **dorůstají v čase** (viz `BUILD_AS_PROCESS.md`, fáze 6).
+- **Prestižní sály a městské sklady** (radnice, kostel, sýpka, zásobárna) se sizují
+  z prosperity **při vzniku projektu** a rozměr se **persistuje** (`ba_settlement_projects`
+  `width/depth/wall_height`, migrace v11; 0 = legacy pevná velikost). Díky tomu
+  `CommunalBuildGoal.blueprintFor` zrekonstruuje týž tvar napříč sezeními
+  (idempotentní resume). Sdílený parametrický `Hall` (`Blueprints`) mění jen
+  vybavení (pochodeň / dvojtruhla / stanice), geometrie je společná.
+- **Landmarky** (studna, tržiště, zvonice) a účelné dílny drží pevnou velikost –
+  jejich tvar je součástí identity.
+- **Ochranné pásmo** proti poddolování se škáluje s rozestupem parcel, takže pokryje
+  i širší domy a sály; pozice truhly sýpky/skladu se dopočítá z geometrie
+  (`Blueprints.storageChest`), ne napevno z 4×4.
+
 ## Vědomé meze
 
 - Max 8 členů (`settlement.max-members`) drží sídla lidská; město je

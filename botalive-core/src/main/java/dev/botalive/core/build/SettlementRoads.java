@@ -51,17 +51,18 @@ public final class SettlementRoads {
         if (world == null || center == null || spacing <= 0 || maxSteps <= 0) {
             return List.of();
         }
-        int half = HouseBlueprint.SIZE / 2;
         Set<BlockPos> cells = new LinkedHashSet<>();
         int maxRing = 0;
         for (BlockPos origin : plotOrigins) {
             if (origin == null) {
                 continue;
             }
-            // Zpětné odvození buňky prstence ze středu parcely (dělení je přesné –
-            // parcela sedí na násobku spacing).
-            int dx = Math.round((float) (origin.x() + half - center.x()) / spacing);
-            int dz = Math.round((float) (origin.z() + half - center.z()) / spacing);
+            // Zpětné odvození buňky prstence: roh parcely se přichytí na nejbližší
+            // uzel mřížky. Nezávislé na velikosti stavby – roh leží vždy blíž než
+            // půl rozestupu k uzlu (půdorys < rozestup), takže zaokrouhlení trefí
+            // správnou buňku pro domek 4×4 i pro širší generovaný dům.
+            int dx = Math.round((float) (origin.x() - center.x()) / spacing);
+            int dz = Math.round((float) (origin.z() - center.z()) / spacing);
             if (dx == 0 && dz == 0) {
                 continue; // parcela na návsi – žádná ulice k sobě samé
             }
