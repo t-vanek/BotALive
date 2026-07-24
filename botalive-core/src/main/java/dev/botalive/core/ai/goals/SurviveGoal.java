@@ -26,6 +26,12 @@ public final class SurviveGoal extends AbstractGoal {
 
     /** Minimální vzdálenost plánovaného ústupu od hrozby (bloky). */
     private static final int FLEE_DISTANCE = 16;
+    /**
+     * Kriticky nízké zdraví: panika i bez viditelné hrozby (poškození může
+     * přicházet z ohně, jedu, dušení). Nad ním a bez hrozby survive ustupuje,
+     * ať se bot může najíst / zotavit místo stání na místě.
+     */
+    private static final double CRITICAL_HEALTH = 6.0;
 
     private int safeTicks;
     /** Cache zuřícího neutrála (id) + odpočet drahé paměťové kontroly. */
@@ -53,7 +59,42 @@ public final class SurviveGoal extends AbstractGoal {
             return 0;
         }
         double missing = 20 - health;
-        return 80 + missing * 8 + (burning ? 60 : 0);
+        double panic = 80 + missing * 8 + (burning ? 60 : 0);
+        // Hoření nebo kriticky nízké zdraví = panika vždy.
+        if (burning || health <= CRITICAL_HEALTH) {
+            return panic;
+        }
+        // Jinak (podprahové, ale ne kritické zdraví): panika jen když je poblíž
+        // hrozba. „Jen" nízké zdraví BEZ hrozby nesmí držet bota v útěku na
+        // místě – survive (80+) přebíjí eat, takže by se bot bez jídla nikdy
+        // nezotavil: finished (health≥8) doběhne → mozek hned znovu vybere
+        // survive → start() vynuluje safeTicks → stání dokola (motor smyčky
+        // smrti). Bez hrozby proto uvolni řízení: bot se najde/nají/vrátí
+        // k práci a zotaví se; jakmile hrozba přijde, survive se spustí znovu.
+        return threatNear(ctx, bot) ? panic : 0;
+    }
+
+    /**
+     * Je do 24 bloků hrozba, před kterou má smysl utíkat – hostilní mob nebo
+     * zuřící neutrál z paměti? Read-only (na rozdíl od {@link #aggressorThreat}
+     * necachuje aggressorId), aby ho směla volat {@link #utility}.
+     *
+     * @param ctx kontext bota
+     * @param bot bot
+     * @return {@code true} pokud je hrozba poblíž
+     */
+    private boolean threatNear(BotContext ctx, Bot bot) {
+        Vec3 pos = ctx.position();
+        if (ctx.entities().nearest(pos, 24, TrackedEntity::isHostile).isPresent()) {
+            return true;
+        }
+        for (TrackedEntity entity : ctx.entities().nearby(pos, 24,
+                e -> !e.isPlayer() && e.uuid() != null)) {
+            if (recentAggressor(bot, entity)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     @Override
