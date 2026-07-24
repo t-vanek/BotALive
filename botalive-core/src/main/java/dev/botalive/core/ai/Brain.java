@@ -292,25 +292,42 @@ public final class Brain {
 
     /** Přepnutí aktivního cíle + event. */
     private void switchTo(Goal next) {
+        dev.botalive.core.bot.BotImpl impl =
+                bot instanceof dev.botalive.core.bot.BotImpl b ? b : null;
         Goal previous = current;
         if (previous != null) {
+            // Přerušená (označená) práce se POZASTAVÍ (zachová postup); jinak
+            // úplný úklid (dokončení, selhání, dobrovolné přepnutí, halt).
+            boolean paused = impl != null && impl.isResumptionPending(previous.id());
             try {
-                previous.stop(bot);
+                if (paused) {
+                    previous.pause(bot);
+                } else {
+                    previous.stop(bot);
+                }
             } catch (Exception e) {
-                LOG.warn("[{}] stop() cíle '{}' selhal: {}", bot.name(), previous.id(), e.toString());
+                LOG.warn("[{}] {}() cíle '{}' selhal: {}", bot.name(),
+                        paused ? "pause" : "stop", previous.id(), e.toString());
             }
         }
         current = next;
         if (next != null) {
-            // Bot se k cíli (znovu) postavil – návrat proběhl, pobídku zahodit;
-            // od teď ho drží hystereze (jinak by se bonusy sčítaly).
-            if (bot instanceof dev.botalive.core.bot.BotImpl impl) {
+            // Byl tenhle cíl pozastavený? Pak NAVÁŽE (resume) tam, kde skončil,
+            // a pobídku zahodíme (dál ho drží hystereze). Jinak svěží start.
+            // Pending číst PŘED clearem, ať se signál k navázání neztratí.
+            boolean resuming = impl != null && impl.isResumptionPending(next.id());
+            if (resuming) {
                 impl.clearResumption(next.id());
             }
             try {
-                next.start(bot);
+                if (resuming) {
+                    next.resume(bot);
+                } else {
+                    next.start(bot);
+                }
             } catch (Exception e) {
-                LOG.error("[{}] start() cíle '{}' selhal", bot.name(), next.id(), e);
+                LOG.error("[{}] {}() cíle '{}' selhal", bot.name(),
+                        resuming ? "resume" : "start", next.id(), e);
                 current = null;
             }
         }

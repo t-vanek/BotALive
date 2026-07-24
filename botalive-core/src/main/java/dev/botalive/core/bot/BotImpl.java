@@ -763,6 +763,11 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
         return goalResumption.resumable(goalId);
     }
 
+    /** Čeká tenhle cíl na návrat? (byl pozastaven reflexem) – řídí pause/resume. */
+    public boolean isResumptionPending(String goalId) {
+        return goalResumption.pending(goalId);
+    }
+
     /** @return řádka „životní cíl" pro příkazy, nebo {@code null} */
     public String ambitionLine() {
         var current = ambition;

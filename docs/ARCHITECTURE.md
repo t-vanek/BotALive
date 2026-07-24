@@ -117,7 +117,11 @@ nerozhodnou stejně. Hystereze drží jen *právě* aktivní cíl; když ho pře
 reflex (hlad, boj, útěk), přerušená rozdělaná práce dostane krátkou klesavou
 **návratovou pobídku** (`GoalResumption`, „přenosná hystereze", +25 % → 0), aby
 se k ní bot po odeznění hrozby vrátil místo odchodu jinam. Pobídku dostane jen
-skutečné přerušení reflexem, ne dobrovolná změna mezi dvěma pracemi. Osobnost
+skutečné přerušení reflexem, ne dobrovolná změna mezi dvěma pracemi. Přerušený
+cíl se navíc **pozastaví** (`Goal.pause`), ne zahodí, a při návratu **naváže**
+(`Goal.resume`) tam, kde skončil – např. `MineGoal` si podrží rozkopané
+schodiště místo ražby od povrchu znova. Výchozí `pause`/`resume` = `stop`/`start`
+(zpětně kompatibilní; cíle si kontinuitu přidávají jen kde se vyplatí). Osobnost
 vstupuje přímo do utility (např.
 `6 + curiosity·18 − laziness·6` u průzkumu), takže chování se liší
 kvantitativně i kvalitativně. Strategii (cíle) od taktiky (tasky
