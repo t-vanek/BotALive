@@ -30,6 +30,9 @@ public final class SleepGoal extends AbstractGoal {
     private int retryTicks;
     private int attempts;
     private int cooldownTicks;
+    /** Strop marné cesty k posteli (ticky) – nedosažitelná postel jinak cyklí. */
+    private int goTicks;
+    private static final int GO_BUDGET_TICKS = 600;
 
     /** Vytvoří cíl. */
     public SleepGoal() {
@@ -64,6 +67,7 @@ public final class SleepGoal extends AbstractGoal {
         bed = null;
         beds = java.util.List.of();
         attempts = 0;
+        goTicks = 0;
     }
 
     @Override
@@ -81,6 +85,14 @@ public final class SleepGoal extends AbstractGoal {
                 phase = Phase.GO;
             }
             case GO -> {
+                // Strop marné cesty: nedosažitelná postel (za zdí/plotem) jinak
+                // cyklí GO↔FIND (nebo naviguje donekonečna) bez časového stropu
+                // → finished() nikdy, bot se nevrátí k pozastavené práci.
+                if (++goTicks > GO_BUDGET_TICKS) {
+                    cooldownTicks = 1200;
+                    phase = Phase.DONE;
+                    return;
+                }
                 // Uléhá se do postele, ke které se skutečně došlo – nejbližší
                 // vzdušnou čarou může být za zdí či plotem (anyNear nechá
                 // o pořadí rozhodnout dosažitelnost).

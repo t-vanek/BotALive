@@ -38,9 +38,21 @@ public final class CreeperDodgeGoal extends AbstractGoal {
         if (ctx.clientState().dead()) {
             return 0;
         }
-        Optional<TrackedEntity> creeper = nearestCreeper(ctx, DANGER_DIST);
-        // Výš než survive (ten mívá stovky jen při kritickém zdraví).
-        return creeper.isPresent() ? 400 : 0;
+        // Zapínací práh: creeper na dosah výbuchu (DANGER_DIST). Výš než survive
+        // (ten mívá stovky jen při kritickém zdraví).
+        if (nearestCreeper(ctx, DANGER_DIST).isPresent()) {
+            return 400;
+        }
+        // Vypínací práh je dál (SAFE_DIST): jednou spuštěný úskok (panicTicks
+        // běží) drží utilitu kladnou, dokud se bot nedostane mimo dosah exploze
+        // (~7 bloků). Bez toho by ho mozek zahodil hned ve 4 blocích – utilitu 0
+        // ruší PŘED finished(), takže zamýšlená hystereze 4→8 nikdy nezabrala
+        // a bot přestal utíkat ještě v dosahu výbuchu (a kmital na hranici 4 bl.).
+        if (panicTicks > 0 && panicTicks <= 100
+                && nearestCreeper(ctx, SAFE_DIST).isPresent()) {
+            return 400;
+        }
+        return 0;
     }
 
     @Override

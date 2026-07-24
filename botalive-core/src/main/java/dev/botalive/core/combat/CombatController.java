@@ -92,6 +92,13 @@ public final class CombatController {
     private int noProgressTicks;
     /** Jak dlouho už bot obchází k aktuálnímu cíli (ticky). */
     private int approachTicks;
+    /**
+     * Jak dlouho se bot v melee pásmu ani jednou nedostal na dosah úderu.
+     * Detektor marného přibližování níž počítá jen nad {@code ATTACK_RANGE+1.5},
+     * takže cíl těsně za dosahem (3–4.5) s volnou spojnicí – na římse, přes
+     * úzký příkop – držel bota ve strafu navždy. Tenhle watchdog to pokrývá.
+     */
+    private int meleeStuckTicks;
     /** Cíl je nedosažitelný – {@code CombatGoal} má boj ukončit. */
     private boolean targetUnreachable;
 
@@ -160,6 +167,7 @@ public final class CombatController {
             this.bestApproachDistance = Double.MAX_VALUE;
             this.noProgressTicks = 0;
             this.approachTicks = 0;
+            this.meleeStuckTicks = 0;
             this.targetUnreachable = false;
         }
     }
@@ -170,6 +178,7 @@ public final class CombatController {
         ranged.reset();
         shieldBlockTicks = 0;
         approachTicks = 0;
+        meleeStuckTicks = 0;
         targetUnreachable = false;
         stopNavigation();
     }
@@ -366,7 +375,24 @@ public final class CombatController {
             bestApproachDistance = distance;
             noProgressTicks = 0;
             approachTicks = 0;
+            meleeStuckTicks = 0;
             return false;
+        }
+        // Watchdog nedosažitelnosti pro melee pásmo (pod dostřelem luku): když
+        // se bot APPROACH_TIMEOUT_TICKS ani jednou nedostal na dosah úderu,
+        // vzdát. Kryje mezeru 3–4.5 s volnou spojnicí (cíl na římse/přes příkop),
+        // kterou detektor níž (počítá jen nad ATTACK_RANGE+1.5) míjel → bot
+        // strafoval navždy a CombatGoal.finished() nenastalo. V ranged pásmu
+        // (≥ RANGED_MIN_DISTANCE) se neuplatní – tam bot legitimně střílí z dálky
+        // a přibližování řeší noProgressTicks/navigatingApproach níž.
+        if (distance < RANGED_MIN_DISTANCE) {
+            if (++meleeStuckTicks > APPROACH_TIMEOUT_TICKS) {
+                targetUnreachable = true;
+                stopNavigation();
+                return false;
+            }
+        } else {
+            meleeStuckTicks = 0;
         }
         if (navigatingApproach) {
             // Hystereze: jednou zahájené obcházení se drží až na dosah úderu
