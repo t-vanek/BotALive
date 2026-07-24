@@ -202,9 +202,12 @@ public final class Brain {
 
         Goal best = null;
         double bestUtility = 0;
-        // Hybnost cílů o krok zeslábne (jednou za rozhodnutí, ne per cíl).
-        if (bot instanceof dev.botalive.core.bot.BotImpl momentumImpl) {
-            momentumImpl.decayMomentum();
+        dev.botalive.core.bot.BotImpl impl =
+                bot instanceof dev.botalive.core.bot.BotImpl b ? b : null;
+        // Hybnost i návratová pobídka o krok zeslábnou (jednou za rozhodnutí).
+        if (impl != null) {
+            impl.decayMomentum();
+            impl.decayResumption();
         }
         dev.botalive.core.world.WorldDimension dimension = BotContext.of(bot).dimension();
         for (Goal goal : goals) {
@@ -216,6 +219,11 @@ public final class Brain {
                 continue;
             }
             if (utility <= 0) {
+                // Neproveditelný cíl (plný batoh, hotovo, cooldown) ztrácí
+                // nárok na návrat – ať bota netahá zpět k něčemu bezpředmětnému.
+                if (impl != null) {
+                    impl.clearResumption(goal.id());
+                }
                 continue;
             }
             // Dimenze škrtá, co v ní nedává smysl (v Endu postel exploduje...).
@@ -225,8 +233,8 @@ public final class Brain {
             }
             // Profese vychyluje priority (kovář taví ochotněji, lovec loví...) –
             // přes registr rolí, aby fungovaly i cizí role pluginů.
-            utility *= bot instanceof dev.botalive.core.bot.BotImpl roleImpl
-                    ? roleImpl.roleWeight(goal.id())
+            utility *= impl != null
+                    ? impl.roleWeight(goal.id())
                     : dev.botalive.core.role.RoleProfiles.weight(bot.role(), goal.id());
             // Denní rytmus: ráno pole, přes den těžba/stavba, večer družení.
             // V Endu/Netheru není den a noc – rytmus tam neplatí.
@@ -234,7 +242,7 @@ public final class Brain {
                 utility *= rhythm.multiplier(goal.id(), BotContext.of(bot).worldTime());
             }
             // Životní ambice táhne související cíle (dokud není splněná).
-            if (bot instanceof dev.botalive.core.bot.BotImpl impl) {
+            if (impl != null) {
                 utility *= impl.ambitionWeight(goal.id());
                 // Zaměstnání: dělník se soustředí na práci a míň se fláká.
                 utility *= impl.employmentWeight(goal.id());
@@ -246,6 +254,9 @@ public final class Brain {
                 utility *= impl.drivesWeight(goal.id());
                 // Naučená hybnost: co bot úspěšně dokončuje, dělá o kus radši.
                 utility *= impl.momentumWeight(goal.id());
+                // Návrat k práci: cíl nedávno přerušený reflexem má krátce navrch,
+                // aby se k němu bot vrátil, ne aby po odeznění hrozby odešel jinam.
+                utility *= impl.resumptionWeight(goal.id());
             }
             // Hystereze aktivního cíle + drobný rozhodovací šum.
             if (goal == current) {
@@ -266,6 +277,13 @@ public final class Brain {
                     new dev.botalive.api.event.BotGoalSelectEvent(bot, fromId, toId);
             event.callEvent();
             if (!event.isCancelled()) {
+                // Přerušení = rozdělaná práce přebitá reflexem (hlad, boj, útěk).
+                // Zapamatovat si ji k návratu; dobrovolné přepnutí na jinou práci
+                // (best je taky produktivní) přerušení není a pobídku nedostane.
+                if (impl != null && current != null && !current.finished(bot)
+                        && (best == null || !impl.isResumable(best.id()))) {
+                    impl.markInterrupted(current.id());
+                }
                 switchTo(best);
             }
         }
@@ -283,6 +301,11 @@ public final class Brain {
         }
         current = next;
         if (next != null) {
+            // Bot se k cíli (znovu) postavil – návrat proběhl, pobídku zahodit;
+            // od teď ho drží hystereze (jinak by se bonusy sčítaly).
+            if (bot instanceof dev.botalive.core.bot.BotImpl impl) {
+                impl.clearResumption(next.id());
+            }
             try {
                 next.start(bot);
             } catch (Exception e) {
