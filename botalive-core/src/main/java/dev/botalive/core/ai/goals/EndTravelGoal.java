@@ -285,9 +285,13 @@ public final class EndTravelGoal extends AbstractGoal {
                     return;
                 }
                 var snapshot = ctx.serverView().latest();
-                if (snapshot == null
-                        || !ctx.inventory().equipItem(snapshot, Material.ENDER_EYE)) {
-                    // Oči došly v půlce – finální sken rozhodne, jak to dopadlo.
+                if (snapshot == null) {
+                    return; // přechodně null snapshot – počkat tick, ne „došly oči"
+                }
+                if (!ctx.inventory().equipItem(snapshot, Material.ENDER_EYE)) {
+                    // Oči došly v půlce – finální sken (s retry) rozhodne, jak
+                    // to dopadlo. Null snapshot výš se sem záměrně nepočítá,
+                    // aby vteřinové zpoždění serveru nezapsalo falešné missing.
                     frameTargets.clear();
                     return;
                 }

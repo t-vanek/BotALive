@@ -159,6 +159,11 @@ public final class DragonFightGoal extends AbstractGoal {
     @Override
     public void tick(Bot bot) {
         BotContext ctx = ctx(bot);
+        if (ctx.worldView() == null) {
+            // Studená chunk cache (vstup do Endu) – findExitPortal/EdgeGuard
+            // by jinak spadly na NPE (soft-abort přes Brain catch a reselect).
+            return;
+        }
         Vec3 pos = ctx.position();
         if (drinkTicks > 0) {
             drinkTicks--; // dopít doušek před bojem
