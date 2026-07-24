@@ -22,8 +22,12 @@ import java.util.Set;
  *
  * <p>Pobídka klesá každý rozhodovací krok (dávno opuštěná práce ztrácí nárok –
  * svět se mezitím pohnul), zmizí pod prahem, a maže se, jakmile se bot k cíli
- * vrátí (pak převezme hystereze) nebo cíl přestane být proveditelný. Nic se
- * nepersistuje: po odpojení má bot čistý stůl, ne posedlost dávným úkolem.</p>
+ * vrátí (pak převezme hystereze). Schválně se <b>neruší</b>, když cíl chvíli
+ * čte utilitu 0 – přesně to se děje během reflexu, který má pobídka přežít
+ * (výprava přebitá bojem má health/food pod prahem výpravy). Pobídka je
+ * multiplikátor, takže cíl s utilitou 0 stejně nevyhraje; jakmile je zas
+ * proveditelný, vrátí k němu bota. Nic se nepersistuje: po odpojení má bot
+ * čistý stůl, ne posedlost dávným úkolem.</p>
  *
  * <p>Čistá třída bez závislostí; přístup z jednoho vlákna (rozhodování mozku),
  * metody jsou {@code synchronized} pro jistotu jako u {@link GoalMomentum}.</p>
@@ -86,8 +90,9 @@ public final class GoalResumption {
     }
 
     /**
-     * Zruší pobídku cíle – volá se, když se k němu bot vrátil (převezme
-     * hystereze) nebo když cíl přestal být proveditelný.
+     * Zruší pobídku cíle – volá se, když se k němu bot vrátil (dál ho drží
+     * hystereze). Neproveditelnost pobídku nemaže; o dávno opuštěnou práci se
+     * postará decay.
      *
      * @param goalId cíl
      */

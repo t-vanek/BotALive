@@ -634,7 +634,9 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
     /** Smí bot tuhle ambici mít? (výpravové sny jen se zapnutými výpravami) */
     private boolean ambitionAllowed(dev.botalive.core.ai.Ambition candidate) {
         if (candidate == dev.botalive.core.ai.Ambition.DRAGON_SLAYER) {
-            return config.end().enabled();
+            // Drak chce oči Enderu, a blaze rody na ně jsou jen z Netheru –
+            // s vypnutým peklem je sen o draku tvrdý deadlock, ne jen výprava.
+            return config.end().enabled() && config.nether().enabled();
         }
         if (candidate == dev.botalive.core.ai.Ambition.NETHERITE) {
             return config.nether().enabled();

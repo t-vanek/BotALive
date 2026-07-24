@@ -25,15 +25,23 @@ public enum Ambition {
     COZY_HOME("mít útulný domov", Set.of("house", "mine", "craft", "hunt")),
     /** Chce zbohatnout. */
     // "sell" tu dřív chybělo: „zbohatnutí" táhlo jen těžbu, tedy ražbu peněz
-    // z ničeho, a obchod se na cestě k bohatství vůbec neuplatnil.
-    RICH("zbohatnout", Set.of("mine", "trade", "farm", "fish", "stash", "sell")),
+    // z ničeho, a obchod se na cestě k bohatství vůbec neuplatnil. „stash" tu
+    // naopak být nesmí: při plném batohu jeho utilita (~29) přebíjela i plně
+    // boostnutý „sell" (~24 × 1.6), takže bot přebytek vždy uložil místo prodeje.
+    // Bez boostu (×1.0) vyhraje „sell", jakmile je poblíž kupec; bez kupce je
+    // „sell" 0 a bot přebytek stejně uloží z vlastní utility.
+    RICH("zbohatnout", Set.of("mine", "trade", "farm", "fish", "sell")),
     /** Chce dobýt Nether a povýšit výbavu na netherit. */
     NETHERITE("mít netheritovou výbavu", Set.of("nether", "mine", "smelt", "craft", "smith")),
     /** Chce skolit ender draka. */
     DRAGON_SLAYER("skolit ender draka",
-            // „explore" táhne krok „najít portál" – jiný cíl ho splnit neumí
-            // (pasivní sken portálů běží při toulkách po světě).
-            Set.of("mine", "smelt", "craft", "explore", "end-travel", "dragon-fight"));
+            // „explore" táhne krok „najít portál"; „nether" shání suroviny na
+            // oči Enderu – blaze rody a perly z barteru/kořisti pevností
+            // (ContainerService.isValuableLoot je sbírá, CraftPlanner z nich
+            // melne oči). Bez výpravy do pekla by krok „najít portál" nikdo
+            // neposunul (stronghold sken chce 8 očí) a ambice by tam deadlockla.
+            Set.of("mine", "smelt", "craft", "explore", "nether",
+                    "end-travel", "dragon-fight"));
 
     /** Násobič utility cílů, které k ambici vedou (dokud není splněná). */
     private static final double DRIVE = 1.25;
@@ -277,7 +285,11 @@ public enum Ambition {
             case DRAGON_SLAYER -> switch (step) {
                 case 0 -> Set.of("mine", "smelt", "craft", "smith");
                 case 1 -> Set.of("craft", "hunt");
-                case 2 -> Set.of("explore", "stronghold");
+                // Krok „najít portál": stronghold sken chce 8 očí Enderu, takže
+                // jako proveditelnou upstream záložku táhneme „nether" (blaze
+                // rody + perly z barteru/kořisti). Bez ní má „stronghold"
+                // utilitu 0 a frontier boost 1.6 by dopadl do prázdna.
+                case 2 -> Set.of("explore", "stronghold", "nether");
                 default -> Set.of("end-travel", "dragon-fight");
             };
         };

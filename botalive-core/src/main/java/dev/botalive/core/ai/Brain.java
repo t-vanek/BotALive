@@ -219,11 +219,12 @@ public final class Brain {
                 continue;
             }
             if (utility <= 0) {
-                // Neproveditelný cíl (plný batoh, hotovo, cooldown) ztrácí
-                // nárok na návrat – ať bota netahá zpět k něčemu bezpředmětnému.
-                if (impl != null) {
-                    impl.clearResumption(goal.id());
-                }
+                // Pozor: NEmazat tu návratovou pobídku. Cíl přerušený reflexem
+                // (výprava přebitá bojem/hladem → health/food < 14 → utilita 0)
+                // by o ni přišel přesně během reflexu, který má přežít. Pobídka
+                // je multiplikátor, takže cíl s utilitou 0 stejně nevyhraje
+                // (0 × bonus = 0); jakmile se stane zas proveditelným, pobídka
+                // ho vrátí. Úklid zajistí decay.
                 continue;
             }
             // Dimenze škrtá, co v ní nedává smysl (v Endu postel exploduje...).
