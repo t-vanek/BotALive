@@ -38,7 +38,8 @@ Každý bot má vlastní identitu, osobnost, paměť, cíle, inventář a histor
 - **10 rysů osobnosti** (odvaha, opatrnost, agresivita, zvědavost, společenskost, lenost, inteligence, ochota pomoci, chamtivost, trpělivost), generovaných ze seedu. Rysy ovlivňují váhy cílů, boj, chat i drobné návyky — žádní dva boti nejsou stejní.
 - **Osobnost se vyvíjí** — prožitky posouvají rysy v mezích jádra ze seedu: komu projde krádež, tomu roste chamtivost, smrt učí opatrnosti, vítězství odvaze. Drift je persistentní a viditelný v `/botalive personality`.
 - **Profese** — plná sada vesnických řemesel na vanilla mechanikách: stavitel, kopáč, dřevorubec, lovec, kovář, enchanter, obchodník, rybář, farmář, kuchař, alchymista, strážce, průzkumník, krotitel, poslíček — a navíc vanilla vesnická povolání šípař, knihovník, nástrojář, zbrojíř, brníř, kartograf, kameník, koželuh a pastýř, každé s biasem na cíle, ze kterých jeho řemeslo žije. Role je zaměření, ne klec: násobí priority souvisejících činností, přiděluje se podle osobnosti a nikdy není mrtvý popisek — každá role zesiluje cíle, které bot reálně dělá (hlídají testy).
-- **Životní ambice a denní rytmus** — každý bot sleduje dlouhodobý projekt (železná výbava, útulný domov, zbohatnout) a strukturuje si den: ráno pole, přes den těžba a stavba, večer družení, v noci postel — s osobním posunem skřivan/sova.
+- **Životní ambice a denní rytmus** — každý bot sleduje dlouhodobý projekt (železná výbava, útulný domov, zbohatnout, netherit, skolit draka) a strukturuje si den: ráno pole, přes den těžba a stavba, večer družení, v noci postel — s osobním posunem skřivan/sova. Ambice táhne cíle, které potřebuje její *aktuální* krok (frontier váhování), takže se řetěz reálně posouvá, ne že se dokončí náhodou.
+- **Přerušení a návrat** — když reflex (nebezpečí, hlad, prchající creeper) přebije produktivní práci, bot si přerušený úkol zapamatuje a po odeznění hrozby se k němu vrátí, místo aby odešel jinam — klesavá „přenosná hystereze“, která přežije přerušení. Dlouhá vícekroková práce se *pozastaví a naváže*, ne restartuje: těžba pokračuje v rozkopaném schodišti a stavba domu / netherového portálu naváže, místo aby nechala torzo.
 - **Intent vrstva** — boti umí říct, co a proč dělají: `/botalive goal` ukáže záměr („těžím iron_ore — chci si vyrobit železný krumpáč“) a na otázku „co děláš?“ v chatu odpoví podle skutečné činnosti.
 
 ### 🗺️ Navigace
@@ -323,11 +324,51 @@ Rozhodnutí a trade-offy popisuje [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md); 
 
 ## Známá omezení a roadmapa
 
+### Aktuální omezení
+
 - **Vyžadován offline mode** — boti jsou nepodepsaní klienti. Na online-mode serveru se plugin korektně odmítne připojit a vysvětlí proč.
 - **Nether** — souboj s witherem je **výchozí vypnutý** (`nether.wither.enabled`): jeho exploze jizví terén a boss opuštěný po nezdařeném pokusu se toulá po Netheru — zapnutí je rozhodnutí admina. Vaření pokrývá lektvary, které boti skutečně používají (odolnost ohni, léčení, síla, splash jed); lingering lektvary, obalené šípy a plný alchymistický strom v plánu nejsou, stejně jako beacon z nether staru. Strop reaktivního lávového mostu je konfigurovatelný (`nether.lava-bridge-limit`); oceány patří striderům.
 - **Vnější ostrovy Endu** — let na elytrách zůstává záměrně konzervativní (žádné střemhlavé nálety, rozpočet raket na let) a `end.outer.max-city-distance` je tvrdý strop výpravy: města uvnitř se dosáhnou přeletem nebo end stone lávkou, města za ním se dál vzdávají. Shulker boxy slouží jako zavazadlo výprav a druhá truhla doma; obsah si boti dál neorganizují.
 - **Strongholdy** — boti netriangulují očima Enderu; portál se naučí průchodem, náhodným objevem, drby, nebo přes `/botalive end portal`. Oči Enderu si ale craftí (perla + blaze prach z netherové kořisti) a nezaplněný rám portálu si doplní sami.
 - **Války** — nájezdy jen bojují (nerabují a nezapalují), hráčů se nikdy netýkají a vesnice v různých světech spolu neválčí (nájezdník mezi světy nedojde).
+- **Netherit je fakticky odkázán na náhodu** — smithing šablona padá jen z truhel bastionů a k bastionu zatím není cílená navigace (paměť `BASTION`/`FORTRESS` se zapisuje, ale nečte zpět). Bot povýší na netherit jen když výprava náhodou zabloudí do bastionu s truhlou obsahující šablonu — viz roadmapa.
+- **Dračí quest visí na netherové kořisti pro oči Enderu** — perly jdou z barteru s pigliny, ale blaze rody (→ blaze prach) zatím nemají spolehlivý zdroj: boti blazy cíleně neloví, takže sehnat 8 očí Enderu je pomalé a náhodné. Ambice teď do Netheru žene (a odtud jdou perly i případné rody z kořisti pevností), ale organické dokončení zatím spolehlivé není.
+- **Bootstrap na čistém světě / po smrti** — starter kit pokryje první noc, ale po smrti se znovu nedává. Bot, který zemře s prázdným inventářem, nemá nouzovou cestu, jak si v noci vytěžit blok na úkryt — mezera v přežití na úplně nových světech (viz roadmapa).
+
+### Roadmapa
+
+Další plánovaná práce ze systematického auditu cíl po cíli (stejná metoda, jakou vznikl [NALEZY-TESTOVANI.md](NALEZY-TESTOVANI.md)):
+
+- **Cílená navigace ke strukturám** — číst zapamatovanou paměť `FORTRESS`/`BASTION` a vrátit se k ní; odemkne netheritové šablony (kořist bastionů) a cestu k blaze rodům.
+- **Proaktivní lov blazů** — gated přibližování k blazům u pevností (jako existující lov wither skeletonů), aby oči Enderu nezávisely na tom, že blaze náhodou vlétne do boje; plně odemkne dračí ambici.
+- **Bootstrap po smrti** — nouzový zahrabávací úkryt, který si v noci s prázdným inventářem vytěží vlastní blok, aby bot po smrti přežil další noc místo zacyklení.
+- **Role Guardian i mimo vesnici** — patrola bez etablovaného sídla nebo smlouvy, aby role dávala smysl i před vznikem vesnice (její signaturní cíle jsou jinak vázané na vesnici/kontrakt).
+- **Nepřerušitelné přelety voidu** — glide/mostní úseky výprav na vnější End nepřebitelné reflexem, aby přerušení nezrušilo mávnutí křídly nad voidem a bota neshodilo.
+- **Fallback uvíznutí v Netheru** — tvrdý rozpočet na návratovou nohu, aby bot, kterému zanikl příletový portál a nemá obsidián, nebloudil Netherem donekonečna.
+- **Cíl počtu očí Enderu** — zvednout minimum, aby čerstvý 12slotový rám strongholdu naplnil jeden zátah místo zápisu `eyes=missing` a druhé výpravy.
+
+### Nedávno nalezené a opravené
+
+Audit odhalil a opravil dávku defektů na úrovni cílů (přerušení/návrat, boj, přežití, výpravy):
+
+- **Zamrznutí boje v mrtvém pásmu** — cíl 3–4.5 bloku daleko s volnou spojnicí (na římse, přes úzký příkop) nikdy nespustil dřívější timeout nedosažitelnosti, takže bot strafoval na místě navždy. Watchdog dosahu úderu teď cíl, ke kterému se nedostane, vzdá.
+- **Live-lock přežití** — bot bez jídla s nízkým zdravím a bez hrozby poblíž stál na místě navždy (survive přebíjel jídlo a znovu se vybíral každý cyklus). Survive teď bez skutečné hrozby ustoupí, aby se bot mohl najíst / pracovat a zotavit.
+- **Úskok před creeperem v dosahu výbuchu** — zamýšlená hystereze 4→8 bloků nikdy nezabrala (utility padla na 0 před `finished()`), takže bot přestal utíkat ještě v dosahu exploze. Úskok teď doběhne do bezpečné vzdálenosti.
+- **Jednosměrka do Endu bez luku** — boti mohli vejít do Endu bez luku a pak nesestřelili léčivé krystaly, takže drak byl nezabitelný a bot uvězněný. Luk se šípy je teď na výpravu podmínka.
+- **Falešné „chybí oči“ na čerstvém portálu** — právě zapálený End portál se přes studenou chunk cache četl jako prázdný a rám se trvale označil jako bez očí. Finální sken se teď opakuje s prefetch.
+- **Ztráta rozdělané práce při přerušení** — těžba, farmaření, průzkum, End i Nether výpravy resetovaly postup, když je přebil reflex; přerušená stavba netherového portálu nechávala osiřelé torzo a ztratila obsidián. Vše se teď pozastaví a naváže, a návratová pobídka bota přivede zpět.
+- Dále: spánek zacyklený u nedosažitelné postele, boj opouštějící práci kvůli vzdáleným mobům, dračí souboj mrznoucí při návratu a null-guardy na vstupu do dimenze při studené cache.
+
+### Co se musí ověřit naživo
+
+Tyhle změny jsou správné v kódu a projdou testy, ale jejich *ladění* potřebuje živý soak (jako vznikl [NALEZY-TESTOVANI.md](NALEZY-TESTOVANI.md)), než je půjde označit za hotové:
+
+- **Práh ústupu survive** — zotaví se bot s nízkým zdravím, aniž by ho zaskočila hrozba, kterou sken do 24 bloků minul? Sledovat úmrtnost na čerstvém světě.
+- **Angažovací okruh boje** (12–24 bloků dle agrese) — brání se boti v noci pořád, ale nehoní vzdálené moby do tmy?
+- **Watchdog dosahu úderu** (200 ticků) — ověřit, že v dlouhém, ale legitimním boji nedochází k falešnému vzdání.
+- **Přerušení/návrat a pause-resume** — vrací se boti viditelně k těžbě / stavbě / výpravám a *pokračují* po reflexu, a naváže stavba netherového portálu bez torz?
+- **Ekonomika ambicí** — žene DRAGON_SLAYER reálně výpravy do Netheru za materiálem na oči, a prodává RICH přebytek místo hromadění? Obojí závisí na živých mírách kořisti a trhu.
+- **Flaky test** — jeden běh celé sady jednou spadl a na čistý re-run prošel; flaky (nejspíš timing/simulační) test je třeba izolovat.
 
 ## Přispívání
 

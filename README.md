@@ -38,7 +38,8 @@ Every bot has its own identity, personality, memory, goals, inventory and histor
 - **10 personality traits** (courage, caution, aggression, curiosity, sociability, laziness, intelligence, helpfulness, greed, patience), generated from a seed. Traits weight goals, combat, chat and small habits — no two bots are alike.
 - **Personality evolves** — experience shifts traits within bounds of the seeded core: a thief who keeps getting away grows greedier, deaths teach caution, victories build courage. Drift is persistent and visible in `/botalive personality`.
 - **Professions** — the full set of village trades on vanilla mechanics: builder, miner, lumberjack, hunter, blacksmith, enchanter, trader, fisherman, farmer, cook, alchemist, guardian, scout, beastmaster, courier — plus the vanilla villager crafts fletcher, librarian, toolsmith, weaponsmith, armorer, cartographer, mason, leatherworker and shepherd, each biasing the goals its trade lives on. A role is a focus, not a cage: it multiplies the priority of related activities, is assigned to match personality, and is never a dead label — every role boosts goals the bot actually pursues (enforced by tests).
-- **Life ambitions & daily rhythm** — each bot pursues a long-term project (full iron gear, a cozy home, getting rich) and structures its day: fields in the morning, mining and building at noon, socializing at dusk, bed at night — with a personal lark/owl offset.
+- **Life ambitions & daily rhythm** — each bot pursues a long-term project (full iron gear, a cozy home, getting rich, netherite, slaying the dragon) and structures its day: fields in the morning, mining and building at noon, socializing at dusk, bed at night — with a personal lark/owl offset. The ambition drives the goals its *current* step needs (frontier weighting), so the chain actually advances rather than finishing by luck.
+- **Interrupt & return** — when a reflex (danger, hunger, a fleeing creeper) preempts productive work, the bot remembers the interrupted task and returns to it once the threat clears, instead of drifting to something else — a decaying "carry-over hysteresis" that survives the interruption. Long multi-step work is *paused and resumed*, not restarted: mining picks up its half-dug staircase, and house / Nether-portal builds continue instead of leaving a torso behind.
 - **Intent layer** — bots can tell you what they are doing and why: `/botalive goal` shows the reasoning ("mining iron_ore — I want an iron pickaxe"), and asking "what are you doing?" in chat gets an answer based on the actual activity.
 
 ### 🗺️ Navigation
@@ -323,11 +324,51 @@ Design decisions and trade-offs are documented in [docs/ARCHITECTURE.md](docs/AR
 
 ## Known Limitations & Roadmap
 
+### Current limitations
+
 - **Offline mode is required** — bots are unsigned clients. On an online-mode server the plugin refuses to connect them and explains why.
 - **Nether** — the wither fight ships **off by default** (`nether.wither.enabled`): its explosions scar terrain and an abandoned boss after a failed attempt roams free — turning it on is the admin's call. Brewing covers the potions bots actually use (fire resistance, healing, strength, splash poison); lingering potions, tipped arrows and the full alchemy tree stay out of scope, as do beacons for the nether star. The reactive lava-bridge cap is configurable (`nether.lava-bridge-limit`); oceans are for striders.
 - **End outer islands** — elytra flight is deliberately conservative (no dive-bombing, rocket budget per flight), and `end.outer.max-city-distance` remains a hard trip budget: cities inside it are reached by flight or an end-stone causeway, cities beyond it are still given up. Shulker boxes are used as expedition luggage and extra home storage; bots don't organize their contents beyond that.
 - **Strongholds** — bots don't triangulate with eyes of ender; they learn portal locations by walking through, random discovery, gossip, or `/botalive end portal`. They do craft eyes of ender (pearl + blaze powder from Nether loot) and will fill an incomplete portal frame themselves.
 - **Wars** — sieges don't loot or burn (raids are combat-only), wars never involve players, and cross-world villages don't fight (raiders can't walk between worlds).
+- **Netherite is effectively luck-gated** — the smithing template drops only from bastion chests, and there is no directed navigation to a bastion yet (the `BASTION`/`FORTRESS` memory is recorded but not read back). A bot upgrades to netherite only if an expedition happens to wander into a bastion whose chest holds a template — see the roadmap.
+- **The dragon quest depends on Nether loot for eyes of ender** — pearls come from piglin bartering, but blaze rods (→ blaze powder) have no reliable source yet: bots don't proactively hunt blazes, so assembling 8 eyes of ender is slow and chancy. The ambition now drives Nether trips (which supply pearls and any fortress-looted rods), but organic completion is not yet dependable.
+- **Fresh-world / post-death bootstrap** — the starter kit covers the first night, but it is not re-granted after death. A bot that dies with an empty inventory has no emergency path to mine its own shelter block at night — a survival gap on brand-new worlds (see the roadmap).
+
+### Roadmap
+
+Next planned work, from a systematic goal-by-goal audit (the same method that produced [NALEZY-TESTOVANI.md](NALEZY-TESTOVANI.md)):
+
+- **Directed structure navigation** — read the recorded `FORTRESS`/`BASTION` memory and route back to it, unlocking netherite templates (bastion loot) and a path to blaze rods.
+- **Proactive blaze hunting** — a gated approach to blazes near fortresses (like the existing wither-skeleton hunt) so eyes of ender stop depending on a blaze wandering into a fight; fully unlocks the dragon ambition.
+- **Post-death bootstrap** — an emergency dig-in shelter that mines its own block at night with an empty inventory, so a bot that died can survive the next night instead of looping.
+- **Guardian role beyond the village** — patrol behavior without an established settlement or a hire contract, so the role means something before a village exists (its signature goals are otherwise village-/contract-gated).
+- **Uninterruptible void crossings** — the glide/bridge legs of outer-End trips made non-preemptible so a reflex can't cancel a wing-flap over the void and drop the bot.
+- **Nether stranding fallback** — a hard budget on the return leg so a bot whose arrival portal was destroyed and has no obsidian doesn't wander the Nether indefinitely.
+- **Eyes-of-ender target** — raise the minimum so a fresh 12-socket stronghold frame fills in one trip instead of recording `eyes=missing` and needing a second run.
+
+### Recently found & fixed
+
+The audit surfaced and fixed a batch of goal-level defects (interrupt/return, combat, survival, expeditions):
+
+- **Combat freeze in the melee dead-zone** — a target 3–4.5 blocks away with a clear line of sight (on a ledge, across a narrow ditch) never tripped the earlier unreachable-target timeout, so the bot strafed in place forever. A melee-reach watchdog now gives up on a target it can't close on.
+- **Survival live-lock** — a food-less, low-health bot with no threat nearby stood still forever (survive outranked eating and re-selected itself each cycle). Survive now yields when there's no actual threat, so the bot can eat / work and recover.
+- **Creeper dodge inside the blast radius** — the intended 4→8 block hysteresis never engaged (utility hit zero before `finished()`), so the bot stopped fleeing while still in range of the explosion. The dodge now runs to a safe distance.
+- **One-way End without a bow** — bots could enter the End without a bow, then couldn't shoot the healing crystals, so the dragon was unkillable and the bot was trapped. A bow and arrows are now required for the trip.
+- **False "eyes missing" on a fresh portal** — a just-lit End portal read as empty on a cold chunk cache, permanently marking the frame as missing eyes. The final scan now retries with a prefetch.
+- **Lost work on interruption** — mining, farming, exploration, End and Nether expeditions reset their progress when a reflex preempted them; an interrupted Nether portal build left an orphaned frame and lost its obsidian. All now pause and resume in place, and the return incentive brings the bot back.
+- Plus: sleep looping toward an unreachable bed, combat abandoning work to chase distant mobs, the dragon fight freezing on resume, and assorted null-guards on cold-cache dimension entry.
+
+### What must be verified live
+
+These changes are correct in code and pass the test suite, but their *tuning* needs a live soak (as [NALEZY-TESTOVANI.md](NALEZY-TESTOVANI.md) was produced) before they can be called done:
+
+- **Survive yield threshold** — does a low-health bot recover without being caught out by a threat the 24-block scan missed? Watch death rates on a fresh world.
+- **Combat engagement radius** (12–24 blocks, scaled by aggression) — do bots still defend themselves at night without chasing distant mobs into the dark?
+- **Melee-reach watchdog** (200 ticks) — confirm no false give-ups in long but legitimate fights.
+- **Interrupt/return & pause-resume** — do bots visibly return to and *continue* mining / building / expeditions after a reflex, and does the Nether portal build resume without leaving torsos?
+- **Ambition economics** — does DRAGON_SLAYER actually drive Nether trips for eye materials, and does RICH sell its surplus instead of hoarding it? Both depend on live loot and market rates.
+- **Flaky test** — one full-suite run failed once and passed on a clean re-run; the flaky (likely timing/simulation) test should be isolated.
 
 ## Contributing
 
