@@ -133,6 +133,28 @@ class AmbitionTest {
     }
 
     @Test
+    void richBoostujeProdejNeUkladani() {
+        // Zbohatnutí táhne PRODEJ přebytku (frontier ×1.6), ne jeho uložení do
+        // truhly. „stash" schválně vypadl z balíku RICH, jinak by při plném
+        // batohu (~29) přebíjel i plně boostnutý „sell" a obchod by neproběhl.
+        var earn = new Ambition.Progress(0, 3, "našetřit první stovku");
+        assertEquals(1.6, Ambition.RICH.weight("sell", earn), 1e-9);
+        assertEquals(1.0, Ambition.RICH.weight("stash", earn), 1e-9);
+    }
+
+    @Test
+    void drakTahneNetherNaOciEnderu() {
+        // Krok „najít portál do Endu" (2/4): stronghold sken chce 8 očí Enderu,
+        // suroviny na ně (blaze rody, perly) jsou jen z Netheru → „nether" je
+        // proveditelná frontier záložka, jinak boost dopadá na stronghold s 0.
+        var findPortal = new Ambition.Progress(2, 4, "najít portál do Endu");
+        assertEquals(1.6, Ambition.DRAGON_SLAYER.weight("nether", findPortal), 1e-9);
+        // Jako obecný driver je nether boostnutý (×1.25) i v jiných krocích.
+        var gearUp = new Ambition.Progress(0, 4, "vykovat si železnou výbavu");
+        assertEquals(1.25, Ambition.DRAGON_SLAYER.weight("nether", gearUp), 1e-9);
+    }
+
+    @Test
     void splnenaAmbiceNeboBezPostupuNeboostuje() {
         var done = new Ambition.Progress(3, 3, "splněno");
         assertEquals(1.0, Ambition.COZY_HOME.weight("house", done), 1e-9);

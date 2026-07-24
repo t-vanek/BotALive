@@ -48,6 +48,18 @@ public final class ExploreGoal extends AbstractGoal {
     }
 
     @Override
+    public void resume(Bot bot) {
+        // Návrat po přerušení reflexem: rozjetá výprava (expedition) přežila
+        // pause (ten jen zastavil navigaci), takže se NEvybírá nový náhodný
+        // směr jako u start() – jen se znovu vydá navigační příkaz k původnímu
+        // cíli. Bez cíle (přerušeno před výběrem) si ho tick vybere sám.
+        if (expedition != null) {
+            BotContext ctx = ctx(bot);
+            ctx.navigator().navigateTo(ctx.position(), PathGoal.near(expedition, 2));
+        }
+    }
+
+    @Override
     public void tick(Bot bot) {
         BotContext ctx = ctx(bot);
         if (expedition == null) {

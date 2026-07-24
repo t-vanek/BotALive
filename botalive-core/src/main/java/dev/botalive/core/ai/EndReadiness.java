@@ -9,9 +9,9 @@ import org.bukkit.Material;
  * Připravenost bota na výpravu do Endu – čistá funkce nad snapshotem.
  *
  * <p>Do Endu se nechodí v tričku: minimum je železný meč, většina brnění,
- * jídlo a zásoba bloků na mosty přes void. Luk se šípy není podmínka, ale
- * bez něj se nedají sestřelit dračí krystaly – „dobře vyzbrojený" bot má
- * výrazně lepší vyhlídky a utility výpravy to zohledňuje.</p>
+ * jídlo, zásoba bloků na mosty přes void a <b>luk se šípy</b>. Luk je nutný,
+ * ne jen k dobru: dračí krystaly (léčí draka) jdou sestřelit jen lukem/kuší,
+ * takže bez nich je drak nezabitelný a bot by uvízl v Endu napořád.</p>
  *
  * @param swordTier      nejlepší meč (0 = žádný, 3 = kamenný, 4 = železný, 5+ = diamant)
  * @param armorPieces    počet oblečených kusů brnění (0–4)
@@ -72,9 +72,12 @@ public record EndReadiness(int swordTier, int armorPieces, boolean hasBow, int a
     /** @return {@code true} pokud výbava stačí na výpravu do Endu */
     public boolean expeditionReady() {
         // Krumpáč je nutný: end stone na mosty se bez něj netěží a bot by
-        // po vyčerpání bloků uvízl na ostrůvku.
+        // po vyčerpání bloků uvízl na ostrůvku. Luk se šípy ({@link #wellArmed})
+        // je taky nutný: bez sestřelení krystalů je drak nezabitelný a bot by
+        // v Endu uvízl napořád (jednosměrka bez výstupního portálu).
         return swordTier >= MIN_SWORD_TIER && armorPieces >= 3
-                && foodCount >= 5 && buildingBlocks >= 32 && hasPickaxe;
+                && foodCount >= 5 && buildingBlocks >= 32 && hasPickaxe
+                && wellArmed();
     }
 
     /** @return {@code true} pokud má bot luk a rozumnou zásobu šípů (krystaly) */

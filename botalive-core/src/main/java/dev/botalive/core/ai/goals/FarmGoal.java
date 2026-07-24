@@ -114,6 +114,32 @@ public final class FarmGoal extends AbstractGoal {
     }
 
     @Override
+    public void pause(Bot bot) {
+        // Přerušení reflexem (hlad, boj): zrušit jen rozběhnuté tasky a
+        // navigaci, ale ZACHOVAT rozdělané zakládání i sklizeň – fázi, plodinu
+        // (crop/crops), fronty záhonu/pole (bedQueue/fieldQueue/fieldCells)
+        // i čítače. Bez toho by start() při návratu vše smazal a bot by
+        // zakládal záhon/pole od začátku. HARVEST je díky null-guardu v tick()
+        // re-entrantní, BED_PLACE task sám null-checkuje – stačí task zrušit.
+        BotContext ctx = ctx(bot);
+        if (harvestTask != null) {
+            harvestTask.cancel(ctx);
+            harvestTask = null;
+        }
+        if (bedTask != null) {
+            bedTask.cancel(ctx);
+            bedTask = null;
+        }
+        ctx.navigator().stop();
+    }
+
+    @Override
+    public void resume(Bot bot) {
+        // Návazný start: rozdělaný stav (fáze, fronty, plodina) přežil pause –
+        // tick() naváže na další buňku/plodinu. Nic se neresetuje.
+    }
+
+    @Override
     public void tick(Bot bot) {
         BotContext ctx = ctx(bot);
         switch (phase) {
@@ -162,6 +188,13 @@ public final class FarmGoal extends AbstractGoal {
                 phase = Phase.HARVEST;
             }
             case HARVEST -> {
+                if (harvestTask == null) {
+                    // Task byl zrušen (přerušení reflexem přes pause) – vrátit
+                    // se k plodině (crop/crops zůstaly) a vytvořit ho znovu.
+                    // Bez téhle pojistky by resume derefoval null → NPE.
+                    phase = Phase.GO;
+                    return;
+                }
                 if (harvestTask.tick(ctx)) {
                     harvestTask = null;
                     harvested++;

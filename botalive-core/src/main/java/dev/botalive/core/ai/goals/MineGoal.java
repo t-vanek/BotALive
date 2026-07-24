@@ -243,6 +243,31 @@ public final class MineGoal extends AbstractGoal {
     }
 
     @Override
+    public void pause(Bot bot) {
+        // Přerušení reflexem (creeper, hlad): zrušit jen rozběhnutý úder a
+        // navigaci, ale ZACHOVAT plán výkopu (schodiště/tunel, cílový blok,
+        // rozpočet, cesta do dolu). Bez toho by start() při návratu vše smazal
+        // a bot by razil od povrchu znova. K němu se vrací resume().
+        BotContext ctx = ctx(bot);
+        if (task != null) {
+            task.cancel(ctx);
+            task = null;
+        }
+        if (torchTask != null) {
+            torchTask.cancel(ctx);
+            torchTask = null;
+        }
+        ctx.navigator().stop();
+    }
+
+    @Override
+    public void resume(Bot bot) {
+        // Návazný start: rozdělaný výkop (digSteps/stepBlocks/targetBlock/mode/
+        // digBudget/travelTarget) přežil pause – jen se nechá běžet dál, tick()
+        // naváže na další krok. Nic se neresetuje ani neohlašuje (žádný spam).
+    }
+
+    @Override
     public boolean finished(Bot bot) {
         return cooldownTicks > 0;
     }

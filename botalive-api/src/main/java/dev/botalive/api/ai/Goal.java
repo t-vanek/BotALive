@@ -45,12 +45,41 @@ public interface Goal {
     void tick(Bot bot);
 
     /**
-     * Zavolá se při deaktivaci cíle (dokončení i přerušení). Implementace musí
-     * uklidit rozpracovaný stav (zrušit navigaci, pustit tlačítka, ...).
+     * Zavolá se při deaktivaci cíle (dokončení, selhání nebo úplné opuštění).
+     * Implementace musí uklidit rozpracovaný stav (zrušit navigaci, pustit
+     * tlačítka, ...). Přerušení reflexem <em>s návratem</em> jde místo toho přes
+     * {@link #pause}, takže {@code stop()} znamená „konec téhle práce".
      *
      * @param bot deaktivující bot
      */
     void stop(Bot bot);
+
+    /**
+     * Pozastaví cíl přerušený reflexem (na rozdíl od {@link #stop} = úplný
+     * úklid). Výchozí chování je {@code stop(bot)} – cíl se zahodí jako dřív, což
+     * je vždy bezpečné. Cíle s drahým rozdělaným stavem (rozkopané schodiště,
+     * rozestavěná seance) můžou přepsat tak, aby stav zachovaly; k návratu se
+     * pak zavolá {@link #resume}. Mozek {@code pause()} volá jen pro rozdělanou
+     * práci přebitou reflexem (hlad, boj, útěk), ne pro dokončení ani dobrovolné
+     * přepnutí na jinou práci.
+     *
+     * @param bot pozastavovaný bot
+     */
+    default void pause(Bot bot) {
+        stop(bot);
+    }
+
+    /**
+     * Naváže na cíl dřív pozastavený přes {@link #pause}. Výchozí chování je
+     * {@code start(bot)} – svěží začátek jako dřív. Cíle přepisující
+     * {@code pause()} přepíšou i tohle, aby pokračovaly tam, kde skončily
+     * (nebo spadnou zpět na {@code start()}, když už rozdělaný stav neplatí).
+     *
+     * @param bot navracející se bot
+     */
+    default void resume(Bot bot) {
+        start(bot);
+    }
 
     /**
      * @param bot bot vykonávající cíl

@@ -231,6 +231,14 @@ public final class StrongholdSeekGoal extends AbstractGoal {
     }
 
     @Override
+    public void resume(Bot bot) {
+        // Návrat po přerušení reflexem: nalezená pozice strongholdu i fáze
+        // (LOCATE/TRAVEL/SEARCH) přežily pause – stop() je nemaže, jen zastavil
+        // navigaci, kterou tick() sám obnoví. Bez override by start() smazal
+        // strongholdPos a zbytečně znovu spustil server locate a celou cestu.
+    }
+
+    @Override
     public void stop(Bot bot) {
         ctx(bot).navigator().stop();
     }

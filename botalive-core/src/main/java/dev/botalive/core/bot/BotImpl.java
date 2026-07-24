@@ -634,7 +634,9 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
     /** Smí bot tuhle ambici mít? (výpravové sny jen se zapnutými výpravami) */
     private boolean ambitionAllowed(dev.botalive.core.ai.Ambition candidate) {
         if (candidate == dev.botalive.core.ai.Ambition.DRAGON_SLAYER) {
-            return config.end().enabled();
+            // Drak chce oči Enderu, a blaze rody na ně jsou jen z Netheru –
+            // s vypnutým peklem je sen o draku tvrdý deadlock, ne jen výprava.
+            return config.end().enabled() && config.nether().enabled();
         }
         if (candidate == dev.botalive.core.ai.Ambition.NETHERITE) {
             return config.nether().enabled();
@@ -730,6 +732,40 @@ public final class BotImpl implements Bot, BotContext, NetworkEvents,
     /** Cíl úspěšně dokončen – posílí jeho hybnost (jen produktivní práce). */
     public void reinforceGoal(String goalId) {
         goalMomentum.reinforce(goalId);
+    }
+
+    /** Krátkodobá pobídka k návratu k práci přerušené reflexem. */
+    private final dev.botalive.core.ai.GoalResumption goalResumption =
+            new dev.botalive.core.ai.GoalResumption();
+
+    /** Násobič utility z návratové pobídky (rozdělaná práce po přerušení). */
+    public double resumptionWeight(String goalId) {
+        return goalResumption.weight(goalId);
+    }
+
+    /** Rozhodovací krok mozku – návratové pobídky o kus slábnou. */
+    public void decayResumption() {
+        goalResumption.decay();
+    }
+
+    /** Reflex přerušil rozdělanou práci – zapamatuj si ji k návratu. */
+    public void markInterrupted(String goalId) {
+        goalResumption.interrupted(goalId);
+    }
+
+    /** Zruš návratovou pobídku cíle (vrátil se k němu / přestal být proveditelný). */
+    public void clearResumption(String goalId) {
+        goalResumption.clear(goalId);
+    }
+
+    /** Má smysl se k tomuhle cíli po přerušení vracet? (produktivní práce/výprava) */
+    public boolean isResumable(String goalId) {
+        return goalResumption.resumable(goalId);
+    }
+
+    /** Čeká tenhle cíl na návrat? (byl pozastaven reflexem) – řídí pause/resume. */
+    public boolean isResumptionPending(String goalId) {
+        return goalResumption.pending(goalId);
     }
 
     /** @return řádka „životní cíl" pro příkazy, nebo {@code null} */

@@ -212,6 +212,11 @@ public final class EndOuterGoal extends AbstractGoal {
     @Override
     public void tick(Bot bot) {
         BotContext ctx = ctx(bot);
+        if (ctx.worldView() == null) {
+            // Studená chunk cache (vstup do dimenze) – scanFor/materialAt/
+            // worldName by jinak spadly na NPE (soft-abort přes Brain catch).
+            return;
+        }
         if (phase == Phase.IDLE || phase == Phase.DONE) {
             return;
         }

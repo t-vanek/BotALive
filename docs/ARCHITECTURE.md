@@ -113,7 +113,16 @@ snapshot sestavený klientsky (`PacketPlayerView` + `ItemMapper`, §13).
 Cíl (`Goal`) je malý stavový automat s funkcí `utility(bot)`. Mozek každých
 N ticků vybere cíl s nejvyšší užitečností; aktivní cíl má hysterezi (+15 %)
 proti kmitání a do výběru vstupuje per-bot šum – dva boti ve stejné situaci se
-nerozhodnou stejně. Osobnost vstupuje přímo do utility (např.
+nerozhodnou stejně. Hystereze drží jen *právě* aktivní cíl; když ho přebije
+reflex (hlad, boj, útěk), přerušená rozdělaná práce dostane krátkou klesavou
+**návratovou pobídku** (`GoalResumption`, „přenosná hystereze", +25 % → 0), aby
+se k ní bot po odeznění hrozby vrátil místo odchodu jinam. Pobídku dostane jen
+skutečné přerušení reflexem, ne dobrovolná změna mezi dvěma pracemi. Přerušený
+cíl se navíc **pozastaví** (`Goal.pause`), ne zahodí, a při návratu **naváže**
+(`Goal.resume`) tam, kde skončil – např. `MineGoal` si podrží rozkopané
+schodiště místo ražby od povrchu znova. Výchozí `pause`/`resume` = `stop`/`start`
+(zpětně kompatibilní; cíle si kontinuitu přidávají jen kde se vyplatí). Osobnost
+vstupuje přímo do utility (např.
 `6 + curiosity·18 − laziness·6` u průzkumu), takže chování se liší
 kvantitativně i kvalitativně. Strategii (cíle) od taktiky (tasky
 `MineBlockTask`, `PlaceBlockTask`) odděluje vrstva `BotTask` – nové schopnosti
@@ -121,8 +130,9 @@ se skládají z hotových primitiv. Cizí pluginy registrují cíle přes
 `GoalRegistry` bez zásahu do jádra.
 
 Užitečnost je součin modulačních vrstev (dimenze, role, denní rytmus, ambice,
-zaměstnání, **nálada**, **únava** a **pudy**) – každá jen jemně vychyluje
-priority, osobnost zůstává hlavní. Vnitřní stav (`BotMood` – emoce z prožitků
+zaměstnání, **nálada**, **únava**, **pudy**, naučená **hybnost** a **návrat
+k přerušené práci**) – každá jen jemně vychyluje priority, osobnost zůstává
+hlavní. Vnitřní stav (`BotMood` – emoce z prožitků
 a těla; `Vitals` – energie/únava; `BotDrives` – hierarchická arbitráž potřeb
 à la Maslow) je krátkodobá vrstva mezi celoživotní osobností a per-tik utilitou:
 v klidu neutrální, vypínatelná – viz [BOT_LIFE.md](BOT_LIFE.md).

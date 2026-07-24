@@ -209,16 +209,24 @@ public final class CombatGoal extends AbstractGoal {
      */
     private Optional<TrackedEntity> findTarget(BotContext ctx, Bot bot) {
         double viewDistance = ctx.config().ai().viewDistanceBlocks();
+        // Nevyprovokovaného hostila napadat jen v „angažovacím" okruhu, který
+        // roste s agresí (12 klidný – 24 útočný), ne na celý dohled (32). Dřív
+        // bot opouštěl práci, aby honil libovolného moba do 32 bloků – i toho,
+        // co ho nenapadl a je 30 bloků daleko v tmě/nebezpečí. Blízké noční
+        // moby (spawnují u bota) i tak spadnou do okruhu; sebeobrana níž ne.
+        double aggression = bot.personality().trait(Trait.AGGRESSION);
+        double engageRadius = 12 + aggression * 12;
         Optional<TrackedEntity> hostile = ctx.entities()
-                .nearby(ctx.position(), viewDistance, TrackedEntity::isHostile)
+                .nearby(ctx.position(), engageRadius, TrackedEntity::isHostile)
                 .stream()
                 .filter(e -> !unreachableTargets.contains(e.entityId()))
                 .findFirst();
         if (hostile.isPresent()) {
             return hostile;
         }
-        // Neutrální útočník z čerstvé paměti (ne hráč – to je věc PvpGoal,
-        // a nikdy ne vlastní mazlíček). Sdílený helper s únikem SurviveGoal.
+        // Čerstvý agresor (napadl bota) – sebeobrana/pomsta i na plný dohled
+        // (ne hráč – to je věc PvpGoal – a nikdy ne vlastní mazlíček). Sdílený
+        // helper s únikem SurviveGoal.
         return ctx.entities().nearby(ctx.position(), viewDistance,
                         e -> !e.isPlayer() && e.uuid() != null)
                 .stream()

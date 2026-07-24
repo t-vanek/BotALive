@@ -230,6 +230,22 @@ public final class NetherGoal extends AbstractGoal {
     }
 
     @Override
+    public void resume(Bot bot) {
+        // Návrat po přerušení reflexem (boj/hlad/útěk uprostřed výpravy):
+        // NEspouštět start(). Ten volá resetTransients() (nuluje buildQueue)
+        // a phase=PREPARE, takže rozestavěný portál v overworldu by osiřel –
+        // FIND_PORTAL na TORZO nenaváže (findFrame chce hotový rám, findBuildSite
+        // torzo-místo zamítne) a s <14 obsidiánu (část už položena) je utility 0
+        // → soft-lock a ztráta obsidiánu. pause (=stop) přitom frameBase/frameAxis/
+        // buildQueue i fázi zachovává (maže jen tasky a digSteps) a všechny fáze
+        // jsou re-entrantní: tickBuild se sesynchronizuje se světem (přeskočí už
+        // položený obsidián), tickEnter/tickLight/tickWork si zrušený task
+        // vytvoří znovu. Stačí tedy nechat běžet dál. V Netheru se navíc zachová
+        // tripDeadlineMs, aby přerušení nenatahovala rozpočet výpravy. (Bez
+        // rozdělaného stavu je fáze PREPARE/FIND_PORTAL, kde no-op nevadí.)
+    }
+
+    @Override
     public void tick(Bot bot) {
         BotContext ctx = ctx(bot);
         if (ctx.worldView() == null) {

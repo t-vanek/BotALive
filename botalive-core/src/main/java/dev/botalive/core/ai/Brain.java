@@ -202,9 +202,12 @@ public final class Brain {
 
         Goal best = null;
         double bestUtility = 0;
-        // Hybnost cílů o krok zeslábne (jednou za rozhodnutí, ne per cíl).
-        if (bot instanceof dev.botalive.core.bot.BotImpl momentumImpl) {
-            momentumImpl.decayMomentum();
+        dev.botalive.core.bot.BotImpl impl =
+                bot instanceof dev.botalive.core.bot.BotImpl b ? b : null;
+        // Hybnost i návratová pobídka o krok zeslábnou (jednou za rozhodnutí).
+        if (impl != null) {
+            impl.decayMomentum();
+            impl.decayResumption();
         }
         dev.botalive.core.world.WorldDimension dimension = BotContext.of(bot).dimension();
         for (Goal goal : goals) {
@@ -216,6 +219,12 @@ public final class Brain {
                 continue;
             }
             if (utility <= 0) {
+                // Pozor: NEmazat tu návratovou pobídku. Cíl přerušený reflexem
+                // (výprava přebitá bojem/hladem → health/food < 14 → utilita 0)
+                // by o ni přišel přesně během reflexu, který má přežít. Pobídka
+                // je multiplikátor, takže cíl s utilitou 0 stejně nevyhraje
+                // (0 × bonus = 0); jakmile se stane zas proveditelným, pobídka
+                // ho vrátí. Úklid zajistí decay.
                 continue;
             }
             // Dimenze škrtá, co v ní nedává smysl (v Endu postel exploduje...).
@@ -225,8 +234,8 @@ public final class Brain {
             }
             // Profese vychyluje priority (kovář taví ochotněji, lovec loví...) –
             // přes registr rolí, aby fungovaly i cizí role pluginů.
-            utility *= bot instanceof dev.botalive.core.bot.BotImpl roleImpl
-                    ? roleImpl.roleWeight(goal.id())
+            utility *= impl != null
+                    ? impl.roleWeight(goal.id())
                     : dev.botalive.core.role.RoleProfiles.weight(bot.role(), goal.id());
             // Denní rytmus: ráno pole, přes den těžba/stavba, večer družení.
             // V Endu/Netheru není den a noc – rytmus tam neplatí.
@@ -234,7 +243,7 @@ public final class Brain {
                 utility *= rhythm.multiplier(goal.id(), BotContext.of(bot).worldTime());
             }
             // Životní ambice táhne související cíle (dokud není splněná).
-            if (bot instanceof dev.botalive.core.bot.BotImpl impl) {
+            if (impl != null) {
                 utility *= impl.ambitionWeight(goal.id());
                 // Zaměstnání: dělník se soustředí na práci a míň se fláká.
                 utility *= impl.employmentWeight(goal.id());
@@ -246,6 +255,9 @@ public final class Brain {
                 utility *= impl.drivesWeight(goal.id());
                 // Naučená hybnost: co bot úspěšně dokončuje, dělá o kus radši.
                 utility *= impl.momentumWeight(goal.id());
+                // Návrat k práci: cíl nedávno přerušený reflexem má krátce navrch,
+                // aby se k němu bot vrátil, ne aby po odeznění hrozby odešel jinam.
+                utility *= impl.resumptionWeight(goal.id());
             }
             // Hystereze aktivního cíle + drobný rozhodovací šum.
             if (goal == current) {
@@ -266,6 +278,13 @@ public final class Brain {
                     new dev.botalive.api.event.BotGoalSelectEvent(bot, fromId, toId);
             event.callEvent();
             if (!event.isCancelled()) {
+                // Přerušení = rozdělaná práce přebitá reflexem (hlad, boj, útěk).
+                // Zapamatovat si ji k návratu; dobrovolné přepnutí na jinou práci
+                // (best je taky produktivní) přerušení není a pobídku nedostane.
+                if (impl != null && current != null && !current.finished(bot)
+                        && (best == null || !impl.isResumable(best.id()))) {
+                    impl.markInterrupted(current.id());
+                }
                 switchTo(best);
             }
         }
@@ -273,20 +292,42 @@ public final class Brain {
 
     /** Přepnutí aktivního cíle + event. */
     private void switchTo(Goal next) {
+        dev.botalive.core.bot.BotImpl impl =
+                bot instanceof dev.botalive.core.bot.BotImpl b ? b : null;
         Goal previous = current;
         if (previous != null) {
+            // Přerušená (označená) práce se POZASTAVÍ (zachová postup); jinak
+            // úplný úklid (dokončení, selhání, dobrovolné přepnutí, halt).
+            boolean paused = impl != null && impl.isResumptionPending(previous.id());
             try {
-                previous.stop(bot);
+                if (paused) {
+                    previous.pause(bot);
+                } else {
+                    previous.stop(bot);
+                }
             } catch (Exception e) {
-                LOG.warn("[{}] stop() cíle '{}' selhal: {}", bot.name(), previous.id(), e.toString());
+                LOG.warn("[{}] {}() cíle '{}' selhal: {}", bot.name(),
+                        paused ? "pause" : "stop", previous.id(), e.toString());
             }
         }
         current = next;
         if (next != null) {
+            // Byl tenhle cíl pozastavený? Pak NAVÁŽE (resume) tam, kde skončil,
+            // a pobídku zahodíme (dál ho drží hystereze). Jinak svěží start.
+            // Pending číst PŘED clearem, ať se signál k navázání neztratí.
+            boolean resuming = impl != null && impl.isResumptionPending(next.id());
+            if (resuming) {
+                impl.clearResumption(next.id());
+            }
             try {
-                next.start(bot);
+                if (resuming) {
+                    next.resume(bot);
+                } else {
+                    next.start(bot);
+                }
             } catch (Exception e) {
-                LOG.error("[{}] start() cíle '{}' selhal", bot.name(), next.id(), e);
+                LOG.error("[{}] {}() cíle '{}' selhal", bot.name(),
+                        resuming ? "resume" : "start", next.id(), e);
                 current = null;
             }
         }
