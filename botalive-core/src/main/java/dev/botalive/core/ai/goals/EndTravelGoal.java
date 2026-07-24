@@ -165,6 +165,15 @@ public final class EndTravelGoal extends AbstractGoal {
     }
 
     @Override
+    public void resume(Bot bot) {
+        // Návrat po přerušení reflexem (boj/hlad na cestě k portálu): stav
+        // výpravy (phase, rememberedPortal, entry, frameTargets) přežil pause –
+        // stop() ho nemaže, jen zastavil navigaci. tick() ji sám obnoví, takže
+        // se NEvolá start() (ten by fázi resetoval na GO a zopakoval odchodovou
+        // hlášku). Nic není potřeba, jen nespustit svěží start.
+    }
+
+    @Override
     public void tick(Bot bot) {
         BotContext ctx = ctx(bot);
         if (phase == Phase.DONE || rememberedPortal == null) {
