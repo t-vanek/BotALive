@@ -128,6 +128,22 @@ public final class DragonFightGoal extends AbstractGoal {
         }
     }
 
+    @Override
+    public void resume(Bot bot) {
+        // Návrat po přerušení reflexem (survive/combat pod drakem): NEspouštět
+        // start(). Ten by (a) vypil další doušek → drinkTicks=40 → 2 s stání
+        // pod drakem a inkaso ran, (b) resetoval fightDeadlineMs → strop zátahu
+        // by se opakovanými přerušeními nikdy nevyčerpal, (c) smazal
+        // crystalBlacklist → znovu by mířil na klecové krystaly a promarnil
+        // šípy. Stav boje (fightStarted, deadline, blacklist, crystalShot)
+        // přežil pause (stop ho nemaže), tick na něj naváže.
+        if (crystalShot == null) { // pojistka; start() ho vytváří dřív
+            BotContext ctx = ctx(bot);
+            crystalShot = new RangedAttack(ctx.actions(), ctx.humanizer(), ctx.rng(),
+                    ctx.inventory());
+        }
+    }
+
     /** Navigace ke středu ostrova se stabilním cílem (mosty přes void). */
     private void navigateCenter(BotContext ctx, Vec3 pos) {
         if (pos.horizontal().distance(Vec3.ZERO) <= 12) {

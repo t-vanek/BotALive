@@ -52,16 +52,30 @@ class EndReadinessTest {
     }
 
     @Test
-    void zeleznaVybavaJidloABlokyStaci() {
+    void plnaVybavaSLukemStaci() {
+        Material[] main = {Material.COBBLESTONE, Material.COBBLESTONE, Material.COBBLESTONE,
+                Material.COBBLESTONE, Material.COBBLESTONE, Material.COBBLESTONE,
+                Material.COBBLESTONE, Material.COBBLESTONE, Material.BREAD,
+                Material.ARROW, Material.ARROW, Material.ARROW, Material.ARROW};
+        EndReadiness readiness = EndReadiness.assess(
+                snapshot(ironArmor(3), main, Material.IRON_SWORD, Material.IRON_PICKAXE,
+                        Material.BREAD, Material.BOW));
+        assertTrue(readiness.expeditionReady(),
+                "meč + krumpáč + brnění + jídlo + bloky + luk se šípy = připraven");
+        assertTrue(readiness.wellArmed(), "luk a šípy = dobře vyzbrojen");
+    }
+
+    @Test
+    void bezLukuSeNevyrazi() {
+        // Krystaly (léčí draka) jdou sestřelit jen lukem – bez něj je drak
+        // nezabitelný a bot by uvízl v Endu napořád, proto je luk podmínka.
         Material[] main = {Material.COBBLESTONE, Material.COBBLESTONE, Material.COBBLESTONE,
                 Material.COBBLESTONE, Material.COBBLESTONE, Material.COBBLESTONE,
                 Material.COBBLESTONE, Material.COBBLESTONE, Material.BREAD};
         EndReadiness readiness = EndReadiness.assess(
                 snapshot(ironArmor(3), main, Material.IRON_SWORD, Material.IRON_PICKAXE,
                         Material.BREAD));
-        assertTrue(readiness.expeditionReady(),
-                "železný meč + krumpáč + 3 kusy brnění + jídlo + bloky = připraven");
-        assertFalse(readiness.wellArmed(), "bez luku není dobře vyzbrojen");
+        assertFalse(readiness.expeditionReady(), "bez luku se na draka nechodí");
     }
 
     @Test

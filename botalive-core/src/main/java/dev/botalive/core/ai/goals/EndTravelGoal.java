@@ -74,6 +74,8 @@ public final class EndTravelGoal extends AbstractGoal {
     private int fillTicks;
     private int frameTicks;
     private int clickPause;
+    /** Finální sken po doplnění rámu – studená cache chce pár pokusů s prefetch. */
+    private final ScanRetry postFillScan = new ScanRetry(4, 30);
 
     /** Vytvoří cíl. */
     public EndTravelGoal() {
@@ -150,6 +152,7 @@ public final class EndTravelGoal extends AbstractGoal {
         fillTicks = 0;
         frameTicks = 0;
         clickPause = 0;
+        postFillScan.reset();
         Vec3 pos = ctx.position();
         rememberedPortal = EndKnowledge.nearestEndPortal(bot.memory(),
                         ctx.worldView().worldName(), (int) pos.x(), (int) pos.z())
@@ -244,16 +247,29 @@ public final class EndTravelGoal extends AbstractGoal {
                 }
                 if (frameTargets.isEmpty()) {
                     // Všechny rámy prokliknuté (nebo došly oči) – rozhodne sken.
+                    // Ten ale přes studenou chunk cache může na ČERSTVĚ
+                    // probuzeném portálu vrátit null (materialAt async), a dřív
+                    // z toho padl rovnou verdikt „eyes=missing": otevřený portál
+                    // pak bot navždy viděl jako prázdný (utility bránu drží
+                    // frameAwaitsEyes, pasivní notice taky). Sken proto pár
+                    // pokusů zopakovat s prefetch – stejně jako EndReturnGoal.
+                    if (postFillScan.waiting()) {
+                        return;
+                    }
                     PortalScan scan = scanPortal(world, rememberedPortal,
                             pos.toBlockPos());
                     if (scan.portal() != null) {
                         rememberEyes(bot, world, null);
                         entry = new PortalEntry(world, scan.portal());
                         phase = Phase.ENTER;
-                    } else {
+                        return;
+                    }
+                    if (!postFillScan.shouldRetry()) {
                         // Očí bylo míň než prázdných slotů – rám dál čeká.
                         rememberEyes(bot, world, EndKnowledge.EYES_MISSING);
                         giveUp(2400);
+                    } else if (postFillScan.firstFailure()) {
+                        world.prefetch(rememberedPortal, 1);
                     }
                     return;
                 }
