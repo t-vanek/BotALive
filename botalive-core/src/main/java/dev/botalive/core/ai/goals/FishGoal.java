@@ -66,6 +66,11 @@ public final class FishGoal extends AbstractGoal {
         if (snapshot == null || !snapshot.hasItem(m -> m == Material.FISHING_ROD)) {
             return 0;
         }
+        // Plný batoh: úlovek padá na zem a despawnuje – napřed uložit
+        // (stash), pak rybařit (vzor MineGoal).
+        if (dev.botalive.core.inventory.InventoryHelper.freeSlots(snapshot) <= 1) {
+            return 0;
+        }
         if (nearestOpenWater(ctx) == null) {
             return 0;
         }

@@ -33,6 +33,8 @@ public final class GuardGoal extends AbstractGoal {
     private int pauseTicks;
     private int travelTicks;
     private int cooldownTicks;
+    /** Po sobě jdoucí stanoviště bez schůdné buňky (viz tick). */
+    private int emptyWaypoints;
 
     /** Vytvoří cíl. */
     public GuardGoal() {
@@ -93,9 +95,19 @@ public final class GuardGoal extends AbstractGoal {
         }
         BlockPos target = waypointPos(ctx, waypoint);
         if (target == null) {
+            // Vesnice na útesu / nenačtené chunky: všech 8 stanovišť může
+            // vracet null a bot by do rána naprázdno rotoval waypointy
+            // (travelTicks se v téhle větvi nikdy nenasčítal). Po ~okruhu
+            // marných pokusů hlídku na minutu přerušit.
+            if (++emptyWaypoints > 16) {
+                emptyWaypoints = 0;
+                cooldownTicks = 1200;
+                return;
+            }
             nextWaypoint(ctx);
             return;
         }
+        emptyWaypoints = 0;
         double distSq = ctx.position().toBlockPos().distanceSquared(target);
         if (distSq <= 2.5 * 2.5) {
             ctx.navigator().stop();

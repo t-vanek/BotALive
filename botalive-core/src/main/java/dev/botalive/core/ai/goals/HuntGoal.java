@@ -57,11 +57,22 @@ public final class HuntGoal extends AbstractGoal {
         if (!ctx.config().combat().enabled() || ctx.clientState().dead()) {
             return 0;
         }
+        // Rozdělaný hon se dotahuje: nahnaná kořist v panice uteče za
+        // viewDistance a brána „zvíře v dohledu" by seanci uťala uprostřed –
+        // zvíře s půlkou HP, bez dropu, bez cooldownu → hned nový lov jinde.
+        // Ztrátu cíle řeší tick (lostTargetTicks → finished + cooldown).
+        if (target != null && ctx.entities().byId(target.entityId()).isPresent()) {
+            return 4 + bot.personality().trait(Trait.AGGRESSION) * 8 + 4;
+        }
         int viewDistance = ctx.config().ai().viewDistanceBlocks();
+        var snapshot = ctx.serverView().latest();
+        // Plný batoh: kořist by zůstala ležet a despawnula – napřed uložit.
+        if (snapshot != null && InventoryHelper.freeSlots(snapshot) <= 1) {
+            return 0;
+        }
         // Zvěř na jídlo/suroviny má přednost (původní chování).
         if (ctx.entities().nearest(ctx.position(), viewDistance,
                 TrackedEntity::isHuntableAnimal).isPresent()) {
-            var snapshot = ctx.serverView().latest();
             boolean hasFood = snapshot != null && snapshot.hasItem(InventoryHelper::isFood);
             double hungerPressure = Math.max(0, 16 - ctx.clientState().food());
             double aggression = bot.personality().trait(Trait.AGGRESSION);

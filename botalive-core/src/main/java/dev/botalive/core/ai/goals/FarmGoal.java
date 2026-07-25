@@ -4,6 +4,7 @@ import dev.botalive.api.bot.Bot;
 import dev.botalive.api.memory.MemoryKind;
 import dev.botalive.api.personality.Trait;
 import dev.botalive.core.ai.BotContext;
+import dev.botalive.core.inventory.InventoryHelper;
 import dev.botalive.core.tasks.MineBlockTask;
 import dev.botalive.core.util.BlockPos;
 import dev.botalive.core.world.WorldView;
@@ -74,6 +75,8 @@ public final class FarmGoal extends AbstractGoal {
     private final java.util.ArrayDeque<BlockPos> fieldQueue = new java.util.ArrayDeque<>();
     private java.util.List<BlockPos> fieldCells = java.util.List.of();
     private int fieldTicks;
+    /** Marné pokusy o equip sadby v *_PLANT fázích (pojistka smyčky). */
+    private int plantRetries;
 
     /** Vytvoří cíl. */
     public FarmGoal() {
@@ -90,6 +93,15 @@ public final class FarmGoal extends AbstractGoal {
         // Pole patří do overworldu (v Netheru plodiny nerostou).
         if (outsideOverworld(ctx)) {
             return 0;
+        }
+        // Plný batoh: sklizeň by padala na zem a po 5 minutách despawnula –
+        // napřed uložit (stash), pak farmařit. Jen pro ZAHÁJENÍ (vzor
+        // MineGoal); rozdělaná sklizeň se nechá dojet.
+        if (phase == Phase.DONE || phase == Phase.FIND) {
+            var snapshot = ctx.serverView().latest();
+            if (snapshot != null && InventoryHelper.freeSlots(snapshot) <= 1) {
+                return 0;
+            }
         }
         // Chuť farmařit: hlad zvyšuje, trpělivost a ochota pomoci podporují.
         double patience = bot.personality().trait(Trait.PATIENCE);
@@ -367,10 +379,19 @@ public final class FarmGoal extends AbstractGoal {
             if (snapshot != null) {
                 ctx.inventory().equipItem(snapshot, Material.NETHER_WART);
             }
+            // Sazenice trvale nikde (zmizela z inventáře, snapshot null):
+            // sesterské fáze (TILL, PLACE) bail-ují, jen *_PLANT recyklovala
+            // buňku donekonečna a hystereze bota v cíli držela celý den.
+            if (++plantRetries > 20) {
+                plantRetries = 0;
+                phase = Phase.FIND;
+                return;
+            }
             bedTicks = 4;
             bedQueue.addFirst(sand);
             return;
         }
+        plantRetries = 0;
         ctx.actions().selectHotbar(seed);
         ctx.humanizer().lookAt(ctx.position().add(0, 1.62, 0),
                 sand.center().add(0, 0.5, 0));
@@ -589,10 +610,18 @@ public final class FarmGoal extends AbstractGoal {
             if (snapshot != null) {
                 ctx.inventory().equipItem(snapshot, Material.WHEAT_SEEDS);
             }
+            // Stejná pojistka jako u záhonu bradavice – bez osiva se nesmí
+            // cyklit equip smyčka (viz komentář tam).
+            if (++plantRetries > 20) {
+                plantRetries = 0;
+                phase = Phase.FIND;
+                return;
+            }
             fieldTicks = 4;
             fieldQueue.addFirst(cell);
             return;
         }
+        plantRetries = 0;
         ctx.actions().selectHotbar(seed);
         ctx.humanizer().lookAt(ctx.position().add(0, 1.62, 0), cell.center().add(0, 0.5, 0));
         ctx.actions().useItemOn(cell, Direction.UP);

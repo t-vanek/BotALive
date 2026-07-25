@@ -56,7 +56,17 @@ public final class CraftGoal extends AbstractGoal {
         boolean missingTools = !snapshot.hasItem(
                 m -> InventoryHelper.isTool(m, InventoryHelper.ToolType.PICKAXE))
                 || !snapshot.hasItem(m -> InventoryHelper.isTool(m, InventoryHelper.ToolType.SWORD));
-        if (!hasWood && !snapshot.hasItem(m -> m == org.bukkit.Material.COBBLESTONE)) {
+        // Brána nesmí být přísnější než plánovač: čistě kovové/diamantové
+        // recepty (brnění, nůžky, netheritový ingot) dřevo ani cobble
+        // nepotřebují – bot s ingoty v batohu (po vybankování cobble, který
+        // je BULK_JUNK) měl utilitu 0, ačkoli CraftingService uměl vyrábět.
+        boolean hasMetal = snapshot.hasItem(m -> m == org.bukkit.Material.IRON_INGOT
+                || m == org.bukkit.Material.GOLD_INGOT
+                || m == org.bukkit.Material.DIAMOND
+                || m == org.bukkit.Material.NETHERITE_SCRAP
+                || m == org.bukkit.Material.NETHERITE_INGOT);
+        if (!hasWood && !hasMetal
+                && !snapshot.hasItem(m -> m == org.bukkit.Material.COBBLESTONE)) {
             return 0;
         }
         double intelligence = bot.personality().trait(Trait.INTELLIGENCE);

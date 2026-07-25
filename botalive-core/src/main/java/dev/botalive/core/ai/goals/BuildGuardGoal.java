@@ -138,6 +138,14 @@ public final class BuildGuardGoal extends AbstractGoal {
         if (origin == null || world == null) {
             return null;
         }
+        // Deklarace „ve stejném světě" musí svět opravdu porovnat – čistá
+        // vzdálenost souřadnic by na multiworld serveru poslala stráž hlídat
+        // čísla v cizím světě (SettlementWallGoal tuhle kontrolu má).
+        var settlement = ctx.settlements().settlementOf(bot.id());
+        if (settlement.isEmpty()
+                || !settlement.get().world().equals(world.worldName())) {
+            return null;
+        }
         if (origin.distanceSquared(ctx.position().toBlockPos()) > SITE_REACH * SITE_REACH) {
             return null; // staveniště přes půl světa – tam stráž nedojde
         }
@@ -172,16 +180,25 @@ public final class BuildGuardGoal extends AbstractGoal {
     }
 
     /**
-     * Sloupec stanoviště stráže (čistá geometrie – testovatelná): pár bloků
-     * před stavbou ve směru přístupu (dveře míří k návsi = {@code facing}),
-     * mimo půdorys. Výšku dohledá {@link #guardPost}.
+     * Odstup stanoviště od odhadu středu (bloky). Musí přesahovat i největší
+     * sizovaný sál (kostel 7×9, jehož skutečný střed je až origin+4 a půlka
+     * hloubky 4,5): starší odstup 3 předpokládal půdorys ≤ 5 a u městských
+     * sálů stavěl stráž DOVNITŘ staveniště – pletla se staviteli pod ruce
+     * a PlaceBlockTask do ní odmítal pokládat.
+     */
+    private static final int GUARD_POST_OFFSET = 7;
+
+    /**
+     * Sloupec stanoviště stráže (čistá geometrie – testovatelná): před
+     * stavbou ve směru přístupu (dveře míří k návsi = {@code facing}),
+     * mimo půdorys i u velkých sálů. Výšku dohledá {@link #guardPost}.
      *
      * @param origin roh půdorysu stavby
      * @param facing orientace stavby (dveře k návsi)
      * @return sloupec (x,y,z) stanoviště; y = úroveň originu
      */
     static BlockPos guardPostColumn(BlockPos origin, Cardinal facing) {
-        return new BlockPos(origin.x() + 2 + facing.dx() * 3, origin.y(),
-                origin.z() + 2 + facing.dz() * 3);
+        return new BlockPos(origin.x() + 2 + facing.dx() * GUARD_POST_OFFSET, origin.y(),
+                origin.z() + 2 + facing.dz() * GUARD_POST_OFFSET);
     }
 }

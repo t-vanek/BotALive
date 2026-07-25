@@ -67,8 +67,23 @@ Všech **1232 testů prochází**. Opravené nálezy jsou v textu níže ponech�
 | TradeGoal mint | `TradeReport.emeraldsSpent` + symetrický `wallet().withdraw` při nákupu jídla za smaragdy | [TradeGoal.java](botalive-core/src/main/java/dev/botalive/core/ai/goals/TradeGoal.java), [TradeService.java](botalive-core/src/main/java/dev/botalive/core/trade/TradeService.java) |
 | Nether RETURN cyklí k nedosažitelnému portálu | per-trip blacklist `failedReturnPortals` (GO timeout s afterGo=ENTER) – kroky 2–4 dostanou šanci | NetherGoal.java |
 | Stronghold studený sken + repath thrash | prefetch okolí při vstupu do SEARCH + druhý průchod skenu; TRAVEL cíl se počítá jednou | [StrongholdSeekGoal.java](botalive-core/src/main/java/dev/botalive/core/ai/goals/StrongholdSeekGoal.java) |
+| Reconcile given==0 | křivda zůstává otevřená (settleAmends jen s darem) | ReconcileGoal.java |
+| Mine stop() nechává stale cíle | targetBlock/targetCandidates/travelTarget/digTaskInPlan se ve stop() čistí (pause je drží dál) | MineGoal.java |
+| DimensionPolicy NETHER neúplná | dorovnáno s END: minecart, rob, reconcile, mine, smith, shelter, guard | DimensionPolicy.java |
+| CombatController vs. goaly prahy ústupu | koeficient 8 → 6 – konec pásma „bojového limba" | CombatController.java |
+| Guard prázdné waypointy | 16 po sobě jdoucích null stanovišť → cooldown 1200 | GuardGoal.java |
+| Farm *_PLANT equip smyčka | 20 marných pokusů → zpět do FIND (záhon i pole) | FarmGoal.java |
+| kapacitní brány Farm/Fish/Hunt | freeSlots ≤ 1 → vstup 0 (rozdělaná práce dojede; vzor MineGoal) | FarmGoal.java, FishGoal.java, HuntGoal.java |
+| Hunt bez inProgress | živý cíl drží utilitu – nahnaná kořist se dotáhne (ztrátu řeší lostTargetTicks) | HuntGoal.java |
+| Craft brána přísnější než planner | + kovová větev (ingoty/diamant/netherit) – brnění a nůžky i bez dřeva | CraftGoal.java |
+| Compost žere krmivo a osivo | WHEAT vyňata z kompostu; rezerva 9 pšeničných semínek na založení pole | CompostGoal.java |
+| EndTravel brány u portálu | hold `active` (start→stop) – výbavové prahy jen pro zahájení; pause() příznak drží | EndTravelGoal.java |
+| MaintainHome díra ve zdi přes noc | rozdělaná výměna drží utilitu; blocksRelocation při růstu/výměně; stop čistí příznaky | MaintainHomeGoal.java |
+| settlement-roads sirotek | boost BUILDER 1.8, MASON 2.0, SCOUT 1.6 + doplněno zrcadlo RoleCoverageTest | RoleProfiles.java, RoleCoverageTest.java |
+| Supply vysává bezdomovce | bez HOME type=house se stavební bloky nedarují (rezerva na vlastní dům) | SupplyGoal.java |
+| BuildGuard stráž uvnitř sálu + cizí svět | odstup 3 → 7 (mimo 7×9 kostel), guardedSite porovnává svět sídla | BuildGuardGoal.java + test |
 
-**Zbývá z tohoto auditu (neopraveno):** Guard↔Home noční oscilace (potřebuje návrh — hlídkám se nikdy neobnoví energie); Guard prázdné waypointy; Eat vestoje; SellGoal refund zaplacené-zaniklé nabídky; detekce platby deltou zůstatku (potřebuje transakční event); Restock↔Supply BOM inflace (návrh); Steal sken vlastního sídla; Reconcile given==0; BuildHouse sólo resume + stale latch (návrh); SettlementWall isBarrier + PROVISION žere hradbu (návrh — mění sémantiku Enclosure); BarrierWorker DONE vs. došel materiál; BuildGuard footprint; Supply bezdomovec; MaintainHome hold + blocksRelocation; Mine stop() úklid; Farm PLANT únik; pšeničný řetěz (chleba, kompost rezerva); Craft brána; kapacitní brány Farm/Fish/Hunt; Hunt inProgress; EndTravel brány u portálu; CombatController prahy; utilitySnapshot side-efekty + forced-goal zmrazení (návrh — cooldowny na wall-clock deadline); settlement-roads sirotek + RoleCoverageTest zrcadlo; NETHERITE poslední míle; DimensionPolicy NETHER tabulka; walls pause politika; resumption decay vs. noc.
+**Zbývá z tohoto auditu (neopraveno):** Guard↔Home noční oscilace (návrh — hlídkám se nikdy neobnoví energie); Eat vestoje; SellGoal refund zaplacené-zaniklé nabídky; detekce platby deltou zůstatku (potřebuje transakční event); Restock↔Supply BOM inflace (návrh; Supply-bezdomovec větev už spadla); Steal sken vlastního sídla; BuildHouse sólo resume + stale latch (návrh); SettlementWall isBarrier + PROVISION žere hradbu (návrh — mění sémantiku Enclosure); BarrierWorker DONE vs. došel materiál; pšeničný řetěz – recept na chleba; utilitySnapshot side-efekty + forced-goal zmrazení (návrh — cooldowny na wall-clock deadline); NETHERITE poslední míle; walls pause politika; resumption decay vs. noc.
 
 ---
 

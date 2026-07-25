@@ -239,6 +239,14 @@ public final class MineGoal extends AbstractGoal {
         digSteps.clear();
         stepBlocks.clear();
         pendingWalk = null;
+        // Úplný úklid i cílů: stop() = konec téhle práce (na rozdíl od
+        // pause(), která plán schválně drží). Stale targetBlock jinak přes
+        // miningInProgress() obcházel bránu plného batohu – další seance
+        // startovala „s rozdělanou prací" a dropy padaly na plný inventář.
+        targetBlock = null;
+        targetCandidates = List.of();
+        travelTarget = null;
+        digTaskInPlan = false;
         super.stop(bot);
     }
 

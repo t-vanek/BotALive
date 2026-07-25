@@ -30,13 +30,15 @@ class BuildGuardGoalTest {
 
     @Test
     void stanovisteJeMimoPudorysStavby() {
-        // 3 bloky ve směru facing od středu (origin+2) → 5 od originu, mimo
-        // libovolný rozumný půdorys (studna 3, radnice 5, kostel 5×7).
+        // 7 bloků ve směru facing od odhadu středu (origin+2) → mimo půdorys
+        // i největšího sizovaného sálu (kostel 7×9 se středem až origin+4
+        // a půlkou hloubky 4,5) – starší odstup 3 u městských sálů stavěl
+        // stráž dovnitř staveniště.
         for (Cardinal facing : Cardinal.values()) {
             BlockPos post = BuildGuardGoal.guardPostColumn(ORIGIN, facing);
             int offX = Math.abs(post.x() - (ORIGIN.x() + 2));
             int offZ = Math.abs(post.z() - (ORIGIN.z() + 2));
-            assertEquals(3, offX + offZ, "stráž stojí 3 bloky od středu ve směru přístupu");
+            assertEquals(7, offX + offZ, "stráž stojí 7 bloků od středu ve směru přístupu");
         }
     }
 

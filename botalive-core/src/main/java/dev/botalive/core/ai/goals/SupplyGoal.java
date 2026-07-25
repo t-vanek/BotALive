@@ -17,6 +17,7 @@ import org.geysermc.mcprotocollib.protocol.data.game.entity.object.Direction;
 import java.util.OptionalInt;
 import java.util.OptionalLong;
 import java.util.concurrent.CompletableFuture;
+import dev.botalive.api.memory.MemoryKind;
 
 /**
  * Zásobování společné stavby materiálem – dělba práce u velkých staveb.
@@ -68,6 +69,15 @@ public final class SupplyGoal extends AbstractGoal {
             return 0;
         }
         if (outsideOverworld(ctx) || ctx.worldView() == null || ctx.settlements() == null) {
+            return 0;
+        }
+        // Bezdomovec stavební bloky NEdaruje: jeho „přebytek" je rezerva na
+        // vlastní dům (vstupní brána stavby chce 80–322 bloků). SupplyGoal
+        // by mu ji po dávkách odnosil do skladu (KEEP 16) a dokud v sídle
+        // běžel projekt, dům by nikdy nezačal – smyčka nateč-odevzdej.
+        boolean hasHouse = bot.memory().recall(MemoryKind.HOME).stream()
+                .anyMatch(r -> "house".equals(r.data().get("type")));
+        if (!hasHouse) {
             return 0;
         }
         // Zásobuje se jen když se v sídle právě něco staví a je kam ukládat.

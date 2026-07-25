@@ -24,6 +24,7 @@ public final class RoleProfiles {
                     Map.entry("mine", 1.3), Map.entry("home", 1.3),
                     Map.entry("maintain", 2.2), Map.entry("shear", 1.3),
                     Map.entry("settlement-fences", 1.8), Map.entry("settlement-walls", 2.2),
+                    Map.entry("settlement-roads", 1.8),
                     Map.entry("restock", 1.6))),
             Map.entry(BotRole.MINER, Map.of(
                     "mine", 2.5, "collect", 1.3, "craft", 1.2, "smelt", 1.3,
@@ -63,7 +64,7 @@ public final class RoleProfiles {
                     "war-raid", 1.5, "home", 1.2, "build-guard", 2.4)),
             Map.entry(BotRole.SCOUT, Map.of(
                     "explore", 2.5, "boat", 1.6, "minecart", 1.6, "camp", 1.8,
-                    "end-travel", 1.3)),
+                    "end-travel", 1.3, "settlement-roads", 1.6)),
             Map.entry(BotRole.BEASTMASTER, Map.of(
                     "tame", 2.6, "hunt", 1.4, "farm", 1.2, "share", 1.3, "breed", 2.2,
                     "pen", 2.4)),
@@ -98,9 +99,13 @@ public final class RoleProfiles {
                     "smelt", 2.2, "smith", 2.0, "repair", 2.0, "mine", 1.5, "restock", 1.5)),
             Map.entry(BotRole.CARTOGRAPHER, Map.of(
                     "explore", 2.5, "boat", 1.4, "craft", 1.3, "trade", 1.3, "collect", 1.2)),
-            Map.entry(BotRole.MASON, Map.of(
-                    "mine", 2.4, "craft", 1.5, "communal-build", 1.6, "house", 1.4,
-                    "shelter", 1.3, "settlement-walls", 2.4, "supply", 2.0, "restock", 1.6)),
+            // Map.ofEntries – 10 dvojic je strop Map.of a roads ho přelévá.
+            Map.entry(BotRole.MASON, Map.ofEntries(
+                    Map.entry("mine", 2.4), Map.entry("craft", 1.5),
+                    Map.entry("communal-build", 1.6), Map.entry("house", 1.4),
+                    Map.entry("shelter", 1.3), Map.entry("settlement-walls", 2.4),
+                    Map.entry("settlement-roads", 2.0),
+                    Map.entry("supply", 2.0), Map.entry("restock", 1.6))),
             Map.entry(BotRole.LEATHERWORKER, Map.of(
                     "hunt", 2.0, "breed", 1.8, "craft", 1.6, "trade", 1.3)),
             Map.entry(BotRole.SHEPHERD, Map.of(

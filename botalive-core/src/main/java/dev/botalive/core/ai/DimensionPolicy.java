@@ -84,7 +84,18 @@ public final class DimensionPolicy {
             Map.entry("bodyguard", 0.0),
             Map.entry("deliver-work", 0.0),
             Map.entry("end-outer", 0.0),
-            Map.entry("brew", 0.0)        // lahve se plní u vody – doma
+            Map.entry("brew", 0.0),       // lahve se plní u vody – doma
+            // Dorovnání s END tabulkou (deklarovaná pojistka „drží vypnuté,
+            // i kdyby se gating cílů změnil"): minecart/rob/reconcile vlastní
+            // dimenzní gate NEmají a v Netheru je stínila jen utilita výpravy
+            // (30) – repair s max 29 byl od průniku 1 bod.
+            Map.entry("minecart", 0.0),   // koleje v Netheru nikdo nestaví
+            Map.entry("rob", 0.0),        // přepadávání patří domů (a pvp pravidlům)
+            Map.entry("reconcile", 0.0),  // usmiřování počká na návrat
+            Map.entry("mine", 0.0),       // netherské rudy těží výprava (nether)
+            Map.entry("smith", 0.0),      // kovářský stůl je doma
+            Map.entry("shelter", 0.0),    // panik-budka nechrání před ghasty
+            Map.entry("guard", 0.0)       // hlídkuje se u vlastní vesnice
     );
 
     /** Cíle, které mají smysl jen v Endu (a wither jen v Netheru). */
