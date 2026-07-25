@@ -87,6 +87,44 @@ Všech **1232 testů prochází**. Opravené nálezy jsou v textu níže ponech�
 
 ---
 
+## Živý test 2026-07-25 (test-server/, 10 botů, 40 min + restart)
+
+Paper 26.1.2-74, čistý svět, `bots.auto-spawn: 10`, vzorky à 5 min přes RCON
+(`test-server/rcon.py`), SQL nad `plugins/BotAlive/botalive.db`.
+
+**Potvrzené opravy naživo:**
+
+- **Trh žije (P0-4):** 5 dokončených bot↔bot obchodů za 30 min (5× chleba;
+  minulý test: 2 transakce za 40 min se 46 boty). Vidět kamarádská sleva
+  (Matej 10,0 místo 12,0) i spálený 10% poplatek – ekonomika má poprvé propad.
+  Hladová Lucka **koupila** jídlo místo krádeže – zamýšlené pořadí funguje.
+- **Survive nefrizuje (P0-1):** boti v `survive` se mezi vzorky HÝBOU a po
+  odeznění hrozby cíl pouští řízení – Zdenek na ❤1 🍗0 se s úsvitem vrátil
+  k práci (dřív by stál na místě navěky). Reflexní vlny druhé noci
+  (survive/recover/eat napříč 10 boty) se do rána srovnaly na ❤20.
+- **Stabilita:** 0 výjimek, 0 ERROR, 0 `selhal` za celý běh včetně restartu;
+  TPS 20,0 nepřetržitě. Restart obnovil všech 10 botů z DB na uložených
+  pozicích. Vesnice Ondrovice: 4 členové, 1 dům, střídání starosty.
+- Živý histogram: mine/house/home/sell/buy/collect/craft/smelt/hunt/explore/
+  fish/stash/guard/eat/recover/steal/creeper-dodge – žádný mrtvý pilíř.
+
+**Nové nálezy ze živého běhu (opraveno v tomtéž buildu):**
+
+- **Pudová suprese dusila nákup jídla:** `buy` byl v GOAL_DRIVE jako SOCIAL
+  tier → hlad ho tlumil ×0,66 přesně ve chvíli, kdy měl vyhrát. Vyňat z mapy
+  + vyhladovělá větev (hunger ≤ 6) dostala tlak +8/bod
+  ([BotDrives.java](botalive-core/src/main/java/dev/botalive/core/ai/BotDrives.java),
+  [BuyGoal.java](botalive-core/src/main/java/dev/botalive/core/ai/goals/BuyGoal.java)).
+
+**Otevřené (návrh – kalibrace zoufalství):** role-boostnutá práce (kopáč
+mine ×2,5 ≈ 71 vážené) pořád přebíjí VŠECHNY cesty k jídlu vyhladovělého
+bota (steal 37, buy 0 mimo 48bl rádius nabídek, hunt bez zvěře) – bot pak
+dře na ❤1, dokud ho něco nezabije (smrt = jediný reset hladu). Chce to
+zoufalé akvizici jídla dát reflexní pásmo (výjimka z vah při hunger ≤ 4),
+ne další číselné záplaty.
+
+---
+
 ## P0 — zamrznutí a trvale mrtvé pilíře
 
 ### P0-1 Survive: bot s ≤ 6 HP bez viditelné hrozby zamrzne navěky

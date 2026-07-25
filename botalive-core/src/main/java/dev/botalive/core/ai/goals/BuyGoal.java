@@ -72,7 +72,13 @@ public final class BuyGoal extends AbstractGoal {
         if (InventoryHelper.isFood(wanted.get().material())) {
             int food = InventoryHelper.countEstimate(ctx.serverView().latest(),
                     InventoryHelper::isFood);
-            return 13 + Math.max(0, 4 - food) * 3;
+            int hunger = ctx.clientState().food();
+            // Vyhladovělý bot s penězi MUSÍ nákup jídla prosadit i proti roli
+            // boostnuté práci (kopáčova těžba ≈ 70+ i po pudové supresi) –
+            // jinak dře na pár srdíčkách, dokud ho v noci něco nedorazí,
+            // s plnou peněženkou a chlebem na pultu o tři parcely dál.
+            double starvingPressure = hunger <= 6 ? (6 - hunger) * 8 : 0;
+            return 13 + Math.max(0, 4 - food) * 3 + starvingPressure;
         }
         double laziness = bot.personality().trait(Trait.LAZINESS);
         return 7 + laziness * 6;

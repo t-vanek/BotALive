@@ -18,3 +18,7 @@ botalive-core/build/
 *.db-wal
 *.db-shm
 logs/
+
+
+# Lokální testovací server (paper.jar, svět, DB)
+test-server/
