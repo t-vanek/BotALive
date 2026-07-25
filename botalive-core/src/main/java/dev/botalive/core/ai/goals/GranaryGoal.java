@@ -56,6 +56,8 @@ public final class GranaryGoal extends AbstractGoal {
     private int waitTicks;
     private CompletableFuture<Integer> op;
     private int cooldownTicks;
+    /** Poslední výběr vyšel naprázdno (sýpka bez jídla) → delší backoff. */
+    private boolean emptyWithdraw;
 
     /**
      * @param containers sdílená stanice truhel
@@ -86,7 +88,10 @@ public final class GranaryGoal extends AbstractGoal {
         int foodLevel = ctx.clientState().food();
         // Výběr: hladový a bez jídla → dojít pro jídlo do sýpky, dřív než krást.
         if (foodLevel <= HUNGRY_LEVEL && food <= LOW_FOOD) {
-            return 34; // nad StealGoal (30) – vlastní špajzka má přednost před krádeží
+            // Nad CELÝM pásmem StealGoal (30 + greed·8 = až 38): u chamtivců
+            // starší hodnota 34 obracela zamýšlené pořadí „vlastní špajzka
+            // před krádeží" a hladový člen šel krást s plnou sýpkou za rohem.
+            return 40;
         }
         // Vklad: přebytek jídla → doplnit společnou špajzku (ochota pomoci).
         if (food > SURPLUS_FOOD && foodLevel > HUNGRY_LEVEL) {
@@ -104,6 +109,7 @@ public final class GranaryGoal extends AbstractGoal {
         // Hlad rozhoduje o směru: prázdný batoh + hlad = beru, jinak dávám.
         depositing = !(ctx.clientState().food() <= HUNGRY_LEVEL && food <= LOW_FOOD);
         op = null;
+        emptyWithdraw = false;
         phase = chest == null ? Phase.DONE : Phase.GO;
     }
 
@@ -164,6 +170,10 @@ public final class GranaryGoal extends AbstractGoal {
                     ? "nosím přebytky do sýpky, ať máme společné zásoby"
                     : "beru si ze sýpky, mám hlad – vrátím, až budu mít");
         }
+        // Marný výběr (prázdná sýpka) dostane výrazně delší backoff – výběr
+        // (34) jinak přebíjel steal/hunt/buy a hladový bot pochodoval
+        // k prázdné truhle pořád dokola (vzor tookNothing z RestockGoal).
+        emptyWithdraw = !depositing && moved == 0;
         waitTicks = ctx.rng().rangeInt(5, 12);
         phase = Phase.CLOSE;
     }
@@ -173,7 +183,8 @@ public final class GranaryGoal extends AbstractGoal {
             return;
         }
         ctx.actions().closeContainer();
-        finish(ctx.rng().rangeInt(1200, 3000));
+        finish(emptyWithdraw ? ctx.rng().rangeInt(4000, 6000)
+                : ctx.rng().rangeInt(1200, 3000));
     }
 
     private void finish(int cooldown) {
@@ -195,6 +206,11 @@ public final class GranaryGoal extends AbstractGoal {
     /** Pozice truhly hotové sýpky bota (dvojtruhla je na {@code bedSpot}). */
     private Optional<BlockPos> granaryChest(BotContext ctx, Bot bot) {
         SettlementService settlements = ctx.settlements();
+        // Guard i pro start(): vynucený cíl (/botalive goal set) obchází
+        // utility a bez služby sídel by tu NPE roztočila error-smyčku mozku.
+        if (settlements == null) {
+            return Optional.empty();
+        }
         OptionalLong id = settlements.settlementIdOf(bot.id());
         if (id.isEmpty()) {
             return Optional.empty();

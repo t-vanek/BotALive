@@ -23,12 +23,32 @@ public final class CombatGoal extends AbstractGoal {
     /** Útočný splash se hází nejvýš jednou za souboj. */
     private boolean splashThrown;
     /**
-     * Cíle, ke kterým se bot v tomhle souboji nedokázal dostat.
+     * Cíle, ke kterým se bot nedokázal dostat → do kdy je ignorovat (ms).
      *
      * <p>Bez blacklistu by si mob za zdí vybral znovu hned příští tick a bot
-     * by u něj stál dál – jen s krátkou pauzou navíc.</p>
+     * by u něj stál dál – jen s krátkou pauzou navíc. Záznam má TTL a
+     * NEmaže se ve start(): utility si přes filtr vybrala dosažitelný cíl B,
+     * a kdyby start() blacklist smazal, findTarget by hned zase sáhl po
+     * bližším nedosažitelném A – nekonečné 10s cykly u zdi. Po TTL dostane
+     * mob novou šanci (bot se mezitím přesunul, mob slezl z římsy).</p>
      */
-    private final java.util.Set<Integer> unreachableTargets = new java.util.HashSet<>();
+    private final java.util.Map<Integer, Long> unreachableTargets = new java.util.HashMap<>();
+
+    /** Jak dlouho se nedosažitelný cíl ignoruje (ms). */
+    private static final long UNREACHABLE_TTL_MS = 30_000;
+
+    /** Je cíl na blacklistu nedosažitelných? (prošlé záznamy se čistí) */
+    private boolean unreachable(int entityId) {
+        Long until = unreachableTargets.get(entityId);
+        if (until == null) {
+            return false;
+        }
+        if (System.currentTimeMillis() > until) {
+            unreachableTargets.remove(entityId);
+            return false;
+        }
+        return true;
+    }
 
     /** Vytvoří cíl. */
     public CombatGoal() {
@@ -60,9 +80,9 @@ public final class CombatGoal extends AbstractGoal {
     public void start(Bot bot) {
         lostTargetTicks = 0;
         splashThrown = false;
-        // Nový souboj = nový pokus i na dřív nedosažitelné cíle (bot se mezitím
-        // přesunul, mob slezl z římsy).
-        unreachableTargets.clear();
+        // Blacklist nedosažitelných se tu záměrně NEmaže – čistí ho TTL
+        // (viz unreachableTargets). Mazání tady rušilo právě to rozhodnutí,
+        // kterým utility mob za zdí odfiltrovala.
         equipShieldToOffhand(ctx(bot), bot);
     }
 
@@ -101,7 +121,8 @@ public final class CombatGoal extends AbstractGoal {
         // nerostlo, finished() nenastalo a bot u něj stál, dokud ho něco
         // nezabilo. Byl to zdaleka nejčastější zdroj nehybných botů.
         if (current != null && ctx.combat().targetUnreachable()) {
-            unreachableTargets.add(current.entityId());
+            unreachableTargets.put(current.entityId(),
+                    System.currentTimeMillis() + UNREACHABLE_TTL_MS);
             ctx.combat().disengage();
             lostTargetTicks = Integer.MAX_VALUE / 2; // cíl skončí, mozek rozhodne znovu
             return;
@@ -219,7 +240,7 @@ public final class CombatGoal extends AbstractGoal {
         Optional<TrackedEntity> hostile = ctx.entities()
                 .nearby(ctx.position(), engageRadius, TrackedEntity::isHostile)
                 .stream()
-                .filter(e -> !unreachableTargets.contains(e.entityId()))
+                .filter(e -> !unreachable(e.entityId()))
                 .findFirst();
         if (hostile.isPresent()) {
             return hostile;
@@ -230,7 +251,13 @@ public final class CombatGoal extends AbstractGoal {
         return ctx.entities().nearby(ctx.position(), viewDistance,
                         e -> !e.isPlayer() && e.uuid() != null)
                 .stream()
-                .filter(e -> !unreachableTargets.contains(e.entityId()))
+                .filter(e -> !unreachable(e.entityId()))
+                // Bossové mají vlastní cíle (dragon-fight, wither-fight) s úhyby
+                // a fázemi; každý zásah bosse zapisuje ENEMY, takže by agresorská
+                // větev jinak boj převzala generickou mlátičkou bez taktiky.
+                .filter(e -> !e.isEnderDragon()
+                        && e.type() != org.geysermc.mcprotocollib.protocol.data.game
+                                .entity.type.EntityType.WITHER)
                 .filter(e -> recentAggressor(bot, e))
                 .findFirst();
     }

@@ -91,13 +91,26 @@ public final class PenGoal extends AbstractGoal {
         if (!cfg.enabled() || !cfg.fences()) {
             return 0;
         }
-        PenRect rect = resolvePen(ctx);
-        if (rect == null) {
-            return 0; // není soustředěné stádo k ohrazení
-        }
         boolean inProgress = worker != null || gather != null
                 || phase == Phase.PROVISION || phase == Phase.WORK;
-        Enclosure.Assessment a = assessor.assess(ctx, rect.min(), rect.max(), rect.min().y(),
+        // Běžící stavba měří ZMRAZENÝ obdélník ze start() – zvířata se během
+        // stavění toulají, a jakmile jich v buňce zbude < 3, resolvePen vrací
+        // null. Kontrola stáda před inProgress by rozdělanou ohradu zabila
+        // a plaňky (craftěné z prken) osiřely v půlce obvodu.
+        BlockPos min;
+        BlockPos max;
+        if (inProgress && penMin != null && penMax != null) {
+            min = penMin;
+            max = penMax;
+        } else {
+            PenRect rect = resolvePen(ctx);
+            if (rect == null) {
+                return 0; // není soustředěné stádo k ohrazení
+            }
+            min = rect.min();
+            max = rect.max();
+        }
+        Enclosure.Assessment a = assessor.assess(ctx, min, max, min.y(),
                 Set.of(Cardinal.NORTH));
         boolean damaged = BarrierRepair.isDamaged(a);
         if (!inProgress) {

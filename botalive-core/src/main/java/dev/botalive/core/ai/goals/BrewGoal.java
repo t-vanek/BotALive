@@ -77,6 +77,13 @@ public final class BrewGoal extends AbstractGoal {
                 || ctx.clientState().dead()) {
             return 0;
         }
+        // Vsázka ve stojanu (LOAD/WAIT) se dovaří: plannerState čte jen
+        // INVENTÁŘ, naložené lahve a přísady nevidí – s poslední várkou
+        // v ruce by utilita během čekání spadla na 0, cíl by vypadl a
+        // lektvary + wart + blaze zůstaly osiřelé ve stojanu.
+        if (phase == Phase.LOAD || phase == Phase.WAIT) {
+            return 10;
+        }
         var snapshot = ctx.serverView().latest();
         if (snapshot == null) {
             return 0;
@@ -107,6 +114,18 @@ public final class BrewGoal extends AbstractGoal {
         goTicks = 0;
         fillTicks = 0;
         waitTicks = 0;
+    }
+
+    @Override
+    public void resume(Bot bot) {
+        // Návrat po reflexu (boj, jídlo) s vsázkou ve stojanu: navázat, ne
+        // přeplánovat – start() by fázi shodil na PLAN a naložené lahve by
+        // osiřely (stojan v inventáři není). stop() fázi i standPos schválně
+        // nechává, tickWait/tickLoad jsou re-entrantní.
+        if ((phase == Phase.LOAD || phase == Phase.WAIT) && standPos != null) {
+            return;
+        }
+        start(bot);
     }
 
     @Override

@@ -63,7 +63,11 @@ public final class SocializeGoal extends AbstractGoal {
                 ? ctx.entities().byUuid(targetUuid)
                 : ctx.entities().nearest(ctx.position(), 24, TrackedEntity::isPlayer);
         if (target.isEmpty()) {
-            lingerTicks = 200; // cíl zmizel → ukončit
+            // Cíl zmizel → ukončit HNED. Pevná hodnota 200 tu dřív u družných
+            // botů (lingerLimit = 100 + soc·200 ≥ 200) finished() nikdy
+            // nesplnila a bot stál jako socha, dokud kolem kdokoli stál
+            // (utilita ho držela) – uprostřed vesnice tedy trvale.
+            lingerTicks = Integer.MAX_VALUE / 2;
             return;
         }
         TrackedEntity player = target.get();

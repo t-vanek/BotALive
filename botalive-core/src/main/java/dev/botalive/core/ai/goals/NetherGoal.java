@@ -58,6 +58,13 @@ public final class NetherGoal extends AbstractGoal {
     /** Utility výpravy, dokud je bot v Netheru (dokončit/vrátit se). */
     private static final double IN_NETHER_UTILITY = 30;
 
+    /**
+     * Utility rozjeté výpravy v overworldu (cesta k portálu, stavba,
+     * zapalování, vstup). Nad běžnou prací (explore 24), pod netherským
+     * stropem 30; reflexy (survive/eat, 80+) ji přebijí vždy.
+     */
+    private static final double IN_PROGRESS_UTILITY = 26;
+
     /** Hodnoty netherové kořisti pro výběr cíle těžby. */
     private static final Map<Material, Double> NETHER_ORES = Map.of(
             Material.ANCIENT_DEBRIS, 40.0,
@@ -183,6 +190,17 @@ public final class NetherGoal extends AbstractGoal {
             cooldownTicks -= ctx.config().ai().decisionIntervalTicks();
             return 0;
         }
+        // Rozjetá výprava v overworldu: drž utilitu do finished(). Vstupní
+        // brány (zdraví, výbava, 14 obsidiánu) platí jen pro ZAHÁJENÍ –
+        // během BUILD přechází obsidián z batohu do rámu, takže by
+        // canBuildPortal rozdělanou stavbu zabil: torzo není rám (findFrame
+        // ho nenajde) a PORTAL vzpomínka vzniká až po zapálení → utilita by
+        // spadla na 0 navždy a obsidián osiřel (soft-lock popsaný
+        // v resume()). Selhání fází řeší finish() → DONE + cooldown.
+        if (phase == Phase.GO || phase == Phase.BUILD || phase == Phase.LIGHT
+                || phase == Phase.ENTER) {
+            return IN_PROGRESS_UTILITY;
+        }
         var snapshot = ctx.serverView().latest();
         if (snapshot == null) {
             return 0;
@@ -210,6 +228,14 @@ public final class NetherGoal extends AbstractGoal {
     @Override
     public void start(Bot bot) {
         BotContext ctx = ctx(bot);
+        // Rozdělaná overworld fáze poblíž staveniště: navázat jako resume(),
+        // ne resetovat. start() přijde i po dobrovolném přepnutí na jinou
+        // práci (stop() fázi, rám i frontu schválně zachovává – viz resume())
+        // a reset by torzo portálu osiřel. Po dlouhé pauze daleko od místa
+        // začne výprava poctivě od začátku.
+        if (ctx.dimension() == WorldDimension.OVERWORLD && continueOverworldTrip(ctx)) {
+            return;
+        }
         resetTransients();
         if (ctx.dimension() == WorldDimension.NETHER) {
             // Restart/přerušení uprostřed výpravy: dodělat práci a vrátit se.
@@ -227,6 +253,26 @@ public final class NetherGoal extends AbstractGoal {
             return;
         }
         phase = Phase.PREPARE;
+    }
+
+    /**
+     * Dá se navázat na rozdělanou overworld fázi? Jen když k ní zůstal stav
+     * a bot od staveniště/portálu neodešel – ticky jsou re-entrantní
+     * (tickBuild se sesynchronizuje se světem, tickLight/tickEnter si task
+     * vytvoří znovu), takže stačí fázi nechat běžet.
+     *
+     * @param ctx kontext bota
+     * @return {@code true} pokud start() nemá resetovat
+     */
+    private boolean continueOverworldTrip(BotContext ctx) {
+        BlockPos site = switch (phase) {
+            case GO -> goTarget;
+            case BUILD, LIGHT -> frameBase;
+            case ENTER -> portalEntry;
+            default -> null;
+        };
+        return site != null
+                && site.center().distanceSquared(ctx.position()) < 48 * 48;
     }
 
     @Override

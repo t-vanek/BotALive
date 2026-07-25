@@ -207,13 +207,16 @@ public final class FarmGoal extends AbstractGoal {
                     // Bez téhle pojistky celý cíl spadl a mozek ho deaktivoval.
                     Material seed = cropType == null ? null : CROP_SEEDS.get(cropType);
                     var snapshot = ctx.serverView().latest();
+                    // equipItem si osivo PŘITÁHNE i z hlavního inventáře –
+                    // findHotbarSlot viděl jen hotbar, takže farmář s plným
+                    // hotbarem produkce sklizené buňky tiše nedosazoval
+                    // a pole postupně mizela (setí záhonu/pole pull už má).
                     if (seed != null && snapshot != null
-                            && snapshot.findHotbarSlot(m -> m == seed) >= 0) {
-                        ctx.actions().selectHotbar(snapshot.findHotbarSlot(m -> m == seed));
+                            && ctx.inventory().equipItem(snapshot, seed)) {
                         replantTicks = ctx.rng().rangeInt(4, 10);
                         phase = Phase.REPLANT;
                     } else {
-                        phase = Phase.FIND; // další plodina
+                        phase = Phase.FIND; // další plodina / osivo se přetahuje
                     }
                 }
             }

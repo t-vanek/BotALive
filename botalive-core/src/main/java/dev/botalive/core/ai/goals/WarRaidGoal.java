@@ -45,6 +45,9 @@ public final class WarRaidGoal extends AbstractGoal {
     /** Zdraví, pod kterým nájezdník odpadá (obranu řeší SurviveGoal). */
     private static final float RETREAT_HEALTH = 8f;
 
+    /** Rozpočet pochodu na shromaždiště (ticky) – nedosažitelné se vzdává. */
+    private static final int MARCH_BUDGET_TICKS = 1200;
+
     private final DiplomacyService diplomacy;
     private final PvpCoordinator pvp;
 
@@ -56,6 +59,7 @@ public final class WarRaidGoal extends AbstractGoal {
     private boolean registered;
     private int noTargetTicks;
     private int lostTicks;
+    private int marchTicks;
     private int cooldownTicks;
 
     /**
@@ -79,6 +83,11 @@ public final class WarRaidGoal extends AbstractGoal {
                 || !ctx.config().pvp().enabled()) {
             return 0;
         }
+        // worldView je při přepnutí světa chvíli null (sourozenci home/recover
+        // guard mají) – bez něj by utility() padala NPE každé rozhodnutí.
+        if (ctx.worldView() == null) {
+            return 0;
+        }
         Optional<DiplomacyService.RaidCall> pending = diplomacy.raidCall(bot.id());
         if (pending.isEmpty()
                 || !pending.get().world().equals(ctx.worldView().worldName())
@@ -99,6 +108,7 @@ public final class WarRaidGoal extends AbstractGoal {
         registered = false;
         noTargetTicks = 0;
         lostTicks = 0;
+        marchTicks = 0;
         call = diplomacy.raidCall(bot.id()).orElse(null);
         if (call == null) {
             phase = Phase.DONE;
@@ -138,6 +148,15 @@ public final class WarRaidGoal extends AbstractGoal {
         if (distance <= FIGHT_RADIUS * 0.6) {
             ctx.navigator().stop();
             phase = Phase.FIGHT;
+            return;
+        }
+        // Rozpočet pochodu: nedosažitelné shromaždiště (oceán, hradba) nechá
+        // navigátor v backoffu, navigateTo se tiše odmítá a bot by prostál
+        // celé TTL rozkazu (5 min) s utilitou 24+ – opakovaně. Po ~minutě
+        // marného pochodu válku vzdát (GuardGoal má stejný strop cesty).
+        if (++marchTicks > MARCH_BUDGET_TICKS) {
+            diplomacy.clearRaidCall(ctx.bot().id());
+            abandon(ctx, ctx.bot(), 1200);
             return;
         }
         if (!ctx.navigator().navigating()) {

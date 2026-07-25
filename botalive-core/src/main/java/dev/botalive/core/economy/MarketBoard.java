@@ -164,6 +164,45 @@ public final class MarketBoard {
         return Optional.ofNullable(dealsBySeller.get(seller));
     }
 
+    /**
+     * Rozjednaný obchod, ve kterém je bot KUPCEM. Kupcova utilita ho musí
+     * vidět: {@link #claim} nabídku sundá z nástěnky, takže bez tohohle
+     * dotazu kupec svůj vlastní obchod při dalším rozhodnutí „nevidí",
+     * cíl mu zhasne a claimosiří až do TTL – trh s jedinou nabídkou by
+     * nedokončil žádný obchod.
+     *
+     * @param buyer kupec
+     * @return obchod, pro který je kupec na cestě
+     */
+    public synchronized Optional<Deal> dealOfBuyer(UUID buyer) {
+        prune();
+        return dealsBySeller.values().stream()
+                .filter(d -> d.buyer().equals(buyer))
+                .findFirst();
+    }
+
+    /**
+     * Kupec odstoupil od rozjednaného obchodu (cíl skončil bez vyzvednutí):
+     * nabídka se vrací na nástěnku, ať ji může zamluvit někdo jiný a
+     * prodejce u pultu nečeká na nikoho, kdo už nejde. TTL nabídky běží dál
+     * od původního vyvěšení.
+     *
+     * @param offerId id nabídky
+     * @param buyer   odstupující kupec (cizí obchody se nedotknou)
+     */
+    public synchronized void releaseClaim(long offerId, UUID buyer) {
+        var iterator = dealsBySeller.entrySet().iterator();
+        while (iterator.hasNext()) {
+            var entry = iterator.next();
+            Deal deal = entry.getValue();
+            if (deal.offer().id() == offerId && deal.buyer().equals(buyer)) {
+                iterator.remove();
+                offersBySeller.putIfAbsent(entry.getKey(), deal.offer());
+                return;
+            }
+        }
+    }
+
     /** @return aktivní (dosud nezamluvená) nabídka prodejce */
     public synchronized Optional<Offer> activeOffer(UUID seller) {
         prune();

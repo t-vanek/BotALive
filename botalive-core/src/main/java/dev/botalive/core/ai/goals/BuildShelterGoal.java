@@ -87,6 +87,15 @@ public final class BuildShelterGoal extends AbstractGoal {
             mode = Mode.DEMOLISH;
             return 3;
         }
+        // Rozestavěná budka se dostaví: vstupní brány (noc, bloky v batohu,
+        // vzdálenost domova, katastr) platí jen pro ZAHÁJENÍ. Vyhodnocované
+        // za běhu uměly stavbu zabít uprostřed zdí (skončila bouřka, čas
+        // přelezl 23000, došly bloky ve snapshotu) a bot zůstal polouzavřený
+        // v torzu bez záznamu – stejný vzorec jako u domů. Fronta se vyprázdní
+        // vždy (i bez bloků tasky spálí rozpočet), takže hold není věčný.
+        if (mode == Mode.BUILD && planned && (current != null || !plan.isEmpty())) {
+            return 10 + bot.personality().trait(Trait.CAUTION) * 30;
+        }
         mode = Mode.BUILD;
         // Úkryt se staví na noc – a taky v bouřce (blesky zakládají požáry),
         // když je domov z ruky.
@@ -148,15 +157,19 @@ public final class BuildShelterGoal extends AbstractGoal {
         }
         ctx.inventory().equipBuildingBlock(ctx.serverView().latest());
 
+        // Nejdřív dotočit rozdělaný task, PAK sáhnout do fronty: finishShelter
+        // musí proběhnout ve STEJNÉM ticku, kdy skončil poslední task – Brain
+        // kontroluje finished() hned po tick(), takže odklad na příští tick
+        // znamenal, že se HOME záznam ani cooldown nikdy nezapsaly (a bot
+        // zazděný posledním blokem neměl záznam, přes který se ráno vybourává).
+        if (current != null && current.tick(ctx)) {
+            current = null;
+        }
         if (current == null) {
             current = plan.poll();
             if (current == null) {
                 finishShelter(ctx, bot);
-                return;
             }
-        }
-        if (current.tick(ctx)) {
-            current = null;
         }
     }
 
@@ -249,6 +262,12 @@ public final class BuildShelterGoal extends AbstractGoal {
         if (demolishTask != null) {
             if (demolishTask.tick(ctx)) {
                 demolishTask = null;
+                // Poslední blok: zapomenout záznam JEŠTĚ v tomhle ticku –
+                // finished() sepne hned po tick() a finishDemolish by se
+                // jinak nikdy nezavolal (stejný závod jako u finishShelter).
+                if (demolish.isEmpty()) {
+                    finishDemolish(bot);
+                }
             }
             return;
         }

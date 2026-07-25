@@ -184,11 +184,16 @@ public final class MinecartRideGoal extends AbstractGoal {
             finish(ctx, 600);
             return;
         }
-        int slot = snapshot.findHotbarSlot(m -> m == Material.MINECART);
         BlockPos rail = nearestRail(ctx, 6);
-        if (slot < 0 || rail == null) {
+        // Pull z batohu (jako BoatRideGoal): utilita vidí vozík kdekoli
+        // v inventáři, ale pokládka ho hledala jen v hotbaru → věčný cyklus
+        // aktivace→fail(1200) s vozíkem v batohu.
+        if (rail == null || !snapshot.hasItem(m -> m == Material.MINECART)) {
             finish(ctx, 1200);
             return;
+        }
+        if (!ctx.inventory().equipItem(snapshot, Material.MINECART)) {
+            return; // vozík se přetahuje do hotbaru – klik přijde příště
         }
         double distSq = rail.center().distanceSquared(ctx.position());
         if (distSq > 3.0 * 3.0) {
@@ -200,7 +205,6 @@ public final class MinecartRideGoal extends AbstractGoal {
         }
         ctx.navigator().stop();
         if (waitTicks == 0) {
-            ctx.actions().selectHotbar(slot);
             ctx.humanizer().lookAt(ctx.position().add(0, 1.62, 0), rail.center().add(0, 0.5, 0));
             waitTicks++;
         } else if (waitTicks++ >= 8) {

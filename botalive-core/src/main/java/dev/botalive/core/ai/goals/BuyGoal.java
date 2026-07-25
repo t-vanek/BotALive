@@ -56,6 +56,15 @@ public final class BuyGoal extends AbstractGoal {
             cooldownTicks -= ctx.config().ai().decisionIntervalTicks();
             return 0;
         }
+        // Vlastní rozjednaný obchod drží cíl při životě: claim() nabídku
+        // sundal z nástěnky, takže findWantedOffer ji už NEVIDÍ – bez téhle
+        // větve kupec svůj obchod „ztratí" hned při dalším rozhodnutí,
+        // claim visí do TTL a prodejce marně čeká u pultu (trh s jedinou
+        // nabídkou by nedokončil žádný obchod). Zrcadlí prodejcovu větev
+        // pendingDeal (22).
+        if (market.dealOfBuyer(bot.id()).isPresent()) {
+            return 22;
+        }
         Optional<MarketBoard.Offer> wanted = findWantedOffer(ctx, bot);
         if (wanted.isEmpty()) {
             return 0;
@@ -76,6 +85,13 @@ public final class BuyGoal extends AbstractGoal {
         travelTicks = 0;
         lingerTicks = 0;
         wasClose = false;
+        // Rozjednaný obchod z dřívějška (cíl byl mezitím přerušen): navázat,
+        // ne zamlouvat znovu – nabídka po claimu na nástěnce není.
+        Optional<MarketBoard.Deal> pending = market.dealOfBuyer(bot.id());
+        if (pending.isPresent()) {
+            offer = pending.get().offer();
+            return;
+        }
         offer = findWantedOffer(ctx, bot).orElse(null);
         if (offer == null || !market.claim(offer.id(), bot.id(), bot.name())) {
             offer = null; // někdo byl rychlejší
@@ -86,6 +102,19 @@ public final class BuyGoal extends AbstractGoal {
         if (ctx.rng().chance(0.6)) {
             ctx.chat().sayFrom(PhraseCategory.MARKET_DEAL, offer.sellerName());
         }
+    }
+
+    @Override
+    public void stop(Bot bot) {
+        // Odchod bez vyzvednutí (timeout, přerušení, smrt): vrátit zamluvenou
+        // nabídku na nástěnku, ať ji může vzít někdo jiný a prodejce nečeká
+        // u pultu na nikoho. Po dokončeném nákupu je deal už uzavřený
+        // (completeDeal) a tohle je no-op.
+        if (offer != null) {
+            market.releaseClaim(offer.id(), bot.id());
+            offer = null;
+        }
+        super.stop(bot);
     }
 
     @Override
@@ -123,7 +152,7 @@ public final class BuyGoal extends AbstractGoal {
 
     private void travel(BotContext ctx, Bot bot) {
         if (++travelTicks > 900) {
-            cooldownTicks = 2400; // nestihl to – deal vyprší TTL sám
+            cooldownTicks = 2400; // nestihl to – stop() vrátí nabídku na nástěnku
             phase = Phase.DONE;
             return;
         }

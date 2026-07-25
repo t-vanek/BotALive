@@ -51,14 +51,37 @@ public final class SleepGoal extends AbstractGoal {
         if (ctx.dimension() != dev.botalive.core.world.WorldDimension.OVERWORLD) {
             return 0;
         }
+        if (ctx.clientState().dead()) {
+            return 0;
+        }
+        // Spící bot se drží do rána: okno zapnutí končí ve 23000, ale buzení
+        // až pod 12000 – bez téhle větve utilita v 23001 zhasla, cíl vypadl
+        // a tělo zůstalo serverově v posteli (viz leaveBed ve stop()).
+        if (phase == Phase.SLEEPING) {
+            double laziness = bot.personality().trait(Trait.LAZINESS);
+            return 8 + laziness * 12;
+        }
         long time = ctx.worldTime();
         boolean night = time >= 12500 && time <= 23000;
-        if (!night || ctx.clientState().dead()) {
+        if (!night) {
             return 0;
         }
         double laziness = bot.personality().trait(Trait.LAZINESS);
         double caution = bot.personality().trait(Trait.CAUTION);
         return 8 + laziness * 12 + caution * 8;
+    }
+
+    @Override
+    public void stop(Bot bot) {
+        BotContext ctx = ctx(bot);
+        var snapshot = ctx.serverView().latest();
+        // Konec cíle uprostřed spánku (přebití silnějším cílem, deselect):
+        // VSTÁT. Bez leave-bed paketu server drží tělo v posteli a nový cíl
+        // hýbe „posedlým" botem – pohyb i útoky se zahazují až do úsvitu.
+        if (snapshot != null && snapshot.sleeping()) {
+            ctx.actions().leaveBed();
+        }
+        super.stop(bot);
     }
 
     @Override
@@ -180,7 +203,19 @@ public final class SleepGoal extends AbstractGoal {
                 .findFirst();
         if (remembered.isPresent()) {
             var r = remembered.get();
-            return java.util.List.of(new BlockPos(r.x(), r.y(), r.z()));
+            BlockPos pos = new BlockPos(r.x(), r.y(), r.z());
+            var material = world.materialAt(pos);
+            if (material == null || dev.botalive.core.inventory.Items.isBed(material)) {
+                return java.util.List.of(pos); // null = nenačtený chunk, věřit paměti
+            }
+            // Postel z paměti už nestojí (vygriefovaná/přestavěná): zapomenout.
+            // Paměťová větev jinak navždy zkratovala sken náhradních postelí
+            // a bot noc co noc klikal do díry po posteli (5 pokusů + cooldown
+            // dokola), i když vedle stála volná postel.
+            bot.memory().forgetIf(MemoryKind.HOME,
+                    rec -> "bed".equals(rec.data().get("type"))
+                            && world.worldName().equals(rec.world())
+                            && rec.x() == r.x() && rec.y() == r.y() && rec.z() == r.z());
         }
         // Sken okolí – všechny postele, seřazené podle vzdálenosti.
         int radius = 12;

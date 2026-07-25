@@ -656,6 +656,12 @@ public final class CommunalBuildGoal extends AbstractGoal {
     private void finishProject(BotContext ctx, Bot bot) {
         var tier = ctx.settlements().projectFinished(project.settlementId(), project.kind());
         claimed = false;
+        // Konec projektu = konec latch „inProgress": stale session mezi běhy
+        // trvale obcházela vstupní brány (den, materiál, povinné truhly)
+        // u KAŽDÉHO dalšího projektu – sýpka se pak zamluvila bez truhel
+        // a vznikla prázdná kůlna. stop() session schválně drží (návrat
+        // k rozdělané stavbě přes claim), tady ale rozdělané nic není.
+        session = null;
         String name = settlementName(ctx, bot);
         if (name != null) {
             ctx.chat().sayFrom(donePhrase(project.kind()), phraseArg(project.kind(), name));
@@ -677,6 +683,9 @@ public final class CommunalBuildGoal extends AbstractGoal {
             ctx.settlements().releaseProject(project.settlementId(), project.kind(), selfId);
             claimed = false;
         }
+        // Vzdaný projekt nenechává stale session – latch inProgress by jinak
+        // navždy obcházela vstupní brány (viz finishProject).
+        session = null;
         cooldownTicks = cooldown;
         phase = Phase.DONE;
     }
