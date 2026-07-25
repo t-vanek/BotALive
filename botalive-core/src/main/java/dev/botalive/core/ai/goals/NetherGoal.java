@@ -137,6 +137,8 @@ public final class NetherGoal extends AbstractGoal {
     private final Set<Long> lootMisses = new HashSet<>();
     /** Nedosažitelné cíle těžby (glowstone u stropu…) – tenhle trip už ne. */
     private final Set<Long> failedTargets = new HashSet<>();
+    /** Návratové portály, ke kterým v tomhle tripu vypršela cesta (viz tickGo). */
+    private final Set<Long> failedReturnPortals = new HashSet<>();
     /** Opakované pokusy o jeden blok rámu (pokládka se ověřuje světem). */
     private int buildRetries;
     /** Dopíjení lektvaru před sestupem (ticky). */
@@ -412,6 +414,13 @@ public final class NetherGoal extends AbstractGoal {
         if (++goTicks > 3600) {
             ctx.navigator().stop();
             if (ctx.dimension() == WorldDimension.NETHER) {
+                // Nedosažitelný cílový portál si zapamatovat: krok 1 výběru
+                // v tickReturn má absolutní přednost a bez blacklistu by
+                // vybral zas tentýž portál – smyčka GO(3600)→RETURN→týž
+                // portál až do vyhladovění.
+                if (afterGo == Phase.ENTER && goTarget != null) {
+                    failedReturnPortals.add(goTarget.asLong());
+                }
                 phase = Phase.RETURN; // v Netheru se nevzdává, zkusí to jinak
             } else {
                 finish(ctx, 2400);
@@ -1467,16 +1476,20 @@ public final class NetherGoal extends AbstractGoal {
         WorldView world = ctx.worldView();
         BlockPos feet = ctx.position().toBlockPos();
 
-        // 1) Portál, kterým bot přišel (vzpomínka příletu).
+        // 1) Portál, kterým bot přišel (vzpomínka příletu) – pokud k němu
+        // v tomhle tripu už nevypršela cesta (pak dostanou šanci kroky 2–4).
         Optional<MemoryRecord> remembered = bot.memory().recallNearest(
                 MemoryKind.PORTAL, world.worldName(), feet.x(), feet.y(), feet.z());
         if (remembered.isPresent()) {
             MemoryRecord r = remembered.get();
-            portalEntry = new BlockPos(r.x(), r.y(), r.z());
-            enterAttempts = 0;
-            returnScanTicks = 100;
-            goTo(portalEntry, Phase.ENTER);
-            return;
+            BlockPos candidate = new BlockPos(r.x(), r.y(), r.z());
+            if (!failedReturnPortals.contains(candidate.asLong())) {
+                portalEntry = candidate;
+                enterAttempts = 0;
+                returnScanTicks = 100;
+                goTo(portalEntry, Phase.ENTER);
+                return;
+            }
         }
 
         // 2) Aktivní nether portál v okolí.
@@ -1552,6 +1565,7 @@ public final class NetherGoal extends AbstractGoal {
         lootedChests.clear();
         lootMisses.clear();
         failedTargets.clear();
+        failedReturnPortals.clear();
         lightAttempts = 0;
         enterAttempts = 0;
         bootTries = 0;

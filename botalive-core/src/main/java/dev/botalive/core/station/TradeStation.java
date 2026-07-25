@@ -18,11 +18,14 @@ public interface TradeStation {
      * @param trades         počet provedených obchodů
      * @param emeraldsGained získané smaragdy (prodej)
      * @param foodBought     nakoupené jídlo (kusy)
+     * @param emeraldsSpent  utracené smaragdy (nákup jídla) – peněženka je
+     *                       musí symetricky odepsat, jinak vesničan razí
+     *                       peníze bez propadu
      */
-    record TradeReport(int trades, int emeraldsGained, int foodBought) {
+    record TradeReport(int trades, int emeraldsGained, int foodBought, int emeraldsSpent) {
 
         /** Prázdný výsledek. */
-        public static final TradeReport EMPTY = new TradeReport(0, 0, 0);
+        public static final TradeReport EMPTY = new TradeReport(0, 0, 0, 0);
     }
 
     /**

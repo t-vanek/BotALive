@@ -102,8 +102,10 @@ public final class StrongholdSeekGoal extends AbstractGoal {
         phase = Phase.LOCATE;
         locateFuture = null;
         strongholdPos = null;
+        travelTarget = null;
         travelTicks = 0;
         scanY = SCAN_Y_MIN;
+        searchPasses = 0;
     }
 
     @Override
@@ -117,6 +119,11 @@ public final class StrongholdSeekGoal extends AbstractGoal {
             }
         }
     }
+
+    /** Stabilní cíl cesty (počítá se jednou, viz tickTravel). */
+    private BlockPos travelTarget;
+    /** Průchody skenem od vstupu do SEARCH (první může jet přes studenou cache). */
+    private int searchPasses;
 
     private void tickLocate(BotContext ctx) {
         if (locateFuture == null) {
@@ -143,6 +150,15 @@ public final class StrongholdSeekGoal extends AbstractGoal {
         if (dx * dx + dz * dz <= SEARCH_START_DISTANCE * SEARCH_START_DISTANCE) {
             ctx.navigator().stop();
             scanY = SCAN_Y_MIN;
+            searchPasses = 0;
+            // Sken čte 65 vrstev 129×129 z chunk cache – po příchodu je
+            // studená a první průchod by viděl samé null → giveUp a celý
+            // cyklus LOCATE+TRAVEL znovu. Objednat okolí dopředu (vzor
+            // EndTravel/EndReturn).
+            if (ctx.worldView() != null) {
+                ctx.worldView().prefetch(new BlockPos(strongholdPos.x(),
+                        (SCAN_Y_MIN + SCAN_Y_MAX) / 2, strongholdPos.z()), 4);
+            }
             phase = Phase.SEARCH;
             return;
         }
@@ -150,9 +166,15 @@ public final class StrongholdSeekGoal extends AbstractGoal {
             giveUp(2400);
             return;
         }
-        // Jde se po povrchu k XZ strongholdu (zakopání k rámu obstará EndTravelGoal).
-        BlockPos surface = new BlockPos(strongholdPos.x(), pos.toBlockPos().y(), strongholdPos.z());
-        ctx.navigator().navigateTo(pos, PathGoal.near(surface, 6));
+        // Jde se po povrchu k XZ strongholdu (zakopání k rámu obstará
+        // EndTravelGoal). Cíl se počítá JEDNOU: y podle aktuální výšky bota
+        // se dřív přepočítával každý tick → mutující PathGoal a repath
+        // thrash na členitém terénu (anti-pattern, viz EndReturnGoal).
+        if (travelTarget == null) {
+            travelTarget = new BlockPos(strongholdPos.x(), pos.toBlockPos().y(),
+                    strongholdPos.z());
+        }
+        ctx.navigator().navigateTo(pos, PathGoal.near(travelTarget, 6));
         if (!ctx.navigator().navigating()) {
             giveUp(2400); // nedosažitelné
         }
@@ -171,8 +193,14 @@ public final class StrongholdSeekGoal extends AbstractGoal {
             return;
         }
         if (++scanY > SCAN_Y_MAX) {
-            // Rám v načteném okolí není (moc daleko / studená cache) – zkusí se
-            // znovu později, cooldown drží interval, ať to netočí naprázdno.
+            // První průchod mohl jet přes studenou cache (prefetch data
+            // teprve async dováží – 65 vrstev = ~3 s) → jednou projet znovu.
+            if (++searchPasses < 2) {
+                scanY = SCAN_Y_MIN;
+                return;
+            }
+            // Rám v načteném okolí není (moc daleko) – zkusí se znovu
+            // později, cooldown drží interval, ať to netočí naprázdno.
             giveUp(6000);
         }
     }

@@ -143,6 +143,14 @@ public final class TradeGoal extends AbstractGoal {
                     bot.wallet().deposit(report.emeraldsGained() * EMERALD_VALUE,
                             "prodej vesničanovi");
                 }
+                if (report.emeraldsSpent() > 0) {
+                    // Symetrie mint/propad: smaragd utracený za jídlo stojí
+                    // peníze. Bez odpisu byl vesničan perpetuum mobile –
+                    // prodej mintoval peníze, smaragd zůstal v batohu a jeho
+                    // utracení nestálo nic (hlavní pumpa inflace z auditu).
+                    bot.wallet().withdraw(report.emeraldsSpent() * EMERALD_VALUE,
+                            "nákup jídla u vesničana");
+                }
                 rememberVillage(ctx, bot, report.trades() > 0);
                 waitTicks = ctx.rng().rangeInt(5, 15);
                 phase = Phase.CLOSE;

@@ -74,8 +74,15 @@ public final class CreeperDodgeGoal extends AbstractGoal {
             return;
         }
         Vec3 away = ctx.position().sub(creeper.get().position());
-        ctx.requestMove(MoveInput.of(away.horizontal().normalized(), true,
-                ctx.onGround() && ctx.rng().chance(0.2)));
+        MoveInput flee = MoveInput.of(away.horizontal().normalized(), true,
+                ctx.onGround() && ctx.rng().chance(0.2));
+        // Jediný reflex, který směl sprintovat do lávy/z útesu: úskok před
+        // ~7 poškození výbuchu nesmí skončit smrtelným pádem (sourozenci
+        // Survive/Combat/Pvp EdgeGuard mají). End chrání každou hranu.
+        flee = ctx.dimension() == dev.botalive.core.world.WorldDimension.END
+                ? dev.botalive.core.physics.EdgeGuard.apply(ctx.worldView(), ctx.position(), flee)
+                : dev.botalive.core.physics.EdgeGuard.applyLethal(ctx.worldView(), ctx.position(), flee);
+        ctx.requestMove(flee);
     }
 
     @Override
