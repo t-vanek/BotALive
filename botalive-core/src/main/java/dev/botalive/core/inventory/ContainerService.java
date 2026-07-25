@@ -30,8 +30,8 @@ public final class ContainerService implements dev.botalive.core.station.ChestSt
 
     /** Kolik kusů stavebního materiálu si bot nechává na stavění/crafting. */
     private static final int KEEP_BUILDING_BLOCKS = 32;
-    /** Bez domova: rezerva na celý dům (7×7 chce ~153 bloků) + zbytek na opravy. */
-    private static final int KEEP_BUILDING_BLOCKS_HOMELESS = 176;
+    /** Bez domova: kolik bloků si bot nechá NAD spotřebu domu (na opravy). */
+    private static final int HOMELESS_REPAIR_MARGIN = 24;
 
     /** Stropy nouzového výběru: bot krade jen to, co teď potřebuje. */
     private static final int STEAL_FOOD_LIMIT = 8;
@@ -108,7 +108,11 @@ public final class ContainerService implements dev.botalive.core.station.ChestSt
      *
      * <p>Dokud nemá dům, musí si ušetřit na celou stavbu – s rezervou 32 se
      * {@code BuildHouseGoal} nikdy nedostal přes vstupní bránu (generovaný dům
-     * chce 80–153 bloků), takže bot ukládal materiál a stavbu už nezačal.
+     * chce 80–322 bloků), takže bot ukládal materiál a stavbu už nezačal.
+     * Rezerva se počítá ze SKUTEČNÉ spotřeby domu, na který bot míří: pevných
+     * 176 stačilo na osadní 7×7×3 (~153), jenže dům tieru VESNICE chce 177
+     * a MĚSTO 322 – každá návštěva truhly pak bota ořezala těsně pod vstupní
+     * bránu stavby (stejný deadlock, jaký řešila oprava 32 → 176, o tier výš).
      *
      * @param ctx kontext bota
      * @return počet bloků, které zůstanou v inventáři
@@ -120,7 +124,34 @@ public final class ContainerService implements dev.botalive.core.station.ChestSt
                 return KEEP_BUILDING_BLOCKS;
             }
         }
-        return KEEP_BUILDING_BLOCKS_HOMELESS;
+        return homeBlocksNeeded(ctx) + HOMELESS_REPAIR_MARGIN;
+    }
+
+    /**
+     * Spotřeba domu, na který bot míří – stejná geometrie jako vstupní brána
+     * {@code BuildHouseGoal.blocksNeededFor} (legacy blueprint vs. generovaný
+     * dům podle tieru sídla, lenosti a configu).
+     *
+     * @param ctx kontext bota
+     * @return počet bloků na celý dům
+     */
+    private static int homeBlocksNeeded(dev.botalive.core.ai.BotContext ctx) {
+        var buildCfg = ctx.config().build();
+        if (!buildCfg.complex()) {
+            return dev.botalive.core.build.HouseBlueprint.blocksNeeded();
+        }
+        var settlements = ctx.settlements();
+        var tier = dev.botalive.core.settlement.SettlementTier.OSADA;
+        if (settlements != null) {
+            tier = settlements.settlementOf(ctx.bot().id())
+                    .map(dev.botalive.core.settlement.SettlementService.SettlementInfo::tier)
+                    .orElse(dev.botalive.core.settlement.SettlementTier.OSADA);
+        }
+        var size = dev.botalive.core.build.plan.StructureSizer.house(tier,
+                ctx.bot().personality().trait(dev.botalive.api.personality.Trait.LAZINESS),
+                buildCfg.width(), buildCfg.wallHeight(), buildCfg.maxWallHeight());
+        return new dev.botalive.core.build.plan.HouseGenerator(
+                size.width(), size.wallHeight()).blocksNeeded();
     }
 
     /**

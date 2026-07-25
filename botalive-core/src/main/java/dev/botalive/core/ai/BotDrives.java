@@ -44,7 +44,10 @@ public final class BotDrives {
             Map.entry("socialize", Drive.SOCIAL), Map.entry("share", Drive.SOCIAL),
             Map.entry("trade", Drive.SOCIAL), Map.entry("follow", Drive.SOCIAL),
             Map.entry("reconcile", Drive.SOCIAL), Map.entry("sell", Drive.SOCIAL),
-            Map.entry("buy", Drive.SOCIAL),
+            // „buy" tu záměrně NENÍ: hladový bot kupuje JÍDLO a SOCIAL tier
+            // by mu nákup tlumil přesně tím hladem, který ho k pultu žene
+            // (soak: kopáč dřel na 9 HP / 7 hladu s penězi v kapse, protože
+            // potlačený buy nikdy nepřebil roli boostnutou těžbu).
             Map.entry("explore", Drive.ESTEEM), Map.entry("nether", Drive.ESTEEM),
             Map.entry("end-travel", Drive.ESTEEM), Map.entry("dragon-fight", Drive.ESTEEM),
             Map.entry("wither-fight", Drive.ESTEEM), Map.entry("mine", Drive.ESTEEM),

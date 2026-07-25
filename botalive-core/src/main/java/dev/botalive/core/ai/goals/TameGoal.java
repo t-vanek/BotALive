@@ -202,12 +202,16 @@ public final class TameGoal extends AbstractGoal {
         }
         Predicate<Material> item = TameService.tamingItem(animalType);
         var snapshot = ctx.serverView().latest();
-        int slot = snapshot == null || item == null ? -1 : snapshot.findHotbarSlot(item);
-        if (slot < 0) {
+        if (item == null || snapshot == null || !snapshot.hasItem(item)) {
             finish(ctx, 1800); // došly kosti/ryby/semínka
             return;
         }
-        ctx.actions().selectHotbar(slot);
+        // Pull z batohu (jako Breed/Shear/Fish): findHotbarSlot vidí jen
+        // hotbar – kosti sklouzlé do hlavního inventáře dřív znamenaly
+        // „došly", i když jich byl plný batoh, a krotitel přestal ochočovat.
+        if (!ctx.inventory().equipMatching(snapshot, item)) {
+            return; // item se přetahuje do hotbaru – klik přijde příště
+        }
         ctx.humanizer().lookAt(ctx.position().add(0, 1.62, 0),
                 animal.get().position().add(0, 0.6, 0));
         ctx.actions().interactEntity(animalEntityId);
@@ -330,7 +334,8 @@ public final class TameGoal extends AbstractGoal {
                     if (item == null) {
                         return true; // mount-based
                     }
-                    return snapshot != null && snapshot.findHotbarSlot(item) >= 0;
+                    // Celý inventář, ne jen hotbar – equip si item přitáhne.
+                    return snapshot != null && snapshot.hasItem(item);
                 })
                 .findFirst();
     }

@@ -173,6 +173,16 @@ public final class ReconcileGoal extends AbstractGoal {
 
     /** Dar předán – oběť se rozhodne podle své povahy, křivda se uzavírá. */
     private void resolve(BotContext ctx, Bot bot, Bot victim) {
+        if (given == 0) {
+            // Dar se nepodařilo vůbec vytáhnout (null snapshot po teleportu,
+            // dar cestou zmizel): křivdu NEuzavírat – settleAmends by ji
+            // označil za vyrovnanou bez daru i bez hodu na přijetí a
+            // pendingAmends by ji už nikdy nevrátil → feud navždy bez cesty
+            // ven. Cooldown stačí, usmíření se zkusí příště.
+            cooldownTicks = 2400;
+            phase = Phase.DONE;
+            return;
+        }
         ctx.crimeLog().settleAmends(amends);
         if (given > 0) {
             double patience = victim.personality().trait(Trait.PATIENCE);

@@ -61,6 +61,8 @@ public final class SellGoal extends AbstractGoal {
     private final dev.botalive.core.social.SocialGraph graph;
 
     private Phase phase = Phase.OFFER;
+    /** Běží cíl právě teď (mezi start() a stop())? Drží utilitu rozjetého prodeje. */
+    private boolean active;
     private Sale sale;
     /** Kam se má vyvěsit nabídka (pult tržiště), nebo {@code null} = kde bot stojí. */
     private BlockPos offerPos;
@@ -106,6 +108,16 @@ public final class SellGoal extends AbstractGoal {
             cooldownTicks -= ctx.config().ai().decisionIntervalTicks();
             return 0;
         }
+        double greed = bot.personality().trait(Trait.GREED);
+        // Rozjetý prodej drží do finished(): publikum i přebytek jsou brány
+        // jen pro ZAHÁJENÍ. Publikum se dřív měřilo každé rozhodnutí od
+        // AKTUÁLNÍ pozice – prodejce cestou k pultu vyšel z hloučku, utilita
+        // zhasla, stop() nabídku stáhl (bez cooldownu) a nabídky žily jen
+        // sekundy, zatímco kupci je vidí až do 48 bloků. Konec čekání hlídá
+        // waitTicks (WAIT → DONE + cooldown), takže se cíl nedrží věčně.
+        if (active && phase != Phase.DONE) {
+            return 10 + greed * 14;
+        }
         if (pickSale(ctx, bot) == null) {
             return 0;
         }
@@ -115,7 +127,6 @@ public final class SellGoal extends AbstractGoal {
         if (audience.isEmpty()) {
             return 0;
         }
-        double greed = bot.personality().trait(Trait.GREED);
         // Musí být v pásmu stash (8 + greed*10 + zaplněnost*1.5, až ~29):
         // obojí se spouští na TÉŽE podmínce (přebytek v inventáři), takže se
         // starým základem 4 + greed*9 (max 13) prodej nikdy nevyhrál – bot
@@ -126,6 +137,7 @@ public final class SellGoal extends AbstractGoal {
 
     @Override
     public void start(Bot bot) {
+        active = true;
         phase = Phase.GO;
         sale = null;
         offerPos = null;
@@ -154,6 +166,7 @@ public final class SellGoal extends AbstractGoal {
 
     @Override
     public void stop(Bot bot) {
+        active = false;
         // Nedokončený prodej nenechávat viset na nástěnce.
         if (phase == Phase.OFFER || phase == Phase.WAIT) {
             market.withdraw(bot.id());

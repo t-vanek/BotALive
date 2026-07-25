@@ -75,6 +75,7 @@ public final class TradeService implements dev.botalive.core.station.TradeStatio
         int trades = 0;
         int emeralds = 0;
         int food = 0;
+        int emeraldsSpent = 0;
         boolean hungry = player.getFoodLevel() < 14;
 
         List<MerchantRecipe> recipes = villager.getRecipes();
@@ -91,6 +92,9 @@ public final class TradeService implements dev.botalive.core.station.TradeStatio
                 for (ItemStack ingredient : recipe.getIngredients()) {
                     if (ingredient != null && !ingredient.getType().isAir()) {
                         player.getInventory().removeItem(ingredient.clone());
+                        if (ingredient.getType() == Material.EMERALD) {
+                            emeraldsSpent += ingredient.getAmount();
+                        }
                     }
                 }
                 var overflow = player.getInventory().addItem(recipe.getResult().clone());
@@ -107,7 +111,7 @@ public final class TradeService implements dev.botalive.core.station.TradeStatio
                 }
             }
         }
-        return new TradeReport(trades, emeralds, food);
+        return new TradeReport(trades, emeralds, food, emeraldsSpent);
     }
 
     /** Má bot všechny suroviny receptu? */

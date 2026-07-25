@@ -65,6 +65,8 @@ public final class EndTravelGoal extends AbstractGoal {
     private static final int FILL_CLICK_INTERVAL = 8;
 
     private Phase phase = Phase.GO;
+    /** Běží výprava (mezi úspěšným start() a stop())? Drží utilitu za běhu. */
+    private boolean active;
     private BlockPos rememberedPortal;
     private PortalEntry entry;
     private int cooldownTicks;
@@ -98,12 +100,21 @@ public final class EndTravelGoal extends AbstractGoal {
                 && !EndKnowledge.dragonSlain(bot.memory())) {
             return 0;
         }
-        // Na výpravu se nevyráží polomrtvý ani hladový.
-        if (!expeditionFit(ctx)) {
-            return 0;
-        }
         if (cooldownTicks > 0) {
             cooldownTicks -= ctx.config().ai().decisionIntervalTicks();
+            return 0;
+        }
+        // Rozjetá výprava (cesta, plnění rámu, vstup) se drží do finished():
+        // výbavové a zdravotní prahy platí jen pro ZAHÁJENÍ. Přehodnocované
+        // za běhu otáčely bota ode dveří – stačilo cestou prostřílet šíp pod
+        // 16 nebo sníst zásoby pod práh a bot s okama v ruce odešel od
+        // portálu kvůli „málu bloků na mosty", které už nepotřeboval.
+        // Reflexy (survive/eat, 80+) tuhle hodnotu přebijí vždy.
+        if (active && phase != Phase.DONE) {
+            return 12 + bot.personality().trait(Trait.COURAGE) * 10;
+        }
+        // Na výpravu se nevyráží polomrtvý ani hladový.
+        if (!expeditionFit(ctx)) {
             return 0;
         }
         double courage = bot.personality().trait(Trait.COURAGE);
@@ -160,11 +171,31 @@ public final class EndTravelGoal extends AbstractGoal {
                 .orElse(null);
         if (rememberedPortal == null) {
             phase = Phase.DONE;
+            active = false;
             return;
         }
+        active = true;
         if (ctx.rng().chance(0.8)) {
             ctx.chat().sayFrom(PhraseCategory.END_DEPART, null);
         }
+    }
+
+    @Override
+    public void stop(Bot bot) {
+        // Konec běhu (dokončení, selhání, dobrovolné přepnutí) – hold
+        // utility platí jen pro běžící výpravu; stav zůstává zachovaný.
+        active = false;
+        super.stop(bot);
+    }
+
+    @Override
+    public void pause(Bot bot) {
+        // Reflexní přerušení (boj, jídlo): příznak běhu PŘEŽÍVÁ – hold pak
+        // výpravu vrátí, i když si reflex ukousl šípy/jídlo pod odjezdové
+        // prahy (ty platí jen pro zahájení, ne pro návrat k rozdělané cestě).
+        boolean wasActive = active;
+        stop(bot);
+        active = wasActive;
     }
 
     @Override
@@ -173,7 +204,8 @@ public final class EndTravelGoal extends AbstractGoal {
         // výpravy (phase, rememberedPortal, entry, frameTargets) přežil pause –
         // stop() ho nemaže, jen zastavil navigaci. tick() ji sám obnoví, takže
         // se NEvolá start() (ten by fázi resetoval na GO a zopakoval odchodovou
-        // hlášku). Nic není potřeba, jen nespustit svěží start.
+        // hlášku). Jen se obnoví příznak běhu pro hold utility.
+        active = rememberedPortal != null && phase != Phase.DONE;
     }
 
     @Override

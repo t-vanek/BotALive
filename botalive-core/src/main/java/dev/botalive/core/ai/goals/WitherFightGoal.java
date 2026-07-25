@@ -80,6 +80,8 @@ public final class WitherFightGoal extends AbstractGoal {
     private boolean fightActive;
     private long fightDeadlineMs;
     private int skullTicks;
+    /** Pokusy o aktuální lebku (klik/equip) – fronta se posouvá dle světa. */
+    private int skullAttempts;
     private int retreatTicks;
     private int goTicks;
     private int witherGoneTicks;
@@ -216,6 +218,7 @@ public final class WitherFightGoal extends AbstractGoal {
         buildQueue.addAll(WitherAltar.sandPlacements(altarBase, altarAxisX));
         skullQueue.clear();
         skullQueue.addAll(WitherAltar.skullSupports(altarBase, altarAxisX));
+        skullAttempts = 0;
         phase = Phase.BUILD;
     }
 
@@ -251,27 +254,53 @@ public final class WitherFightGoal extends AbstractGoal {
         if (--skullTicks > 0) {
             return;
         }
-        BlockPos support = skullQueue.poll();
+        // Úspěšná POSLEDNÍ lebka oltář okamžitě promění ve withera (bloky
+        // zmizí) – jakmile boss existuje, nemá smysl nic ověřovat ani klikat.
+        if (findWither(ctx).isPresent()) {
+            skullQueue.clear();
+            beginSummonRetreat(ctx);
+            return;
+        }
+        BlockPos support = skullQueue.peek();
         if (support == null) {
-            // Poslední lebka položena – wither roste (11 s nezranitelnosti).
-            retreatTicks = 0;
-            fightActive = true;
-            fightDeadlineMs = System.currentTimeMillis()
-                    + ctx.config().nether().wither().maxFightMinutes() * 60_000L;
-            phase = Phase.RETREAT;
+            beginSummonRetreat(ctx);
+            return;
+        }
+        // Fronta se posouvá až podle SVĚTA: klik odcházel týž tick jako
+        // lookAt a server ho při nedotočené rotaci zahazuje (přesně proto má
+        // PlaceBlockTask AIM fázi). Slepé poll() dřív „položilo" všechny tři
+        // lebky, i když nestála ani jedna – lebky (2,5% drop) se ztratily na
+        // opuštěném oltáři a FIGHT startoval bez withera.
+        Material above = ctx.worldView().materialAt(support.up());
+        if (above == Material.WITHER_SKELETON_SKULL
+                || above == Material.WITHER_SKELETON_WALL_SKULL) {
+            skullQueue.poll();
+            skullAttempts = 0;
+            return;
+        }
+        if (++skullAttempts > 12) {
+            finish(4800); // lebka nejde položit / zmizela – nezačínat boj s nikým
             return;
         }
         var snapshot = ctx.serverView().latest();
         if (snapshot == null
                 || !ctx.inventory().equipItem(snapshot, Material.WITHER_SKELETON_SKULL)) {
-            skullTicks = 4;
-            skullQueue.addFirst(support);
+            skullTicks = 4; // pull z batohu / čerstvý snapshot – zkusit hned
             return;
         }
         ctx.humanizer().lookAt(ctx.position().add(0, 1.62, 0),
                 support.center().add(0, 0.5, 0));
         ctx.actions().useItemOn(support, Direction.UP);
         skullTicks = ctx.rng().rangeInt(8, 14);
+    }
+
+    /** Wither roste (11 s nezranitelnosti) – sprint na rozestup. */
+    private void beginSummonRetreat(BotContext ctx) {
+        retreatTicks = 0;
+        fightActive = true;
+        fightDeadlineMs = System.currentTimeMillis()
+                + ctx.config().nether().wither().maxFightMinutes() * 60_000L;
+        phase = Phase.RETREAT;
     }
 
     /** Sprint od rostoucího bosse – okno nezranitelnosti je na rozestup. */

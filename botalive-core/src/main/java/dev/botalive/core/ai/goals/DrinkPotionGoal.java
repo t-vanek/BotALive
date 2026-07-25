@@ -48,11 +48,16 @@ public final class DrinkPotionGoal extends AbstractGoal {
             return 0;
         }
         // Hoří/stojí v lávě: odolnost ohni zastaví poškození okamžitě –
-        // priorita nad bojem i většinou přežívání (1,6 s pití se vyplatí).
+        // priorita NAD hořícím přežíváním (survive burning = 80 + missing·8
+        // + 60 ≤ 292). S hodnotou 95 byla tahle větev mrtvý kód: jediný
+        // scénář, pro který existuje, ji stoprocentně přebíjel a bot
+        // s lektvarem v kapse utíkal/uhořel, místo aby se napil (1,6 s pití
+        // láva nezabije, s odolností pak neubližuje vůbec). Creeper (400)
+        // zůstává výš – před výbuchem se nepije.
         if ((snapshot.onFire() || snapshot.inLava())
                 && !ctx.clientState().effectActive(Effect.FIRE_RESISTANCE)
                 && carries(snapshot, ItemVariants.FIRE_RESISTANCE)) {
-            return 95;
+            return 300;
         }
         float health = ctx.clientState().health();
         if (health <= 10 && carries(snapshot, ItemVariants.HEALING)) {

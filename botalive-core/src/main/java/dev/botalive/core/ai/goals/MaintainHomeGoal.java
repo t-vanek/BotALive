@@ -135,6 +135,14 @@ public final class MaintainHomeGoal extends AbstractGoal {
         if (outsideOverworld(ctx)) {
             return 0;
         }
+        // Rozdělaná výměna bloku se dotahuje: tickUpgrade nejdřív starý blok
+        // vytěží a náhradu pokládá až další tick – soumrak (čas ≥ 11500)
+        // mezi nimi dřív nechal DÍRU VE ZDI přes celou noc (mobové uvnitř),
+        // přesný opak smyslu údržby. Denní okno platí jen pro zahájení.
+        if (current != null || upgrading || growing || !demolitions.isEmpty()) {
+            double caution = bot.personality().trait(Trait.CAUTION);
+            return 5 + caution * 5 + bot.personality().trait(Trait.INTELLIGENCE) * 3;
+        }
         // Opravuje se za světla (stejné okno jako stavba).
         long time = ctx.worldTime();
         if (time >= 11500 && time <= 23000) {
@@ -319,12 +327,24 @@ public final class MaintainHomeGoal extends AbstractGoal {
         upgrades.clear();
         demolitions.clear();
         furnish.clear();
+        // Příznaky rozdělané práce nesmí přežít stop() – utility hold
+        // i blocksRelocation čtou právě je.
+        upgrading = false;
+        growing = false;
         super.stop(bot);
     }
 
     @Override
     public boolean finished(Bot bot) {
         return phase == Phase.DONE;
+    }
+
+    @Override
+    public boolean blocksRelocation() {
+        // Růst domu bourá starý vnitřek a staví nový plášť – přestěhování
+        // uprostřed (kohezní migrace vesnice) by nechalo hybridní torzo
+        // a consumeRebuild poslal bota stavět jinam.
+        return growing || upgrading || !demolitions.isEmpty();
     }
 
     @Override

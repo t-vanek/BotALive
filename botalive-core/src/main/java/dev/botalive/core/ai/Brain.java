@@ -25,6 +25,18 @@ public final class Brain {
 
     private static final Logger LOG = LoggerFactory.getLogger(Brain.class);
 
+    /**
+     * Fyziologické reflexy: váhy osobnosti, rolí, rytmu, ambicí, zaměstnání,
+     * nálady, únavy, pudů ani hybnosti je NEmodulují. Nabuzená práce uměla
+     * stackem vah (role ×2.5 · rytmus ×1.4 · ambice ×1.6 · zaměstnání ×1.6…)
+     * přebít jídlo i při hladu 0 – bot kopal, dokud ho starvation nesrazil
+     * ke kritickému zdraví, a pudová suprese (SAFETY tlumí SUSTENANCE) jídlo
+     * srážela ×0.4 z pouhého počtu mobů za plotem. Dimenzní zákazy a
+     * hystereze platí dál.
+     */
+    private static final java.util.Set<String> REFLEXES =
+            java.util.Set.of("eat", "survive", "creeper-dodge", "drink");
+
     private final Bot bot;
     private final List<Goal> goals;
     private final int decisionInterval;
@@ -232,32 +244,36 @@ public final class Brain {
             if (utility <= 0) {
                 continue;
             }
-            // Profese vychyluje priority (kovář taví ochotněji, lovec loví...) –
-            // přes registr rolí, aby fungovaly i cizí role pluginů.
-            utility *= impl != null
-                    ? impl.roleWeight(goal.id())
-                    : dev.botalive.core.role.RoleProfiles.weight(bot.role(), goal.id());
-            // Denní rytmus: ráno pole, přes den těžba/stavba, večer družení.
-            // V Endu/Netheru není den a noc – rytmus tam neplatí.
-            if (rhythm != null && DimensionPolicy.rhythmApplies(dimension)) {
-                utility *= rhythm.multiplier(goal.id(), BotContext.of(bot).worldTime());
-            }
-            // Životní ambice táhne související cíle (dokud není splněná).
-            if (impl != null) {
-                utility *= impl.ambitionWeight(goal.id());
-                // Zaměstnání: dělník se soustředí na práci a míň se fláká.
-                utility *= impl.employmentWeight(goal.id());
-                // Nálada: aktuální emoce jemně vychyluje priority (viz docs/BOT_LIFE.md).
-                utility *= impl.moodWeight(goal.id());
-                // Únava: unavený bot odkládá dlouhé výpravy a vyhledá odpočinek.
-                utility *= impl.vitalsWeight(goal.id());
-                // Pudy: naléhavá základní potřeba tlumí cíle vyšších potřeb (Maslow).
-                utility *= impl.drivesWeight(goal.id());
-                // Naučená hybnost: co bot úspěšně dokončuje, dělá o kus radši.
-                utility *= impl.momentumWeight(goal.id());
-                // Návrat k práci: cíl nedávno přerušený reflexem má krátce navrch,
-                // aby se k němu bot vrátil, ne aby po odeznění hrozby odešel jinam.
-                utility *= impl.resumptionWeight(goal.id());
+            // Reflexy se dál nemodulují (viz REFLEXES) – jejich pořadí určují
+            // jen vlastní prahy (survive 80+ > eat ≤118 > drink ≤95).
+            if (!REFLEXES.contains(goal.id())) {
+                // Profese vychyluje priority (kovář taví ochotněji, lovec
+                // loví...) – přes registr rolí, aby fungovaly i cizí role.
+                utility *= impl != null
+                        ? impl.roleWeight(goal.id())
+                        : dev.botalive.core.role.RoleProfiles.weight(bot.role(), goal.id());
+                // Denní rytmus: ráno pole, přes den těžba/stavba, večer družení.
+                // V Endu/Netheru není den a noc – rytmus tam neplatí.
+                if (rhythm != null && DimensionPolicy.rhythmApplies(dimension)) {
+                    utility *= rhythm.multiplier(goal.id(), BotContext.of(bot).worldTime());
+                }
+                // Životní ambice táhne související cíle (dokud není splněná).
+                if (impl != null) {
+                    utility *= impl.ambitionWeight(goal.id());
+                    // Zaměstnání: dělník se soustředí na práci a míň se fláká.
+                    utility *= impl.employmentWeight(goal.id());
+                    // Nálada: emoce jemně vychyluje priority (viz docs/BOT_LIFE.md).
+                    utility *= impl.moodWeight(goal.id());
+                    // Únava: unavený bot odkládá výpravy a vyhledá odpočinek.
+                    utility *= impl.vitalsWeight(goal.id());
+                    // Pudy: naléhavá základní potřeba tlumí cíle vyšších potřeb.
+                    utility *= impl.drivesWeight(goal.id());
+                    // Naučená hybnost: co bot úspěšně dokončuje, dělá radši.
+                    utility *= impl.momentumWeight(goal.id());
+                    // Návrat k práci: cíl přerušený reflexem má krátce navrch,
+                    // aby se k němu bot vrátil, ne aby odešel jinam.
+                    utility *= impl.resumptionWeight(goal.id());
+                }
             }
             // Hystereze aktivního cíle + drobný rozhodovací šum.
             if (goal == current) {

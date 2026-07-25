@@ -186,6 +186,19 @@ public class BotActions {
     }
 
     /**
+     * Vstane z postele (tlačítko „Leave bed"). Server drží spící tělo
+     * v posteli, dokud nepřijde tenhle příkaz, úsvit nebo zásah – cíl,
+     * který spánek opouští předčasně, ho MUSÍ poslat, jinak nový cíl hýbe
+     * botem, jehož pohyb a útoky server zahazuje.
+     */
+    public void leaveBed() {
+        connection.send(new org.geysermc.mcprotocollib.protocol.packet.ingame.serverbound
+                .player.ServerboundPlayerCommandPacket(state.entityId(),
+                org.geysermc.mcprotocollib.protocol.data.game.entity.player.PlayerState
+                        .LEAVE_BED));
+    }
+
+    /**
      * Prohodí držený item s offhandem (klávesa F) – např. štít do druhé ruky.
      */
     public void swapOffhand() {

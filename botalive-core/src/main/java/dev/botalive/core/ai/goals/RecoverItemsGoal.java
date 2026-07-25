@@ -39,6 +39,9 @@ public final class RecoverItemsGoal extends AbstractGoal {
     private MemoryRecord lost;
     private int sweepEmptyTicks;
     private boolean sawAnyItem;
+    /** Detekce nedosažitelného dropu (láva, římsa) – vzor CollectItemsGoal. */
+    private int sweepStallTicks;
+    private double sweepNearestSq = Double.MAX_VALUE;
 
     /** Vytvoří cíl. */
     public RecoverItemsGoal() {
@@ -83,6 +86,8 @@ public final class RecoverItemsGoal extends AbstractGoal {
         phase = Phase.TRAVEL;
         sweepEmptyTicks = 0;
         sawAnyItem = false;
+        sweepStallTicks = 0;
+        sweepNearestSq = Double.MAX_VALUE;
         lost = freshestLoss(bot);
         if (lost != null && ctx.rng().chance(0.5)) {
             ctx.chat().sayFrom(PhraseCategory.RECOVER_RUN, null);
@@ -149,6 +154,19 @@ public final class RecoverItemsGoal extends AbstractGoal {
         sweepEmptyTicks = 0;
         sawAnyItem = true;
         TrackedEntity target = item.get();
+        // Nedosažitelný drop (plave v lávě vedle místa smrti, leží na římse):
+        // viditelný item dřív držel SWEEP až do konce despawn okna – navigátor
+        // cíl po marných pokusech uzavřel do backoffu, navigateTo se tiše
+        // odmítalo a sweepEmptyTicks nerostlo, protože item byl pořád vidět.
+        // Stejná detekce zástavy jako v CollectItemsGoal.
+        double distSq = ctx.position().distanceSquared(target.position());
+        if (distSq < sweepNearestSq - 0.25) {
+            sweepNearestSq = distSq;
+            sweepStallTicks = 0;
+        } else if (++sweepStallTicks > 200) {
+            finishSweep(ctx, bot); // co šlo, se posbíralo – zbytek je z ruky
+            return;
+        }
         ctx.humanizer().lookAt(ctx.position().add(0, 1.62, 0), target.position());
         ctx.navigator().navigateTo(ctx.position(), target.position().toBlockPos());
     }

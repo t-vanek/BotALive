@@ -36,12 +36,20 @@ public final class CompostGoal extends AbstractGoal {
         super("compost");
     }
 
-    /** Kompostovatelný přebytek (semínka, sazenice, listí…). */
+    /** Osivo na založení pole, které se NIKDY nekompostuje (startCropField chce 9). */
+    private static final int SEED_RESERVE = 9;
+
+    /**
+     * Kompostovatelný přebytek (semínka, sazenice, listí…). PŠENICE sem
+     * záměrně nepatří: je to krmivo chovu (kráva/ovce/koza) a surovina
+     * kuchyně – kompost ji dřív semlel a kanibalizoval tím vstupy
+     * BreedGoal/FarmGoal (souhrnný práh 12 spustil kompostování klidně
+     * z 6 semínek + 6 sazenic).
+     */
     private static boolean compostable(Material material) {
         return material.name().endsWith("_SEEDS")
                 || dev.botalive.core.inventory.Items.isSapling(material)
                 || dev.botalive.core.inventory.Materials.isLeaves(material)
-                || material == Material.WHEAT
                 || material == Material.KELP || material == Material.SUGAR_CANE;
     }
 
@@ -116,10 +124,15 @@ public final class CompostGoal extends AbstractGoal {
                     return;
                 }
                 var snapshot = ctx.serverView().latest();
+                // Rezerva osiva: pšeničná semínka na založení pole se nemelou.
+                int wheatSeeds = snapshot == null ? 0 : dev.botalive.core.inventory
+                        .InventoryHelper.countItem(snapshot, Material.WHEAT_SEEDS);
+                java.util.function.Predicate<Material> feed = m -> compostable(m)
+                        && (m != Material.WHEAT_SEEDS || wheatSeeds > SEED_RESERVE);
                 // Vyprázdnění plného composteru řeší tentýž klik – po naplnění
                 // vypadne bone meal a bot ho sebere (server ho přitáhne sám).
                 if (uses >= 24 || snapshot == null
-                        || !ctx.inventory().equipMatching(snapshot, CompostGoal::compostable)) {
+                        || !ctx.inventory().equipMatching(snapshot, feed)) {
                     // Poslední klik naprázdno vybere případný hotový bone meal.
                     ctx.actions().useItemOn(composter, Direction.UP);
                     cooldownTicks = 2400;

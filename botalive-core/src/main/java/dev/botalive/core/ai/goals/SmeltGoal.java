@@ -48,6 +48,9 @@ public final class SmeltGoal extends AbstractGoal {
     /**
      * @param furnaces sdílená služba pecí
      */
+    /** Jak dlouho po dozrání výběru marker pending pece nejdéle žije (ms). */
+    private static final long PENDING_TTL_MS = 10 * 60_000L;
+
     public SmeltGoal(FurnaceStation furnaces) {
         super("smelt");
         this.furnaces = furnaces;
@@ -56,12 +59,16 @@ public final class SmeltGoal extends AbstractGoal {
     @Override
     public double utility(Bot bot) {
         BotContext ctx = ctx(bot);
-        if (collectReady()) {
-            return 16 + bot.personality().trait(Trait.PATIENCE) * 6;
-        }
+        // Cooldown platí i pro výběr: collectReady PŘED cooldownem uměl po
+        // finish(1800) u nedosažitelné pece nastartovat cíl hned znovu –
+        // mikro-seance smelt→fail→smelt každé rozhodnutí ovládly bota
+        // (u kováře ×2.5), dokud cesta k peci nezačala existovat.
         if (cooldownTicks > 0) {
             cooldownTicks -= ctx.config().ai().decisionIntervalTicks();
             return 0;
+        }
+        if (collectReady()) {
+            return 16 + bot.personality().trait(Trait.PATIENCE) * 6;
         }
         var snapshot = ctx.serverView().latest();
         if (snapshot == null || !snapshot.hasItem(FurnaceService::isFuel)) {
@@ -179,14 +186,22 @@ public final class SmeltGoal extends AbstractGoal {
     private void onWorkDone(BotContext ctx, Bot bot) {
         if (collecting) {
             Object result = pending.getNow(null);
-            pendingFurnace = null;
-            collectReadyAtMs = 0;
             if (result instanceof Integer taken && taken > 0) {
                 ctx.stats().addMined(); // hrubá metrika produktivity kováře
+                pendingFurnace = null;
+                collectReadyAtMs = 0;
+            } else {
+                // Nic nevyzvednuto (typicky plný batoh – ingoty zůstaly
+                // v result slotu a pec by se ucpala): marker NEmazat, bot se
+                // vrátí s volnějším batohem; definitivní úklid řeší TTL.
+                collectReadyAtMs = System.currentTimeMillis() + 60_000;
             }
         } else {
             Object result = pending.getNow(null);
-            if (result instanceof FurnaceStation.InsertReport report && report.inserted() > 0) {
+            if (result instanceof FurnaceStation.InsertReport report && report.inserted() > 0
+                    && (pendingFurnace == null || pendingFurnace.equals(furnace))) {
+                // Druhá vsázka do JINÉ pece dřív marker tiše přepsala a první
+                // vsázka se zapomněla – držet nejstarší rozdělaný výběr.
                 pendingFurnace = furnace;
                 collectReadyAtMs = System.currentTimeMillis()
                         + report.inserted() * SMELT_TIME_PER_ITEM_MS + 5_000;
@@ -208,8 +223,18 @@ public final class SmeltGoal extends AbstractGoal {
     }
 
     private boolean collectReady() {
-        return pendingFurnace != null && collectReadyAtMs > 0
-                && System.currentTimeMillis() >= collectReadyAtMs;
+        if (pendingFurnace == null || collectReadyAtMs <= 0) {
+            return false;
+        }
+        long now = System.currentTimeMillis();
+        // TTL: pec dlouhodobě nedosažitelná (zával) nebo výsledek dávno pryč –
+        // marker uklidit, ať se bot nevrací věčně (vsázku oželet).
+        if (now > collectReadyAtMs + PENDING_TTL_MS) {
+            pendingFurnace = null;
+            collectReadyAtMs = 0;
+            return false;
+        }
+        return now >= collectReadyAtMs;
     }
 
     private void finish(BotContext ctx, int cooldown) {

@@ -228,8 +228,12 @@ public final class CombatController {
         // Ústup při nízkém zdraví – práh závisí na odvaze. Dvoustupňově:
         // okamžité přímé couvání drží bota v pohybu, a jakmile se dopočítá
         // plánovaný útěk po pochozím terénu (obchází lávu, hrany, slepé
-        // kouty), převezme řízení navigace.
-        double retreatThreshold = 6 + (1.0 - personality.trait(Trait.COURAGE)) * 8;
+        // kouty), převezme řízení navigace. Koeficient MUSÍ sedět s prahy
+        // CombatGoal/SurviveGoal (6 + (1−c)·6): s ·8 tu vznikalo pásmo
+        // „bojového limba" široké až 2 HP, kde combat goal běžel, ale
+        // controller jen couval a survive ještě nepřevzal – bot „bojoval"
+        // couváním, dokud melee watchdog cyklus neuťal.
+        double retreatThreshold = 6 + (1.0 - personality.trait(Trait.COURAGE)) * 6;
         if (health <= retreatThreshold) {
             ranged.reset();
             if (navigator != null) {

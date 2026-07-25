@@ -57,6 +57,14 @@ public final class StealGoal extends AbstractGoal {
         if (!ctx.config().ai().desperation()) {
             return 0;
         }
+        // Rozjetá transakce (truhla otevřená, withdraw letí) se dotahuje:
+        // brána starving/destitute zhasne, jakmile jídlo dopadne do batohu –
+        // tedy PŘED koncem čekací kosmetiky LOOT. Bez téhle větve se
+        // onLooted() (kniha zločinů, svědomí, cooldown) v běžném průběhu
+        // nikdy nezavolal a krádež zůstala bez následků.
+        if (phase == Phase.OPEN || phase == Phase.LOOT) {
+            return 30;
+        }
         BotNeeds needs = BotNeeds.assess(ctx.serverView().latest());
         boolean starving = needs.starving(ctx.clientState().food());
         boolean destitute = needs.destitute();
@@ -163,8 +171,12 @@ public final class StealGoal extends AbstractGoal {
     @Override
     public void stop(Bot bot) {
         BotContext ctx = ctx(bot);
-        if (phase == Phase.LOOT) {
+        if (phase == Phase.OPEN || phase == Phase.LOOT) {
             ctx.actions().closeContainer();
+            // Přerušení uprostřed vybírání (reflex): withdraw už mohl
+            // proběhnout, ale onLooted() s cooldownem se nestihl – bez
+            // pojistky by se zloděj hned příští rozhodnutí vrátil.
+            cooldownTicks = Math.max(cooldownTicks, 2400);
         }
         super.stop(bot);
     }

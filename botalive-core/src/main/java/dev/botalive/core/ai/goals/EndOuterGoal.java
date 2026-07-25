@@ -115,6 +115,8 @@ public final class EndOuterGoal extends AbstractGoal {
     private Vec3 preThrowPos;
     private int throwTicks;
     private int pearlThrows;
+    /** Čekání u zpáteční gateway bez perel (viz tickThrow homeRun větev). */
+    private int pearlWaitTicks;
     private int exploreHops;
     private int equipTries;
     private int waitTicks;
@@ -140,8 +142,17 @@ public final class EndOuterGoal extends AbstractGoal {
             return 0;
         }
         var outer = ctx.config().end().outer();
-        if (!ctx.config().end().enabled() || !outer.enabled()
-                || ctx.clientState().dead() || ctx.dimension() != WorldDimension.END) {
+        // Smrt nebo odchod z Endu uprostřed výpravy = konec výpravy. Fáze se
+        // dřív držela jako „zombie": při DALŠÍ návštěvě Endu (o hodiny
+        // později) větev `phase != IDLE → 30` obešla všechny brány a tick
+        // pokračoval se zatuchlými souřadnicemi vnějších ostrovů – void-mosty
+        // z hlavního ostrova a HOME_GO k tisíc bloků vzdálené gateway.
+        boolean tripOver = ctx.clientState().dead()
+                || ctx.dimension() != WorldDimension.END;
+        if (tripOver && phase != Phase.IDLE && phase != Phase.DONE) {
+            resetTrip();
+        }
+        if (!ctx.config().end().enabled() || !outer.enabled() || tripOver) {
             return 0;
         }
         // Rozjetá výprava (nebo bot uvízlý na vnějších ostrovech) se dokončuje.
@@ -183,6 +194,24 @@ public final class EndOuterGoal extends AbstractGoal {
         return s != null && s.armor().length > 2 && s.armor()[2] == Material.ELYTRA;
     }
 
+    /** Tvrdý konec výpravy (smrt/odchod z dimenze): zapomenout per-trip stav. */
+    private void resetTrip() {
+        phase = Phase.IDLE;
+        gateway = null;
+        returnGateway = null;
+        cityPos = null;
+        currentChest = null;
+        framePos = null;
+        boxPos = null;
+        boxUsed = false;
+        lootFuture = null;
+        locateFuture = null;
+        preThrowPos = null;
+        cityProgressPos = null;
+        bridgeLegs = 0;
+        pearlWaitTicks = 0;
+    }
+
     /** @return {@code true} mimo hlavní ostrov (za prstencem gatewayí) */
     static boolean onOuterIslands(Vec3 position) {
         return position.horizontal().distance(Vec3.ZERO) > OUTER_THRESHOLD;
@@ -205,6 +234,7 @@ public final class EndOuterGoal extends AbstractGoal {
         tripDeadlineMs = System.currentTimeMillis()
                 + ctx.config().end().outer().maxTripMinutes() * 60_000L;
         pearlThrows = 0;
+        pearlWaitTicks = 0;
         exploreHops = 0;
         equipTries = 0;
     }
@@ -326,6 +356,19 @@ public final class EndOuterGoal extends AbstractGoal {
         }
         int pearls = InventoryHelper.countItem(snapshot, Material.ENDER_PEARL);
         boolean homeRun = after == Phase.DONE;
+        if (pearls <= 0 && homeRun) {
+            // Bez perel se domů neskočí – a beginHomeRun by z HOME_THROW
+            // udělal 2tikovou smyčku HOME_GO↔HOME_THROW bez východiska.
+            // Zůstat u gateway (perla může přibýt z lovu endermana přes
+            // combat) a po minutě výpravu uspat; po cooldownu se návrat
+            // zkusí znovu z fáze HOME_GO.
+            if (++pearlWaitTicks > 1200) {
+                pearlWaitTicks = 0;
+                cooldownTicks = 2400;
+                phase = Phase.HOME_GO;
+            }
+            return;
+        }
         if (pearls <= 0 || (!homeRun
                 && pearls <= ctx.config().end().outer().pearlReserve())) {
             beginHomeRun(ctx); // perly došly – bez rezervy se ven nechodí
@@ -801,6 +844,14 @@ public final class EndOuterGoal extends AbstractGoal {
     }
 
     private void tickHomeGo(BotContext ctx) {
+        // Průchod gatewayí bez fáze HOME_THROW (slet na elytrách do portálu,
+        // otěr při chůzi): jakmile bot NENÍ na vnějších ostrovech, návrat se
+        // povedl – dřív fáze zůstala HOME_GO a bot šlapal na kraji hlavního
+        // ostrova k „gateway" vzdálené tisíc bloků.
+        if (!onOuterIslands(ctx.position())) {
+            finish(ctx, 2400);
+            return;
+        }
         if (returnGateway == null) {
             BlockPos found = scanFor(ctx.worldView(), ctx.position().toBlockPos(),
                     32, 32, Material.END_GATEWAY);

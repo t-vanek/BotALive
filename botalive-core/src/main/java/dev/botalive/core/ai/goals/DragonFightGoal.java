@@ -67,9 +67,27 @@ public final class DragonFightGoal extends AbstractGoal {
     private BlockPos crystalApproach;
     private int crystalApproachId = -1;
 
+    /**
+     * Kdy bot naposled na draka reálně útočil (melee/krystaly). Záměrně se
+     * NEresetuje ve start() – přežívá smrt i timeout zátahu, aby se trofej
+     * dala dozapsat: TROPHY type=dragon píše jedině celebrate(), a když bot
+     * zemřel těsně po smrtící ráně (nebo draka dorazil soused po vypršelém
+     * zátahu), fightStarted byl false a End zůstal pro bota navždy zamčený
+     * (end-outer/elytra gate na osobní trofej).
+     */
+    private long lastFightMs;
+
+    /** Jak dlouho po posledním útoku se vítězství ještě připíše (ms). */
+    private static final long FIGHT_CREDIT_WINDOW_MS = 30 * 60_000L;
+
     /** Vytvoří cíl. */
     public DragonFightGoal() {
         super("dragon-fight");
+    }
+
+    private boolean recentFight() {
+        return lastFightMs > 0
+                && System.currentTimeMillis() - lastFightMs < FIGHT_CREDIT_WINDOW_MS;
     }
 
     @Override
@@ -86,7 +104,12 @@ public final class DragonFightGoal extends AbstractGoal {
             return 0;
         }
         boolean dragonVisible = findDragon(ctx).isPresent();
-        if (!dragonVisible && !fightStarted) {
+        // Kredit za nedávný boj: po smrti/timeoutu se cíl ještě aktivuje,
+        // zkontroluje výstupní portál a případně dozapíše trofej (viz
+        // lastFightMs). Jakmile trofej existuje, větev zhasne.
+        boolean pendingCredit = recentFight()
+                && !dev.botalive.core.ai.EndKnowledge.dragonSlain(bot.memory());
+        if (!dragonVisible && !fightStarted && !pendingCredit) {
             return 0;
         }
         double courage = bot.personality().trait(Trait.COURAGE);
@@ -188,7 +211,7 @@ public final class DragonFightGoal extends AbstractGoal {
         if (dragon.isPresent()) {
             fightStarted = true;
             dragonGoneTicks = 0;
-        } else if (fightStarted
+        } else if ((fightStarted || recentFight())
                 && pos.horizontal().distance(Vec3.ZERO) < 80
                 && ++dragonGoneTicks > DRAGON_GONE_TICKS) {
             // Drak zmizel z trackeru: mrtvý, nebo jen krouží mimo dosah
@@ -276,6 +299,7 @@ public final class DragonFightGoal extends AbstractGoal {
             return;
         }
         ctx.navigator().stop();
+        lastFightMs = System.currentTimeMillis();
         ctx.requestMove(EdgeGuard.apply(ctx.worldView(), pos,
                 crystalShot.tick(pos, crystal, ctx.serverView().latest())));
     }
@@ -291,6 +315,7 @@ public final class DragonFightGoal extends AbstractGoal {
         }
         ctx.navigator().stop();
         ctx.combat().engage(dragon);
+        lastFightMs = System.currentTimeMillis();
         if (tauntCooldown == 0 && ctx.rng().chance(0.05)) {
             ctx.chat().sayFrom(PhraseCategory.COMBAT_TAUNTS, null);
             tauntCooldown = 600;
